@@ -1,0 +1,119 @@
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { z } from "zod";
+import {
+  assignees,
+  emailInbox,
+  tasks,
+  taskEmails,
+  chatSessions,
+  confirmations,
+  devices,
+} from "@/lib/db/schema";
+
+// Assignees
+export const insertAssigneeSchema = createInsertSchema(assignees, {
+  name: z.string().min(1).max(100),
+  email: z.string().email(),
+  personality: z.string().max(2000).optional(),
+  model: z.string().max(100).optional(),
+  availableTools: z.array(z.string()).optional(),
+}).omit({ id: true, userId: true, createdAt: true, updatedAt: true });
+
+export const updateAssigneeSchema = insertAssigneeSchema.partial();
+
+export const selectAssigneeSchema = createSelectSchema(assignees);
+
+// Email Inbox
+export const insertEmailSchema = createInsertSchema(emailInbox, {
+  fromEmail: z.string().email(),
+  toEmail: z.string().email(),
+  subject: z.string().max(500).optional(),
+  body: z.string().optional(),
+  receivedAt: z.string(),
+  metadata: z.record(z.unknown()).optional(),
+}).omit({ id: true, userId: true });
+
+export const updateEmailSchema = z.object({
+  isRead: z.boolean().optional(),
+  metadata: z.record(z.unknown()).optional(),
+  assigneeId: z.string().optional().nullable(),
+});
+
+export const selectEmailSchema = createSelectSchema(emailInbox);
+
+// Tasks
+export const insertTaskSchema = createInsertSchema(tasks, {
+  title: z.string().min(1).max(200),
+  description: z.string().max(5000).optional(),
+  status: z.enum(["pending", "running", "finished", "cancelled"]).optional(),
+  tags: z.array(z.string()).optional(),
+  categories: z.array(z.string()).optional(),
+}).omit({ id: true, userId: true, createdAt: true, updatedAt: true });
+
+export const updateTaskSchema = insertTaskSchema.partial();
+
+export const selectTaskSchema = createSelectSchema(tasks);
+
+// Task Emails
+export const insertTaskEmailSchema = createInsertSchema(taskEmails, {
+  taskId: z.string(),
+  emailId: z.string(),
+}).omit({ id: true });
+
+export const selectTaskEmailSchema = createSelectSchema(taskEmails);
+
+// Chat Sessions
+export const insertChatSessionSchema = createInsertSchema(chatSessions, {
+  title: z.string().max(200).optional(),
+  status: z
+    .enum(["starting", "in_progress", "waiting_confirmation", "stopped"])
+    .optional(),
+}).omit({
+  id: true,
+  userId: true,
+  messages: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateChatSessionSchema = z.object({
+  title: z.string().max(200).optional(),
+  assigneeId: z.string().optional().nullable(),
+});
+
+export const selectChatSessionSchema = createSelectSchema(chatSessions);
+
+// Confirmations
+export const selectConfirmationSchema = createSelectSchema(confirmations);
+
+export const resolveConfirmationSchema = z.object({
+  action: z.enum(["confirm", "reject"]),
+});
+
+// Devices
+export const insertDeviceSchema = createInsertSchema(devices, {
+  deviceToken: z.string().min(1),
+  platform: z.literal("ios"),
+}).omit({ id: true, userId: true, createdAt: true });
+
+export const selectDeviceSchema = createSelectSchema(devices);
+
+// Send message
+export const sendMessageSchema = z.object({
+  content: z.string().min(1),
+  attachments: z
+    .array(
+      z.object({
+        type: z.enum(["image", "audio", "pdf", "file"]),
+        url: z.string().url(),
+        name: z.string().optional(),
+      })
+    )
+    .optional(),
+});
+
+// Presigned URL
+export const presignedUrlSchema = z.object({
+  contentType: z.string().min(1),
+  prefix: z.string().optional(),
+});

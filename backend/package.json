@@ -1,32 +1,51 @@
 {
-  "name": "backend",
+  "name": "linda-assistant-backend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "openapi:generate": "next-openapi-gen generate",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3",
+    "@aws-sdk/client-s3": "^3",
+    "@aws-sdk/s3-request-presigner": "^3",
+    "@libsql/client": "^0.15",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@upstash/redis": "^1",
+    "ai": "^6",
+    "ajv": "^8.17.1",
+    "drizzle-orm": "^0.44",
+    "drizzle-zod": "^0.7",
+    "jose": "^6.1.3",
+    "nanoid": "^5",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "resend": "^4",
+    "svix": "^1",
+    "zod": "^3"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
+    "@playwright/test": "^1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^16",
+    "drizzle-kit": "^0.31",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "tailwindcss": "^4",
+    "next-openapi-gen": "^0",
     "typescript": "^5"
   },
-  "ignoreScripts": [
-    "sharp",
-    "unrs-resolver"
-  ],
   "trustedDependencies": [
     "sharp",
     "unrs-resolver"

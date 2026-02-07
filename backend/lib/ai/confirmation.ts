@@ -1,0 +1,173 @@
+import { db } from "@/lib/db";
+import { confirmations, chatSessions } from "@/lib/db/schema";
+import { eq, sql } from "drizzle-orm";
+import { sendPushNotification } from "@/lib/push";
+import { resend } from "@/lib/resend";
+import { syncTaskStatus } from "@/lib/utils/task-status-sync";
+import { setAgentTrigger } from "@/lib/streaming/manager";
+
+interface CreateConfirmationParams {
+  userId: string;
+  chatSessionId: string;
+  toolCallId: string;
+  toolName: string;
+  parameters: Record<string, unknown>;
+}
+
+export async function createConfirmation(params: CreateConfirmationParams) {
+  const [confirmation] = await db
+    .insert(confirmations)
+    .values(params)
+    .returning();
+
+  // Send push notification
+  await sendPushNotification(params.userId, {
+    title: "Action Requires Confirmation",
+    body: `Linda wants to ${formatToolName(params.toolName)}. Please review.`,
+    data: {
+      type: "confirmation",
+      confirmationId: confirmation.id,
+      chatSessionId: params.chatSessionId,
+    },
+  }).catch((err) => {
+    console.error("Failed to send push notification:", err);
+  });
+
+  return confirmation;
+}
+
+export async function resolveConfirmation(
+  confirmationId: string,
+  action: "confirm" | "reject"
+) {
+  const [confirmation] = await db
+    .select()
+    .from(confirmations)
+    .where(eq(confirmations.id, confirmationId));
+
+  if (!confirmation) throw new Error("Confirmation not found");
+  if (confirmation.status !== "pending")
+    throw new Error("Confirmation already resolved");
+
+  // Update confirmation status
+  await db
+    .update(confirmations)
+    .set({
+      status: action === "confirm" ? "confirmed" : "rejected",
+      resolvedAt: sql`(datetime('now'))`,
+    })
+    .where(eq(confirmations.id, confirmationId));
+
+  // Load the chat session
+  const [session] = await db
+    .select()
+    .from(chatSessions)
+    .where(eq(chatSessions.id, confirmation.chatSessionId));
+
+  if (!session) throw new Error("Chat session not found");
+
+  const messages = (session.messages as unknown[]) || [];
+
+  if (action === "confirm") {
+    // Execute the confirmed tool
+    const toolResult = await executeConfirmedTool(
+      confirmation.toolName,
+      confirmation.parameters as Record<string, unknown>,
+      confirmation.userId
+    );
+
+    // Add tool result to messages
+    const toolResultMessage = {
+      role: "tool" as const,
+      content: [
+        {
+          type: "tool-result" as const,
+          toolCallId: confirmation.toolCallId,
+          toolName: confirmation.toolName,
+          result: toolResult,
+        },
+      ],
+    };
+
+    const updatedMessages = [...messages, toolResultMessage];
+
+    // Update session with tool result and set to in_progress for agent to continue
+    await db
+      .update(chatSessions)
+      .set({
+        messages: updatedMessages as unknown[],
+        status: "in_progress",
+        updatedAt: sql`(datetime('now'))`,
+      })
+      .where(eq(chatSessions.id, confirmation.chatSessionId));
+
+    // Signal agent to resume
+    await setAgentTrigger(confirmation.chatSessionId);
+  } else {
+    // Rejection - add rejection message and stop session
+    const rejectionMessage = {
+      role: "tool" as const,
+      content: [
+        {
+          type: "tool-result" as const,
+          toolCallId: confirmation.toolCallId,
+          toolName: confirmation.toolName,
+          result: {
+            error: "User rejected this action",
+            rejected: true,
+          },
+        },
+      ],
+    };
+
+    const updatedMessages = [...messages, rejectionMessage];
+
+    await db
+      .update(chatSessions)
+      .set({
+        messages: updatedMessages as unknown[],
+        status: "stopped",
+        updatedAt: sql`(datetime('now'))`,
+      })
+      .where(eq(chatSessions.id, confirmation.chatSessionId));
+  }
+
+  // Sync task status if applicable
+  if (session.taskId) {
+    await syncTaskStatus(session.taskId);
+  }
+
+  return { action, confirmationId };
+}
+
+async function executeConfirmedTool(
+  toolName: string,
+  parameters: Record<string, unknown>,
+  userId: string
+) {
+  switch (toolName) {
+    case "send_email": {
+      const { to, subject, body } = parameters as {
+        to: string;
+        subject: string;
+        body: string;
+      };
+
+      // Look up the assignee's email to use as from address
+      const result = await resend.emails.send({
+        from: `Linda <linda@${process.env.RESEND_DOMAIN || "assistant.rxlab.io"}>`,
+        to: [to],
+        subject,
+        html: body,
+      });
+
+      return { sent: true, emailId: result.data?.id };
+    }
+    default:
+      return { error: `Unknown tool: ${toolName}` };
+  }
+}
+
+function formatToolName(name: string): string {
+  return name.replace(/_/g, " ");
+}
