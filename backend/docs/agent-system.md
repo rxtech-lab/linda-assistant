@@ -43,16 +43,18 @@ runAgent(sessionId, userId, callbacks, signal)
 
 ### Defined in `lib/ai/tools/`
 
-| Tool | Has Execute | Requires Confirmation |
-|------|-------------|----------------------|
-| `send_email` | No | Yes |
-| `search_emails` | Yes | No |
-| `create_task` | Yes | No |
-| `update_task` | Yes | No |
+| Tool | Has Execute | Default Permission |
+|------|-------------|-------------------|
+| `send_email` | No | `manual-confirm` |
+| `search_emails` | Yes | `manual-confirm` |
+| `create_task` | Yes | `manual-confirm` |
+| `update_task` | Yes | `manual-confirm` |
 
-Tools are built per-request with `buildToolSet(userId, availableTools)`:
+Tools are built per-request with `buildToolSet(userId, toolPermissions)`:
 - `userId` is injected into tool closures for data scoping
-- `availableTools` filters which tools the agent can use (from assignee config)
+- `toolPermissions` controls per-tool behavior (from assignee config): `auto-confirm`, `manual-confirm`, or `auto-reject`
+- Tools with `auto-reject` are excluded from the tool set
+- Tools not listed in permissions default to `manual-confirm`
 - Tools without `execute` (like `send_email`) cause `streamText` to return `finishReason: 'tool-calls'` without executing them
 
 ### Tool Definition Pattern (AI SDK v6)

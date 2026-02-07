@@ -2,6 +2,11 @@ import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+export type ToolPermission = {
+  toolName: string;
+  permission: "auto-confirm" | "manual-confirm" | "auto-reject";
+};
+
 export const assignees = sqliteTable("assignees", {
   id: text("id")
     .primaryKey()
@@ -11,7 +16,7 @@ export const assignees = sqliteTable("assignees", {
   email: text("email").notNull(),
   personality: text("personality"),
   model: text("model"),
-  availableTools: text("available_tools", { mode: "json" }).$type<string[]>(),
+  toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });

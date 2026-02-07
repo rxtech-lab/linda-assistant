@@ -6,7 +6,7 @@ import { z } from "zod";
 const toolSchema = z.object({
   name: z.string(),
   description: z.string(),
-  requiresConfirmation: z.boolean(),
+  defaultPermission: z.enum(["auto-confirm", "manual-confirm", "auto-reject"]),
 });
 
 const toolsResponseSchema = z.object({
@@ -17,22 +17,22 @@ const AVAILABLE_TOOLS = [
   {
     name: "send_email",
     description: "Send an email via Resend on behalf of the assignee",
-    requiresConfirmation: true,
+    defaultPermission: "manual-confirm" as const,
   },
   {
     name: "search_emails",
     description: "Search through the user's email inbox",
-    requiresConfirmation: false,
+    defaultPermission: "manual-confirm" as const,
   },
   {
     name: "create_task",
     description: "Create a new task",
-    requiresConfirmation: false,
+    defaultPermission: "manual-confirm" as const,
   },
   {
     name: "update_task",
     description: "Update an existing task's status or details",
-    requiresConfirmation: false,
+    defaultPermission: "manual-confirm" as const,
   },
 ];
 
@@ -46,4 +46,3 @@ export async function GET(request: NextRequest) {
 
   return successJson(AVAILABLE_TOOLS);
 }
-

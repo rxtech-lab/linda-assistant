@@ -30,9 +30,16 @@ The middleware calls the RxLab OIDC userinfo endpoint to validate the token and 
   "email": "linda@assistant.rxlab.io",
   "personality": "You are a helpful assistant...",
   "model": "claude-sonnet-4-5-20250929",
-  "availableTools": ["send_email", "search_emails", "create_task", "update_task"]
+  "toolPermissions": [
+    { "toolName": "send_email", "permission": "manual-confirm" },
+    { "toolName": "search_emails", "permission": "auto-confirm" },
+    { "toolName": "create_task", "permission": "auto-confirm" },
+    { "toolName": "update_task", "permission": "auto-confirm" }
+  ]
 }
 ```
+
+Permission values: `auto-confirm` (execute without asking), `manual-confirm` (pause for user approval), `auto-reject` (tool unavailable). Tools not listed default to `manual-confirm`.
 
 ### Emails
 

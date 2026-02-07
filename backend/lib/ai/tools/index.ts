@@ -2,10 +2,23 @@ import { sendEmailTool, SEND_EMAIL_TOOL_NAME } from "./send-email";
 import { searchEmailsTool, SEARCH_EMAILS_TOOL_NAME } from "./search-emails";
 import { createTaskTool, CREATE_TASK_TOOL_NAME } from "./create-task";
 import { updateTaskTool, UPDATE_TASK_TOOL_NAME } from "./update-task";
+import type { ToolPermission } from "@/lib/db/schema";
 
-export const TOOLS_REQUIRING_CONFIRMATION = new Set([SEND_EMAIL_TOOL_NAME]);
+export function getToolPermission(
+  toolName: string,
+  toolPermissions?: ToolPermission[] | null
+): ToolPermission["permission"] {
+  if (!toolPermissions || toolPermissions.length === 0) {
+    return "manual-confirm";
+  }
+  const entry = toolPermissions.find((tp) => tp.toolName === toolName);
+  return entry?.permission ?? "manual-confirm";
+}
 
-export function buildToolSet(userId: string, availableTools?: string[] | null) {
+export function buildToolSet(
+  userId: string,
+  toolPermissions?: ToolPermission[] | null
+) {
   const allTools = {
     [SEND_EMAIL_TOOL_NAME]: sendEmailTool,
     [SEARCH_EMAILS_TOOL_NAME]: searchEmailsTool(userId),
@@ -13,14 +26,16 @@ export function buildToolSet(userId: string, availableTools?: string[] | null) {
     [UPDATE_TASK_TOOL_NAME]: updateTaskTool(userId),
   };
 
-  if (!availableTools || availableTools.length === 0) {
+  if (!toolPermissions || toolPermissions.length === 0) {
     return allTools;
   }
 
+  // Filter out tools with auto-reject permission
   const filtered: Record<string, (typeof allTools)[keyof typeof allTools]> = {};
-  for (const name of availableTools) {
-    if (name in allTools) {
-      filtered[name] = allTools[name as keyof typeof allTools];
+  for (const [name, tool] of Object.entries(allTools)) {
+    const permission = getToolPermission(name, toolPermissions);
+    if (permission !== "auto-reject") {
+      filtered[name] = tool;
     }
   }
   return filtered;

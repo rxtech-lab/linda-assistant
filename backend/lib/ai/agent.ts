@@ -1,15 +1,16 @@
 import { streamText, type ModelMessage } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
 import { db } from "@/lib/db";
 import { chatSessions, assignees } from "@/lib/db/schema";
+import type { ToolPermission } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { buildToolSet, TOOLS_REQUIRING_CONFIRMATION } from "./tools";
+import { buildToolSet, getToolPermission } from "./tools";
 import {
   appendStreamChunk,
   setStreamActive,
   clearStreamChunks,
 } from "@/lib/streaming/manager";
 import { createConfirmation } from "./confirmation";
+import { getModelProvider } from "./model";
 
 const MAX_STEPS = 10;
 const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
@@ -36,7 +37,7 @@ export async function runAgent(options: AgentRunOptions) {
   // Load assignee for personality and model config
   let systemPrompt = "You are Linda, a helpful personal assistant.";
   let modelId = DEFAULT_MODEL;
-  let availableToolNames: string[] | null = null;
+  let toolPermissions: ToolPermission[] | null = null;
 
   if (session.assigneeId) {
     const [assignee] = await db
@@ -51,11 +52,11 @@ export async function runAgent(options: AgentRunOptions) {
       if (assignee.model) {
         modelId = assignee.model;
       }
-      availableToolNames = assignee.availableTools || null;
+      toolPermissions = assignee.toolPermissions || null;
     }
   }
 
-  const tools = buildToolSet(userId, availableToolNames);
+  const tools = buildToolSet(userId, toolPermissions);
   const messages = (session.messages || []) as ModelMessage[];
 
   await setStreamActive(sessionId, true);
@@ -79,7 +80,7 @@ export async function runAgent(options: AgentRunOptions) {
       stepCount++;
 
       const result = streamText({
-        model: anthropic(modelId),
+        model: getModelProvider(modelId),
         system: systemPrompt,
         messages: currentMessages,
         tools: tools as Parameters<typeof streamText>[0]["tools"],
@@ -130,10 +131,12 @@ export async function runAgent(options: AgentRunOptions) {
       currentMessages = [...currentMessages, ...responseMessages];
 
       if (finishReason === "tool-calls") {
-        // Check if any tool calls require confirmation
+        // Check if any tool calls require manual confirmation
         const toolCalls = await result.toolCalls;
-        const needsConfirmation = toolCalls.find((tc: { toolName: string }) =>
-          TOOLS_REQUIRING_CONFIRMATION.has(tc.toolName)
+        const needsConfirmation = toolCalls.find(
+          (tc: { toolName: string }) =>
+            getToolPermission(tc.toolName, toolPermissions) ===
+            "manual-confirm",
         );
 
         if (needsConfirmation) {
@@ -149,9 +152,7 @@ export async function runAgent(options: AgentRunOptions) {
 
           // Create confirmation record and notify user
           const input =
-            "input" in needsConfirmation
-              ? needsConfirmation.input
-              : undefined;
+            "input" in needsConfirmation ? needsConfirmation.input : undefined;
           await createConfirmation({
             userId,
             chatSessionId: sessionId,
@@ -170,7 +171,7 @@ export async function runAgent(options: AgentRunOptions) {
           return { paused: true, reason: "confirmation_required" };
         }
 
-        // Tool calls were auto-executed, continue loop
+        // Tool calls were auto-confirmed, continue loop
         continue;
       }
 

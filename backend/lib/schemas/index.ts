@@ -10,13 +10,19 @@ import {
   devices,
 } from "@/lib/db/schema";
 
+// Tool permissions
+export const toolPermissionSchema = z.object({
+  toolName: z.string(),
+  permission: z.enum(["auto-confirm", "manual-confirm", "auto-reject"]),
+});
+
 // Assignees
 export const insertAssigneeSchema = createInsertSchema(assignees, {
   name: z.string().min(1).max(100),
   email: z.string().email(),
   personality: z.string().max(2000).optional(),
   model: z.string().max(100).optional(),
-  availableTools: z.array(z.string()).optional(),
+  toolPermissions: z.array(toolPermissionSchema).optional(),
 }).omit({ id: true, userId: true, createdAt: true, updatedAt: true });
 
 export const updateAssigneeSchema = insertAssigneeSchema.partial();
