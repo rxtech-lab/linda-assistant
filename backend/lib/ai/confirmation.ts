@@ -76,7 +76,7 @@ export async function resolveConfirmation(
       confirmation.userId
     );
 
-    // Add tool result to messages
+    // Add tool result to messages (output must match AI SDK v6 ModelMessage format)
     const toolResultMessage = {
       role: "tool" as const,
       content: [
@@ -84,7 +84,7 @@ export async function resolveConfirmation(
           type: "tool-result" as const,
           toolCallId: confirmation.toolCallId,
           toolName: confirmation.toolName,
-          result: toolResult,
+          output: { type: "json" as const, value: toolResult },
         },
       ],
     };
@@ -112,9 +112,12 @@ export async function resolveConfirmation(
           type: "tool-result" as const,
           toolCallId: confirmation.toolCallId,
           toolName: confirmation.toolName,
-          result: {
-            error: "User rejected this action",
-            rejected: true,
+          output: {
+            type: "json" as const,
+            value: {
+              error: "User rejected this action",
+              rejected: true,
+            },
           },
         },
       ],

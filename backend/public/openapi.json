@@ -220,6 +220,26 @@
           "data"
         ]
       },
+      "toolPermissionSchema": {
+        "type": "object",
+        "properties": {
+          "toolName": {
+            "type": "string"
+          },
+          "permission": {
+            "type": "string",
+            "enum": [
+              "auto-confirm",
+              "manual-confirm",
+              "auto-reject"
+            ]
+          }
+        },
+        "required": [
+          "toolName",
+          "permission"
+        ]
+      },
       "selectAssigneeSchema": {
         "type": "object"
       },
@@ -314,14 +334,19 @@
           "description": {
             "type": "string"
           },
-          "requiresConfirmation": {
-            "type": "boolean"
+          "defaultPermission": {
+            "type": "string",
+            "enum": [
+              "auto-confirm",
+              "manual-confirm",
+              "auto-reject"
+            ]
           }
         },
         "required": [
           "name",
           "description",
-          "requiresConfirmation"
+          "defaultPermission"
         ]
       },
       "toolsResponseSchema": {
@@ -1228,6 +1253,31 @@
           "204": {
             "description": "No Content"
           },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "get-health",
+        "summary": "",
+        "description": "",
+        "tags": [
+          "Health"
+        ],
+        "parameters": [],
+        "responses": {
           "400": {
             "$ref": "#/components/responses/400"
           },

@@ -35,6 +35,10 @@ export async function sendPushNotification(
     data?: Record<string, string>;
   }
 ) {
+  if (process.env.IS_E2E) {
+    return [];
+  }
+
   const userDevices = await db
     .select()
     .from(devices)
