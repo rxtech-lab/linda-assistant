@@ -178,47 +178,8 @@
           "data"
         ]
       },
-      "sessionSummarySchema": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "status": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "assigneeId": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "createdAt": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "updatedAt": {
-                  "type": "string",
-                  "nullable": true
-                }
-              },
-              "required": [
-                "id"
-              ]
-            }
-          }
-        },
-        "required": [
-          "data"
-        ]
+      "availableModelSchema": {
+        "type": "string"
       },
       "toolPermissionSchema": {
         "type": "object",
@@ -277,6 +238,62 @@
       },
       "selectDeviceSchema": {
         "type": "object"
+      },
+      "modelsResponseSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/availableModelSchema"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "sessionSummarySchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "status": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "assigneeId": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "createdAt": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "nullable": true
+                }
+              },
+              "required": [
+                "id"
+              ]
+            }
+          }
+        },
+        "required": [
+          "data"
+        ]
       },
       "taskDetailSchema": {
         "type": "object",
@@ -385,6 +402,9 @@
         "required": [
           "data"
         ]
+      },
+      "AvailableModel": {
+        "type": "string"
       },
       "paginationSchema": {
         "type": "object",
@@ -1278,6 +1298,41 @@
         ],
         "parameters": [],
         "responses": {
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          }
+        }
+      }
+    },
+    "/models": {
+      "get": {
+        "operationId": "get-models",
+        "summary": "",
+        "description": "",
+        "tags": [
+          "Models"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/200 - modelsResponseSchema"
+                }
+              }
+            }
+          },
           "400": {
             "$ref": "#/components/responses/400"
           },

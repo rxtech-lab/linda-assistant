@@ -12,8 +12,9 @@ import {
 import { createConfirmation } from "./confirmation";
 import { getModelProvider } from "./model";
 
+import { DEFAULT_MODEL, availableModelSchema } from "./models";
+
 const MAX_STEPS = 10;
-const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
 
 interface AgentRunOptions {
   sessionId: string;
@@ -50,7 +51,8 @@ export async function runAgent(options: AgentRunOptions) {
         systemPrompt = assignee.personality;
       }
       if (assignee.model) {
-        modelId = assignee.model;
+        const parsed = availableModelSchema.safeParse(assignee.model);
+        modelId = parsed.success ? parsed.data : DEFAULT_MODEL;
       }
       toolPermissions = assignee.toolPermissions || null;
     }
