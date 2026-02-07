@@ -3,15 +3,12 @@ import { db } from "@/lib/db";
 import { emailInbox } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import { updateEmailSchema, selectEmailSchema } from "@/lib/schemas";
+import { updateEmailSchema, selectEmailSchema, deletedResponseSchema, idParamSchema } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
-import { z } from "zod";
-
-const detailResponseSchema = z.object({ data: selectEmailSchema });
-
 /**
  * @openapi
- * @response 200 - detailResponseSchema
+ * @pathParams idParamSchema
+ * @response selectEmailSchema
  */
 export async function GET(
   request: NextRequest,
@@ -32,8 +29,9 @@ export async function GET(
 
 /**
  * @openapi
+ * @pathParams idParamSchema
  * @body updateEmailSchema
- * @response 200 - detailResponseSchema
+ * @response selectEmailSchema
  */
 export async function PUT(
   request: NextRequest,
@@ -59,7 +57,8 @@ export async function PUT(
 
 /**
  * @openapi
- * @response 200 - z.object({ data: z.object({ deleted: z.boolean() }) })
+ * @pathParams idParamSchema
+ * @response deletedResponseSchema
  */
 export async function DELETE(
   request: NextRequest,

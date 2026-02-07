@@ -119,8 +119,37 @@ export const sendMessageSchema = z.object({
     .optional(),
 });
 
+// Onboard
+export const onboardResponseSchema = z.object({
+  assignee: z.object({
+    check: z.boolean(),
+    required: z.array(z.string()).optional(),
+  }),
+  overall: z.boolean(),
+});
+
 // Presigned URL
 export const presignedUrlSchema = z.object({
   contentType: z.string().min(1),
   prefix: z.string().optional(),
+});
+
+export const presignedUrlResponseSchema = z.object({
+  url: z.string(),
+  key: z.string(),
+});
+
+// Common path params
+export const idParamSchema = z.object({ id: z.string() });
+
+// Common response schemas
+export const deletedResponseSchema = z.object({ deleted: z.boolean() });
+
+export const queuedResponseSchema = z.object({ queued: z.boolean() });
+
+export const receivedResponseSchema = z.object({ received: z.boolean() });
+
+export const resolveResponseSchema = z.object({
+  action: z.enum(["confirm", "reject"]),
+  confirmationId: z.string(),
 });

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { chatSessions } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
+import { idParamSchema } from "@/lib/schemas";
 import { errorJson } from "@/lib/utils/response";
 import { createSSEStream, sseResponse } from "@/lib/streaming/sse";
 import {
@@ -14,7 +15,8 @@ import { runAgent } from "@/lib/ai/agent";
 
 /**
  * @openapi
- * @response 200 - SSE stream of agent events
+ * @pathParams idParamSchema
+ * @responseDescription SSE stream of agent events
  */
 export async function GET(
   request: NextRequest,

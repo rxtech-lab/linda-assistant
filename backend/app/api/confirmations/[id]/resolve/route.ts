@@ -3,22 +3,15 @@ import { db } from "@/lib/db";
 import { confirmations } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import { resolveConfirmationSchema } from "@/lib/schemas";
+import { resolveConfirmationSchema, resolveResponseSchema, idParamSchema } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
 import { resolveConfirmation } from "@/lib/ai/confirmation";
-import { z } from "zod";
-
-const resolveResponseSchema = z.object({
-  data: z.object({
-    action: z.enum(["confirm", "reject"]),
-    confirmationId: z.string(),
-  }),
-});
 
 /**
  * @openapi
+ * @pathParams idParamSchema
  * @body resolveConfirmationSchema
- * @response 200 - resolveResponseSchema
+ * @response resolveResponseSchema
  */
 export async function POST(
   request: NextRequest,

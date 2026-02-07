@@ -9,9 +9,7 @@ const toolSchema = z.object({
   defaultPermission: z.enum(["auto-confirm", "manual-confirm", "auto-reject"]),
 });
 
-const toolsResponseSchema = z.object({
-  data: z.array(toolSchema),
-});
+const toolsListSchema = z.array(toolSchema);
 
 const AVAILABLE_TOOLS = [
   {
@@ -38,7 +36,7 @@ const AVAILABLE_TOOLS = [
 
 /**
  * @openapi
- * @response 200 - toolsResponseSchema
+ * @response toolsListSchema
  */
 export async function GET(request: NextRequest) {
   const auth = await authenticate(request);

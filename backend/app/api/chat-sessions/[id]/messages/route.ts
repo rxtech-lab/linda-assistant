@@ -3,19 +3,15 @@ import { db } from "@/lib/db";
 import { chatSessions } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import { sendMessageSchema } from "@/lib/schemas";
+import { sendMessageSchema, queuedResponseSchema, idParamSchema } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
 import { setAgentTrigger } from "@/lib/streaming/manager";
-import { z } from "zod";
-
-const sendMessageResponseSchema = z.object({
-  data: z.object({ queued: z.boolean() }),
-});
 
 /**
  * @openapi
+ * @pathParams idParamSchema
  * @body sendMessageSchema
- * @response 200 - sendMessageResponseSchema
+ * @response queuedResponseSchema
  */
 export async function POST(
   request: NextRequest,

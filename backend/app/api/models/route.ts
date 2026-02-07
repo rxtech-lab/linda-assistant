@@ -1,16 +1,14 @@
 import { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth/middleware";
 import { successJson } from "@/lib/utils/response";
-import { z } from "zod";
 import { AVAILABLE_MODEL_IDS, availableModelSchema } from "@/lib/ai/models";
+import { z } from "zod";
 
-const modelsResponseSchema = z.object({
-  data: z.array(availableModelSchema),
-});
+const modelsListSchema = z.array(availableModelSchema);
 
 /**
  * @openapi
- * @response 200 - modelsResponseSchema
+ * @response modelsListSchema
  */
 export async function GET(request: NextRequest) {
   const auth = await authenticate(request);

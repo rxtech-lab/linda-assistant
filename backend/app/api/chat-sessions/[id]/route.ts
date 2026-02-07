@@ -3,15 +3,12 @@ import { db } from "@/lib/db";
 import { chatSessions } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import { selectChatSessionSchema } from "@/lib/schemas";
+import { selectChatSessionSchema, deletedResponseSchema, idParamSchema } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
-import { z } from "zod";
-
-const detailResponseSchema = z.object({ data: selectChatSessionSchema });
-
 /**
  * @openapi
- * @response 200 - detailResponseSchema
+ * @pathParams idParamSchema
+ * @response selectChatSessionSchema
  */
 export async function GET(
   request: NextRequest,
@@ -34,7 +31,8 @@ export async function GET(
 
 /**
  * @openapi
- * @response 200 - z.object({ data: z.object({ deleted: z.boolean() }) })
+ * @pathParams idParamSchema
+ * @response deletedResponseSchema
  */
 export async function DELETE(
   request: NextRequest,

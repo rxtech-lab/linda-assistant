@@ -7,13 +7,11 @@ import { selectConfirmationSchema } from "@/lib/schemas";
 import { successJson } from "@/lib/utils/response";
 import { z } from "zod";
 
-const listResponseSchema = z.object({
-  data: z.array(selectConfirmationSchema),
-});
+const confirmationsListSchema = z.array(selectConfirmationSchema);
 
 /**
  * @openapi
- * @response 200 - listResponseSchema
+ * @response confirmationsListSchema
  */
 export async function GET(request: NextRequest) {
   const auth = await authenticate(request);

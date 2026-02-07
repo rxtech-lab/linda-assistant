@@ -20,7 +20,7 @@ Backend-only Next.js 16 API server for a personal assistant ("Linda"). No fronte
 - `bun run db:generate` — generate Drizzle migrations
 - `bun run openapi:generate` — regenerate `public/openapi.json`
 - `npx tsc --noEmit` — type check (use this instead of `bun run build`, which hits a Turbopack bug)
-- `bun run test:e2e` — Playwright E2E tests
+- `bun run test:e2e` — Playwright E2E tests (if timeout, kill port 3001 first: `kill $(lsof -ti:3001)`)
 
 ## Architecture
 
