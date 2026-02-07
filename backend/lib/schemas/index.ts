@@ -1,5 +1,6 @@
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
+import { availableModelSchema, DEFAULT_MODEL } from "@/lib/ai/models";
 import {
   assignees,
   emailInbox,
@@ -21,7 +22,7 @@ export const insertAssigneeSchema = createInsertSchema(assignees, {
   name: z.string().min(1).max(100),
   email: z.string().email(),
   personality: z.string().max(2000).optional(),
-  model: z.string().max(100).optional(),
+  model: availableModelSchema.catch(DEFAULT_MODEL).optional(),
   toolPermissions: z.array(toolPermissionSchema).optional(),
 }).omit({ id: true, userId: true, createdAt: true, updatedAt: true });
 

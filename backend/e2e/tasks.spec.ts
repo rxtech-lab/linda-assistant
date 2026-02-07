@@ -1,0 +1,306 @@
+import { test, expect } from "@playwright/test";
+import {
+  taskResponseSchema,
+  taskListResponseSchema,
+  taskDetailResponseSchema,
+  taskSessionsResponseSchema,
+  deleteResponseSchema,
+  errorResponseSchema,
+} from "./helpers/schemas";
+
+const user2Headers = { "x-test-user-id": "e2e-user-2" };
+
+test.describe("Tasks CRUD", () => {
+  let taskId: string;
+
+  test("POST /api/tasks creates a task", async ({ request }) => {
+    const res = await request.post("/api/tasks", {
+      data: {
+        title: "Test Task",
+        description: "A test task description",
+        status: "pending",
+        tags: ["test", "e2e"],
+        categories: ["testing"],
+      },
+    });
+    expect(res.status()).toBe(201);
+    const body = await res.json();
+    taskResponseSchema.parse(body);
+    expect(body.data).toMatchObject({
+      title: "Test Task",
+      description: "A test task description",
+      status: "pending",
+      tags: ["test", "e2e"],
+      categories: ["testing"],
+    });
+    expect(body.data.id).toBeTruthy();
+    expect(body.data.userId).toBe("e2e-test-user");
+    taskId = body.data.id;
+  });
+
+  test("GET /api/tasks lists tasks with pagination", async ({ request }) => {
+    const res = await request.get("/api/tasks");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    taskListResponseSchema.parse(body);
+    expect(body.pagination).toMatchObject({
+      total: expect.any(Number),
+      limit: expect.any(Number),
+      offset: expect.any(Number),
+      hasMore: expect.any(Boolean),
+    });
+    const found = body.data.find((t: { id: string }) => t.id === taskId);
+    expect(found).toBeTruthy();
+  });
+
+  test("GET /api/tasks/:id returns task with relations", async ({
+    request,
+  }) => {
+    const res = await request.get(`/api/tasks/${taskId}`);
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    taskDetailResponseSchema.parse(body);
+    expect(body.data.id).toBe(taskId);
+    expect(body.data.title).toBe("Test Task");
+    expect(body.data.chatSessions).toEqual([]);
+    expect(body.data.emails).toEqual([]);
+  });
+
+  test("PUT /api/tasks/:id updates and preserves unchanged fields", async ({
+    request,
+  }) => {
+    const res = await request.put(`/api/tasks/${taskId}`, {
+      data: { title: "Updated Task", status: "running" },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    taskResponseSchema.parse(body);
+    expect(body.data.title).toBe("Updated Task");
+    expect(body.data.status).toBe("running");
+    expect(body.data.description).toBe("A test task description");
+    expect(body.data.tags).toEqual(["test", "e2e"]);
+  });
+
+  test("DELETE /api/tasks/:id removes the task", async ({ request }) => {
+    const res = await request.delete(`/api/tasks/${taskId}`);
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    deleteResponseSchema.parse(body);
+    expect(body.data.deleted).toBe(true);
+
+    const getRes = await request.get(`/api/tasks/${taskId}`);
+    expect(getRes.status()).toBe(404);
+  });
+});
+
+test.describe("Tasks cross-user isolation", () => {
+  let user1TaskId: string;
+
+  test.beforeAll(async ({ request }) => {
+    const res = await request.post("/api/tasks", {
+      data: { title: "User1 Task" },
+    });
+    const body = await res.json();
+    user1TaskId = body.data.id;
+  });
+
+  test("user2 cannot list user1 tasks", async ({ request }) => {
+    const res = await request.get("/api/tasks", { headers: user2Headers });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    const found = body.data.find(
+      (t: { id: string }) => t.id === user1TaskId
+    );
+    expect(found).toBeUndefined();
+  });
+
+  test("user2 cannot GET user1 task", async ({ request }) => {
+    const res = await request.get(`/api/tasks/${user1TaskId}`, {
+      headers: user2Headers,
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test("user2 cannot PUT user1 task", async ({ request }) => {
+    const res = await request.put(`/api/tasks/${user1TaskId}`, {
+      headers: user2Headers,
+      data: { title: "Hacked" },
+    });
+    expect(res.status()).toBe(404);
+
+    const getRes = await request.get(`/api/tasks/${user1TaskId}`);
+    const body = await getRes.json();
+    expect(body.data.title).toBe("User1 Task");
+  });
+
+  test("user2 cannot DELETE user1 task", async ({ request }) => {
+    const res = await request.delete(`/api/tasks/${user1TaskId}`, {
+      headers: user2Headers,
+    });
+    expect(res.status()).toBe(404);
+
+    const getRes = await request.get(`/api/tasks/${user1TaskId}`);
+    expect(getRes.ok()).toBeTruthy();
+  });
+});
+
+test.describe("Tasks non-existing resource", () => {
+  const fakeId = "nonexistent-task-12345";
+
+  test("GET non-existing task returns 404", async ({ request }) => {
+    const res = await request.get(`/api/tasks/${fakeId}`);
+    expect(res.status()).toBe(404);
+    const body = await res.json();
+    errorResponseSchema.parse(body);
+    expect(body.error).toBe("Task not found");
+  });
+
+  test("PUT non-existing task returns 404", async ({ request }) => {
+    const res = await request.put(`/api/tasks/${fakeId}`, {
+      data: { title: "Ghost" },
+    });
+    expect(res.status()).toBe(404);
+    const body = await res.json();
+    errorResponseSchema.parse(body);
+    expect(body.error).toBe("Task not found");
+  });
+
+  test("DELETE non-existing task returns 404", async ({ request }) => {
+    const res = await request.delete(`/api/tasks/${fakeId}`);
+    expect(res.status()).toBe(404);
+    const body = await res.json();
+    errorResponseSchema.parse(body);
+    expect(body.error).toBe("Task not found");
+  });
+});
+
+test.describe("Tasks partial update", () => {
+  let taskId: string;
+
+  test.beforeAll(async ({ request }) => {
+    const res = await request.post("/api/tasks", {
+      data: {
+        title: "Partial Task",
+        description: "Original description",
+        status: "pending",
+        tags: ["original"],
+        categories: ["cat1"],
+      },
+    });
+    const body = await res.json();
+    taskId = body.data.id;
+  });
+
+  test("update only title preserves other fields", async ({ request }) => {
+    const res = await request.put(`/api/tasks/${taskId}`, {
+      data: { title: "New Title" },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    taskResponseSchema.parse(body);
+    expect(body.data.title).toBe("New Title");
+    expect(body.data.description).toBe("Original description");
+    expect(body.data.status).toBe("pending");
+    expect(body.data.tags).toEqual(["original"]);
+  });
+
+  test("update only status preserves other fields", async ({ request }) => {
+    const res = await request.put(`/api/tasks/${taskId}`, {
+      data: { status: "running" },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    taskResponseSchema.parse(body);
+    expect(body.data.status).toBe("running");
+    expect(body.data.title).toBe("New Title");
+    expect(body.data.description).toBe("Original description");
+  });
+
+  test("update tags array replaces entirely", async ({ request }) => {
+    const res = await request.put(`/api/tasks/${taskId}`, {
+      data: { tags: ["new-tag-1", "new-tag-2"] },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    taskResponseSchema.parse(body);
+    expect(body.data.tags).toEqual(["new-tag-1", "new-tag-2"]);
+    expect(body.data.title).toBe("New Title");
+  });
+
+  test("empty body is valid and changes nothing", async ({ request }) => {
+    const before = await request.get(`/api/tasks/${taskId}`);
+    const beforeBody = await before.json();
+
+    const res = await request.put(`/api/tasks/${taskId}`, { data: {} });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    taskResponseSchema.parse(body);
+    expect(body.data.title).toBe(beforeBody.data.title);
+    expect(body.data.status).toBe(beforeBody.data.status);
+  });
+});
+
+test.describe("Task chat sessions relationship", () => {
+  let taskId: string;
+  let assigneeId: string;
+
+  test.beforeAll(async ({ request }) => {
+    // Create assignee for sessions
+    const assigneeRes = await request.post("/api/assignees", {
+      data: { name: "Task Assignee", email: "task-assignee@example.com" },
+    });
+    const assigneeBody = await assigneeRes.json();
+    assigneeId = assigneeBody.data.id;
+
+    // Create task
+    const taskRes = await request.post("/api/tasks", {
+      data: { title: "Task With Sessions" },
+    });
+    const taskBody = await taskRes.json();
+    taskId = taskBody.data.id;
+  });
+
+  test("GET /api/tasks/:id/chat-sessions returns empty initially", async ({
+    request,
+  }) => {
+    const res = await request.get(`/api/tasks/${taskId}/chat-sessions`);
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    taskSessionsResponseSchema.parse(body);
+    expect(body.data).toEqual([]);
+  });
+
+  test("chat sessions linked to task appear in response", async ({
+    request,
+  }) => {
+    // Create a session linked to the task
+    const sessionRes = await request.post("/api/chat-sessions", {
+      data: { assigneeId, taskId },
+    });
+    expect(sessionRes.status()).toBe(201);
+    const sessionBody = await sessionRes.json();
+
+    // Check task detail includes the session
+    const taskRes = await request.get(`/api/tasks/${taskId}`);
+    const taskBody = await taskRes.json();
+    taskDetailResponseSchema.parse(taskBody);
+    expect(taskBody.data.chatSessions).toHaveLength(1);
+    expect(taskBody.data.chatSessions[0].id).toBe(sessionBody.data.id);
+
+    // Also check the dedicated endpoint
+    const sessionsRes = await request.get(
+      `/api/tasks/${taskId}/chat-sessions`
+    );
+    const sessionsBody = await sessionsRes.json();
+    taskSessionsResponseSchema.parse(sessionsBody);
+    expect(sessionsBody.data).toHaveLength(1);
+    expect(sessionsBody.data[0].id).toBe(sessionBody.data.id);
+  });
+
+  test("user2 cannot access task chat sessions", async ({ request }) => {
+    const res = await request.get(`/api/tasks/${taskId}/chat-sessions`, {
+      headers: user2Headers,
+    });
+    expect(res.status()).toBe(404);
+  });
+});

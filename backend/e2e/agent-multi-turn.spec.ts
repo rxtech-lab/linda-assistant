@@ -1,5 +1,9 @@
 import { test, expect } from "@playwright/test";
 import { consumeSSE } from "./helpers/sse-client";
+import {
+  assigneeResponseSchema,
+  chatSessionResponseSchema,
+} from "./helpers/schemas";
 
 test.describe("Agent Multi-Turn", () => {
   let assigneeId: string;
@@ -13,6 +17,7 @@ test.describe("Agent Multi-Turn", () => {
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
+    assigneeResponseSchema.parse(body);
     assigneeId = body.data.id;
   });
 
@@ -26,6 +31,7 @@ test.describe("Agent Multi-Turn", () => {
     });
     expect(sessionRes.ok()).toBeTruthy();
     const session = await sessionRes.json();
+    chatSessionResponseSchema.parse(session);
     const sessionId = session.data.id;
 
     // Turn 1
@@ -46,6 +52,7 @@ test.describe("Agent Multi-Turn", () => {
     // Verify messages after turn 1
     const session1 = await request.get(`/api/chat-sessions/${sessionId}`);
     const session1Body = await session1.json();
+    chatSessionResponseSchema.parse(session1Body);
     expect(session1Body.data.messages.length).toBe(2); // user + assistant
     expect(session1Body.data.status).toBe("stopped");
 
@@ -65,6 +72,7 @@ test.describe("Agent Multi-Turn", () => {
     // Verify messages after turn 2
     const session2 = await request.get(`/api/chat-sessions/${sessionId}`);
     const session2Body = await session2.json();
+    chatSessionResponseSchema.parse(session2Body);
     expect(session2Body.data.messages.length).toBe(4); // user1, assistant1, user2, assistant2
     expect(session2Body.data.status).toBe("stopped");
   });
@@ -79,6 +87,7 @@ test.describe("Agent Multi-Turn", () => {
     });
     expect(sessionRes.ok()).toBeTruthy();
     const session = await sessionRes.json();
+    chatSessionResponseSchema.parse(session);
     const sessionId = session.data.id;
 
     // Send message and complete the stream

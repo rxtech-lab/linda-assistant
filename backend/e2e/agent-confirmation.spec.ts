@@ -2,6 +2,11 @@ import { test, expect } from "@playwright/test";
 import { createClient } from "@libsql/client";
 import path from "path";
 import { consumeSSE } from "./helpers/sse-client";
+import {
+  assigneeResponseSchema,
+  chatSessionResponseSchema,
+  resolveConfirmationResponseSchema,
+} from "./helpers/schemas";
 
 const dbPath = path.resolve(__dirname, "..", "e2e-test.db");
 
@@ -18,6 +23,7 @@ test.describe("Agent Confirmation", () => {
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
+    assigneeResponseSchema.parse(body);
     assigneeId = body.data.id;
   });
 
@@ -31,6 +37,7 @@ test.describe("Agent Confirmation", () => {
     });
     expect(sessionRes.ok()).toBeTruthy();
     const session = await sessionRes.json();
+    chatSessionResponseSchema.parse(session);
     const sessionId = session.data.id;
 
     // Send message that triggers send_email
@@ -58,6 +65,7 @@ test.describe("Agent Confirmation", () => {
     // Verify session is waiting for confirmation
     const sessionCheck = await request.get(`/api/chat-sessions/${sessionId}`);
     const sessionCheckBody = await sessionCheck.json();
+    chatSessionResponseSchema.parse(sessionCheckBody);
     expect(sessionCheckBody.data.status).toBe("waiting_confirmation");
 
     // Query DB directly for pending confirmation
@@ -76,6 +84,7 @@ test.describe("Agent Confirmation", () => {
       { data: { action: "confirm" } }
     );
     expect(resolveRes.ok()).toBeTruthy();
+    resolveConfirmationResponseSchema.parse(await resolveRes.json());
 
     // Reconnect to stream — agent should resume and complete
     const resumeEvents = await consumeSSE(
@@ -95,6 +104,7 @@ test.describe("Agent Confirmation", () => {
     // Session should be stopped
     const finalSession = await request.get(`/api/chat-sessions/${sessionId}`);
     const finalBody = await finalSession.json();
+    chatSessionResponseSchema.parse(finalBody);
     expect(finalBody.data.status).toBe("stopped");
   });
 
@@ -105,6 +115,7 @@ test.describe("Agent Confirmation", () => {
     });
     expect(sessionRes.ok()).toBeTruthy();
     const session = await sessionRes.json();
+    chatSessionResponseSchema.parse(session);
     const sessionId = session.data.id;
 
     // Send message that triggers send_email
@@ -137,10 +148,12 @@ test.describe("Agent Confirmation", () => {
       { data: { action: "reject" } }
     );
     expect(resolveRes.ok()).toBeTruthy();
+    resolveConfirmationResponseSchema.parse(await resolveRes.json());
 
     // Session should be stopped
     const finalSession = await request.get(`/api/chat-sessions/${sessionId}`);
     const finalBody = await finalSession.json();
+    chatSessionResponseSchema.parse(finalBody);
     expect(finalBody.data.status).toBe("stopped");
 
     // Check that last message has rejection info

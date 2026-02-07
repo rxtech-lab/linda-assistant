@@ -1,0 +1,185 @@
+import { test, expect } from "@playwright/test";
+import {
+  emailResponseSchema,
+  emailListResponseSchema,
+  deleteResponseSchema,
+  errorResponseSchema,
+} from "./helpers/schemas";
+
+const user2Headers = { "x-test-user-id": "e2e-user-2" };
+
+test.describe("Emails CRUD", () => {
+  let emailId: string;
+
+  test("POST /api/emails creates an email", async ({ request }) => {
+    const res = await request.post("/api/emails", {
+      data: {
+        fromEmail: "sender@example.com",
+        toEmail: "recipient@example.com",
+        subject: "Test Email",
+        body: "<p>Hello world</p>",
+        receivedAt: "2026-01-15T10:00:00Z",
+      },
+    });
+    expect(res.status()).toBe(201);
+    const body = await res.json();
+    emailResponseSchema.parse(body);
+    expect(body.data).toMatchObject({
+      fromEmail: "sender@example.com",
+      toEmail: "recipient@example.com",
+      subject: "Test Email",
+      body: "<p>Hello world</p>",
+    });
+    expect(body.data.id).toBeTruthy();
+    expect(body.data.userId).toBe("e2e-test-user");
+    expect(body.data.isRead).toBe(false);
+    emailId = body.data.id;
+  });
+
+  test("GET /api/emails lists emails with pagination", async ({
+    request,
+  }) => {
+    const res = await request.get("/api/emails");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    emailListResponseSchema.parse(body);
+    expect(body.pagination).toMatchObject({
+      total: expect.any(Number),
+      limit: expect.any(Number),
+      offset: expect.any(Number),
+      hasMore: expect.any(Boolean),
+    });
+    const found = body.data.find((e: { id: string }) => e.id === emailId);
+    expect(found).toBeTruthy();
+  });
+
+  test("GET /api/emails/:id returns a single email", async ({ request }) => {
+    const res = await request.get(`/api/emails/${emailId}`);
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    emailResponseSchema.parse(body);
+    expect(body.data.id).toBe(emailId);
+    expect(body.data.subject).toBe("Test Email");
+  });
+
+  test("PUT /api/emails/:id updates email fields", async ({ request }) => {
+    const res = await request.put(`/api/emails/${emailId}`, {
+      data: { isRead: true },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    emailResponseSchema.parse(body);
+    expect(body.data.isRead).toBe(true);
+    // Other fields unchanged
+    expect(body.data.subject).toBe("Test Email");
+    expect(body.data.fromEmail).toBe("sender@example.com");
+  });
+
+  test("PUT /api/emails/:id updates metadata", async ({ request }) => {
+    const res = await request.put(`/api/emails/${emailId}`, {
+      data: { metadata: { starred: true, label: "important" } },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    emailResponseSchema.parse(body);
+    expect(body.data.metadata).toEqual({ starred: true, label: "important" });
+    expect(body.data.isRead).toBe(true);
+  });
+
+  test("DELETE /api/emails/:id removes the email", async ({ request }) => {
+    const res = await request.delete(`/api/emails/${emailId}`);
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    deleteResponseSchema.parse(body);
+    expect(body.data.deleted).toBe(true);
+
+    const getRes = await request.get(`/api/emails/${emailId}`);
+    expect(getRes.status()).toBe(404);
+  });
+});
+
+test.describe("Emails cross-user isolation", () => {
+  let user1EmailId: string;
+
+  test.beforeAll(async ({ request }) => {
+    const res = await request.post("/api/emails", {
+      data: {
+        fromEmail: "from@example.com",
+        toEmail: "user1@example.com",
+        subject: "User1 Email",
+        receivedAt: "2026-01-15T10:00:00Z",
+      },
+    });
+    const body = await res.json();
+    user1EmailId = body.data.id;
+  });
+
+  test("user2 cannot list user1 emails", async ({ request }) => {
+    const res = await request.get("/api/emails", { headers: user2Headers });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    const found = body.data.find(
+      (e: { id: string }) => e.id === user1EmailId
+    );
+    expect(found).toBeUndefined();
+  });
+
+  test("user2 cannot GET user1 email", async ({ request }) => {
+    const res = await request.get(`/api/emails/${user1EmailId}`, {
+      headers: user2Headers,
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test("user2 cannot PUT user1 email", async ({ request }) => {
+    const res = await request.put(`/api/emails/${user1EmailId}`, {
+      headers: user2Headers,
+      data: { isRead: true },
+    });
+    expect(res.status()).toBe(404);
+
+    const getRes = await request.get(`/api/emails/${user1EmailId}`);
+    const body = await getRes.json();
+    expect(body.data.isRead).toBe(false);
+  });
+
+  test("user2 cannot DELETE user1 email", async ({ request }) => {
+    const res = await request.delete(`/api/emails/${user1EmailId}`, {
+      headers: user2Headers,
+    });
+    expect(res.status()).toBe(404);
+
+    const getRes = await request.get(`/api/emails/${user1EmailId}`);
+    expect(getRes.ok()).toBeTruthy();
+  });
+});
+
+test.describe("Emails non-existing resource", () => {
+  const fakeId = "nonexistent-email-12345";
+
+  test("GET non-existing email returns 404", async ({ request }) => {
+    const res = await request.get(`/api/emails/${fakeId}`);
+    expect(res.status()).toBe(404);
+    const body = await res.json();
+    errorResponseSchema.parse(body);
+    expect(body.error).toBe("Email not found");
+  });
+
+  test("PUT non-existing email returns 404", async ({ request }) => {
+    const res = await request.put(`/api/emails/${fakeId}`, {
+      data: { isRead: true },
+    });
+    expect(res.status()).toBe(404);
+    const body = await res.json();
+    errorResponseSchema.parse(body);
+    expect(body.error).toBe("Email not found");
+  });
+
+  test("DELETE non-existing email returns 404", async ({ request }) => {
+    const res = await request.delete(`/api/emails/${fakeId}`);
+    expect(res.status()).toBe(404);
+    const body = await res.json();
+    errorResponseSchema.parse(body);
+    expect(body.error).toBe("Email not found");
+  });
+});

@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { consumeSSE } from "./helpers/sse-client";
+import {
+  assigneeResponseSchema,
+  chatSessionResponseSchema,
+  sendMessageResponseSchema,
+} from "./helpers/schemas";
 
 test.describe("Agent Stream", () => {
   let assigneeId: string;
@@ -13,6 +18,7 @@ test.describe("Agent Stream", () => {
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
+    assigneeResponseSchema.parse(body);
     assigneeId = body.data.id;
   });
 
@@ -23,6 +29,7 @@ test.describe("Agent Stream", () => {
     });
     expect(sessionRes.ok()).toBeTruthy();
     const session = await sessionRes.json();
+    chatSessionResponseSchema.parse(session);
     const sessionId = session.data.id;
 
     // Send message
@@ -30,6 +37,7 @@ test.describe("Agent Stream", () => {
       data: { content: "Hello" },
     });
     expect(msgRes.ok()).toBeTruthy();
+    sendMessageResponseSchema.parse(await msgRes.json());
 
     // Connect to SSE stream and collect events
     const events = await consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
@@ -49,6 +57,7 @@ test.describe("Agent Stream", () => {
     // Check session status
     const statusRes = await request.get(`/api/chat-sessions/${sessionId}`);
     const statusBody = await statusRes.json();
+    chatSessionResponseSchema.parse(statusBody);
     expect(statusBody.data.status).toBe("stopped");
   });
 
@@ -65,6 +74,7 @@ test.describe("Agent Stream", () => {
     });
     expect(assigneeRes.ok()).toBeTruthy();
     const autoAssignee = await assigneeRes.json();
+    assigneeResponseSchema.parse(autoAssignee);
 
     // Create session
     const sessionRes = await request.post("/api/chat-sessions", {
@@ -72,6 +82,7 @@ test.describe("Agent Stream", () => {
     });
     expect(sessionRes.ok()).toBeTruthy();
     const session = await sessionRes.json();
+    chatSessionResponseSchema.parse(session);
     const sessionId = session.data.id;
 
     // Send message that triggers create_task
@@ -79,6 +90,7 @@ test.describe("Agent Stream", () => {
       data: { content: "[TOOL:create_task] Create a test task" },
     });
     expect(msgRes.ok()).toBeTruthy();
+    sendMessageResponseSchema.parse(await msgRes.json());
 
     // Stream should complete without pausing
     const events = await consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
@@ -98,6 +110,7 @@ test.describe("Agent Stream", () => {
     // Session should be stopped (not waiting_confirmation)
     const statusRes = await request.get(`/api/chat-sessions/${sessionId}`);
     const statusBody = await statusRes.json();
+    chatSessionResponseSchema.parse(statusBody);
     expect(statusBody.data.status).toBe("stopped");
   });
 });
