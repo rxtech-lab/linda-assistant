@@ -15,6 +15,7 @@ import { runAgent } from "@/lib/ai/agent";
 
 /**
  * @openapi
+ * @operationId streamChatSession
  * @pathParams idParamSchema
  * @responseDescription SSE stream of agent events
  */

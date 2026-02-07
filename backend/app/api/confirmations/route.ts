@@ -4,13 +4,14 @@ import { confirmations } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { selectConfirmationSchema } from "@/lib/schemas";
-import { successJson } from "@/lib/utils/response";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const confirmationsListSchema = z.array(selectConfirmationSchema);
 
 /**
  * @openapi
+ * @operationId listConfirmations
  * @response confirmationsListSchema
  */
 export async function GET(request: NextRequest) {
@@ -27,6 +28,6 @@ export async function GET(request: NextRequest) {
       )
     );
 
-  return successJson(items);
+  return NextResponse.json(items);
 }
 

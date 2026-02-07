@@ -20,13 +20,13 @@ test.describe("Devices CRUD", () => {
     expect(res.status()).toBe(201);
     const body = await res.json();
     deviceResponseSchema.parse(body);
-    expect(body.data).toMatchObject({
+    expect(body).toMatchObject({
       deviceToken: "test-apns-token-abc123",
       platform: "ios",
     });
-    expect(body.data.id).toBeTruthy();
-    expect(body.data.userId).toBe("e2e-test-user");
-    deviceId = body.data.id;
+    expect(body.id).toBeTruthy();
+    expect(body.userId).toBe("e2e-test-user");
+    deviceId = body.id;
   });
 
   test("POST /api/devices rejects invalid platform", async ({ request }) => {
@@ -44,7 +44,7 @@ test.describe("Devices CRUD", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     deleteResponseSchema.parse(body);
-    expect(body.data.deleted).toBe(true);
+    expect(body.deleted).toBe(true);
   });
 
   test("DELETE non-existing device returns 404", async ({ request }) => {
@@ -64,7 +64,7 @@ test.describe("Devices cross-user isolation", () => {
       data: { deviceToken: "user1-device-token", platform: "ios" },
     });
     const body = await res.json();
-    user1DeviceId = body.data.id;
+    user1DeviceId = body.id;
   });
 
   test("user2 cannot DELETE user1 device", async ({ request }) => {

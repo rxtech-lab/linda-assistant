@@ -7,6 +7,7 @@ import { onboardResponseSchema } from "@/lib/schemas";
 
 /**
  * @openapi
+ * @operationId getOnboardStatus
  * @response onboardResponseSchema
  * @add 400:onboardResponseSchema
  */

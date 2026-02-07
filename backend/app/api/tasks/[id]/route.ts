@@ -21,6 +21,7 @@ const taskDetailSchema = selectTaskSchema.extend({
 
 /**
  * @openapi
+ * @operationId getTask
  * @pathParams idParamSchema
  * @response taskDetailSchema
  */
@@ -68,6 +69,7 @@ export async function GET(
 
 /**
  * @openapi
+ * @operationId updateTask
  * @pathParams idParamSchema
  * @body updateTaskSchema
  * @response selectTaskSchema
@@ -96,6 +98,7 @@ export async function PUT(
 
 /**
  * @openapi
+ * @operationId deleteTask
  * @pathParams idParamSchema
  * @response deletedResponseSchema
  */

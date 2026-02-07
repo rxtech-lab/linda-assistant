@@ -6,6 +6,7 @@ import { successJson, errorJson } from "@/lib/utils/response";
 
 /**
  * @openapi
+ * @operationId createPresignedUrl
  * @body presignedUrlSchema
  * @response presignedUrlResponseSchema
  */

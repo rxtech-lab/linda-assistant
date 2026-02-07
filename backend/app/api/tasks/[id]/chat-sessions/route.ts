@@ -4,7 +4,8 @@ import { tasks, chatSessions } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { idParamSchema } from "@/lib/schemas";
-import { errorJson, successJson } from "@/lib/utils/response";
+import { NextResponse } from "next/server";
+import { errorJson } from "@/lib/utils/response";
 import { z } from "zod";
 
 const sessionSummarySchema = z.array(
@@ -20,6 +21,7 @@ const sessionSummarySchema = z.array(
 
 /**
  * @openapi
+ * @operationId listTaskChatSessions
  * @pathParams idParamSchema
  * @response sessionSummarySchema
  */
@@ -52,6 +54,6 @@ export async function GET(
     .from(chatSessions)
     .where(eq(chatSessions.taskId, id));
 
-  return successJson(sessions);
+  return NextResponse.json(sessions);
 }
 

@@ -7,17 +7,17 @@ test.describe("Tools API", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     toolsResponseSchema.parse(body);
-    expect(Array.isArray(body.data)).toBe(true);
-    expect(body.data.length).toBeGreaterThanOrEqual(4);
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.length).toBeGreaterThanOrEqual(4);
 
-    const toolNames = body.data.map((t: { name: string }) => t.name);
+    const toolNames = body.map((t: { name: string }) => t.name);
     expect(toolNames).toContain("send_email");
     expect(toolNames).toContain("search_emails");
     expect(toolNames).toContain("create_task");
     expect(toolNames).toContain("update_task");
 
     // Each tool has required fields
-    for (const tool of body.data) {
+    for (const tool of body) {
       expect(tool.name).toBeTruthy();
       expect(tool.description).toBeTruthy();
       expect(["auto-confirm", "manual-confirm", "auto-reject"]).toContain(

@@ -1,155 +1,231 @@
-import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 import { availableModelSchema, DEFAULT_MODEL } from "@/lib/ai/models";
-import {
-  assignees,
-  emailInbox,
-  tasks,
-  taskEmails,
-  chatSessions,
-  confirmations,
-  devices,
-} from "@/lib/db/schema";
 
 // Tool permissions
 export const toolPermissionSchema = z.object({
-  toolName: z.string(),
-  permission: z.enum(["auto-confirm", "manual-confirm", "auto-reject"]),
+  toolName: z.string().describe("Name of the tool"),
+  permission: z
+    .enum(["auto-confirm", "manual-confirm", "auto-reject"])
+    .describe("Permission level for the tool"),
 });
 
-// Assignees
-export const insertAssigneeSchema = createInsertSchema(assignees, {
-  name: z.string().min(1).max(100),
-  email: z.string().email(),
-  personality: z.string().max(2000).optional(),
-  model: availableModelSchema.catch(DEFAULT_MODEL).optional(),
-  toolPermissions: z.array(toolPermissionSchema).optional(),
-}).omit({ id: true, userId: true, createdAt: true, updatedAt: true });
+// ---- Assignees ----
+
+export const selectAssigneeSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  name: z.string().describe("Display name"),
+  email: z.string().describe("Email address"),
+  personality: z.string().nullable().describe("System prompt personality"),
+  model: z.string().nullable().describe("AI model override"),
+  toolPermissions: z
+    .array(toolPermissionSchema)
+    .nullable()
+    .describe("Per-tool permission overrides"),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
+});
+
+export const insertAssigneeSchema = z.object({
+  name: z.string().min(1).max(100).describe("Display name"),
+  email: z.string().email().describe("Email address"),
+  personality: z.string().max(2000).optional().describe("System prompt personality"),
+  model: availableModelSchema.catch(DEFAULT_MODEL).optional().describe("AI model to use"),
+  toolPermissions: z
+    .array(toolPermissionSchema)
+    .optional()
+    .describe("Per-tool permission overrides"),
+});
 
 export const updateAssigneeSchema = insertAssigneeSchema.partial();
 
-export const selectAssigneeSchema = createSelectSchema(assignees);
+// ---- Email Inbox ----
 
-// Email Inbox
-export const insertEmailSchema = createInsertSchema(emailInbox, {
-  fromEmail: z.string().email(),
-  toEmail: z.string().email(),
-  subject: z.string().max(500).optional(),
-  body: z.string().optional(),
-  receivedAt: z.string(),
-  metadata: z.record(z.unknown()).optional(),
-}).omit({ id: true, userId: true });
-
-export const updateEmailSchema = z.object({
-  isRead: z.boolean().optional(),
-  metadata: z.record(z.unknown()).optional(),
-  assigneeId: z.string().optional().nullable(),
+export const selectEmailSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  assigneeId: z.string().nullable().describe("Assigned assistant ID"),
+  fromEmail: z.string().describe("Sender email address"),
+  fromName: z.string().nullable().describe("Sender display name"),
+  toEmail: z.string().describe("Recipient email address"),
+  subject: z.string().nullable().describe("Email subject line"),
+  body: z.string().nullable().describe("Email body content"),
+  receivedAt: z.string().describe("When the email was received"),
+  isRead: z.boolean().nullable().describe("Whether the email has been read"),
+  metadata: z.record(z.unknown()).nullable().describe("Additional metadata"),
 });
 
-export const selectEmailSchema = createSelectSchema(emailInbox);
+export const insertEmailSchema = z.object({
+  assigneeId: z.string().nullable().optional().describe("Assigned assistant ID"),
+  fromEmail: z.string().email().describe("Sender email address"),
+  fromName: z.string().nullable().optional().describe("Sender display name"),
+  toEmail: z.string().email().describe("Recipient email address"),
+  subject: z.string().max(500).nullable().optional().describe("Email subject line"),
+  body: z.string().nullable().optional().describe("Email body content"),
+  receivedAt: z.string().describe("When the email was received"),
+  isRead: z.boolean().optional().describe("Whether the email has been read"),
+  metadata: z.record(z.unknown()).nullable().optional().describe("Additional metadata"),
+});
 
-// Tasks
-export const insertTaskSchema = createInsertSchema(tasks, {
-  title: z.string().min(1).max(200),
-  description: z.string().max(5000).optional(),
-  status: z.enum(["pending", "running", "finished", "cancelled"]).optional(),
-  tags: z.array(z.string()).optional(),
-  categories: z.array(z.string()).optional(),
-}).omit({ id: true, userId: true, createdAt: true, updatedAt: true });
+export const updateEmailSchema = z.object({
+  isRead: z.boolean().optional().describe("Whether the email has been read"),
+  metadata: z.record(z.unknown()).optional().describe("Additional metadata"),
+  assigneeId: z.string().optional().nullable().describe("Assigned assistant ID"),
+});
+
+// ---- Tasks ----
+
+export const selectTaskSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  title: z.string().describe("Task title"),
+  description: z.string().nullable().describe("Detailed task description"),
+  status: z.string().nullable().describe("Current status"),
+  tags: z.array(z.string()).nullable().describe("Freeform tags"),
+  categories: z.array(z.string()).nullable().describe("Category labels"),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
+});
+
+export const insertTaskSchema = z.object({
+  title: z.string().min(1).max(200).describe("Task title"),
+  description: z.string().max(5000).optional().describe("Detailed task description"),
+  status: z
+    .enum(["pending", "running", "finished", "cancelled"])
+    .optional()
+    .describe("Initial status"),
+  tags: z.array(z.string()).optional().describe("Freeform tags"),
+  categories: z.array(z.string()).optional().describe("Category labels"),
+});
 
 export const updateTaskSchema = insertTaskSchema.partial();
 
-export const selectTaskSchema = createSelectSchema(tasks);
+// ---- Task Emails ----
 
-// Task Emails
-export const insertTaskEmailSchema = createInsertSchema(taskEmails, {
-  taskId: z.string(),
-  emailId: z.string(),
-}).omit({ id: true });
+export const selectTaskEmailSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  taskId: z.string().describe("Associated task ID"),
+  emailId: z.string().describe("Associated email ID"),
+});
 
-export const selectTaskEmailSchema = createSelectSchema(taskEmails);
+export const insertTaskEmailSchema = z.object({
+  taskId: z.string().describe("Associated task ID"),
+  emailId: z.string().describe("Associated email ID"),
+});
 
-// Chat Sessions
-export const insertChatSessionSchema = createInsertSchema(chatSessions, {
-  title: z.string().max(200).optional(),
+// ---- Chat Sessions ----
+
+export const selectChatSessionSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  taskId: z.string().nullable().describe("Associated task ID"),
+  assigneeId: z.string().nullable().describe("Associated assignee ID"),
+  title: z.string().nullable().describe("Session title"),
+  status: z.string().nullable().describe("Current session status"),
+  messages: z.array(z.unknown()).describe("Conversation message history"),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
+});
+
+export const insertChatSessionSchema = z.object({
+  taskId: z.string().nullable().optional().describe("Associated task ID"),
+  assigneeId: z.string().nullable().optional().describe("Associated assignee ID"),
+  title: z.string().max(200).optional().describe("Session title"),
   status: z
     .enum(["starting", "in_progress", "waiting_confirmation", "stopped"])
-    .optional(),
-}).omit({
-  id: true,
-  userId: true,
-  messages: true,
-  createdAt: true,
-  updatedAt: true,
+    .optional()
+    .describe("Initial session status"),
 });
 
 export const updateChatSessionSchema = z.object({
-  title: z.string().max(200).optional(),
-  assigneeId: z.string().optional().nullable(),
+  title: z.string().max(200).optional().describe("Session title"),
+  assigneeId: z.string().optional().nullable().describe("Associated assignee ID"),
 });
 
-export const selectChatSessionSchema = createSelectSchema(chatSessions);
+// ---- Confirmations ----
 
-// Confirmations
-export const selectConfirmationSchema = createSelectSchema(confirmations);
+export const selectConfirmationSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  chatSessionId: z.string().describe("Associated chat session ID"),
+  toolCallId: z.string().describe("Tool call that triggered this confirmation"),
+  toolName: z.string().describe("Name of the tool requiring confirmation"),
+  parameters: z.record(z.unknown()).nullable().describe("Tool call parameters"),
+  status: z.string().nullable().describe("Confirmation status (pending/confirmed/rejected)"),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  resolvedAt: z.string().nullable().describe("When the confirmation was resolved"),
+});
 
 export const resolveConfirmationSchema = z.object({
-  action: z.enum(["confirm", "reject"]),
+  action: z.enum(["confirm", "reject"]).describe("Whether to confirm or reject the tool call"),
 });
 
-// Devices
-export const insertDeviceSchema = createInsertSchema(devices, {
-  deviceToken: z.string().min(1),
-  platform: z.literal("ios"),
-}).omit({ id: true, userId: true, createdAt: true });
+// ---- Devices ----
 
-export const selectDeviceSchema = createSelectSchema(devices);
+export const selectDeviceSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  deviceToken: z.string().describe("APNs device token"),
+  platform: z.string().describe("Device platform"),
+  createdAt: z.string().nullable().describe("Registration timestamp"),
+});
 
-// Send message
+export const insertDeviceSchema = z.object({
+  deviceToken: z.string().min(1).describe("APNs device token"),
+  platform: z.literal("ios").describe("Device platform (iOS only)"),
+});
+
+// ---- Send message ----
+
 export const sendMessageSchema = z.object({
-  content: z.string().min(1),
+  content: z.string().min(1).describe("Message text content"),
   attachments: z
     .array(
       z.object({
-        type: z.enum(["image", "audio", "pdf", "file"]),
-        url: z.string().url(),
-        name: z.string().optional(),
+        type: z.enum(["image", "audio", "pdf", "file"]).describe("Attachment media type"),
+        url: z.string().url().describe("Attachment URL"),
+        name: z.string().optional().describe("Attachment filename"),
       })
     )
-    .optional(),
+    .optional()
+    .describe("File attachments"),
 });
 
-// Onboard
+// ---- Onboard ----
+
 export const onboardResponseSchema = z.object({
   assignee: z.object({
-    check: z.boolean(),
-    required: z.array(z.string()).optional(),
-  }),
-  overall: z.boolean(),
+    check: z.boolean().describe("Whether an assignee exists"),
+    required: z.array(z.string()).optional().describe("Missing setup steps"),
+  }).describe("Assignee onboarding status"),
+  overall: z.boolean().describe("Whether onboarding is complete"),
 });
 
-// Presigned URL
+// ---- Presigned URL ----
+
 export const presignedUrlSchema = z.object({
-  contentType: z.string().min(1),
-  prefix: z.string().optional(),
+  contentType: z.string().min(1).describe("MIME type of the file to upload"),
+  prefix: z.string().optional().describe("Optional S3 key prefix"),
 });
 
 export const presignedUrlResponseSchema = z.object({
-  url: z.string(),
-  key: z.string(),
+  url: z.string().describe("Presigned upload URL"),
+  key: z.string().describe("S3 object key"),
 });
 
-// Common path params
-export const idParamSchema = z.object({ id: z.string() });
+// ---- Common path params ----
 
-// Common response schemas
-export const deletedResponseSchema = z.object({ deleted: z.boolean() });
+export const idParamSchema = z.object({ id: z.string().describe("Resource ID") });
 
-export const queuedResponseSchema = z.object({ queued: z.boolean() });
+// ---- Common response schemas ----
 
-export const receivedResponseSchema = z.object({ received: z.boolean() });
+export const deletedResponseSchema = z.object({ deleted: z.boolean().describe("Whether the resource was deleted") });
+
+export const queuedResponseSchema = z.object({ queued: z.boolean().describe("Whether the message was queued for processing") });
+
+export const receivedResponseSchema = z.object({ received: z.boolean().describe("Whether the webhook was received") });
 
 export const resolveResponseSchema = z.object({
-  action: z.enum(["confirm", "reject"]),
-  confirmationId: z.string(),
+  action: z.enum(["confirm", "reject"]).describe("Action taken"),
+  confirmationId: z.string().describe("Confirmation ID that was resolved"),
 });

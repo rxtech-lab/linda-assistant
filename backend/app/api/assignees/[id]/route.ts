@@ -12,6 +12,7 @@ import {
 import { successJson, errorJson } from "@/lib/utils/response";
 /**
  * @openapi
+ * @operationId getAssignee
  * @pathParams idParamSchema
  * @response selectAssigneeSchema
  */
@@ -34,6 +35,7 @@ export async function GET(
 
 /**
  * @openapi
+ * @operationId updateAssignee
  * @pathParams idParamSchema
  * @body updateAssigneeSchema
  * @response selectAssigneeSchema
@@ -62,6 +64,7 @@ export async function PUT(
 
 /**
  * @openapi
+ * @operationId deleteAssignee
  * @pathParams idParamSchema
  * @response deletedResponseSchema
  */

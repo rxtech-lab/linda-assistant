@@ -7,6 +7,7 @@ import { selectChatSessionSchema, deletedResponseSchema, idParamSchema } from "@
 import { successJson, errorJson } from "@/lib/utils/response";
 /**
  * @openapi
+ * @operationId getChatSession
  * @pathParams idParamSchema
  * @response selectChatSessionSchema
  */
@@ -31,6 +32,7 @@ export async function GET(
 
 /**
  * @openapi
+ * @operationId deleteChatSession
  * @pathParams idParamSchema
  * @response deletedResponseSchema
  */

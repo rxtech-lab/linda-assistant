@@ -24,7 +24,7 @@ test.describe("Agent Confirmation", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    assigneeId = body.data.id;
+    assigneeId = body.id;
   });
 
   test("send_email pauses for confirmation, resumes on confirm", async ({
@@ -38,7 +38,7 @@ test.describe("Agent Confirmation", () => {
     expect(sessionRes.ok()).toBeTruthy();
     const session = await sessionRes.json();
     chatSessionResponseSchema.parse(session);
-    const sessionId = session.data.id;
+    const sessionId = session.id;
 
     // Send message that triggers send_email
     await request.post(`/api/chat-sessions/${sessionId}/messages`, {
@@ -66,7 +66,7 @@ test.describe("Agent Confirmation", () => {
     const sessionCheck = await request.get(`/api/chat-sessions/${sessionId}`);
     const sessionCheckBody = await sessionCheck.json();
     chatSessionResponseSchema.parse(sessionCheckBody);
-    expect(sessionCheckBody.data.status).toBe("waiting_confirmation");
+    expect(sessionCheckBody.status).toBe("waiting_confirmation");
 
     // Query DB directly for pending confirmation
     const client = createClient({ url: `file:${dbPath}` });
@@ -105,7 +105,7 @@ test.describe("Agent Confirmation", () => {
     const finalSession = await request.get(`/api/chat-sessions/${sessionId}`);
     const finalBody = await finalSession.json();
     chatSessionResponseSchema.parse(finalBody);
-    expect(finalBody.data.status).toBe("stopped");
+    expect(finalBody.status).toBe("stopped");
   });
 
   test("send_email pauses, stops on reject", async ({ request, baseURL }) => {
@@ -116,7 +116,7 @@ test.describe("Agent Confirmation", () => {
     expect(sessionRes.ok()).toBeTruthy();
     const session = await sessionRes.json();
     chatSessionResponseSchema.parse(session);
-    const sessionId = session.data.id;
+    const sessionId = session.id;
 
     // Send message that triggers send_email
     await request.post(`/api/chat-sessions/${sessionId}/messages`, {
@@ -154,10 +154,10 @@ test.describe("Agent Confirmation", () => {
     const finalSession = await request.get(`/api/chat-sessions/${sessionId}`);
     const finalBody = await finalSession.json();
     chatSessionResponseSchema.parse(finalBody);
-    expect(finalBody.data.status).toBe("stopped");
+    expect(finalBody.status).toBe("stopped");
 
     // Check that last message has rejection info
-    const messages = finalBody.data.messages;
+    const messages = finalBody.messages;
     const lastMsg = messages[messages.length - 1];
     expect(lastMsg.role).toBe("tool");
     const toolResult = lastMsg.content[0];

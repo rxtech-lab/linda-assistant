@@ -7,6 +7,7 @@ import { updateEmailSchema, selectEmailSchema, deletedResponseSchema, idParamSch
 import { successJson, errorJson } from "@/lib/utils/response";
 /**
  * @openapi
+ * @operationId getEmail
  * @pathParams idParamSchema
  * @response selectEmailSchema
  */
@@ -29,6 +30,7 @@ export async function GET(
 
 /**
  * @openapi
+ * @operationId updateEmail
  * @pathParams idParamSchema
  * @body updateEmailSchema
  * @response selectEmailSchema
@@ -57,6 +59,7 @@ export async function PUT(
 
 /**
  * @openapi
+ * @operationId deleteEmail
  * @pathParams idParamSchema
  * @response deletedResponseSchema
  */

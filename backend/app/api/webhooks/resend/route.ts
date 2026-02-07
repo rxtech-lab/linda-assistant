@@ -7,6 +7,7 @@ import { receivedResponseSchema } from "@/lib/schemas";
 
 /**
  * @openapi
+ * @operationId handleResendWebhook
  * @response receivedResponseSchema
  */
 export async function POST(request: NextRequest) {

@@ -8,6 +8,7 @@ import { z } from "zod";
 
 /**
  * @openapi
+ * @operationId registerDevice
  * @body insertDeviceSchema
  * @response 201:selectDeviceSchema
  */

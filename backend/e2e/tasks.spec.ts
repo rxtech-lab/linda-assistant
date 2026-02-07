@@ -26,16 +26,16 @@ test.describe("Tasks CRUD", () => {
     expect(res.status()).toBe(201);
     const body = await res.json();
     taskResponseSchema.parse(body);
-    expect(body.data).toMatchObject({
+    expect(body).toMatchObject({
       title: "Test Task",
       description: "A test task description",
       status: "pending",
       tags: ["test", "e2e"],
       categories: ["testing"],
     });
-    expect(body.data.id).toBeTruthy();
-    expect(body.data.userId).toBe("e2e-test-user");
-    taskId = body.data.id;
+    expect(body.id).toBeTruthy();
+    expect(body.userId).toBe("e2e-test-user");
+    taskId = body.id;
   });
 
   test("GET /api/tasks lists tasks with pagination", async ({ request }) => {
@@ -60,10 +60,10 @@ test.describe("Tasks CRUD", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     taskDetailResponseSchema.parse(body);
-    expect(body.data.id).toBe(taskId);
-    expect(body.data.title).toBe("Test Task");
-    expect(body.data.chatSessions).toEqual([]);
-    expect(body.data.emails).toEqual([]);
+    expect(body.id).toBe(taskId);
+    expect(body.title).toBe("Test Task");
+    expect(body.chatSessions).toEqual([]);
+    expect(body.emails).toEqual([]);
   });
 
   test("PUT /api/tasks/:id updates and preserves unchanged fields", async ({
@@ -75,10 +75,10 @@ test.describe("Tasks CRUD", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     taskResponseSchema.parse(body);
-    expect(body.data.title).toBe("Updated Task");
-    expect(body.data.status).toBe("running");
-    expect(body.data.description).toBe("A test task description");
-    expect(body.data.tags).toEqual(["test", "e2e"]);
+    expect(body.title).toBe("Updated Task");
+    expect(body.status).toBe("running");
+    expect(body.description).toBe("A test task description");
+    expect(body.tags).toEqual(["test", "e2e"]);
   });
 
   test("DELETE /api/tasks/:id removes the task", async ({ request }) => {
@@ -86,7 +86,7 @@ test.describe("Tasks CRUD", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     deleteResponseSchema.parse(body);
-    expect(body.data.deleted).toBe(true);
+    expect(body.deleted).toBe(true);
 
     const getRes = await request.get(`/api/tasks/${taskId}`);
     expect(getRes.status()).toBe(404);
@@ -101,7 +101,7 @@ test.describe("Tasks cross-user isolation", () => {
       data: { title: "User1 Task" },
     });
     const body = await res.json();
-    user1TaskId = body.data.id;
+    user1TaskId = body.id;
   });
 
   test("user2 cannot list user1 tasks", async ({ request }) => {
@@ -130,7 +130,7 @@ test.describe("Tasks cross-user isolation", () => {
 
     const getRes = await request.get(`/api/tasks/${user1TaskId}`);
     const body = await getRes.json();
-    expect(body.data.title).toBe("User1 Task");
+    expect(body.title).toBe("User1 Task");
   });
 
   test("user2 cannot DELETE user1 task", async ({ request }) => {
@@ -188,7 +188,7 @@ test.describe("Tasks partial update", () => {
       },
     });
     const body = await res.json();
-    taskId = body.data.id;
+    taskId = body.id;
   });
 
   test("update only title preserves other fields", async ({ request }) => {
@@ -198,10 +198,10 @@ test.describe("Tasks partial update", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     taskResponseSchema.parse(body);
-    expect(body.data.title).toBe("New Title");
-    expect(body.data.description).toBe("Original description");
-    expect(body.data.status).toBe("pending");
-    expect(body.data.tags).toEqual(["original"]);
+    expect(body.title).toBe("New Title");
+    expect(body.description).toBe("Original description");
+    expect(body.status).toBe("pending");
+    expect(body.tags).toEqual(["original"]);
   });
 
   test("update only status preserves other fields", async ({ request }) => {
@@ -211,9 +211,9 @@ test.describe("Tasks partial update", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     taskResponseSchema.parse(body);
-    expect(body.data.status).toBe("running");
-    expect(body.data.title).toBe("New Title");
-    expect(body.data.description).toBe("Original description");
+    expect(body.status).toBe("running");
+    expect(body.title).toBe("New Title");
+    expect(body.description).toBe("Original description");
   });
 
   test("update tags array replaces entirely", async ({ request }) => {
@@ -223,8 +223,8 @@ test.describe("Tasks partial update", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     taskResponseSchema.parse(body);
-    expect(body.data.tags).toEqual(["new-tag-1", "new-tag-2"]);
-    expect(body.data.title).toBe("New Title");
+    expect(body.tags).toEqual(["new-tag-1", "new-tag-2"]);
+    expect(body.title).toBe("New Title");
   });
 
   test("empty body is valid and changes nothing", async ({ request }) => {
@@ -235,8 +235,8 @@ test.describe("Tasks partial update", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     taskResponseSchema.parse(body);
-    expect(body.data.title).toBe(beforeBody.data.title);
-    expect(body.data.status).toBe(beforeBody.data.status);
+    expect(body.title).toBe(beforeBody.title);
+    expect(body.status).toBe(beforeBody.status);
   });
 });
 
@@ -250,14 +250,14 @@ test.describe("Task chat sessions relationship", () => {
       data: { name: "Task Assignee", email: "task-assignee@example.com" },
     });
     const assigneeBody = await assigneeRes.json();
-    assigneeId = assigneeBody.data.id;
+    assigneeId = assigneeBody.id;
 
     // Create task
     const taskRes = await request.post("/api/tasks", {
       data: { title: "Task With Sessions" },
     });
     const taskBody = await taskRes.json();
-    taskId = taskBody.data.id;
+    taskId = taskBody.id;
   });
 
   test("GET /api/tasks/:id/chat-sessions returns empty initially", async ({
@@ -267,7 +267,7 @@ test.describe("Task chat sessions relationship", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     taskSessionsResponseSchema.parse(body);
-    expect(body.data).toEqual([]);
+    expect(body).toEqual([]);
   });
 
   test("chat sessions linked to task appear in response", async ({
@@ -284,8 +284,8 @@ test.describe("Task chat sessions relationship", () => {
     const taskRes = await request.get(`/api/tasks/${taskId}`);
     const taskBody = await taskRes.json();
     taskDetailResponseSchema.parse(taskBody);
-    expect(taskBody.data.chatSessions).toHaveLength(1);
-    expect(taskBody.data.chatSessions[0].id).toBe(sessionBody.data.id);
+    expect(taskBody.chatSessions).toHaveLength(1);
+    expect(taskBody.chatSessions[0].id).toBe(sessionBody.id);
 
     // Also check the dedicated endpoint
     const sessionsRes = await request.get(
@@ -293,8 +293,8 @@ test.describe("Task chat sessions relationship", () => {
     );
     const sessionsBody = await sessionsRes.json();
     taskSessionsResponseSchema.parse(sessionsBody);
-    expect(sessionsBody.data).toHaveLength(1);
-    expect(sessionsBody.data[0].id).toBe(sessionBody.data.id);
+    expect(sessionsBody).toHaveLength(1);
+    expect(sessionsBody[0].id).toBe(sessionBody.id);
   });
 
   test("user2 cannot access task chat sessions", async ({ request }) => {

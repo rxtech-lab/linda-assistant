@@ -9,6 +9,7 @@ import { resolveConfirmation } from "@/lib/ai/confirmation";
 
 /**
  * @openapi
+ * @operationId resolveConfirmation
  * @pathParams idParamSchema
  * @body resolveConfirmationSchema
  * @response resolveResponseSchema

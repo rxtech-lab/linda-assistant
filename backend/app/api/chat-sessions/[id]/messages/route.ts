@@ -9,6 +9,7 @@ import { setAgentTrigger } from "@/lib/streaming/manager";
 
 /**
  * @openapi
+ * @operationId sendMessage
  * @pathParams idParamSchema
  * @body sendMessageSchema
  * @response queuedResponseSchema

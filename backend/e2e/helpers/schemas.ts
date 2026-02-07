@@ -17,9 +17,7 @@ export const paginationSchema = z.object({
 });
 
 // Generic wrappers
-export const deleteResponseSchema = z.object({
-  data: z.object({ deleted: z.boolean() }),
-});
+export const deleteResponseSchema = z.object({ deleted: z.boolean() });
 
 export const errorResponseSchema = z.object({
   error: z.string(),
@@ -32,95 +30,79 @@ export const healthResponseSchema = z.object({
 });
 
 // Assignees
-export const assigneeResponseSchema = z.object({ data: selectAssigneeSchema });
+export const assigneeResponseSchema = selectAssigneeSchema;
 export const assigneeListResponseSchema = z.object({
   data: z.array(selectAssigneeSchema),
   pagination: paginationSchema,
 });
 
 // Tasks
-export const taskResponseSchema = z.object({ data: selectTaskSchema });
+export const taskResponseSchema = selectTaskSchema;
 export const taskListResponseSchema = z.object({
   data: z.array(selectTaskSchema),
   pagination: paginationSchema,
 });
-export const taskDetailResponseSchema = z.object({
-  data: selectTaskSchema.extend({
-    chatSessions: z.array(
-      z.object({
-        id: z.string(),
-        title: z.string().nullable(),
-        status: z.string().nullable(),
-        updatedAt: z.string().nullable(),
-      })
-    ),
-    emails: z.array(z.any()),
-  }),
-});
-export const taskSessionsResponseSchema = z.object({
-  data: z.array(
+export const taskDetailResponseSchema = selectTaskSchema.extend({
+  chatSessions: z.array(
     z.object({
       id: z.string(),
       title: z.string().nullable(),
       status: z.string().nullable(),
-      assigneeId: z.string().nullable(),
-      createdAt: z.string().nullable(),
       updatedAt: z.string().nullable(),
     })
   ),
+  emails: z.array(z.any()),
 });
+export const taskSessionsResponseSchema = z.array(
+  z.object({
+    id: z.string(),
+    title: z.string().nullable(),
+    status: z.string().nullable(),
+    assigneeId: z.string().nullable(),
+    createdAt: z.string().nullable(),
+    updatedAt: z.string().nullable(),
+  })
+);
 
 // Chat Sessions
-export const chatSessionResponseSchema = z.object({
-  data: selectChatSessionSchema,
-});
+export const chatSessionResponseSchema = selectChatSessionSchema;
 export const chatSessionListResponseSchema = z.object({
   data: z.array(selectChatSessionSchema.omit({ messages: true })),
   pagination: paginationSchema,
 });
 
 // Emails
-export const emailResponseSchema = z.object({ data: selectEmailSchema });
+export const emailResponseSchema = selectEmailSchema;
 export const emailListResponseSchema = z.object({
   data: z.array(selectEmailSchema),
   pagination: paginationSchema,
 });
 
 // Devices
-export const deviceResponseSchema = z.object({ data: selectDeviceSchema });
+export const deviceResponseSchema = selectDeviceSchema;
 
 // Tools
-export const toolsResponseSchema = z.object({
-  data: z.array(
-    z.object({
-      name: z.string(),
-      description: z.string(),
-      defaultPermission: z.enum([
-        "auto-confirm",
-        "manual-confirm",
-        "auto-reject",
-      ]),
-    })
-  ),
-});
+export const toolsResponseSchema = z.array(
+  z.object({
+    name: z.string(),
+    description: z.string(),
+    defaultPermission: z.enum([
+      "auto-confirm",
+      "manual-confirm",
+      "auto-reject",
+    ]),
+  })
+);
 
 // Models
-export const modelsResponseSchema = z.object({
-  data: z.array(z.string()),
-});
+export const modelsResponseSchema = z.array(z.string());
 
 // Confirmations
-export const confirmationListResponseSchema = z.object({
-  data: z.array(selectConfirmationSchema),
-});
+export const confirmationListResponseSchema = z.array(selectConfirmationSchema);
 export const resolveConfirmationResponseSchema = z.object({
-  data: z.object({
-    action: z.enum(["confirm", "reject"]),
-    confirmationId: z.string(),
-  }),
+  action: z.enum(["confirm", "reject"]),
+  confirmationId: z.string(),
 });
 
 // Send message
-export const sendMessageResponseSchema = z.object({
-  data: z.object({ queued: z.boolean() }),
-});
+export const sendMessageResponseSchema = z.object({ queued: z.boolean() });

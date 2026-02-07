@@ -23,6 +23,7 @@ const listResponseSchema = z.object({
 
 /**
  * @openapi
+ * @operationId listAssignees
  * @response listResponseSchema
  */
 export async function GET(request: NextRequest) {
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * @openapi
+ * @operationId createAssignee
  * @body insertAssigneeSchema
  * @response 201:selectAssigneeSchema
  */

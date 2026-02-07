@@ -8,6 +8,7 @@ import { successJson, errorJson } from "@/lib/utils/response";
 
 /**
  * @openapi
+ * @operationId deleteDevice
  * @pathParams idParamSchema
  * @response deletedResponseSchema
  */

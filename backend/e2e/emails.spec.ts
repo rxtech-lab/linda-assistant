@@ -24,16 +24,16 @@ test.describe("Emails CRUD", () => {
     expect(res.status()).toBe(201);
     const body = await res.json();
     emailResponseSchema.parse(body);
-    expect(body.data).toMatchObject({
+    expect(body).toMatchObject({
       fromEmail: "sender@example.com",
       toEmail: "recipient@example.com",
       subject: "Test Email",
       body: "<p>Hello world</p>",
     });
-    expect(body.data.id).toBeTruthy();
-    expect(body.data.userId).toBe("e2e-test-user");
-    expect(body.data.isRead).toBe(false);
-    emailId = body.data.id;
+    expect(body.id).toBeTruthy();
+    expect(body.userId).toBe("e2e-test-user");
+    expect(body.isRead).toBe(false);
+    emailId = body.id;
   });
 
   test("GET /api/emails lists emails with pagination", async ({
@@ -58,8 +58,8 @@ test.describe("Emails CRUD", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     emailResponseSchema.parse(body);
-    expect(body.data.id).toBe(emailId);
-    expect(body.data.subject).toBe("Test Email");
+    expect(body.id).toBe(emailId);
+    expect(body.subject).toBe("Test Email");
   });
 
   test("PUT /api/emails/:id updates email fields", async ({ request }) => {
@@ -69,10 +69,10 @@ test.describe("Emails CRUD", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     emailResponseSchema.parse(body);
-    expect(body.data.isRead).toBe(true);
+    expect(body.isRead).toBe(true);
     // Other fields unchanged
-    expect(body.data.subject).toBe("Test Email");
-    expect(body.data.fromEmail).toBe("sender@example.com");
+    expect(body.subject).toBe("Test Email");
+    expect(body.fromEmail).toBe("sender@example.com");
   });
 
   test("PUT /api/emails/:id updates metadata", async ({ request }) => {
@@ -82,8 +82,8 @@ test.describe("Emails CRUD", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     emailResponseSchema.parse(body);
-    expect(body.data.metadata).toEqual({ starred: true, label: "important" });
-    expect(body.data.isRead).toBe(true);
+    expect(body.metadata).toEqual({ starred: true, label: "important" });
+    expect(body.isRead).toBe(true);
   });
 
   test("DELETE /api/emails/:id removes the email", async ({ request }) => {
@@ -91,7 +91,7 @@ test.describe("Emails CRUD", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     deleteResponseSchema.parse(body);
-    expect(body.data.deleted).toBe(true);
+    expect(body.deleted).toBe(true);
 
     const getRes = await request.get(`/api/emails/${emailId}`);
     expect(getRes.status()).toBe(404);
@@ -111,7 +111,7 @@ test.describe("Emails cross-user isolation", () => {
       },
     });
     const body = await res.json();
-    user1EmailId = body.data.id;
+    user1EmailId = body.id;
   });
 
   test("user2 cannot list user1 emails", async ({ request }) => {
@@ -140,7 +140,7 @@ test.describe("Emails cross-user isolation", () => {
 
     const getRes = await request.get(`/api/emails/${user1EmailId}`);
     const body = await getRes.json();
-    expect(body.data.isRead).toBe(false);
+    expect(body.isRead).toBe(false);
   });
 
   test("user2 cannot DELETE user1 email", async ({ request }) => {
