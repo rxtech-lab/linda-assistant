@@ -25,7 +25,8 @@ const listResponseSchema = z.object({
 
 /**
  * @openapi
- * @response 200 - listResponseSchema
+ * @operationId listChatSessions
+ * @response listResponseSchema
  */
 export async function GET(request: NextRequest) {
   const auth = await authenticate(request);
@@ -60,8 +61,9 @@ export async function GET(request: NextRequest) {
 
 /**
  * @openapi
+ * @operationId createChatSession
  * @body insertChatSessionSchema
- * @response 201 - z.object({ data: selectChatSessionSchema })
+ * @response 201:selectChatSessionSchema
  */
 export async function POST(request: NextRequest) {
   const auth = await authenticate(request);

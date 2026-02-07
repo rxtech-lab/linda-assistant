@@ -26,15 +26,15 @@ test.describe("Assignees CRUD", () => {
     expect(res.status()).toBe(201);
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    expect(body.data).toMatchObject({
+    expect(body).toMatchObject({
       name: "Test Assistant",
       email: "test@example.com",
       personality: "Friendly helper",
       model: TEST_MODEL,
     });
-    expect(body.data.id).toBeTruthy();
-    expect(body.data.userId).toBe("e2e-test-user");
-    assigneeId = body.data.id;
+    expect(body.id).toBeTruthy();
+    expect(body.userId).toBe("e2e-test-user");
+    assigneeId = body.id;
   });
 
   test("GET /api/assignees lists assignees with pagination", async ({
@@ -63,8 +63,8 @@ test.describe("Assignees CRUD", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    expect(body.data.id).toBe(assigneeId);
-    expect(body.data.name).toBe("Test Assistant");
+    expect(body.id).toBe(assigneeId);
+    expect(body.name).toBe("Test Assistant");
   });
 
   test("PUT /api/assignees/:id updates and preserves unchanged fields", async ({
@@ -76,11 +76,11 @@ test.describe("Assignees CRUD", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    expect(body.data.name).toBe("Updated Assistant");
-    expect(body.data.email).toBe("updated@example.com");
+    expect(body.name).toBe("Updated Assistant");
+    expect(body.email).toBe("updated@example.com");
     // Unchanged fields persist
-    expect(body.data.personality).toBe("Friendly helper");
-    expect(body.data.model).toBe(TEST_MODEL);
+    expect(body.personality).toBe("Friendly helper");
+    expect(body.model).toBe(TEST_MODEL);
   });
 
   test("DELETE /api/assignees/:id removes the assignee", async ({
@@ -90,7 +90,7 @@ test.describe("Assignees CRUD", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     deleteResponseSchema.parse(body);
-    expect(body.data.deleted).toBe(true);
+    expect(body.deleted).toBe(true);
 
     // Subsequent GET returns 404
     const getRes = await request.get(`/api/assignees/${assigneeId}`);
@@ -106,7 +106,7 @@ test.describe("Cross-user isolation", () => {
       data: { name: "User1 Assistant", email: "user1@example.com" },
     });
     const body = await res.json();
-    user1AssigneeId = body.data.id;
+    user1AssigneeId = body.id;
   });
 
   test("user2 cannot list user1 assignees", async ({ request }) => {
@@ -138,7 +138,7 @@ test.describe("Cross-user isolation", () => {
     // Verify user1's data is unchanged
     const getRes = await request.get(`/api/assignees/${user1AssigneeId}`);
     const body = await getRes.json();
-    expect(body.data.name).toBe("User1 Assistant");
+    expect(body.name).toBe("User1 Assistant");
   });
 
   test("user2 cannot DELETE user1 assignee", async ({ request }) => {
@@ -161,13 +161,13 @@ test.describe("Cross-user isolation", () => {
     });
     expect(createRes.status()).toBe(201);
     const created = await createRes.json();
-    expect(created.data.userId).toBe("e2e-user-2");
+    expect(created.userId).toBe("e2e-user-2");
 
     // User1 cannot see it
     const listRes = await request.get("/api/assignees");
     const listBody = await listRes.json();
     const found = listBody.data.find(
-      (a: { id: string }) => a.id === created.data.id
+      (a: { id: string }) => a.id === created.id
     );
     expect(found).toBeUndefined();
   });
@@ -216,7 +216,7 @@ test.describe("Partial update", () => {
       },
     });
     const body = await res.json();
-    assigneeId = body.data.id;
+    assigneeId = body.id;
   });
 
   test("update only name preserves other fields", async ({ request }) => {
@@ -226,10 +226,10 @@ test.describe("Partial update", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    expect(body.data.name).toBe("New Name");
-    expect(body.data.email).toBe("partial@example.com");
-    expect(body.data.personality).toBe("Calm and collected");
-    expect(body.data.model).toBe(TEST_MODEL);
+    expect(body.name).toBe("New Name");
+    expect(body.email).toBe("partial@example.com");
+    expect(body.personality).toBe("Calm and collected");
+    expect(body.model).toBe(TEST_MODEL);
   });
 
   test("update only email preserves other fields", async ({ request }) => {
@@ -239,10 +239,10 @@ test.describe("Partial update", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    expect(body.data.email).toBe("new-email@example.com");
-    expect(body.data.name).toBe("New Name");
-    expect(body.data.personality).toBe("Calm and collected");
-    expect(body.data.model).toBe(TEST_MODEL);
+    expect(body.email).toBe("new-email@example.com");
+    expect(body.name).toBe("New Name");
+    expect(body.personality).toBe("Calm and collected");
+    expect(body.model).toBe(TEST_MODEL);
   });
 
   test("update only personality preserves other fields", async ({
@@ -254,10 +254,10 @@ test.describe("Partial update", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    expect(body.data.personality).toBe("Bold and brave");
-    expect(body.data.name).toBe("New Name");
-    expect(body.data.email).toBe("new-email@example.com");
-    expect(body.data.model).toBe(TEST_MODEL);
+    expect(body.personality).toBe("Bold and brave");
+    expect(body.name).toBe("New Name");
+    expect(body.email).toBe("new-email@example.com");
+    expect(body.model).toBe(TEST_MODEL);
   });
 
   test("empty body is valid and changes nothing", async ({ request }) => {
@@ -270,10 +270,10 @@ test.describe("Partial update", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    expect(body.data.name).toBe(beforeBody.data.name);
-    expect(body.data.email).toBe(beforeBody.data.email);
-    expect(body.data.personality).toBe(beforeBody.data.personality);
-    expect(body.data.model).toBe(beforeBody.data.model);
+    expect(body.name).toBe(beforeBody.name);
+    expect(body.email).toBe(beforeBody.email);
+    expect(body.personality).toBe(beforeBody.personality);
+    expect(body.model).toBe(beforeBody.model);
   });
 });
 
@@ -296,8 +296,8 @@ test.describe("Tool permissions", () => {
     expect(res.status()).toBe(201);
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    expect(body.data.toolPermissions).toEqual(permissions);
-    assigneeId = body.data.id;
+    expect(body.toolPermissions).toEqual(permissions);
+    assigneeId = body.id;
   });
 
   test("GET returns correct permissions", async ({ request }) => {
@@ -305,7 +305,7 @@ test.describe("Tool permissions", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    expect(body.data.toolPermissions).toEqual(permissions);
+    expect(body.toolPermissions).toEqual(permissions);
   });
 
   test("PUT replaces entire permissions array", async ({ request }) => {
@@ -318,9 +318,9 @@ test.describe("Tool permissions", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    expect(body.data.toolPermissions).toEqual(newPermissions);
+    expect(body.toolPermissions).toEqual(newPermissions);
     // Name unchanged
-    expect(body.data.name).toBe("Permissions Test");
+    expect(body.name).toBe("Permissions Test");
   });
 
   test("create without permissions defaults to null", async ({ request }) => {
@@ -333,6 +333,6 @@ test.describe("Tool permissions", () => {
     expect(res.status()).toBe(201);
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    expect(body.data.toolPermissions).toBeNull();
+    expect(body.toolPermissions).toBeNull();
   });
 });

@@ -3,11 +3,14 @@ import { db } from "@/lib/db";
 import { devices } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
+import { deletedResponseSchema, idParamSchema } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
 
 /**
  * @openapi
- * @response 200 - z.object({ data: z.object({ deleted: z.boolean() }) })
+ * @operationId deleteDevice
+ * @pathParams idParamSchema
+ * @response deletedResponseSchema
  */
 export async function DELETE(
   request: NextRequest,

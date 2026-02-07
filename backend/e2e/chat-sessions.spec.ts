@@ -17,7 +17,7 @@ test.describe("Chat Sessions CRUD", () => {
       data: { name: "Session Assignee", email: "session@example.com" },
     });
     const body = await res.json();
-    assigneeId = body.data.id;
+    assigneeId = body.id;
   });
 
   test("POST /api/chat-sessions creates a session", async ({ request }) => {
@@ -27,12 +27,12 @@ test.describe("Chat Sessions CRUD", () => {
     expect(res.status()).toBe(201);
     const body = await res.json();
     chatSessionResponseSchema.parse(body);
-    expect(body.data.assigneeId).toBe(assigneeId);
-    expect(body.data.userId).toBe("e2e-test-user");
-    expect(body.data.status).toBe("starting");
-    expect(body.data.messages).toEqual([]);
-    expect(body.data.id).toBeTruthy();
-    sessionId = body.data.id;
+    expect(body.assigneeId).toBe(assigneeId);
+    expect(body.userId).toBe("e2e-test-user");
+    expect(body.status).toBe("starting");
+    expect(body.messages).toEqual([]);
+    expect(body.id).toBeTruthy();
+    sessionId = body.id;
   });
 
   test("POST /api/chat-sessions with title", async ({ request }) => {
@@ -42,7 +42,7 @@ test.describe("Chat Sessions CRUD", () => {
     expect(res.status()).toBe(201);
     const body = await res.json();
     chatSessionResponseSchema.parse(body);
-    expect(body.data.title).toBe("My Chat");
+    expect(body.title).toBe("My Chat");
   });
 
   test("GET /api/chat-sessions lists sessions with pagination", async ({
@@ -73,9 +73,9 @@ test.describe("Chat Sessions CRUD", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     chatSessionResponseSchema.parse(body);
-    expect(body.data.id).toBe(sessionId);
-    expect(body.data.messages).toEqual([]);
-    expect(body.data.assigneeId).toBe(assigneeId);
+    expect(body.id).toBe(sessionId);
+    expect(body.messages).toEqual([]);
+    expect(body.assigneeId).toBe(assigneeId);
   });
 
   test("DELETE /api/chat-sessions/:id removes the session", async ({
@@ -85,7 +85,7 @@ test.describe("Chat Sessions CRUD", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     deleteResponseSchema.parse(body);
-    expect(body.data.deleted).toBe(true);
+    expect(body.deleted).toBe(true);
 
     const getRes = await request.get(`/api/chat-sessions/${sessionId}`);
     expect(getRes.status()).toBe(404);
@@ -102,10 +102,10 @@ test.describe("Chat Sessions cross-user isolation", () => {
     const assigneeBody = await assigneeRes.json();
 
     const res = await request.post("/api/chat-sessions", {
-      data: { assigneeId: assigneeBody.data.id },
+      data: { assigneeId: assigneeBody.id },
     });
     const body = await res.json();
-    user1SessionId = body.data.id;
+    user1SessionId = body.id;
   });
 
   test("user2 cannot list user1 sessions", async ({ request }) => {

@@ -20,7 +20,8 @@ const listResponseSchema = z.object({
 
 /**
  * @openapi
- * @response 200 - listResponseSchema
+ * @operationId listEmails
+ * @response listResponseSchema
  */
 export async function GET(request: NextRequest) {
   const auth = await authenticate(request);
@@ -46,8 +47,9 @@ export async function GET(request: NextRequest) {
 
 /**
  * @openapi
+ * @operationId createEmail
  * @body insertEmailSchema
- * @response 201 - z.object({ data: selectEmailSchema })
+ * @response 201:selectEmailSchema
  */
 export async function POST(request: NextRequest) {
   const auth = await authenticate(request);

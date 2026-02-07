@@ -3,25 +3,27 @@ import { db } from "@/lib/db";
 import { tasks, chatSessions } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import { errorJson, successJson } from "@/lib/utils/response";
+import { idParamSchema } from "@/lib/schemas";
+import { NextResponse } from "next/server";
+import { errorJson } from "@/lib/utils/response";
 import { z } from "zod";
 
-const sessionSummarySchema = z.object({
-  data: z.array(
-    z.object({
-      id: z.string(),
-      title: z.string().nullable(),
-      status: z.string().nullable(),
-      assigneeId: z.string().nullable(),
-      createdAt: z.string().nullable(),
-      updatedAt: z.string().nullable(),
-    })
-  ),
-});
+const sessionSummarySchema = z.array(
+  z.object({
+    id: z.string(),
+    title: z.string().nullable(),
+    status: z.string().nullable(),
+    assigneeId: z.string().nullable(),
+    createdAt: z.string().nullable(),
+    updatedAt: z.string().nullable(),
+  })
+);
 
 /**
  * @openapi
- * @response 200 - sessionSummarySchema
+ * @operationId listTaskChatSessions
+ * @pathParams idParamSchema
+ * @response sessionSummarySchema
  */
 export async function GET(
   request: NextRequest,
@@ -52,6 +54,6 @@ export async function GET(
     .from(chatSessions)
     .where(eq(chatSessions.taskId, id));
 
-  return successJson(sessions);
+  return NextResponse.json(sessions);
 }
 

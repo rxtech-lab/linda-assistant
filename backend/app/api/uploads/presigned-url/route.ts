@@ -1,21 +1,14 @@
 import { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth/middleware";
-import { presignedUrlSchema } from "@/lib/schemas";
+import { presignedUrlSchema, presignedUrlResponseSchema } from "@/lib/schemas";
 import { getPresignedUploadUrl } from "@/lib/s3";
 import { successJson, errorJson } from "@/lib/utils/response";
-import { z } from "zod";
-
-const presignedUrlResponseSchema = z.object({
-  data: z.object({
-    url: z.string(),
-    key: z.string(),
-  }),
-});
 
 /**
  * @openapi
+ * @operationId createPresignedUrl
  * @body presignedUrlSchema
- * @response 200 - presignedUrlResponseSchema
+ * @response presignedUrlResponseSchema
  */
 export async function POST(request: NextRequest) {
   const auth = await authenticate(request);

@@ -23,7 +23,8 @@ const listResponseSchema = z.object({
 
 /**
  * @openapi
- * @response 200 - listResponseSchema
+ * @operationId listAssignees
+ * @response listResponseSchema
  */
 export async function GET(request: NextRequest) {
   const auth = await authenticate(request);
@@ -49,8 +50,9 @@ export async function GET(request: NextRequest) {
 
 /**
  * @openapi
+ * @operationId createAssignee
  * @body insertAssigneeSchema
- * @response 201 - z.object({ data: selectAssigneeSchema })
+ * @response 201:selectAssigneeSchema
  */
 export async function POST(request: NextRequest) {
   const auth = await authenticate(request);

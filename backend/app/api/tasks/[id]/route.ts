@@ -3,27 +3,27 @@ import { db } from "@/lib/db";
 import { tasks, chatSessions, taskEmails, emailInbox } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import { updateTaskSchema, selectTaskSchema } from "@/lib/schemas";
+import { updateTaskSchema, selectTaskSchema, deletedResponseSchema, idParamSchema } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
 import { z } from "zod";
 
-const taskDetailSchema = z.object({
-  data: selectTaskSchema.extend({
-    chatSessions: z.array(
-      z.object({
-        id: z.string(),
-        title: z.string().nullable(),
-        status: z.string().nullable(),
-        updatedAt: z.string().nullable(),
-      })
-    ),
-    emails: z.array(z.any()),
-  }),
+const taskDetailSchema = selectTaskSchema.extend({
+  chatSessions: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string().nullable(),
+      status: z.string().nullable(),
+      updatedAt: z.string().nullable(),
+    })
+  ),
+  emails: z.array(z.any()),
 });
 
 /**
  * @openapi
- * @response 200 - taskDetailSchema
+ * @operationId getTask
+ * @pathParams idParamSchema
+ * @response taskDetailSchema
  */
 export async function GET(
   request: NextRequest,
@@ -69,8 +69,10 @@ export async function GET(
 
 /**
  * @openapi
+ * @operationId updateTask
+ * @pathParams idParamSchema
  * @body updateTaskSchema
- * @response 200 - z.object({ data: selectTaskSchema })
+ * @response selectTaskSchema
  */
 export async function PUT(
   request: NextRequest,
@@ -96,7 +98,9 @@ export async function PUT(
 
 /**
  * @openapi
- * @response 200 - z.object({ data: z.object({ deleted: z.boolean() }) })
+ * @operationId deleteTask
+ * @pathParams idParamSchema
+ * @response deletedResponseSchema
  */
 export async function DELETE(
   request: NextRequest,

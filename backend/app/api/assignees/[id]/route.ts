@@ -6,15 +6,15 @@ import { authenticate } from "@/lib/auth/middleware";
 import {
   updateAssigneeSchema,
   selectAssigneeSchema,
+  deletedResponseSchema,
+  idParamSchema,
 } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
-import { z } from "zod";
-
-const detailResponseSchema = z.object({ data: selectAssigneeSchema });
-
 /**
  * @openapi
- * @response 200 - detailResponseSchema
+ * @operationId getAssignee
+ * @pathParams idParamSchema
+ * @response selectAssigneeSchema
  */
 export async function GET(
   request: NextRequest,
@@ -35,8 +35,10 @@ export async function GET(
 
 /**
  * @openapi
+ * @operationId updateAssignee
+ * @pathParams idParamSchema
  * @body updateAssigneeSchema
- * @response 200 - detailResponseSchema
+ * @response selectAssigneeSchema
  */
 export async function PUT(
   request: NextRequest,
@@ -62,7 +64,9 @@ export async function PUT(
 
 /**
  * @openapi
- * @response 200 - z.object({ data: z.object({ deleted: z.boolean() }) })
+ * @operationId deleteAssignee
+ * @pathParams idParamSchema
+ * @response deletedResponseSchema
  */
 export async function DELETE(
   request: NextRequest,

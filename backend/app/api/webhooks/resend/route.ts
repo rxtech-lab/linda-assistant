@@ -3,10 +3,12 @@ import { Webhook } from "svix";
 import { db } from "@/lib/db";
 import { emailInbox, assignees } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { receivedResponseSchema } from "@/lib/schemas";
 
 /**
  * @openapi
- * @response 200 - z.object({ data: z.object({ received: z.boolean() }) })
+ * @operationId handleResendWebhook
+ * @response receivedResponseSchema
  */
 export async function POST(request: NextRequest) {
   const body = await request.text();

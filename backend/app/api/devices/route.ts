@@ -8,8 +8,9 @@ import { z } from "zod";
 
 /**
  * @openapi
+ * @operationId registerDevice
  * @body insertDeviceSchema
- * @response 201 - z.object({ data: selectDeviceSchema })
+ * @response 201:selectDeviceSchema
  */
 export async function POST(request: NextRequest) {
   const auth = await authenticate(request);

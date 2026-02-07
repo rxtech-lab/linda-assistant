@@ -7,8 +7,8 @@ test.describe("Models API", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     modelsResponseSchema.parse(body);
-    expect(Array.isArray(body.data)).toBe(true);
-    expect(body.data.length).toBeGreaterThanOrEqual(1);
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.length).toBeGreaterThanOrEqual(1);
   });
 
   test("GET /api/models requires auth", async ({ request }) => {

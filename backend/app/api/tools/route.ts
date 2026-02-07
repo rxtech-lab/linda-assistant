@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth/middleware";
-import { successJson } from "@/lib/utils/response";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const toolSchema = z.object({
@@ -9,9 +9,7 @@ const toolSchema = z.object({
   defaultPermission: z.enum(["auto-confirm", "manual-confirm", "auto-reject"]),
 });
 
-const toolsResponseSchema = z.object({
-  data: z.array(toolSchema),
-});
+const toolsListSchema = z.array(toolSchema);
 
 const AVAILABLE_TOOLS = [
   {
@@ -38,11 +36,12 @@ const AVAILABLE_TOOLS = [
 
 /**
  * @openapi
- * @response 200 - toolsResponseSchema
+ * @operationId listTools
+ * @response toolsListSchema
  */
 export async function GET(request: NextRequest) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
-  return successJson(AVAILABLE_TOOLS);
+  return NextResponse.json(AVAILABLE_TOOLS);
 }

@@ -19,7 +19,7 @@ test.describe("Agent Stream", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    assigneeId = body.data.id;
+    assigneeId = body.id;
   });
 
   test("streams text response for simple message", async ({ request, baseURL }) => {
@@ -30,7 +30,7 @@ test.describe("Agent Stream", () => {
     expect(sessionRes.ok()).toBeTruthy();
     const session = await sessionRes.json();
     chatSessionResponseSchema.parse(session);
-    const sessionId = session.data.id;
+    const sessionId = session.id;
 
     // Send message
     const msgRes = await request.post(`/api/chat-sessions/${sessionId}/messages`, {
@@ -58,7 +58,7 @@ test.describe("Agent Stream", () => {
     const statusRes = await request.get(`/api/chat-sessions/${sessionId}`);
     const statusBody = await statusRes.json();
     chatSessionResponseSchema.parse(statusBody);
-    expect(statusBody.data.status).toBe("stopped");
+    expect(statusBody.status).toBe("stopped");
   });
 
   test("auto-confirm tool executes without pausing", async ({ request, baseURL }) => {
@@ -78,12 +78,12 @@ test.describe("Agent Stream", () => {
 
     // Create session
     const sessionRes = await request.post("/api/chat-sessions", {
-      data: { assigneeId: autoAssignee.data.id },
+      data: { assigneeId: autoAssignee.id },
     });
     expect(sessionRes.ok()).toBeTruthy();
     const session = await sessionRes.json();
     chatSessionResponseSchema.parse(session);
-    const sessionId = session.data.id;
+    const sessionId = session.id;
 
     // Send message that triggers create_task
     const msgRes = await request.post(`/api/chat-sessions/${sessionId}/messages`, {
@@ -111,6 +111,6 @@ test.describe("Agent Stream", () => {
     const statusRes = await request.get(`/api/chat-sessions/${sessionId}`);
     const statusBody = await statusRes.json();
     chatSessionResponseSchema.parse(statusBody);
-    expect(statusBody.data.status).toBe("stopped");
+    expect(statusBody.status).toBe("stopped");
   });
 });

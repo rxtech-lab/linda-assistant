@@ -18,7 +18,7 @@ test.describe("Agent Multi-Turn", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     assigneeResponseSchema.parse(body);
-    assigneeId = body.data.id;
+    assigneeId = body.id;
   });
 
   test("handles multi-turn conversation with message history", async ({
@@ -32,7 +32,7 @@ test.describe("Agent Multi-Turn", () => {
     expect(sessionRes.ok()).toBeTruthy();
     const session = await sessionRes.json();
     chatSessionResponseSchema.parse(session);
-    const sessionId = session.data.id;
+    const sessionId = session.id;
 
     // Turn 1
     await request.post(`/api/chat-sessions/${sessionId}/messages`, {
@@ -53,8 +53,8 @@ test.describe("Agent Multi-Turn", () => {
     const session1 = await request.get(`/api/chat-sessions/${sessionId}`);
     const session1Body = await session1.json();
     chatSessionResponseSchema.parse(session1Body);
-    expect(session1Body.data.messages.length).toBe(2); // user + assistant
-    expect(session1Body.data.status).toBe("stopped");
+    expect(session1Body.messages.length).toBe(2); // user + assistant
+    expect(session1Body.status).toBe("stopped");
 
     // Turn 2
     await request.post(`/api/chat-sessions/${sessionId}/messages`, {
@@ -73,8 +73,8 @@ test.describe("Agent Multi-Turn", () => {
     const session2 = await request.get(`/api/chat-sessions/${sessionId}`);
     const session2Body = await session2.json();
     chatSessionResponseSchema.parse(session2Body);
-    expect(session2Body.data.messages.length).toBe(4); // user1, assistant1, user2, assistant2
-    expect(session2Body.data.status).toBe("stopped");
+    expect(session2Body.messages.length).toBe(4); // user1, assistant1, user2, assistant2
+    expect(session2Body.status).toBe("stopped");
   });
 
   test("reconnect to stream replays cached chunks", async ({
@@ -88,7 +88,7 @@ test.describe("Agent Multi-Turn", () => {
     expect(sessionRes.ok()).toBeTruthy();
     const session = await sessionRes.json();
     chatSessionResponseSchema.parse(session);
-    const sessionId = session.data.id;
+    const sessionId = session.id;
 
     // Send message and complete the stream
     await request.post(`/api/chat-sessions/${sessionId}/messages`, {
