@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 struct NewChatSheet: View {
     let taskId: String?
@@ -30,7 +30,6 @@ struct NewChatSheet: View {
                 if !assignees.isEmpty {
                     Section("Assistant") {
                         Picker("Assistant", selection: $selectedAssigneeId) {
-                            Text("Default").tag(nil as String?)
                             ForEach(assignees) { assignee in
                                 Text(assignee.name).tag(assignee.id as String?)
                             }
@@ -54,7 +53,6 @@ struct NewChatSheet: View {
                             Text("Start Chat").frame(maxWidth: .infinity)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
                     .disabled(isSubmitting)
                 }
             }

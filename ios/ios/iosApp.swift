@@ -11,7 +11,6 @@ struct iosApp: App {
             RootView()
                 .environment(authManager)
                 .environment(eventManager)
-                .task { await authManager.checkExistingAuth() }
         }
     }
 }

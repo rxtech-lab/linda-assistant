@@ -8,11 +8,14 @@ struct SignInView: View {
         RxSignInView(
             manager: authManager.oauthManager,
             appearance: RxSignInAppearance(
-                icon: .systemImage("bubble.left.and.bubble.right.fill"),
+                icon: .assetImage("appicon", .main),
                 title: "Linda",
                 subtitle: "Your Personal Assistant",
                 signInButtonTitle: "Sign in with RxLab"
-            )
+            ),
+            onAuthFailed: { error in
+                print("Auth failed: \(error)")
+            }
         )
     }
 }

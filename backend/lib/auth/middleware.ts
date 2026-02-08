@@ -5,13 +5,13 @@ export interface AuthContext {
 }
 
 export async function authenticate(
-  request: NextRequest
+  request: NextRequest,
 ): Promise<AuthContext | NextResponse> {
   const authHeader = request.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return NextResponse.json(
       { error: "Missing or invalid authorization header" },
-      { status: 401 }
+      { status: 401 },
     );
   }
 
@@ -23,14 +23,14 @@ export async function authenticate(
   const token = authHeader.slice(7);
 
   try {
-    const response = await fetch("https://auth.rxlab.io/userinfo", {
+    const response = await fetch("https://auth.rxlab.app/api/oauth/userinfo", {
       headers: { authorization: `Bearer ${token}` },
     });
 
     if (!response.ok) {
       return NextResponse.json(
         { error: "Invalid or expired token" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -40,7 +40,7 @@ export async function authenticate(
     if (!userId) {
       return NextResponse.json(
         { error: "Token missing user identifier" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -48,7 +48,7 @@ export async function authenticate(
   } catch {
     return NextResponse.json(
       { error: "Authentication service unavailable" },
-      { status: 503 }
+      { status: 503 },
     );
   }
 }

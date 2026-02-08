@@ -7,7 +7,7 @@ final class ChatDetailViewModel {
     var displayMessages: [DisplayMessage] = []
     var isLoading = false
     var error: String?
-    var streamHandler: ChatStreamHandler!
+    var streamHandler: ChatStreamHandler?
 
     func loadSession(id: String, apiClient: APIClient, authManager: AuthManager, eventManager: EventManager) async {
         isLoading = true
@@ -34,6 +34,8 @@ final class ChatDetailViewModel {
     }
 
     func sendMessage(_ content: String, sessionId: String, apiClient: APIClient) async {
+        guard let streamHandler else { return }
+
         let userMsg = DisplayMessage(
             id: "user-\(displayMessages.count)",
             role: .user,

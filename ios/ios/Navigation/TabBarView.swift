@@ -24,6 +24,12 @@ struct TabBarView: View {
                     AssigneeListView()
                 }
             }
+
+            Tab("Settings", systemImage: "gearshape", value: .settings) {
+                NavigationStack(path: $nav.settingsPath) {
+                    SettingsView()
+                }
+            }
         }
     }
 }

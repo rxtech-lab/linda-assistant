@@ -25,7 +25,7 @@ struct ChatSessionListView: View {
             } else {
                 List {
                     ForEach(viewModel.sessions) { session in
-                        NavigationLink(value: session.id) {
+                        NavigationLink(value: AppDestination.chatSession(id: session.id)) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(session.title ?? "Untitled")
@@ -53,8 +53,13 @@ struct ChatSessionListView: View {
             }
         }
         .navigationTitle("Chat Sessions")
-        .navigationDestination(for: String.self) { sessionId in
-            ChatDetailView(sessionId: sessionId)
+        .navigationDestination(for: AppDestination.self) { destination in
+            switch destination {
+            case .task(let id): TaskDetailView(taskId: id)
+            case .chatSession(let id): ChatDetailView(sessionId: id)
+            case .email(let id): EmailDetailView(emailId: id)
+            case .assignee(let id, let name): AssigneeDetailView(assigneeId: id, assigneeName: name)
+            }
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

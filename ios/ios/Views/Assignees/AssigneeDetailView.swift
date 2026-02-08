@@ -3,6 +3,7 @@ import AssistantCore
 
 struct AssigneeDetailView: View {
     let assigneeId: String
+    let assigneeName: String
     @Environment(AuthManager.self) private var authManager
     @Environment(EventManager.self) private var eventManager
     @State private var viewModel = AssigneeDetailViewModel()
@@ -46,16 +47,12 @@ struct AssigneeDetailView: View {
                 }
             }
         }
-        .navigationTitle(viewModel.assignee?.name ?? "Assistant")
+        .navigationTitle(viewModel.assignee?.name ?? assigneeName)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button("Edit", systemImage: "pencil") { showingEdit = true }
                     Button("Delete", systemImage: "trash", role: .destructive) { showingDelete = true }
-                    Divider()
-                    Button("Sign Out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                        Task { await authManager.signOut() }
-                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }

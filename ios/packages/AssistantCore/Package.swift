@@ -9,7 +9,7 @@ let package = Package(
         .library(name: "AssistantCore", targets: ["AssistantCore"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/rxtech-lab/RxAuthSwift.git", exact: "1.0.0"),
+        .package(url: "https://github.com/rxtech-lab/RxAuthSwift.git", exact: "1.0.2"),
     ],
     targets: [
         .target(

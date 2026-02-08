@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 struct AssigneeFormSheet: View {
     enum Mode {
@@ -45,7 +45,7 @@ struct AssigneeFormSheet: View {
 
                 Section("Personality") {
                     TextField("System prompt...", text: $personality, axis: .vertical)
-                        .lineLimit(4...8)
+                        .lineLimit(4 ... 8)
                 }
 
                 if !availableModels.isEmpty {
@@ -94,7 +94,7 @@ struct AssigneeFormSheet: View {
                             Text("Save").frame(maxWidth: .infinity)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .foregroundStyle(Color.primaryButtonColor)
                     .disabled(name.isEmpty || email.isEmpty || isSubmitting)
                 }
             }

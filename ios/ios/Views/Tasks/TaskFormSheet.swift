@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 struct TaskFormSheet: View {
     enum Mode {
@@ -35,7 +35,7 @@ struct TaskFormSheet: View {
                 Section("Details") {
                     TextField("Title", text: $title)
                     TextField("Description", text: $description, axis: .vertical)
-                        .lineLimit(3...6)
+                        .lineLimit(3 ... 6)
                 }
 
                 Section("Status") {
@@ -70,7 +70,6 @@ struct TaskFormSheet: View {
                             Text("Save").frame(maxWidth: .infinity)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSubmitting)
                 }
             }

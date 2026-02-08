@@ -28,7 +28,7 @@ struct TaskListView: View {
             } else {
                 List {
                     ForEach(viewModel.tasks) { task in
-                        NavigationLink(value: task.id) {
+                        NavigationLink(value: AppDestination.task(id: task.id)) {
                             TaskRowView(task: task)
                         }
                     }
@@ -42,8 +42,13 @@ struct TaskListView: View {
             }
         }
         .navigationTitle("Tasks")
-        .navigationDestination(for: String.self) { taskId in
-            TaskDetailView(taskId: taskId)
+        .navigationDestination(for: AppDestination.self) { destination in
+            switch destination {
+            case .task(let id): TaskDetailView(taskId: id)
+            case .chatSession(let id): ChatDetailView(sessionId: id)
+            case .email(let id): EmailDetailView(emailId: id)
+            case .assignee(let id, let name): AssigneeDetailView(assigneeId: id, assigneeName: name)
+            }
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

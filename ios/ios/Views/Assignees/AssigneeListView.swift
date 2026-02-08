@@ -28,7 +28,7 @@ struct AssigneeListView: View {
             } else {
                 List {
                     ForEach(viewModel.assignees) { assignee in
-                        NavigationLink(value: assignee.id) {
+                        NavigationLink(value: AppDestination.assignee(id: assignee.id, name: assignee.name)) {
                             AssigneeRowView(assignee: assignee)
                         }
                     }
@@ -42,8 +42,13 @@ struct AssigneeListView: View {
             }
         }
         .navigationTitle("Assistants")
-        .navigationDestination(for: String.self) { assigneeId in
-            AssigneeDetailView(assigneeId: assigneeId)
+        .navigationDestination(for: AppDestination.self) { destination in
+            switch destination {
+            case .task(let id): TaskDetailView(taskId: id)
+            case .chatSession(let id): ChatDetailView(sessionId: id)
+            case .email(let id): EmailDetailView(emailId: id)
+            case .assignee(let id, let name): AssigneeDetailView(assigneeId: id, assigneeName: name)
+            }
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

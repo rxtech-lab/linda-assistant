@@ -33,6 +33,10 @@ struct SidebarNavigationView: View {
                 NavigationStack(path: $nav.assigneesPath) {
                     AssigneeListView()
                 }
+            case .settings:
+                NavigationStack(path: $nav.settingsPath) {
+                    SettingsView()
+                }
             }
         }
     }

@@ -7,6 +7,7 @@ public final class AuthManager: Sendable {
     public let oauthManager: OAuthManager
     private let tokenStorage: KeychainTokenStorage
 
+    public var authState: AuthenticationState { oauthManager.authState }
     public var isAuthenticated: Bool { oauthManager.authState == .authenticated }
     public var isLoading: Bool { oauthManager.isAuthenticating }
     public var error: String? { oauthManager.errorMessage }

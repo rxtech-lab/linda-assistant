@@ -25,23 +25,25 @@ struct ChatDetailView: View {
                         }
 
                         // Streaming text
-                        if !viewModel.streamHandler.streamedText.isEmpty && viewModel.streamHandler.isStreaming {
+                        if let handler = viewModel.streamHandler, !handler.streamedText.isEmpty && handler.isStreaming {
                             MessageBubble(message: DisplayMessage(
                                 id: "streaming",
                                 role: .assistant,
-                                content: viewModel.streamHandler.streamedText,
+                                content: handler.streamedText,
                                 isStreaming: true
                             ))
                             .id("streaming")
                         }
 
                         // Tool calls
-                        ForEach(viewModel.streamHandler.toolCalls) { toolCall in
-                            ToolCallBadge(toolCall: toolCall)
+                        if let handler = viewModel.streamHandler {
+                            ForEach(handler.toolCalls) { toolCall in
+                                ToolCallBadge(toolCall: toolCall)
+                            }
                         }
 
                         // Pending confirmation
-                        if let confirmation = viewModel.streamHandler.pendingConfirmation {
+                        if let confirmation = viewModel.streamHandler?.pendingConfirmation {
                             ConfirmationCardView(
                                 confirmation: confirmation,
                                 onTap: { showingConfirmation = true }
@@ -55,7 +57,7 @@ struct ChatDetailView: View {
                         proxy.scrollTo(viewModel.displayMessages.last?.id ?? "streaming", anchor: .bottom)
                     }
                 }
-                .onChange(of: viewModel.streamHandler.streamedText) {
+                .onChange(of: viewModel.streamHandler?.streamedText) {
                     proxy.scrollTo("streaming", anchor: .bottom)
                 }
             }
@@ -79,7 +81,7 @@ struct ChatDetailView: View {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.title2)
                 }
-                .disabled(messageText.trimmingCharacters(in: .whitespaces).isEmpty || viewModel.streamHandler.isStreaming)
+                .disabled(messageText.trimmingCharacters(in: .whitespaces).isEmpty || viewModel.streamHandler?.isStreaming == true)
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -87,12 +89,12 @@ struct ChatDetailView: View {
         .navigationTitle(viewModel.session?.title ?? "Chat")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingConfirmation) {
-            if let confirmation = viewModel.streamHandler.pendingConfirmation {
+            if let confirmation = viewModel.streamHandler?.pendingConfirmation {
                 ConfirmationSheetView(
                     confirmation: confirmation,
                     onResolve: { action in
                         Task {
-                            await viewModel.streamHandler.resolveConfirmation(
+                            await viewModel.streamHandler?.resolveConfirmation(
                                 confirmationId: confirmation.confirmationId,
                                 action: action
                             )

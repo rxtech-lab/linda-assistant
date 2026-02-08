@@ -27,7 +27,7 @@ struct EmailListView: View {
             } else {
                 List {
                     ForEach(viewModel.emails) { email in
-                        NavigationLink(value: email.id) {
+                        NavigationLink(value: AppDestination.email(id: email.id)) {
                             EmailRowView(email: email)
                         }
                     }
@@ -41,8 +41,13 @@ struct EmailListView: View {
             }
         }
         .navigationTitle("Email Inbox")
-        .navigationDestination(for: String.self) { emailId in
-            EmailDetailView(emailId: emailId)
+        .navigationDestination(for: AppDestination.self) { destination in
+            switch destination {
+            case .task(let id): TaskDetailView(taskId: id)
+            case .chatSession(let id): ChatDetailView(sessionId: id)
+            case .email(let id): EmailDetailView(emailId: id)
+            case .assignee(let id, let name): AssigneeDetailView(assigneeId: id, assigneeName: name)
+            }
         }
         .task {
             await viewModel.loadEmails(apiClient: apiClient)

@@ -54,7 +54,7 @@ struct TaskDetailView: View {
                                 .foregroundStyle(.secondary)
                         } else {
                             ForEach(task.chatSessions) { session in
-                                NavigationLink(value: session.id) {
+                                NavigationLink(value: AppDestination.chatSession(id: session.id)) {
                                     HStack {
                                         Text(session.title ?? "Untitled")
                                         Spacer()
@@ -90,8 +90,13 @@ struct TaskDetailView: View {
             }
         }
         .navigationTitle(viewModel.task?.title ?? "Task")
-        .navigationDestination(for: String.self) { sessionId in
-            ChatDetailView(sessionId: sessionId)
+        .navigationDestination(for: AppDestination.self) { destination in
+            switch destination {
+            case .task(let id): TaskDetailView(taskId: id)
+            case .chatSession(let id): ChatDetailView(sessionId: id)
+            case .email(let id): EmailDetailView(emailId: id)
+            case .assignee(let id, let name): AssigneeDetailView(assigneeId: id, assigneeName: name)
+            }
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
