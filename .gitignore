@@ -1,1 +1,6 @@
 backend/public/openapi.json
+
+# iOS secrets
+ios/Config/Secrets.xcconfig
+ios/Config/Secrets.xcconfig
+ios/Config/Secrets.xcconfig

@@ -1,0 +1,72 @@
+import SwiftUI
+import AssistantCore
+
+@Observable
+final class OnboardingViewModel {
+    var name = "Linda"
+    var email = ""
+    var personality = "You are a helpful personal assistant."
+    var selectedModel = ""
+    var availableModels: [String] = []
+    var availableTools: [AgentTool] = []
+    var toolPermissions: [String: String] = [:]
+    var isSubmitting = false
+    var isComplete = false
+    var error: String?
+
+    var isValid: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !email.trimmingCharacters(in: .whitespaces).isEmpty &&
+        email.contains("@")
+    }
+
+    func bindingForTool(_ toolName: String) -> Binding<String> {
+        Binding(
+            get: { self.toolPermissions[toolName] ?? "auto-confirm" },
+            set: { self.toolPermissions[toolName] = $0 }
+        )
+    }
+
+    func loadModelsAndTools(apiClient: APIClient) async {
+        do {
+            async let modelsReq = apiClient.listModels()
+            async let toolsReq = apiClient.listTools()
+            let (models, tools) = try await (modelsReq, toolsReq)
+            availableModels = models
+            availableTools = tools
+            if selectedModel.isEmpty, let first = models.first {
+                selectedModel = first
+            }
+            for tool in tools {
+                toolPermissions[tool.name] = tool.defaultPermission
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func createAssignee(apiClient: APIClient, eventManager: EventManager) async {
+        isSubmitting = true
+        error = nil
+
+        let permissions = toolPermissions.map { ToolPermission(toolName: $0.key, permission: $0.value) }
+
+        let body = CreateAssignee(
+            name: name.trimmingCharacters(in: .whitespaces),
+            email: email.trimmingCharacters(in: .whitespaces),
+            personality: personality.isEmpty ? nil : personality,
+            model: selectedModel.isEmpty ? nil : selectedModel,
+            toolPermissions: permissions.isEmpty ? nil : permissions
+        )
+
+        do {
+            let assignee = try await apiClient.createAssignee(body)
+            eventManager.emit(.assigneeCreated(assignee))
+            isComplete = true
+        } catch {
+            self.error = error.localizedDescription
+        }
+
+        isSubmitting = false
+    }
+}

@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		DF7E2A3E2F385000006A4C0A /* AssistantCore in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E2A202F379000006A4C0A /* AssistantCore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		DF7E2A012F378F47006A4C0A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -28,6 +32,10 @@
 		DF7E2A002F378F47006A4C0A /* iosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF7E2A0A2F378F47006A4C0A /* iosUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF7E2A1E2F378F82006A4C0A /* AssistantCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = AssistantCore; sourceTree = "<group>"; };
+		DF7E2A412F385100006A4C0A /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		DF7E2A422F385100006A4C0A /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		DF7E2A432F385100006A4C0A /* Secrets.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig.example; sourceTree = "<group>"; };
+		DF7E2EA22F385474006A4C0A /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -53,6 +61,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DF7E2A3E2F385000006A4C0A /* AssistantCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -76,6 +85,7 @@
 		DF7E29E82F378F46006A4C0A = {
 			isa = PBXGroup;
 			children = (
+				DF7E2A402F385100006A4C0A /* Config */,
 				DF7E2A1D2F378F57006A4C0A /* packages */,
 				DF7E29F32F378F46006A4C0A /* ios */,
 				DF7E2A032F378F47006A4C0A /* iosTests */,
@@ -102,6 +112,17 @@
 			path = packages;
 			sourceTree = "<group>";
 		};
+		DF7E2A402F385100006A4C0A /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				DF7E2A412F385100006A4C0A /* Debug.xcconfig */,
+				DF7E2A422F385100006A4C0A /* Release.xcconfig */,
+				DF7E2A432F385100006A4C0A /* Secrets.xcconfig.example */,
+				DF7E2EA22F385474006A4C0A /* Secrets.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -122,6 +143,7 @@
 			);
 			name = ios;
 			packageProductDependencies = (
+				DF7E2A202F379000006A4C0A /* AssistantCore */,
 			);
 			productName = ios;
 			productReference = DF7E29F12F378F46006A4C0A /* ios.app */;
@@ -205,6 +227,9 @@
 			);
 			mainGroup = DF7E29E82F378F46006A4C0A;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				DF7E2A1F2F379000006A4C0A /* XCLocalSwiftPackageReference "packages/AssistantCore" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DF7E29F22F378F46006A4C0A /* Products */;
 			projectDirPath = "";
@@ -401,6 +426,7 @@
 		};
 		DF7E2A152F378F47006A4C0A /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = DF7E2A412F385100006A4C0A /* Debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -429,6 +455,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = LindaAssistant;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -451,12 +478,13 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
 		DF7E2A162F378F47006A4C0A /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = DF7E2A422F385100006A4C0A /* Release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -485,6 +513,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = LindaAssistant;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -507,7 +536,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -631,6 +660,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		DF7E2A1F2F379000006A4C0A /* XCLocalSwiftPackageReference "packages/AssistantCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = packages/AssistantCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		DF7E2A202F379000006A4C0A /* AssistantCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AssistantCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = DF7E29E92F378F46006A4C0A /* Project object */;
 }
