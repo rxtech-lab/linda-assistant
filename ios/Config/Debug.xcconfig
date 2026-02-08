@@ -9,7 +9,8 @@ API_BASE_URL = http:/$()/localhost:3000
 
 // OAuth Configuration - Development
 AUTH_ISSUER = https:/$()/auth.rxlab.app
-AUTH_REDIRECT_URI = rxlablinda:/$()/callback
+AUTH_URL_SCHEME = rxlablinda
+AUTH_REDIRECT_URI = $(AUTH_URL_SCHEME):/$()/callback
 AUTH_SCOPES = openid email profile offline_access
 
 // Override with your development client ID

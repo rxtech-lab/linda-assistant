@@ -2,6 +2,12 @@ import Foundation
 import AuthenticationServices
 import CryptoKit
 
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
+
 @Observable
 public final class AuthManager: @unchecked Sendable {
     public private(set) var isAuthenticated = false
@@ -11,6 +17,10 @@ public final class AuthManager: @unchecked Sendable {
 
     private var oidcConfig: OIDCConfiguration?
     private var codeVerifier: String?
+
+    #if os(iOS)
+    private var presentationContextProvider: WebAuthPresentationContextProvider?
+    #endif
 
     public init() {
         // Restore tokens from keychain
@@ -71,20 +81,34 @@ public final class AuthManager: @unchecked Sendable {
             ]
 
             let authURL = components.url!
+            let callbackURLScheme = AppConfig.authURLScheme
 
             let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
                 let session = ASWebAuthenticationSession(
                     url: authURL,
-                    callback: .customScheme("rxlab.lindaAssistant")
-                ) { url, error in
+                    callbackURLScheme: callbackURLScheme
+                ) { [weak self] url, error in
+                    #if os(iOS)
+                    self?.presentationContextProvider = nil
+                    #endif
                     if let error {
-                        continuation.resume(throwing: error)
+                        if (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin {
+                            continuation.resume(throwing: AuthError.cancelled)
+                        } else {
+                            continuation.resume(throwing: error)
+                        }
                     } else if let url {
                         continuation.resume(returning: url)
                     } else {
                         continuation.resume(throwing: AuthError.unknown)
                     }
                 }
+
+                #if os(iOS)
+                self.presentationContextProvider = WebAuthPresentationContextProvider()
+                session.presentationContextProvider = self.presentationContextProvider
+                #endif
+
                 session.prefersEphemeralWebBrowserSession = false
                 session.start()
             }
@@ -98,9 +122,9 @@ public final class AuthManager: @unchecked Sendable {
             // Exchange code for tokens
             try await exchangeCode(code, config: config)
 
+        } catch AuthError.cancelled {
+            // User cancelled - no error to show
         } catch is CancellationError {
-            // User cancelled
-        } catch let authError as ASWebAuthenticationSessionError where authError.code == .canceledLogin {
             // User cancelled
         } catch {
             self.error = error.localizedDescription
@@ -224,6 +248,7 @@ public enum AuthError: Error, LocalizedError, Sendable {
     case noCodeInCallback
     case noCodeVerifier
     case noRefreshToken
+    case cancelled
     case unknown
 
     public var errorDescription: String? {
@@ -231,10 +256,21 @@ public enum AuthError: Error, LocalizedError, Sendable {
         case .noCodeInCallback: "No authorization code in callback"
         case .noCodeVerifier: "Missing PKCE code verifier"
         case .noRefreshToken: "No refresh token available"
+        case .cancelled: "Authentication cancelled by user"
         case .unknown: "An unknown error occurred"
         }
     }
 }
+
+// MARK: - Presentation Context Provider (iOS only)
+
+#if os(iOS)
+private final class WebAuthPresentationContextProvider: NSObject, ASWebAuthenticationPresentationContextProviding {
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        return ASPresentationAnchor()
+    }
+}
+#endif
 
 // MARK: - Base64URL
 

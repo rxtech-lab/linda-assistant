@@ -10,6 +10,43 @@ public enum AppConfig {
         return url
     }()
 
+    // MARK: - OAuth
+    public static let oidcIssuer: URL = {
+        guard let value = Bundle.main.infoDictionary?["AppAuthIssuer"] as? String,
+              let url = URL(string: value) else {
+            fatalError("AppAuthIssuer not configured in xcconfig")
+        }
+        return url
+    }()
+
+    public static let clientId: String = {
+        guard let value = Bundle.main.infoDictionary?["AppAuthClientID"] as? String, !value.isEmpty else {
+            fatalError("AppAuthClientID not configured in xcconfig")
+        }
+        return value
+    }()
+
+    public static let redirectURI: String = {
+        guard let value = Bundle.main.infoDictionary?["AppAuthRedirectURI"] as? String, !value.isEmpty else {
+            fatalError("AppAuthRedirectURI not configured in xcconfig")
+        }
+        return value
+    }()
+
+    public static let scopes: String = {
+        guard let value = Bundle.main.infoDictionary?["AppAuthScopes"] as? String, !value.isEmpty else {
+            fatalError("AppAuthScopes not configured in xcconfig")
+        }
+        return value
+    }()
+
+    public static let authURLScheme: String = {
+        guard let value = Bundle.main.infoDictionary?["AppAuthURLScheme"] as? String, !value.isEmpty else {
+            fatalError("AppAuthURLScheme not configured in xcconfig")
+        }
+        return value
+    }()
+
     // MARK: - Keychain
     public static let keychainService = "rxlab.lindaAssistant"
     public static let accessTokenKey = "access_token"

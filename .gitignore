@@ -4,3 +4,4 @@ backend/public/openapi.json
 ios/Config/Secrets.xcconfig
 ios/Config/Secrets.xcconfig
 ios/Config/Secrets.xcconfig
+*.xcuserstate
