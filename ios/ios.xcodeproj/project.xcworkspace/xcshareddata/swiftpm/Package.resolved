@@ -1,0 +1,24 @@
+{
+  "originHash" : "c89225e1616d4a9983ffd43ed0e2b6dc23177c7c6abb71efc490728806e817a2",
+  "pins" : [
+    {
+      "identity" : "rxauthswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/rxtech-lab/RxAuthSwift.git",
+      "state" : {
+        "revision" : "2d92aaff1cf75b70f00cf3f7fae8a3ac3ebf1527",
+        "version" : "1.0.0"
+      }
+    },
+    {
+      "identity" : "swift-log",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-log.git",
+      "state" : {
+        "revision" : "2778fd4e5a12a8aaa30a3ee8285f4ce54c5f3181",
+        "version" : "1.9.1"
+      }
+    }
+  ],
+  "version" : 3
+}

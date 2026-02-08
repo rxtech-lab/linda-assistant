@@ -40,13 +40,6 @@ public enum AppConfig {
         return value
     }()
 
-    public static let authURLScheme: String = {
-        guard let value = Bundle.main.infoDictionary?["AppAuthURLScheme"] as? String, !value.isEmpty else {
-            fatalError("AppAuthURLScheme not configured in xcconfig")
-        }
-        return value
-    }()
-
     // MARK: - Keychain
     public static let keychainService = "rxlab.lindaAssistant"
     public static let accessTokenKey = "access_token"

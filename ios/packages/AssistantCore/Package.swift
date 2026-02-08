@@ -8,8 +8,17 @@ let package = Package(
     products: [
         .library(name: "AssistantCore", targets: ["AssistantCore"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/rxtech-lab/RxAuthSwift.git", exact: "1.0.0"),
+    ],
     targets: [
-        .target(name: "AssistantCore"),
+        .target(
+            name: "AssistantCore",
+            dependencies: [
+                .product(name: "RxAuthSwift", package: "RxAuthSwift"),
+                .product(name: "RxAuthSwiftUI", package: "RxAuthSwift"),
+            ]
+        ),
         .testTarget(name: "AssistantCoreTests", dependencies: ["AssistantCore"]),
     ]
 )

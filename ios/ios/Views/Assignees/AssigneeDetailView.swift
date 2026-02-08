@@ -54,7 +54,7 @@ struct AssigneeDetailView: View {
                     Button("Delete", systemImage: "trash", role: .destructive) { showingDelete = true }
                     Divider()
                     Button("Sign Out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                        authManager.signOut()
+                        Task { await authManager.signOut() }
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
