@@ -164,13 +164,85 @@ public struct SendMessage: Codable, Sendable {
 // MARK: - Chat Message (from backend JSON messages array)
 
 public struct ChatMessage: Codable, Sendable, Identifiable {
-    public var id: String { "\(role)-\(content?.prefix(20) ?? "empty")-\(UUID().uuidString.prefix(8))" }
+    public var id: String { "\(role)-\(textContent?.prefix(20) ?? "empty")-\(UUID().uuidString.prefix(8))" }
     public let role: String
-    public let content: String?
+    public let textContent: String?
+    public let toolCalls: [ChatToolCall]
+    /// Maps toolCallId → approveStatus ("auto-approved", "confirmed", "rejected")
+    public let toolResultStatuses: [String: String]
+
+    /// Backwards-compatible: returns textContent
+    public var content: String? { textContent }
 
     enum CodingKeys: String, CodingKey {
         case role, content
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        role = try container.decode(String.self, forKey: .role)
+
+        // Content can be a plain string or an array of content parts
+        if let stringValue = try? container.decode(String.self, forKey: .content) {
+            textContent = stringValue
+            toolCalls = []
+            toolResultStatuses = [:]
+        } else if let parts = try? container.decode([ContentPart].self, forKey: .content) {
+            let textParts = parts.compactMap { $0.type != "tool-call" ? $0.text : nil }
+            textContent = textParts.isEmpty ? nil : textParts.joined(separator: "\n")
+            toolCalls = parts.compactMap { part -> ChatToolCall? in
+                guard part.type == "tool-call", let toolName = part.toolName else { return nil }
+                return ChatToolCall(
+                    toolCallId: part.toolCallId ?? "",
+                    toolName: toolName,
+                    input: part.input,
+                    confirmation: part.confirmation
+                )
+            }
+            var statuses: [String: String] = [:]
+            for part in parts {
+                if part.type == "tool-result",
+                   let callId = part.toolCallId,
+                   let status = part.approveStatus {
+                    statuses[callId] = status
+                }
+            }
+            toolResultStatuses = statuses
+        } else {
+            textContent = nil
+            toolCalls = []
+            toolResultStatuses = [:]
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(role, forKey: .role)
+        try container.encodeIfPresent(textContent, forKey: .content)
+    }
+}
+
+public struct ToolCallConfirmation: Codable, Sendable {
+    public let id: String
+    public let status: String
+}
+
+public struct ChatToolCall: Codable, Sendable, Identifiable {
+    public var id: String { toolCallId }
+    public let toolCallId: String
+    public let toolName: String
+    public let input: [String: AnyCodable]?
+    public let confirmation: ToolCallConfirmation?
+}
+
+private struct ContentPart: Codable {
+    let type: String?
+    let text: String?
+    let toolCallId: String?
+    let toolName: String?
+    let input: [String: AnyCodable]?
+    let confirmation: ToolCallConfirmation?
+    let approveStatus: String?
 }
 
 // MARK: - Email

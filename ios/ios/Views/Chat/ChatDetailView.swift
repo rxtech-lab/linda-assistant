@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 struct ChatDetailView: View {
     let sessionId: String
@@ -7,7 +7,6 @@ struct ChatDetailView: View {
     @Environment(EventManager.self) private var eventManager
     @State private var viewModel = ChatDetailViewModel()
     @State private var messageText = ""
-    @State private var showingConfirmation = false
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -20,12 +19,33 @@ struct ChatDetailView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
                         ForEach(viewModel.displayMessages) { msg in
-                            MessageBubble(message: msg)
-                                .id(msg.id)
+                            if !msg.content.isEmpty {
+                                MessageBubble(message: msg)
+                            }
+                            // Historical tool call badges
+                            ForEach(msg.toolCalls) { toolCall in
+                                ToolCallBadge(toolCall: toolCall) {
+                                    if toolCall.status == .pendingConfirmation {
+                                        viewModel.showingConfirmation = true
+                                    }
+                                }
+                            }
+                        }
+
+                        // Pending indicator (before any content arrives)
+                        if let handler = viewModel.streamHandler,
+                           handler.isStreaming,
+                           handler.streamedText.isEmpty,
+                           handler.toolCalls.isEmpty,
+                           handler.pendingConfirmation == nil,
+                           handler.error == nil
+                        {
+                            AssistantPendingIndicator()
+                                .id("pendingIndicator")
                         }
 
                         // Streaming text
-                        if let handler = viewModel.streamHandler, !handler.streamedText.isEmpty && handler.isStreaming {
+                        if let handler = viewModel.streamHandler, !handler.streamedText.isEmpty, handler.isStreaming {
                             MessageBubble(message: DisplayMessage(
                                 id: "streaming",
                                 role: .assistant,
@@ -35,30 +55,41 @@ struct ChatDetailView: View {
                             .id("streaming")
                         }
 
-                        // Tool calls
+                        // Active streaming tool calls
                         if let handler = viewModel.streamHandler {
                             ForEach(handler.toolCalls) { toolCall in
                                 ToolCallBadge(toolCall: toolCall)
                             }
                         }
 
-                        // Pending confirmation
-                        if let confirmation = viewModel.streamHandler?.pendingConfirmation {
-                            ConfirmationCardView(
-                                confirmation: confirmation,
-                                onTap: { showingConfirmation = true }
-                            )
-                        }
+                        Spacer()
+                            .frame(height: 30)
+                            .id("bottomAnchor")
                     }
                     .padding()
                 }
                 .onChange(of: viewModel.displayMessages.count) {
                     withAnimation {
-                        proxy.scrollTo(viewModel.displayMessages.last?.id ?? "streaming", anchor: .bottom)
+                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
                     }
                 }
                 .onChange(of: viewModel.streamHandler?.streamedText) {
-                    proxy.scrollTo("streaming", anchor: .bottom)
+                    proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                }
+                .onChange(of: viewModel.streamHandler?.toolCalls.count) {
+                    withAnimation {
+                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                    }
+                }
+                .onChange(of: viewModel.streamHandler?.isStreaming) {
+                    withAnimation {
+                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                    }
+                }
+                .onChange(of: viewModel.streamHandler?.pendingConfirmation?.toolCallId) {
+                    if viewModel.streamHandler?.pendingConfirmation != nil {
+                        viewModel.showingConfirmation = true
+                    }
                 }
             }
 
@@ -67,7 +98,7 @@ struct ChatDetailView: View {
             // Input bar
             HStack(spacing: 12) {
                 TextField("Type a message...", text: $messageText, axis: .vertical)
-                    .lineLimit(1...5)
+                    .lineLimit(1 ... 5)
                     .textFieldStyle(.plain)
 
                 Button {
@@ -75,7 +106,7 @@ struct ChatDetailView: View {
                     guard !text.isEmpty else { return }
                     messageText = ""
                     Task {
-                        await viewModel.sendMessage(text, sessionId: sessionId, apiClient: apiClient)
+                        await viewModel.sendMessage(text, sessionId: sessionId)
                     }
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
@@ -88,7 +119,7 @@ struct ChatDetailView: View {
         }
         .navigationTitle(viewModel.session?.title ?? "Chat")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showingConfirmation) {
+        .sheet(isPresented: $viewModel.showingConfirmation) {
             if let confirmation = viewModel.streamHandler?.pendingConfirmation {
                 ConfirmationSheetView(
                     confirmation: confirmation,
@@ -99,13 +130,17 @@ struct ChatDetailView: View {
                                 action: action
                             )
                         }
-                        showingConfirmation = false
+                        viewModel.showingConfirmation = false
                     }
                 )
             }
         }
+        .toolbar(.hidden, for: .tabBar)
         .task {
             await viewModel.loadSession(id: sessionId, apiClient: apiClient, authManager: authManager, eventManager: eventManager)
+        }
+        .onDisappear {
+            viewModel.disconnect()
         }
     }
 }
@@ -117,6 +152,7 @@ struct DisplayMessage: Identifiable {
     let role: MessageRole
     let content: String
     var isStreaming = false
+    var toolCalls: [ToolCallInfo] = []
 
     enum MessageRole {
         case user, assistant, system
@@ -137,7 +173,7 @@ private struct MessageBubble: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
 
-                Text(message.content)
+                Text(markdownAttributedString(message.content))
                     .padding(12)
                     .background(message.role == .user ? Color.accentColor.opacity(0.15) : Color(.systemGray6))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -148,32 +184,72 @@ private struct MessageBubble: View {
     }
 }
 
+private func markdownAttributedString(_ text: String) -> AttributedString {
+    (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
+}
+
 // MARK: - Tool Call Badge
 
 private struct ToolCallBadge: View {
     let toolCall: ToolCallInfo
+    var onTap: (() -> Void)? = nil
+
+    private var icon: String {
+        switch toolCall.status {
+        case .completed: "checkmark.circle.fill"
+        case .pendingConfirmation: "exclamationmark.shield.fill"
+        case .failed: "xmark.circle.fill"
+        case .running: "arrow.trianglehead.2.clockwise"
+        }
+    }
+
+    private var iconColor: Color {
+        switch toolCall.status {
+        case .completed: .green
+        case .pendingConfirmation: .orange
+        case .failed: .red
+        case .running: .blue
+        }
+    }
+
+    private var statusText: String {
+        switch toolCall.status {
+        case .completed: "Completed"
+        case .pendingConfirmation: "Needs Confirmation"
+        case .failed: "Failed"
+        case .running: "Running..."
+        }
+    }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: toolCall.status == .completed ? "checkmark.circle.fill" : "arrow.trianglehead.2.clockwise")
-                .foregroundStyle(toolCall.status == .completed ? .green : .blue)
+        Button {
+            onTap?()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .foregroundStyle(iconColor)
 
-            VStack(alignment: .leading) {
-                Text(toolCall.toolName)
-                    .font(.caption.weight(.medium))
-                if toolCall.status == .completed {
-                    Text("Completed")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("Running...")
+                VStack(alignment: .leading) {
+                    Text(toolCall.toolName)
+                        .font(.caption.weight(.medium))
+                    Text(statusText)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+
+                Spacer()
+
+                if toolCall.status == .pendingConfirmation {
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.secondary)
+                }
             }
+            .padding(8)
+            .frame(maxWidth: .infinity)
+            .background(.fill.tertiary)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
-        .padding(8)
-        .background(.fill.tertiary)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .buttonStyle(.plain)
+        .disabled(onTap == nil)
     }
 }

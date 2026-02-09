@@ -13,27 +13,43 @@ import { DEFAULT_MODEL, availableModelSchema } from "./models";
 
 const MAX_STEPS = 10;
 
-/** Strip providerOptions and ensure each message has an id */
+/** Annotate a tool-call content part with confirmation info */
+export function annotateToolCallConfirmation(
+  messages: ModelMessage[],
+  toolCallId: string,
+  confirmationId: string,
+  status: string,
+): void {
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (part.type === "tool-call" && part.toolCallId === toolCallId) {
+        part.confirmation = { id: confirmationId, status };
+        return;
+      }
+    }
+  }
+}
+
+/** Annotate auto-confirmed tool-result content parts with approveStatus */
+function annotateAutoApproved(messages: ModelMessage[]): void {
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (part.type === "tool-result" && !part.approveStatus) {
+        part.approveStatus = "auto-approved";
+      }
+    }
+  }
+}
+
+/** Ensure each message has an id */
 function sanitizeMessages(messages: ModelMessage[], messageId?: string): ModelMessage[] {
   return messages.map((msg, i) => {
     const record = msg as Record<string, unknown>;
     // Assign provided messageId to the first message (assistant), generate for others (tool)
     const id = record.id ?? (i === 0 && messageId ? messageId : crypto.randomUUID());
-
-    if (!Array.isArray(msg.content)) {
-      return { ...record, id } as unknown as ModelMessage;
-    }
-    return {
-      ...record,
-      id,
-      content: (msg.content as Record<string, unknown>[]).map((part) => {
-        if ("providerOptions" in part) {
-          const { providerOptions, ...rest } = part;
-          return rest;
-        }
-        return part;
-      }),
-    } as unknown as ModelMessage;
+    return { ...record, id } as unknown as ModelMessage;
   });
 }
 
@@ -157,6 +173,11 @@ export async function runAgent(options: AgentRunOptions) {
       ];
 
       if (finishReason === "tool-calls") {
+        // Annotate auto-confirmed tool results (only the newly appended response messages)
+        annotateAutoApproved(
+          currentMessages.slice(currentMessages.length - responseMessages.length),
+        );
+
         // Check if any tool calls require manual confirmation
         const toolCalls = await result.toolCalls;
         const needsConfirmation = toolCalls.find(
@@ -166,7 +187,26 @@ export async function runAgent(options: AgentRunOptions) {
         );
 
         if (needsConfirmation) {
-          // Save messages to DB before pausing
+          // Create confirmation record first so we can annotate the message
+          const input =
+            "input" in needsConfirmation ? needsConfirmation.input : undefined;
+          const confirmation = await createConfirmation({
+            userId,
+            chatSessionId: sessionId,
+            toolCallId: needsConfirmation.toolCallId,
+            toolName: needsConfirmation.toolName,
+            parameters: (input ?? {}) as Record<string, unknown>,
+          });
+
+          // Annotate the tool-call content part with confirmation info
+          annotateToolCallConfirmation(
+            currentMessages,
+            needsConfirmation.toolCallId,
+            confirmation.id,
+            "pending",
+          );
+
+          // Save messages to DB (now includes confirmation metadata)
           await db
             .update(chatSessions)
             .set({
@@ -176,18 +216,8 @@ export async function runAgent(options: AgentRunOptions) {
             })
             .where(eq(chatSessions.id, sessionId));
 
-          // Create confirmation record and notify user
-          const input =
-            "input" in needsConfirmation ? needsConfirmation.input : undefined;
-          await createConfirmation({
-            userId,
-            chatSessionId: sessionId,
-            toolCallId: needsConfirmation.toolCallId,
-            toolName: needsConfirmation.toolName,
-            parameters: (input ?? {}) as Record<string, unknown>,
-          });
-
           await onEvent?.("confirmation_required", {
+            confirmationId: confirmation.id,
             toolCallId: needsConfirmation.toolCallId,
             toolName: needsConfirmation.toolName,
             parameters: input,

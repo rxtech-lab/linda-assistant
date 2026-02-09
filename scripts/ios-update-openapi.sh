@@ -17,7 +17,7 @@ TARGET_FILE="./ios/packages/AssistantCore/Sources/AssistantCore/openapi.json"
 
 mkdir -p "$(dirname "$TARGET_FILE")"
 
-ENDPOINT="${OPENAPI_DOCUMENTATION_ENDPOINT:-http://localhost:3000/api/openapi}"
+ENDPOINT="${OPENAPI_DOCUMENTATION_ENDPOINT:-http://localhost:3000/openapi.json}"
 
 echo "Downloading OpenAPI spec from: $ENDPOINT"
 curl -sS -o "$TARGET_FILE" "$ENDPOINT"

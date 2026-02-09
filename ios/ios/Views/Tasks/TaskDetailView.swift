@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 struct TaskDetailView: View {
     let taskId: String
@@ -64,6 +64,11 @@ struct TaskDetailView: View {
                                     }
                                 }
                             }
+                            .onDelete { offsets in
+                                Task {
+                                    await viewModel.deleteChatSessions(at: offsets, apiClient: apiClient, eventManager: eventManager)
+                                }
+                            }
                         }
 
                         Button {
@@ -98,6 +103,7 @@ struct TaskDetailView: View {
             case .assignee(let id, let name): AssigneeDetailView(assigneeId: id, assigneeName: name)
             }
         }
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
@@ -130,6 +136,7 @@ struct TaskDetailView: View {
         }
         .task {
             await viewModel.loadTask(id: taskId, apiClient: apiClient)
+            await viewModel.subscribeToEvents(taskId: taskId, eventManager: eventManager, apiClient: apiClient)
         }
     }
 }

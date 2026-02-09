@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 struct ConfirmationSheetView: View {
     let confirmation: ConfirmationPayload
@@ -7,58 +7,173 @@ struct ConfirmationSheetView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                Image(systemName: "exclamationmark.shield.fill")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.orange)
+            ScrollView {
+                VStack(spacing: 24) {
+                    headerSection
 
-                Text("Confirm: \(confirmation.toolName)")
-                    .font(.title2.bold())
-
-                if let params = confirmation.parameters, !params.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(params.keys.sorted()), id: \.self) { key in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(key)
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(.secondary)
-                                Text("\(params[key]?.description ?? "")")
-                                    .font(.body)
-                            }
-                        }
+                    if let params = confirmation.parameters, !params.isEmpty {
+                        detailsSection(params: params)
+                    } else {
+                        emptyDetailsSection
                     }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.fill.tertiary)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                    actionSection
                 }
-
-                Spacer()
-
-                VStack(spacing: 12) {
-                    Button {
-                        onResolve("confirm")
-                    } label: {
-                        Text("Confirm")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-
-                    Button(role: .destructive) {
-                        onResolve("reject")
-                    } label: {
-                        Text("Reject")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                }
+                .padding(.top, 20)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
             }
-            .padding(32)
-            .navigationTitle("Tool Confirmation")
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color.orange.opacity(0.12),
+                        Color.clear
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+            )
             .navigationBarTitleDisplayMode(.inline)
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.height(200), .large])
     }
+}
+
+#Preview {
+    ConfirmationSheetView(
+        confirmation: ConfirmationPayload(
+            confirmationId: "preview-confirmation",
+            toolCallId: "preview-tool-call",
+            toolName: "create_task",
+            parameters: [
+                "title": .string("Prepare weekly report"),
+                "priority": .string("high"),
+                "dueDate": .string("2026-02-14"),
+                "estimateHours": .double(3.5),
+                "notify": .bool(true)
+            ]
+        ),
+        onResolve: { _ in }
+    )
+}
+
+private extension ConfirmationSheetView {
+    var headerSection: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.18))
+                    .frame(width: 88, height: 88)
+                Circle()
+                    .stroke(Color.orange.opacity(0.35), lineWidth: 1)
+                    .frame(width: 88, height: 88)
+                Image(systemName: "exclamationmark.shield.fill")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(.orange)
+            }
+
+            VStack(spacing: 6) {
+                Text("Confirmation needed")
+                    .font(.title2.bold())
+                Text(confirmation.toolName.replacingOccurrences(of: "_", with: " ").capitalized)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 8)
+    }
+
+    func detailsSection(params: [String: AnyCodable]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Details")
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(params.keys.sorted()), id: \.self) { key in
+                    HStack(alignment: .top, spacing: 12) {
+                        Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 110, alignment: .leading)
+                        Spacer()
+                        Text(params[key]?.description ?? "")
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.background)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(Color.primary.opacity(0.08))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+    }
+
+    var emptyDetailsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Details")
+                .font(.headline)
+            Text("No additional parameters were provided for this request.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.background)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(Color.primary.opacity(0.08))
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+    }
+
+    var actionSection: some View {
+        VStack(spacing: 12) {
+            Button {
+                onResolve("confirm")
+            } label: {
+                Label("Confirm", systemImage: "checkmark.circle.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.orange)
+            .controlSize(.large)
+
+            Button(role: .destructive) {
+                onResolve("reject")
+            } label: {
+                Label("Reject", systemImage: "xmark.circle")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+        }
+        .padding(.top, 4)
+    }
+}
+
+#Preview {
+    ConfirmationSheetView(
+        confirmation: ConfirmationPayload(
+            confirmationId: "preview-confirmation",
+            toolCallId: "preview-tool-call",
+            toolName: "create_task",
+            parameters: [
+                "title": .string("Prepare weekly report"),
+                "priority": .string("high"),
+                "dueDate": .string("2026-02-14"),
+                "estimateHours": .double(3.5),
+                "notify": .bool(true)
+            ]
+        ),
+        onResolve: { _ in }
+    )
 }

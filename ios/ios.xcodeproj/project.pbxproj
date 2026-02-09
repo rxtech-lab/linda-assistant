@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		DF7E2A3E2F385000006A4C0A /* AssistantCore in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E2A202F379000006A4C0A /* AssistantCore */; };
 		DF7E32502F3888A1006A4C0A /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = DF7E324F2F3888A1006A4C0A /* icon.icon */; };
+		DF7E37742F3A66EC006A4C0A /* AgentKit in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E37732F3A66EC006A4C0A /* AgentKit */; };
+		DF7E37762F3B1D21006A4C0A /* Launch Screen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -38,6 +40,7 @@
 		DF7E2A432F385100006A4C0A /* Secrets.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig.example; sourceTree = "<group>"; };
 		DF7E2EA22F385474006A4C0A /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		DF7E324F2F3888A1006A4C0A /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon.icon; sourceTree = "<group>"; };
+		DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = "Launch Screen.storyboard"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -77,6 +80,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DF7E2A3E2F385000006A4C0A /* AssistantCore in Frameworks */,
+				DF7E37742F3A66EC006A4C0A /* AgentKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -100,6 +104,7 @@
 		DF7E29E82F378F46006A4C0A = {
 			isa = PBXGroup;
 			children = (
+				DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */,
 				DF7E324F2F3888A1006A4C0A /* icon.icon */,
 				DF7E2A402F385100006A4C0A /* Config */,
 				DF7E2A1D2F378F57006A4C0A /* packages */,
@@ -160,6 +165,7 @@
 			name = ios;
 			packageProductDependencies = (
 				DF7E2A202F379000006A4C0A /* AssistantCore */,
+				DF7E37732F3A66EC006A4C0A /* AgentKit */,
 			);
 			productName = ios;
 			productReference = DF7E29F12F378F46006A4C0A /* ios.app */;
@@ -245,6 +251,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				DF7E2A1F2F379000006A4C0A /* XCLocalSwiftPackageReference "packages/AssistantCore" */,
+				DF7E37722F3A66EC006A4C0A /* XCRemoteSwiftPackageReference "AgentKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DF7E29F22F378F46006A4C0A /* Products */;
@@ -263,6 +270,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DF7E37762F3B1D21006A4C0A /* Launch Screen.storyboard in Resources */,
 				DF7E32502F3888A1006A4C0A /* icon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -683,10 +691,26 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		DF7E37722F3A66EC006A4C0A /* XCRemoteSwiftPackageReference "AgentKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/rxtech-lab/AgentKit";
+			requirement = {
+				kind = exactVersion;
+				version = 1.2.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		DF7E2A202F379000006A4C0A /* AssistantCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AssistantCore;
+		};
+		DF7E37732F3A66EC006A4C0A /* AgentKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DF7E37722F3A66EC006A4C0A /* XCRemoteSwiftPackageReference "AgentKit" */;
+			productName = AgentKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

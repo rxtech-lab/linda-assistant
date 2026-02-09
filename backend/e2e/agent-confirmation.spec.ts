@@ -177,4 +177,136 @@ test.describe("Agent Confirmation", () => {
     const toolResult = lastMsg.content[0];
     expect(toolResult.output.value.rejected).toBe(true);
   });
+
+  test("reject while connected to stream delivers events", async ({
+    request,
+    baseURL,
+  }) => {
+    // Create session
+    const sessionRes = await request.post("/api/chat-sessions", {
+      data: { assigneeId },
+    });
+    expect(sessionRes.ok()).toBeTruthy();
+    const session = await sessionRes.json();
+    const sessionId = session.id;
+
+    // Subscribe to SSE and send message that triggers send_email
+    const eventsPromise = consumeSSE(
+      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
+      {
+        headers: { authorization: "Bearer e2e-test-token" },
+        stopOnEvent: "confirmation_required",
+      }
+    );
+    await new Promise((r) => setTimeout(r, SUB_DELAY));
+
+    await request.post(`/api/chat-sessions/${sessionId}/messages`, {
+      data: { content: "[TOOL:send_email] Send a test email" },
+    });
+
+    await eventsPromise;
+
+    // Get pending confirmation ID
+    const client = createClient({ url: `file:${dbPath}` });
+    const result = await client.execute({
+      sql: "SELECT id FROM confirmations WHERE chat_session_id = ? AND status = 'pending'",
+      args: [sessionId],
+    });
+    expect(result.rows.length).toBe(1);
+    const confirmationId = result.rows[0].id as string;
+    client.close();
+
+    // Subscribe to SSE BEFORE rejecting so we catch the rejection events
+    const rejectEventsPromise = consumeSSE(
+      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
+      { headers: { authorization: "Bearer e2e-test-token" } }
+    );
+    await new Promise((r) => setTimeout(r, SUB_DELAY));
+
+    // Reject the confirmation
+    const resolveRes = await request.post(
+      `/api/confirmations/${confirmationId}/resolve`,
+      { data: { action: "reject" } }
+    );
+    expect(resolveRes.ok()).toBeTruthy();
+
+    // Await rejection events via SSE
+    const rejectEvents = await rejectEventsPromise;
+    const rejectEventTypes = rejectEvents.map((e) => e.event);
+
+    expect(rejectEventTypes).toContain("tool-result");
+    expect(rejectEventTypes).toContain("status");
+
+    // Verify tool-result has rejected flag
+    const toolResultEvent = rejectEvents.find((e) => e.event === "tool-result");
+    expect(toolResultEvent?.data.approveStatus).toBe("rejected");
+    expect(toolResultEvent?.data.output.rejected).toBe(true);
+
+    // Verify status is stopped
+    const statusEvent = rejectEvents.find(
+      (e) => e.event === "status" && e.data.status === "stopped"
+    );
+    expect(statusEvent).toBeTruthy();
+  });
+
+  test("reject while disconnected, then connect shows stopped status", async ({
+    request,
+    baseURL,
+  }) => {
+    // Create session
+    const sessionRes = await request.post("/api/chat-sessions", {
+      data: { assigneeId },
+    });
+    expect(sessionRes.ok()).toBeTruthy();
+    const session = await sessionRes.json();
+    const sessionId = session.id;
+
+    // Subscribe to SSE and send message that triggers send_email
+    const eventsPromise = consumeSSE(
+      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
+      {
+        headers: { authorization: "Bearer e2e-test-token" },
+        stopOnEvent: "confirmation_required",
+      }
+    );
+    await new Promise((r) => setTimeout(r, SUB_DELAY));
+
+    await request.post(`/api/chat-sessions/${sessionId}/messages`, {
+      data: { content: "[TOOL:send_email] Send a test email" },
+    });
+
+    await eventsPromise;
+
+    // Get pending confirmation ID
+    const client = createClient({ url: `file:${dbPath}` });
+    const result = await client.execute({
+      sql: "SELECT id FROM confirmations WHERE chat_session_id = ? AND status = 'pending'",
+      args: [sessionId],
+    });
+    expect(result.rows.length).toBe(1);
+    const confirmationId = result.rows[0].id as string;
+    client.close();
+
+    // Reject WITHOUT an SSE connection open
+    const resolveRes = await request.post(
+      `/api/confirmations/${confirmationId}/resolve`,
+      { data: { action: "reject" } }
+    );
+    expect(resolveRes.ok()).toBeTruthy();
+
+    // Now connect to SSE AFTER rejection
+    const lateEvents = await consumeSSE(
+      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
+      {
+        headers: { authorization: "Bearer e2e-test-token" },
+        stopOnEvent: "status",
+        timeoutMs: 5000,
+      }
+    );
+
+    // The stream route sends initial status on connect — should be "stopped"
+    const statusEvent = lateEvents.find((e) => e.event === "status");
+    expect(statusEvent).toBeTruthy();
+    expect(statusEvent?.data.status).toBe("stopped");
+  });
 });

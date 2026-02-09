@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # iOS Build Script for CI/CD
-# Builds the RxStorage iOS app
+# Builds the Linda Assistant iOS app
 
 set -e  # Exit on error
 set -o pipefail  # Catch errors in pipes
 
 echo "======================================"
-echo "RxStorage iOS Build Script"
+echo "Linda Assistant iOS Build Script"
 echo "======================================"
 echo ""
 
@@ -19,11 +19,13 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-PROJECT_PATH="RxStorage/RxStorage.xcodeproj"
-SCHEME="${SCHEME:-RxStorage}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_PATH="$PROJECT_ROOT/ios/ios.xcodeproj"
+SCHEME="${SCHEME:-ios}"
 CONFIGURATION="${CONFIGURATION:-Debug}"
 SDK="${SDK:-iphonesimulator}"
-BUILD_DIR="${BUILD_DIR:-.build}"
+BUILD_DIR="${BUILD_DIR:-$PROJECT_ROOT/.build}"
 
 # Find an available iOS simulator if DESTINATION is not set
 if [ -z "$DESTINATION" ]; then
@@ -43,15 +45,7 @@ fi
 # Check if project exists
 if [ ! -d "$PROJECT_PATH" ]; then
     echo -e "${RED}❌ Error: $PROJECT_PATH not found${NC}"
-    echo "Current directory: $(pwd)"
     exit 1
-fi
-
-# Check if Secrets.xcconfig exists
-SECRETS_CONFIG="RxStorage/RxStorage/Config/Secrets.xcconfig"
-if [ ! -f "$SECRETS_CONFIG" ]; then
-    echo -e "${YELLOW}⚠️  Warning: $SECRETS_CONFIG not found${NC}"
-    echo "This file should be created from GitHub secrets in CI or manually for local builds."
 fi
 
 echo -e "${BLUE}📦 Project:${NC} $PROJECT_PATH"
@@ -62,24 +56,12 @@ echo -e "${BLUE}🎯 Destination:${NC} $DESTINATION"
 echo -e "${BLUE}📂 Build Directory:${NC} $BUILD_DIR"
 echo ""
 
-# Clean build folder
-echo "🧹 Cleaning build folder..."
-xcodebuild clean \
-    -project "$PROJECT_PATH" \
-    -scheme "$SCHEME" \
-    -configuration "$CONFIGURATION" \
-    > /dev/null 2>&1 || true
-
-echo ""
-
 # Build the project
 echo "🔨 Building project..."
 echo ""
 
-# Run xcodebuild and capture exit code properly
 set +e  # Temporarily disable exit on error to capture the exit code
 
-# Use xcbeautify for pretty printing if available, otherwise raw output
 if command -v xcbeautify &> /dev/null; then
     xcodebuild build \
         -project "$PROJECT_PATH" \
@@ -91,7 +73,7 @@ if command -v xcbeautify &> /dev/null; then
         CODE_SIGN_IDENTITY="" \
         CODE_SIGNING_REQUIRED=NO \
         CODE_SIGNING_ALLOWED=NO \
-        2>&1 | tee build.log | xcbeautify
+        2>&1 | xcbeautify
     BUILD_EXIT_CODE=${PIPESTATUS[0]}
 else
     xcodebuild build \
@@ -104,8 +86,8 @@ else
         CODE_SIGN_IDENTITY="" \
         CODE_SIGNING_REQUIRED=NO \
         CODE_SIGNING_ALLOWED=NO \
-        2>&1 | tee build.log
-    BUILD_EXIT_CODE=${PIPESTATUS[0]}
+        2>&1
+    BUILD_EXIT_CODE=$?
 fi
 
 set -e  # Re-enable exit on error
@@ -115,20 +97,8 @@ echo "======================================"
 
 if [ $BUILD_EXIT_CODE -eq 0 ]; then
     echo -e "${GREEN}✅ Build succeeded!${NC}"
-    echo ""
-    echo "Build log saved to: build.log"
     exit 0
 else
     echo -e "${RED}❌ Build failed!${NC}"
-    echo ""
-    echo "Build log saved to: build.log"
-    echo ""
-    echo "Common issues:"
-    echo "1. Check if RxStorageCore package is added to the project"
-    echo "2. Verify Info.plist configuration"
-    echo "3. Check if .xcconfig files are properly assigned"
-    echo "4. Ensure Secrets.xcconfig is present and properly formatted"
-    echo ""
-    echo "See build.log for full error details"
     exit 1
 fi

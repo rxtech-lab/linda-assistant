@@ -1,12 +1,18 @@
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "lindaAssistant", category: "ChatStreamHandler")
 
 @Observable
 public final class ChatStreamHandler: @unchecked Sendable {
     public private(set) var isStreaming = false
+    public private(set) var isConnected = false
     public private(set) var streamedText = ""
     public private(set) var pendingConfirmation: ConfirmationPayload?
     public private(set) var toolCalls: [ToolCallInfo] = []
     public private(set) var error: String?
+
+    public var onAssistantMessage: (@MainActor (String) -> Void)?
 
     private let apiClient: APIClient
     private let sseClient: SSEClient
@@ -19,35 +25,75 @@ public final class ChatStreamHandler: @unchecked Sendable {
         self.eventManager = eventManager
     }
 
-    public func sendMessageAndStream(sessionId: String, content: String) async {
-        // Reset state
-        streamedText = ""
-        pendingConfirmation = nil
-        toolCalls = []
-        error = nil
-        isStreaming = true
+    public func connect(sessionId: String) async {
+        guard !isConnected else {
+            logger.info("connect: already connected")
+            return
+        }
 
         do {
-            // Post message
-            _ = try await apiClient.sendMessage(sessionId: sessionId, SendMessage(content: content))
-
-            // Connect SSE
             let request = try await apiClient.buildSSERequest(path: "chat-sessions/\(sessionId)/stream")
             guard let url = request.url else {
                 throw APIError.invalidResponse
             }
 
+            logger.info("connect: SSE url=\(url.absoluteString)")
             let stream = await sseClient.connect(url: url)
+            await MainActor.run { self.isConnected = true }
+            logger.info("connect: SSE connected")
 
-            for try await event in stream {
-                await handleEvent(event)
+            streamTask = Task { [weak self] in
+                do {
+                    for try await event in stream {
+                        guard let self else { return }
+                        let message = event.parse()
+                        logger.debug("SSE event: type=\(event.type.rawValue) data=\(event.data.prefix(100))")
+                        await self.handleEvent(message)
+                    }
+                    logger.info("SSE stream ended normally")
+                } catch {
+                    if !Task.isCancelled {
+                        logger.error("SSE stream error: \(error)")
+                        await MainActor.run { [weak self] in
+                            self?.error = error.localizedDescription
+                            self?.eventManager.emit(.error(message: error.localizedDescription))
+                        }
+                    }
+                }
+                await MainActor.run { [weak self] in
+                    self?.isConnected = false
+                    self?.isStreaming = false
+                }
             }
         } catch {
-            self.error = error.localizedDescription
+            logger.error("connect error: \(error)")
+            await MainActor.run { self.error = error.localizedDescription }
             eventManager.emit(.error(message: error.localizedDescription))
         }
+    }
 
-        isStreaming = false
+    public func sendMessage(sessionId: String, content: String) async {
+        logger.info("sendMessage: sessionId=\(sessionId), isConnected=\(self.isConnected)")
+        // Reset per-run state on MainActor so @Observable triggers SwiftUI updates
+        await MainActor.run {
+            self.streamedText = ""
+            self.pendingConfirmation = nil
+            self.toolCalls = []
+            self.error = nil
+            self.isStreaming = true
+        }
+
+        do {
+            _ = try await apiClient.sendMessage(sessionId: sessionId, SendMessage(content: content))
+            logger.info("sendMessage: API call succeeded")
+        } catch {
+            logger.error("sendMessage error: \(error)")
+            await MainActor.run {
+                self.error = error.localizedDescription
+                self.isStreaming = false
+            }
+            eventManager.emit(.error(message: error.localizedDescription))
+        }
     }
 
     public func resolveConfirmation(confirmationId: String, action: String) async {
@@ -61,62 +107,81 @@ public final class ChatStreamHandler: @unchecked Sendable {
         }
     }
 
-    public func cancel() {
+    @MainActor
+    public func setPendingConfirmation(_ payload: ConfirmationPayload) {
+        pendingConfirmation = payload
+    }
+
+    @MainActor
+    public func disconnect() {
         streamTask?.cancel()
         streamTask = nil
+        Task { await sseClient.disconnect() }
+        isConnected = false
         isStreaming = false
     }
 
     @MainActor
-    private func handleEvent(_ event: SSEEvent) {
-        let decoder = JSONDecoder()
+    private func handleEvent(_ message: SSEMessage) {
+        switch message {
+        case .textDelta(let payload):
+            if !isStreaming { isStreaming = true }
+            streamedText += payload.text
+            logger.debug("textDelta: accumulated length=\(self.streamedText.count), isStreaming=\(self.isStreaming)")
 
-        switch event.type {
-        case .textDelta:
-            if let data = event.data.data(using: .utf8),
-               let payload = try? decoder.decode(TextDeltaPayload.self, from: data) {
-                streamedText += payload.text
+        case .toolCall(let payload):
+            logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
+            let info = ToolCallInfo(
+                toolCallId: payload.toolCallId,
+                toolName: payload.toolName,
+                input: payload.input,
+                status: .running
+            )
+            toolCalls.append(info)
+
+        case .toolResult(let payload):
+            logger.info("toolResult: toolCallId=\(payload.toolCallId)")
+            if let index = toolCalls.firstIndex(where: { $0.toolCallId == payload.toolCallId }) {
+                toolCalls[index].status = .completed
+                toolCalls[index].result = payload.output
             }
 
-        case .toolCall:
-            if let data = event.data.data(using: .utf8),
-               let payload = try? decoder.decode(ToolCallPayload.self, from: data) {
-                let info = ToolCallInfo(
-                    toolCallId: payload.toolCallId,
-                    toolName: payload.toolName,
-                    args: payload.args,
-                    status: .running
-                )
-                toolCalls.append(info)
-            }
+        case .confirmationRequired(let payload):
+            logger.info("confirmationRequired: \(payload.toolName) id=\(payload.confirmationId)")
+            pendingConfirmation = payload
 
-        case .toolResult:
-            if let data = event.data.data(using: .utf8),
-               let payload = try? decoder.decode(ToolResultPayload.self, from: data) {
-                if let index = toolCalls.firstIndex(where: { $0.toolCallId == payload.toolCallId }) {
-                    toolCalls[index].status = .completed
-                    toolCalls[index].result = payload.result
-                }
-            }
-
-        case .confirmationRequired:
-            if let data = event.data.data(using: .utf8),
-               let payload = try? decoder.decode(ConfirmationPayload.self, from: data) {
-                pendingConfirmation = payload
-            }
-
-        case .error:
-            if let data = event.data.data(using: .utf8),
-               let payload = try? decoder.decode(SSEErrorPayload.self, from: data) {
-                error = payload.message
-            }
+        case .error(let payload):
+            logger.error("SSE error event: \(payload.error)")
+            self.error = payload.error
 
         case .done:
-            isStreaming = false
+            logger.info("done: streamedText length=\(self.streamedText.count)")
+            finalizeResponse()
 
-        case .unknown:
-            break
+        case .status(let payload):
+            logger.info("status: \(payload.status)")
+            if payload.status == "in_progress" {
+                isStreaming = true
+            } else if payload.status == "stopped" {
+                finalizeResponse()
+            }
+
+        case .unknown(let data):
+            logger.warning("unknown event, data=\(data.prefix(200))")
         }
+    }
+
+    @MainActor
+    private func finalizeResponse() {
+        logger.info("finalizeResponse: streamedText.count=\(self.streamedText.count), hasCallback=\(self.onAssistantMessage != nil)")
+        if !streamedText.isEmpty {
+            logger.info("finalizeResponse: calling onAssistantMessage with text=\(self.streamedText.prefix(100))")
+            onAssistantMessage?(streamedText)
+        }
+        streamedText = ""
+        toolCalls = []
+        // Don't clear pendingConfirmation — it must persist until resolved
+        isStreaming = false
     }
 }
 
@@ -126,13 +191,22 @@ public struct ToolCallInfo: Identifiable, Sendable {
     public let id = UUID()
     public let toolCallId: String
     public let toolName: String
-    public let args: [String: AnyCodable]?
+    public let input: [String: AnyCodable]?
     public var status: ToolCallStatus
     public var result: AnyCodable?
+
+    public init(toolCallId: String, toolName: String, input: [String: AnyCodable]?, status: ToolCallStatus, result: AnyCodable? = nil) {
+        self.toolCallId = toolCallId
+        self.toolName = toolName
+        self.input = input
+        self.status = status
+        self.result = result
+    }
 }
 
 public enum ToolCallStatus: Sendable {
     case running
     case completed
     case failed
+    case pendingConfirmation
 }

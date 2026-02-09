@@ -1,5 +1,8 @@
-import SwiftUI
 import AssistantCore
+import os
+import SwiftUI
+
+private let logger = Logger(subsystem: "lindaAssistant", category: "ChatDetail")
 
 @Observable
 final class ChatDetailViewModel {
@@ -8,33 +11,136 @@ final class ChatDetailViewModel {
     var isLoading = false
     var error: String?
     var streamHandler: ChatStreamHandler?
+    var showingConfirmation = false
 
     func loadSession(id: String, apiClient: APIClient, authManager: AuthManager, eventManager: EventManager) async {
+        logger.info("loadSession started for id=\(id)")
         isLoading = true
-        streamHandler = ChatStreamHandler(
+        let handler = ChatStreamHandler(
             apiClient: apiClient,
             sseClient: SSEClient(authManager: authManager),
             eventManager: eventManager
         )
+        handler.onAssistantMessage = { [weak self] text in
+            guard let self else { return }
+            logger.info("onAssistantMessage received, length=\(text.count)")
+            let msg = DisplayMessage(
+                id: "assistant-\(displayMessages.count)",
+                role: .assistant,
+                content: text
+            )
+            displayMessages.append(msg)
+        }
+        streamHandler = handler
 
         do {
-            let session = try await apiClient.getChatSession(id: id)
-            self.session = session
-            self.displayMessages = session.messages.enumerated().map { index, msg in
-                DisplayMessage(
-                    id: "\(index)-\(msg.role)",
-                    role: msg.role == "user" ? .user : .assistant,
-                    content: msg.content ?? ""
-                )
-            }
+            try await fetchSession(id: id, apiClient: apiClient)
         } catch {
+            logger.error("loadSession error: \(error)")
             self.error = error.localizedDescription
         }
         isLoading = false
+
+        logger.info("Connecting SSE...")
+        await handler.connect(sessionId: id)
+        logger.info("SSE connect returned, isConnected=\(handler.isConnected)")
     }
 
-    func sendMessage(_ content: String, sessionId: String, apiClient: APIClient) async {
-        guard let streamHandler else { return }
+    func subscribeToEvents(eventManager: EventManager, apiClient: APIClient, sessionId: String) async {
+        logger.info("subscribeToEvents: start for sessionId=\(sessionId)")
+        if let event = eventManager.lastEvent {
+            logger.info("subscribeToEvents: lastEvent=\(String(describing: event))")
+            if case .chatSessionCreated(let session) = event, session.id == sessionId {
+                do {
+                    try await fetchSession(id: sessionId, apiClient: apiClient)
+                } catch {
+                    logger.error("subscribeToEvents preload error: \(error)")
+                    self.error = error.localizedDescription
+                }
+            }
+        }
+        for await event in eventManager.stream {
+            logger.info("subscribeToEvents: received event=\(String(describing: event))")
+            switch event {
+            case .chatSessionCreated(let session) where session.id == sessionId:
+                do {
+                    try await fetchSession(id: sessionId, apiClient: apiClient)
+                } catch {
+                    logger.error("subscribeToEvents reload error: \(error)")
+                    self.error = error.localizedDescription
+                }
+            default:
+                break
+            }
+        }
+    }
+
+    private func loadPendingConfirmation(apiClient: APIClient, sessionId: String) async {
+        do {
+            let confirmations = try await apiClient.listConfirmations()
+            if let pending = confirmations.first(where: { $0.chatSessionId == sessionId && $0.status == "pending" }) {
+                let payload = ConfirmationPayload(
+                    confirmationId: pending.id,
+                    toolCallId: pending.toolCallId,
+                    toolName: pending.toolName,
+                    parameters: pending.parameters
+                )
+                await MainActor.run {
+                    streamHandler?.setPendingConfirmation(payload)
+                    // Mark the matching tool call in displayMessages as pendingConfirmation
+                    for i in displayMessages.indices {
+                        for j in displayMessages[i].toolCalls.indices {
+                            if displayMessages[i].toolCalls[j].toolCallId == pending.toolCallId {
+                                displayMessages[i].toolCalls[j].status = .pendingConfirmation
+                            }
+                        }
+                    }
+                    showingConfirmation = true
+                }
+            }
+        } catch {
+            logger.error("loadPendingConfirmation error: \(error)")
+        }
+    }
+
+    private func fetchSession(id: String, apiClient: APIClient) async throws {
+        logger.info("Fetching chat session...")
+        let session = try await apiClient.getChatSession(id: id)
+        logger.info("Session loaded: title=\(session.title ?? "nil"), raw messages count=\(session.messages.count)")
+        self.session = session
+        displayMessages = session.messages.enumerated().compactMap { index, msg in
+            // Build tool call infos from historical messages
+            let historicalToolCalls = msg.toolCalls.map { tc in
+                ToolCallInfo(
+                    toolCallId: tc.toolCallId,
+                    toolName: tc.toolName,
+                    input: tc.input,
+                    status: .completed
+                )
+            }
+            // Skip messages with no text and no tool calls
+            guard (msg.textContent != nil && !msg.textContent!.isEmpty) || !historicalToolCalls.isEmpty else { return nil }
+            return DisplayMessage(
+                id: "\(index)-\(msg.role)",
+                role: msg.role == "user" ? .user : .assistant,
+                content: msg.textContent ?? "",
+                toolCalls: historicalToolCalls
+            )
+        }
+
+        // If session is waiting for confirmation, load the pending confirmation
+        if session.status == "waiting_confirmation" {
+            await loadPendingConfirmation(apiClient: apiClient, sessionId: id)
+        }
+    }
+
+    func sendMessage(_ content: String, sessionId: String) async {
+        guard let streamHandler else {
+            logger.warning("sendMessage: streamHandler is nil")
+            return
+        }
+
+        logger.info("sendMessage: \(content.prefix(50)), isConnected=\(streamHandler.isConnected)")
 
         let userMsg = DisplayMessage(
             id: "user-\(displayMessages.count)",
@@ -43,15 +149,11 @@ final class ChatDetailViewModel {
         )
         displayMessages.append(userMsg)
 
-        await streamHandler.sendMessageAndStream(sessionId: sessionId, content: content)
+        await streamHandler.sendMessage(sessionId: sessionId, content: content)
+        logger.info("sendMessage completed, isStreaming=\(streamHandler.isStreaming)")
+    }
 
-        if !streamHandler.streamedText.isEmpty {
-            let assistantMsg = DisplayMessage(
-                id: "assistant-\(displayMessages.count)",
-                role: .assistant,
-                content: streamHandler.streamedText
-            )
-            displayMessages.append(assistantMsg)
-        }
+    func disconnect() {
+        streamHandler?.disconnect()
     }
 }

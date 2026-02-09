@@ -1,11 +1,13 @@
 import crypto from "crypto";
+import type { ModelMessage } from "ai";
 import { db } from "@/lib/db";
 import { confirmations, chatSessions } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { sendPushNotification } from "@/lib/push";
 import { resend } from "@/lib/resend";
 import { syncTaskStatus } from "@/lib/utils/task-status-sync";
-import { publishTask } from "@/lib/queue/producer";
+import { publishTask, publishEvent } from "@/lib/queue/producer";
+import { annotateToolCallConfirmation } from "./agent";
 
 interface CreateConfirmationParams {
   userId: string;
@@ -67,7 +69,16 @@ export async function resolveConfirmation(
 
   if (!session) throw new Error("Chat session not found");
 
-  const messages = (session.messages as unknown[]) || [];
+  const messages = (session.messages as ModelMessage[]) || [];
+  const resolvedStatus = action === "confirm" ? "confirmed" : "rejected";
+
+  // Update the embedded confirmation status in the stored tool-call content part
+  annotateToolCallConfirmation(
+    messages,
+    confirmation.toolCallId,
+    confirmation.id,
+    resolvedStatus,
+  );
 
   if (action === "confirm") {
     // Execute the confirmed tool
@@ -87,6 +98,7 @@ export async function resolveConfirmation(
           toolCallId: confirmation.toolCallId,
           toolName: confirmation.toolName,
           output: { type: "json" as const, value: toolResult },
+          approveStatus: "confirmed" as const,
         },
       ],
     };
@@ -102,6 +114,14 @@ export async function resolveConfirmation(
         updatedAt: sql`(datetime('now'))`,
       })
       .where(eq(chatSessions.id, confirmation.chatSessionId));
+
+    // Emit immediate status event so the SSE stream knows we're resuming
+    await publishEvent({
+      sessionId: confirmation.chatSessionId,
+      event: "status",
+      data: { status: "in_progress" },
+      timestamp: Date.now(),
+    });
 
     // Signal agent to resume via queue
     await publishTask({
@@ -127,6 +147,7 @@ export async function resolveConfirmation(
               rejected: true,
             },
           },
+          approveStatus: "rejected" as const,
         },
       ],
     };
@@ -141,6 +162,32 @@ export async function resolveConfirmation(
         updatedAt: sql`(datetime('now'))`,
       })
       .where(eq(chatSessions.id, confirmation.chatSessionId));
+
+    // Publish rejection events to SSE stream
+    const now = Date.now();
+    await publishEvent({
+      sessionId: confirmation.chatSessionId,
+      event: "tool-result",
+      data: {
+        toolCallId: confirmation.toolCallId,
+        toolName: confirmation.toolName,
+        output: { error: "User rejected this action", rejected: true },
+        approveStatus: "rejected",
+      },
+      timestamp: now,
+    });
+    await publishEvent({
+      sessionId: confirmation.chatSessionId,
+      event: "status",
+      data: { status: "stopped" },
+      timestamp: now,
+    });
+    await publishEvent({
+      sessionId: confirmation.chatSessionId,
+      event: "done",
+      data: {},
+      timestamp: now,
+    });
   }
 
   // Sync task status if applicable
