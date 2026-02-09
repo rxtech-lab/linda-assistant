@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "bun openapi:generate && next build",
+    "build": "bun openapi:generate && bun db:push && next build",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
