@@ -1,10 +1,11 @@
+import crypto from "crypto";
 import { db } from "@/lib/db";
 import { confirmations, chatSessions } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { sendPushNotification } from "@/lib/push";
 import { resend } from "@/lib/resend";
 import { syncTaskStatus } from "@/lib/utils/task-status-sync";
-import { setAgentTrigger } from "@/lib/streaming/manager";
+import { publishTask } from "@/lib/queue/producer";
 
 interface CreateConfirmationParams {
   userId: string;
@@ -78,6 +79,7 @@ export async function resolveConfirmation(
 
     // Add tool result to messages (output must match AI SDK v6 ModelMessage format)
     const toolResultMessage = {
+      id: crypto.randomUUID(),
       role: "tool" as const,
       content: [
         {
@@ -101,11 +103,17 @@ export async function resolveConfirmation(
       })
       .where(eq(chatSessions.id, confirmation.chatSessionId));
 
-    // Signal agent to resume
-    await setAgentTrigger(confirmation.chatSessionId);
+    // Signal agent to resume via queue
+    await publishTask({
+      sessionId: confirmation.chatSessionId,
+      userId: confirmation.userId,
+      type: "confirmation_resolved",
+      timestamp: Date.now(),
+    });
   } else {
     // Rejection - add rejection message and stop session
     const rejectionMessage = {
+      id: crypto.randomUUID(),
       role: "tool" as const,
       content: [
         {

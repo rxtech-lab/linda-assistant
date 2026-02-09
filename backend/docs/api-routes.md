@@ -70,11 +70,15 @@ Permission values: `auto-confirm` (execute without asking), `manual-confirm` (pa
 | POST | `/api/chat-sessions` | Create session |
 | GET | `/api/chat-sessions/[id]` | Get session with full messages JSON |
 | DELETE | `/api/chat-sessions/[id]` | Delete session |
-| POST | `/api/chat-sessions/[id]/messages` | Send message (triggers agent) |
+| POST | `/api/chat-sessions/[id]/messages` | Send message (queues agent task) |
 | GET | `/api/chat-sessions/[id]/stream` | SSE stream for real-time agent output |
 
-**Send message body:**
-```json
+**Send message:**
+
+```
+POST /api/chat-sessions/{id}/messages
+Content-Type: application/json
+
 {
   "content": "Draft an email to John about the meeting",
   "attachments": [
@@ -83,7 +87,20 @@ Permission values: `auto-confirm` (execute without asking), `manual-confirm` (pa
 }
 ```
 
-**SSE stream events:**
+Returns `{ "queued": true }` immediately. The message is saved to the session and a task is published to the RabbitMQ `agent-tasks` queue. A worker process picks up the task and runs the AI agent asynchronously.
+
+Supported attachment types: `image`, `pdf`, `audio`.
+
+**SSE stream:**
+
+```
+GET /api/chat-sessions/{id}/stream
+Accept: text/event-stream
+```
+
+The stream stays open indefinitely — connect once and receive events for all agent runs in this session. The stream replays cached events on reconnection (1h TTL), then forwards live events from the worker via RabbitMQ. Only closes when the client disconnects.
+
+**Stream events:**
 ```
 event: status
 data: {"status":"in_progress"}
@@ -93,6 +110,9 @@ data: {"text":"I'll draft that email..."}
 
 event: tool-call
 data: {"toolCallId":"tc_1","toolName":"send_email","input":{...}}
+
+event: tool-result
+data: {"toolCallId":"tc_1","toolName":"send_email","output":{...}}
 
 event: confirmation_required
 data: {"toolCallId":"tc_1","toolName":"send_email","parameters":{...}}

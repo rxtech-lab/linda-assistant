@@ -9,6 +9,7 @@ Backend-only Next.js 16 API server powering a personal assistant that manages em
 - **Runtime**: Next.js 16 App Router (API routes only)
 - **Database**: Turso (libSQL) via Drizzle ORM
 - **Cache/State**: Upstash Redis
+- **Message Queue**: RabbitMQ (agent task distribution + real-time events)
 - **AI**: Vercel AI SDK v6 + Anthropic Claude
 - **Email**: Resend (send + inbound webhooks)
 - **Storage**: AWS S3 (presigned uploads)
@@ -68,6 +69,11 @@ backend/
 │   │   ├── relations.ts        # Drizzle relation definitions
 │   │   └── index.ts            # Database client singleton
 │   ├── push/index.ts           # APNs push notification sender
+│   ├── queue/
+│   │   ├── types.ts            # AgentTask/AgentEvent interfaces, queue constants
+│   │   ├── connection.ts       # AMQP connection singleton, topology setup
+│   │   ├── producer.ts         # publishTask() + publishEvent()
+│   │   └── consumer.ts         # consumeTasks() + subscribeToEvents()
 │   ├── redis/index.ts          # Upstash Redis singleton
 │   ├── resend/index.ts         # Resend client singleton
 │   ├── s3/index.ts             # S3 client + presigned URL helper
@@ -79,6 +85,9 @@ backend/
 │       ├── pagination.ts       # Pagination schema and parser
 │       ├── response.ts         # JSON response helpers
 │       └── task-status-sync.ts # Auto-sync task status from chat sessions
+├── worker/
+│   └── index.ts                # Standalone worker process (consumes agent-tasks queue)
+├── docker-compose.yml          # RabbitMQ + Redis for local development
 ├── drizzle.config.ts           # Drizzle Kit config for Turso
 ├── next.openapi.json           # OpenAPI generator config
 └── public/openapi.json         # Generated OpenAPI spec
@@ -95,5 +104,8 @@ The agent uses a manual `while` loop around `streamText` instead of `maxSteps` t
 ### Per-assignee model configuration
 Each assignee has an optional `model` field (e.g., `claude-sonnet-4-5-20250929`) allowing users to configure different AI models for different agent personas. Defaults to Claude Sonnet 4.5.
 
+### Decoupled agent execution via RabbitMQ
+Agent execution runs in a separate worker process, decoupled from client HTTP connections. When a message is sent, a task is published to the `agent-tasks` RabbitMQ queue. The worker consumes tasks and runs the agent to completion regardless of whether any SSE client is connected. Real-time events are published to the `agent-events` topic exchange with routing key `session.{sessionId}`, so each SSE connection only receives events for its session. This architecture allows independent scaling of API servers and workers.
+
 ### Redis for transient state only
-Redis stores only ephemeral data: stream chunks for SSE replay, stream active flags, and agent trigger signals. All persistent state lives in the database. This means Redis can be flushed without data loss.
+Redis stores only ephemeral data: stream chunks for SSE replay and stream active flags. All persistent state lives in the database. This means Redis can be flushed without data loss.

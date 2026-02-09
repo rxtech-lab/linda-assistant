@@ -32,6 +32,9 @@ export default defineConfig({
     env: {
       IS_E2E: 'true',
       TURSO_DATABASE_URL: `file:${dbPath}`,
+      RABBITMQ_URL: 'amqp://linda:linda@localhost:5672',
+      UPSTASH_REDIS_REST_URL: 'http://localhost:8079',
+      UPSTASH_REDIS_REST_TOKEN: 'token',
     },
   },
 });

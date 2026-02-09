@@ -2,8 +2,6 @@ import { redis } from "@/lib/redis";
 
 const CHUNK_KEY = (sessionId: string) => `stream:chunks:${sessionId}`;
 const ACTIVE_KEY = (sessionId: string) => `stream:active:${sessionId}`;
-const TRIGGER_KEY = (sessionId: string) => `stream:trigger:${sessionId}`;
-
 const CHUNK_TTL = 60 * 60; // 1 hour
 
 export async function appendStreamChunk(sessionId: string, chunk: string) {
@@ -32,17 +30,3 @@ export async function isStreamActive(sessionId: string): Promise<boolean> {
   return val === "1";
 }
 
-export async function setAgentTrigger(sessionId: string) {
-  await redis.set(TRIGGER_KEY(sessionId), "1", { ex: 300 });
-}
-
-export async function consumeAgentTrigger(
-  sessionId: string
-): Promise<boolean> {
-  const val = await redis.get(TRIGGER_KEY(sessionId));
-  if (val === "1") {
-    await redis.del(TRIGGER_KEY(sessionId));
-    return true;
-  }
-  return false;
-}

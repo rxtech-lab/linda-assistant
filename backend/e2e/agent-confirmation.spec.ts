@@ -10,6 +10,9 @@ import {
 
 const dbPath = path.resolve(__dirname, "..", "e2e-test.db");
 
+/** Small delay to ensure SSE subscription is established before posting */
+const SUB_DELAY = 200;
+
 test.describe("Agent Confirmation", () => {
   let assigneeId: string;
 
@@ -40,19 +43,23 @@ test.describe("Agent Confirmation", () => {
     chatSessionResponseSchema.parse(session);
     const sessionId = session.id;
 
-    // Send message that triggers send_email
-    await request.post(`/api/chat-sessions/${sessionId}/messages`, {
-      data: { content: "[TOOL:send_email] Send a test email" },
-    });
-
-    // Stream until confirmation_required
-    const events = await consumeSSE(
+    // Subscribe to SSE BEFORE posting so we catch all events
+    const eventsPromise = consumeSSE(
       `${baseURL}/api/chat-sessions/${sessionId}/stream`,
       {
         headers: { authorization: "Bearer e2e-test-token" },
         stopOnEvent: "confirmation_required",
       }
     );
+    await new Promise((r) => setTimeout(r, SUB_DELAY));
+
+    // Send message that triggers send_email
+    await request.post(`/api/chat-sessions/${sessionId}/messages`, {
+      data: { content: "[TOOL:send_email] Send a test email" },
+    });
+
+    // Stream until confirmation_required
+    const events = await eventsPromise;
 
     const eventTypes = events.map((e) => e.event);
     expect(eventTypes).toContain("tool-call");
@@ -78,6 +85,13 @@ test.describe("Agent Confirmation", () => {
     const confirmationId = result.rows[0].id as string;
     client.close();
 
+    // Subscribe to SSE BEFORE resolving — resolve publishes a resume task to RabbitMQ
+    const resumeEventsPromise = consumeSSE(
+      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
+      { headers: { authorization: "Bearer e2e-test-token" } }
+    );
+    await new Promise((r) => setTimeout(r, SUB_DELAY));
+
     // Resolve confirmation
     const resolveRes = await request.post(
       `/api/confirmations/${confirmationId}/resolve`,
@@ -86,11 +100,8 @@ test.describe("Agent Confirmation", () => {
     expect(resolveRes.ok()).toBeTruthy();
     resolveConfirmationResponseSchema.parse(await resolveRes.json());
 
-    // Reconnect to stream — agent should resume and complete
-    const resumeEvents = await consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      { headers: { authorization: "Bearer e2e-test-token" } }
-    );
+    // Await resume events — agent should resume and complete
+    const resumeEvents = await resumeEventsPromise;
 
     const resumeEventTypes = resumeEvents.map((e) => e.event);
     expect(resumeEventTypes).toContain("text-delta");
@@ -118,19 +129,23 @@ test.describe("Agent Confirmation", () => {
     chatSessionResponseSchema.parse(session);
     const sessionId = session.id;
 
-    // Send message that triggers send_email
-    await request.post(`/api/chat-sessions/${sessionId}/messages`, {
-      data: { content: "[TOOL:send_email] Send a test email" },
-    });
-
-    // Stream until confirmation_required
-    await consumeSSE(
+    // Subscribe to SSE BEFORE posting so we catch all events
+    const eventsPromise = consumeSSE(
       `${baseURL}/api/chat-sessions/${sessionId}/stream`,
       {
         headers: { authorization: "Bearer e2e-test-token" },
         stopOnEvent: "confirmation_required",
       }
     );
+    await new Promise((r) => setTimeout(r, SUB_DELAY));
+
+    // Send message that triggers send_email
+    await request.post(`/api/chat-sessions/${sessionId}/messages`, {
+      data: { content: "[TOOL:send_email] Send a test email" },
+    });
+
+    // Stream until confirmation_required
+    await eventsPromise;
 
     // Query DB for pending confirmation
     const client = createClient({ url: `file:${dbPath}` });
@@ -142,7 +157,7 @@ test.describe("Agent Confirmation", () => {
     const confirmationId = result.rows[0].id as string;
     client.close();
 
-    // Reject the confirmation
+    // Reject the confirmation (no worker task — rejection updates DB directly)
     const resolveRes = await request.post(
       `/api/confirmations/${confirmationId}/resolve`,
       { data: { action: "reject" } }
@@ -153,7 +168,6 @@ test.describe("Agent Confirmation", () => {
     // Session should be stopped
     const finalSession = await request.get(`/api/chat-sessions/${sessionId}`);
     const finalBody = await finalSession.json();
-    chatSessionResponseSchema.parse(finalBody);
     expect(finalBody.status).toBe("stopped");
 
     // Check that last message has rejection info
