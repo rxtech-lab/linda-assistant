@@ -3,6 +3,8 @@ import UIKit
 
 struct MessageBubble: View {
     let message: DisplayMessage
+    
+    @State private var hasAppeared = false
 
     var body: some View {
         HStack {
@@ -34,6 +36,13 @@ struct MessageBubble: View {
             }
 
             if message.role == .assistant { Spacer(minLength: 60) }
+        }
+        .opacity(hasAppeared ? 1 : 0)
+        .offset(x: hasAppeared ? 0 : (message.role == .user ? 80 : -80))
+        .onAppear {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                hasAppeared = true
+            }
         }
         .accessibilityIdentifier("messageBubble-\(message.id)")
     }

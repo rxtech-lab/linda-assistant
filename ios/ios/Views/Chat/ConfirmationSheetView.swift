@@ -1,4 +1,5 @@
 import AssistantCore
+import LocalAuthentication
 import SwiftUI
 
 struct ConfirmationSheetView: View {
@@ -138,9 +139,9 @@ private extension ConfirmationSheetView {
     var actionSection: some View {
         VStack(spacing: 12) {
             Button {
-                onResolve("confirm")
+                authenticateWithBiometrics()
             } label: {
-                Label("Confirm", systemImage: "checkmark.circle.fill")
+                Label("Confirm with Face ID", systemImage: "faceid")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -159,6 +160,39 @@ private extension ConfirmationSheetView {
             .accessibilityIdentifier("rejectButton")
         }
         .padding(.top, 4)
+    }
+
+    func authenticateWithBiometrics() {
+        let context = LAContext()
+        var error: NSError?
+
+        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+            let reason = "Authenticate to confirm \(confirmation.toolName.replacingOccurrences(of: "_", with: " "))"
+
+            context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, _ in
+                DispatchQueue.main.async {
+                    if success {
+                        onResolve("confirm")
+                    }
+                }
+            }
+        } else {
+            // Biometrics not available, fall back to device passcode
+            if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
+                let reason = "Authenticate to confirm \(confirmation.toolName.replacingOccurrences(of: "_", with: " "))"
+
+                context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, _ in
+                    DispatchQueue.main.async {
+                        if success {
+                            onResolve("confirm")
+                        }
+                    }
+                }
+            } else {
+                // No authentication available, proceed without
+                onResolve("confirm")
+            }
+        }
     }
 }
 

@@ -33,5 +33,7 @@
 	<string>$(AUTH_CLIENT_ID)</string>
 	<key>AppAuthURLScheme</key>
 	<string>$(AUTH_URL_SCHEME)</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Face ID is used to confirm sensitive actions like task creation and modifications.</string>
 </dict>
 </plist>

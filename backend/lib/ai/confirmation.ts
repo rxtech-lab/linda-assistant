@@ -116,6 +116,19 @@ export async function resolveConfirmation(
       })
       .where(eq(chatSessions.id, confirmation.chatSessionId));
 
+    // Emit tool-result event so the iOS client can update the badge
+    await publishEvent({
+      sessionId: confirmation.chatSessionId,
+      event: "tool-result",
+      data: {
+        toolCallId: confirmation.toolCallId,
+        toolName: confirmation.toolName,
+        output: toolResult,
+        approveStatus: "confirmed",
+      },
+      timestamp: Date.now(),
+    });
+
     // Emit immediate status event so the SSE stream knows we're resuming
     await publishEvent({
       sessionId: confirmation.chatSessionId,

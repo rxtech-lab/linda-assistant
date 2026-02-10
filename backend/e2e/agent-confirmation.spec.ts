@@ -104,8 +104,20 @@ test.describe("Agent Confirmation", () => {
     const resumeEvents = await resumeEventsPromise;
 
     const resumeEventTypes = resumeEvents.map((e) => e.event);
+    expect(resumeEventTypes).toContain("tool-result");
     expect(resumeEventTypes).toContain("text-delta");
     expect(resumeEventTypes).toContain("done");
+
+    // Verify tool-result event is emitted after confirmation
+    const toolResultEvent = resumeEvents.find((e) => e.event === "tool-result");
+    expect(toolResultEvent?.data.toolCallId).toBeTruthy();
+    expect(toolResultEvent?.data.toolName).toBe("send_email");
+    expect(toolResultEvent?.data.approveStatus).toBe("confirmed");
+
+    // tool-result should come before text-delta
+    const toolResultIdx = resumeEvents.findIndex((e) => e.event === "tool-result");
+    const textDeltaIdx = resumeEvents.findIndex((e) => e.event === "text-delta");
+    expect(toolResultIdx).toBeLessThan(textDeltaIdx);
 
     // Check that the resumed text contains expected content
     const textEvents = resumeEvents.filter((e) => e.event === "text-delta");
