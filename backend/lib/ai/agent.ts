@@ -53,6 +53,12 @@ function sanitizeMessages(messages: ModelMessage[], messageId?: string): ModelMe
   });
 }
 
+export function buildSystemPrompt(assignee?: { name: string; personality: string | null } | null): string {
+  if (!assignee) return "You are a helpful personal assistant.";
+  if (assignee.personality) return assignee.personality;
+  return `You are ${assignee.name}, a helpful personal assistant.`;
+}
+
 interface AgentRunOptions {
   sessionId: string;
   userId: string;
@@ -73,27 +79,27 @@ export async function runAgent(options: AgentRunOptions) {
   if (!session) throw new Error("Session not found");
 
   // Load assignee for personality and model config
-  let systemPrompt = "You are Linda, a helpful personal assistant.";
+  let assignee: { name: string; personality: string | null; model: string | null; toolPermissions: ToolPermission[] | null } | null = null;
   let modelId = DEFAULT_MODEL;
   let toolPermissions: ToolPermission[] | null = null;
 
   if (session.assigneeId) {
-    const [assignee] = await db
+    const [found] = await db
       .select()
       .from(assignees)
       .where(eq(assignees.id, session.assigneeId));
 
-    if (assignee) {
-      if (assignee.personality) {
-        systemPrompt = assignee.personality;
-      }
-      if (assignee.model) {
-        const parsed = availableModelSchema.safeParse(assignee.model);
+    if (found) {
+      assignee = found;
+      if (found.model) {
+        const parsed = availableModelSchema.safeParse(found.model);
         modelId = parsed.success ? parsed.data : DEFAULT_MODEL;
       }
-      toolPermissions = assignee.toolPermissions || null;
+      toolPermissions = found.toolPermissions || null;
     }
   }
+
+  const systemPrompt = buildSystemPrompt(assignee);
 
   const tools = buildToolSet(userId, toolPermissions);
   const messages = (session.messages || []) as ModelMessage[];

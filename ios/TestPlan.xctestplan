@@ -1,0 +1,31 @@
+{
+  "configurations" : [
+    {
+      "id" : "805EB59B-C084-493E-8AF2-03AB87D61164",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:ios.xcodeproj",
+        "identifier" : "DF7E29FF2F378F47006A4C0A",
+        "name" : "iosTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:packages\/AssistantCore",
+        "identifier" : "AssistantCoreTests",
+        "name" : "AssistantCoreTests"
+      }
+    }
+  ],
+  "version" : 1
+}

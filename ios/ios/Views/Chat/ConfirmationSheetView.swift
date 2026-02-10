@@ -146,6 +146,7 @@ private extension ConfirmationSheetView {
             .buttonStyle(.borderedProminent)
             .tint(.orange)
             .controlSize(.large)
+            .accessibilityIdentifier("confirmButton")
 
             Button(role: .destructive) {
                 onResolve("reject")
@@ -155,6 +156,7 @@ private extension ConfirmationSheetView {
             }
             .buttonStyle(.bordered)
             .controlSize(.large)
+            .accessibilityIdentifier("rejectButton")
         }
         .padding(.top, 4)
     }

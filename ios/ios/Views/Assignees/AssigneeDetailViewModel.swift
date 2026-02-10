@@ -4,7 +4,7 @@ import AssistantCore
 @Observable
 final class AssigneeDetailViewModel {
     var assignee: Assignee?
-    var isLoading = false
+    var isLoading = true
     var error: String?
 
     func loadAssignee(id: String, apiClient: APIClient) async {

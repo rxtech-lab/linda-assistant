@@ -4,7 +4,7 @@ import AssistantCore
 @Observable
 final class TaskDetailViewModel {
     var task: TaskDetail?
-    var isLoading = false
+    var isLoading = true
     var error: String?
 
     func loadTask(id: String, apiClient: APIClient) async {

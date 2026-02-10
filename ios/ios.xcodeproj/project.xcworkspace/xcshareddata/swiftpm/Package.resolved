@@ -1,5 +1,5 @@
 {
-  "originHash" : "1310b2a49f564922913f77212f489c2ab2c07e63fb3ebd940c9cb1714c5dd048",
+  "originHash" : "6ee7e3836720040e95f03485b8a26b9e563a6a197d575d6208477382c6dd6a86",
   "pins" : [
     {
       "identity" : "agentkit",
@@ -116,6 +116,15 @@
       "state" : {
         "revision" : "0226e21f9bf355d40e07e5f5e1c33679d50e167f",
         "version" : "1.5.1"
+      }
+    },
+    {
+      "identity" : "viewinspector",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/nalexn/ViewInspector",
+      "state" : {
+        "revision" : "e9a06346499a3a889165647e3f23f8a7b2609a1c",
+        "version" : "0.10.3"
       }
     }
   ],

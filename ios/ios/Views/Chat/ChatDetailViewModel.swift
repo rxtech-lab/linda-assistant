@@ -12,6 +12,7 @@ final class ChatDetailViewModel {
     var error: String?
     var streamHandler: ChatStreamHandler?
     var showingConfirmation = false
+    var assigneeName: String?
 
     func loadSession(id: String, apiClient: APIClient, authManager: AuthManager, eventManager: EventManager) async {
         logger.info("loadSession started for id=\(id)")
@@ -21,15 +22,30 @@ final class ChatDetailViewModel {
             sseClient: SSEClient(authManager: authManager),
             eventManager: eventManager
         )
-        handler.onAssistantMessage = { [weak self] text in
+        handler.onAssistantMessage = { [weak self] text, toolCalls in
             guard let self else { return }
-            logger.info("onAssistantMessage received, length=\(text.count)")
-            let msg = DisplayMessage(
-                id: "assistant-\(displayMessages.count)",
-                role: .assistant,
-                content: text
-            )
-            displayMessages.append(msg)
+            logger.info("onAssistantMessage received, textLength=\(text.count), toolCalls=\(toolCalls.count)")
+            // Append tool-calls-only message first (so badge appears before text)
+            if !toolCalls.isEmpty {
+                let toolMsg = DisplayMessage(
+                    id: "assistant-tools-\(displayMessages.count)",
+                    role: .assistant,
+                    content: "",
+                    toolCalls: toolCalls,
+                    assigneeName: assigneeName
+                )
+                displayMessages.append(toolMsg)
+            }
+            // Then append text message
+            if !text.isEmpty {
+                let textMsg = DisplayMessage(
+                    id: "assistant-\(displayMessages.count)",
+                    role: .assistant,
+                    content: text,
+                    assigneeName: assigneeName
+                )
+                displayMessages.append(textMsg)
+            }
         }
         streamHandler = handler
 
@@ -108,6 +124,7 @@ final class ChatDetailViewModel {
         let session = try await apiClient.getChatSession(id: id)
         logger.info("Session loaded: title=\(session.title ?? "nil"), raw messages count=\(session.messages.count)")
         self.session = session
+        self.assigneeName = session.assignee?.name
         displayMessages = session.messages.enumerated().compactMap { index, msg in
             // Build tool call infos from historical messages
             let historicalToolCalls = msg.toolCalls.map { tc in
@@ -115,7 +132,7 @@ final class ChatDetailViewModel {
                     toolCallId: tc.toolCallId,
                     toolName: tc.toolName,
                     input: tc.input,
-                    status: .completed
+                    status: ToolCallStatus.from(confirmation: tc.confirmation)
                 )
             }
             // Skip messages with no text and no tool calls
@@ -124,7 +141,8 @@ final class ChatDetailViewModel {
                 id: "\(index)-\(msg.role)",
                 role: msg.role == "user" ? .user : .assistant,
                 content: msg.textContent ?? "",
-                toolCalls: historicalToolCalls
+                toolCalls: historicalToolCalls,
+                assigneeName: msg.role == "user" ? nil : assigneeName
             )
         }
 

@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import type { ModelMessage } from "ai";
 import { db } from "@/lib/db";
-import { confirmations, chatSessions } from "@/lib/db/schema";
+import { confirmations, chatSessions, assignees } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { sendPushNotification } from "@/lib/push";
 import { resend } from "@/lib/resend";
@@ -85,7 +85,8 @@ export async function resolveConfirmation(
     const toolResult = await executeConfirmedTool(
       confirmation.toolName,
       confirmation.parameters as Record<string, unknown>,
-      confirmation.userId
+      confirmation.userId,
+      confirmation.chatSessionId
     );
 
     // Add tool result to messages (output must match AI SDK v6 ModelMessage format)
@@ -201,7 +202,8 @@ export async function resolveConfirmation(
 async function executeConfirmedTool(
   toolName: string,
   parameters: Record<string, unknown>,
-  userId: string
+  userId: string,
+  chatSessionId: string
 ) {
   switch (toolName) {
     case "send_email": {
@@ -211,9 +213,24 @@ async function executeConfirmedTool(
         body: string;
       };
 
-      // Look up the assignee's email to use as from address
+      // Look up the assignee's email from the chat session's assignee configuration
+      let fromAddress = `linda@${process.env.RESEND_DOMAIN || "assistant.rxlab.io"}`;
+      const [session] = await db
+        .select({ assigneeId: chatSessions.assigneeId })
+        .from(chatSessions)
+        .where(eq(chatSessions.id, chatSessionId));
+      if (session?.assigneeId) {
+        const [assignee] = await db
+          .select({ email: assignees.email })
+          .from(assignees)
+          .where(eq(assignees.id, session.assigneeId));
+        if (assignee?.email) {
+          fromAddress = assignee.email;
+        }
+      }
+
       const result = await resend.emails.send({
-        from: `Linda <linda@${process.env.RESEND_DOMAIN || "assistant.rxlab.io"}>`,
+        from: fromAddress,
         to: [to],
         subject,
         html: body,

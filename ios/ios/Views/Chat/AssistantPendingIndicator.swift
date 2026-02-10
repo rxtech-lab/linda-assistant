@@ -6,10 +6,6 @@ struct AssistantPendingIndicator: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Linda")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-
                 HStack(spacing: 6) {
                     ForEach(0 ..< 3, id: \.self) { index in
                         Circle()

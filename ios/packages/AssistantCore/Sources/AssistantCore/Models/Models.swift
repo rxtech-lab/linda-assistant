@@ -118,6 +118,11 @@ public struct UpdateTask: Codable, Sendable {
 
 // MARK: - Chat Session
 
+public struct AssigneeRef: Codable, Sendable {
+    public let id: String
+    public let name: String
+}
+
 public struct ChatSession: Codable, Identifiable, Sendable {
     public let id: String
     public let userId: String
@@ -126,6 +131,7 @@ public struct ChatSession: Codable, Identifiable, Sendable {
     public let title: String?
     public let status: String?
     public let messages: [ChatMessage]
+    public let assignee: AssigneeRef?
     public let createdAt: String?
     public let updatedAt: String?
 }

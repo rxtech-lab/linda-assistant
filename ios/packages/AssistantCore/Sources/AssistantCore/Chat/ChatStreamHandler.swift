@@ -12,7 +12,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     public private(set) var toolCalls: [ToolCallInfo] = []
     public private(set) var error: String?
 
-    public var onAssistantMessage: (@MainActor (String) -> Void)?
+    public var onAssistantMessage: (@MainActor (String, [ToolCallInfo]) -> Void)?
 
     private let apiClient: APIClient
     private let sseClient: SSEClient
@@ -173,10 +173,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
     @MainActor
     private func finalizeResponse() {
-        logger.info("finalizeResponse: streamedText.count=\(self.streamedText.count), hasCallback=\(self.onAssistantMessage != nil)")
-        if !streamedText.isEmpty {
-            logger.info("finalizeResponse: calling onAssistantMessage with text=\(self.streamedText.prefix(100))")
-            onAssistantMessage?(streamedText)
+        logger.info("finalizeResponse: streamedText.count=\(self.streamedText.count), toolCalls.count=\(self.toolCalls.count), hasCallback=\(self.onAssistantMessage != nil)")
+        if !streamedText.isEmpty || !toolCalls.isEmpty {
+            logger.info("finalizeResponse: calling onAssistantMessage with text=\(self.streamedText.prefix(100)), toolCalls=\(self.toolCalls.count)")
+            onAssistantMessage?(streamedText, toolCalls)
         }
         streamedText = ""
         toolCalls = []
@@ -204,9 +204,20 @@ public struct ToolCallInfo: Identifiable, Sendable {
     }
 }
 
-public enum ToolCallStatus: Sendable {
+public enum ToolCallStatus: Sendable, Equatable {
     case running
     case completed
     case failed
     case pendingConfirmation
+    case rejected
+
+    /// Map a confirmation status string to a ToolCallStatus.
+    public static func from(confirmation: ToolCallConfirmation?) -> ToolCallStatus {
+        guard let status = confirmation?.status else { return .completed }
+        switch status {
+        case "rejected": return .rejected
+        case "pending": return .pendingConfirmation
+        default: return .completed
+        }
+    }
 }

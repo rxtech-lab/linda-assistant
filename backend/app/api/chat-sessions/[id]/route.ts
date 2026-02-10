@@ -1,6 +1,6 @@
 import { authenticate } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
-import { chatSessions } from "@/lib/db/schema";
+import { assignees, chatSessions } from "@/lib/db/schema";
 import { errorJson, successJson } from "@/lib/utils/response";
 import { and, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
@@ -18,13 +18,22 @@ export async function GET(
   if (auth instanceof Response) return auth;
 
   const { id } = await params;
-  const [item] = await db
-    .select()
+  const [row] = await db
+    .select({
+      session: chatSessions,
+      assigneeName: assignees.name,
+    })
     .from(chatSessions)
+    .leftJoin(assignees, eq(chatSessions.assigneeId, assignees.id))
     .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, auth.userId)));
 
-  if (!item) return errorJson("Chat session not found", 404);
-  return successJson(item);
+  if (!row) return errorJson("Chat session not found", 404);
+  return successJson({
+    ...row.session,
+    assignee: row.session.assigneeId
+      ? { id: row.session.assigneeId, name: row.assigneeName ?? "Assistant" }
+      : null,
+  });
 }
 
 /**

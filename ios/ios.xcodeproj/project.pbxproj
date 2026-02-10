@@ -11,6 +11,8 @@
 		DF7E32502F3888A1006A4C0A /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = DF7E324F2F3888A1006A4C0A /* icon.icon */; };
 		DF7E37742F3A66EC006A4C0A /* AgentKit in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E37732F3A66EC006A4C0A /* AgentKit */; };
 		DF7E37762F3B1D21006A4C0A /* Launch Screen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */; };
+		DF7E385D2F3B5EF9006A4C0A /* ViewInspector in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E385C2F3B5EF9006A4C0A /* ViewInspector */; };
+		DF7E386C2F3B64E5006A4C0A /* TestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = DF7E386B2F3B64E5006A4C0A /* TestPlan.xctestplan */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -41,6 +43,7 @@
 		DF7E2EA22F385474006A4C0A /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		DF7E324F2F3888A1006A4C0A /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon.icon; sourceTree = "<group>"; };
 		DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = "Launch Screen.storyboard"; sourceTree = "<group>"; };
+		DF7E386B2F3B64E5006A4C0A /* TestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = TestPlan.xctestplan; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -88,6 +91,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DF7E385D2F3B5EF9006A4C0A /* ViewInspector in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -104,6 +108,7 @@
 		DF7E29E82F378F46006A4C0A = {
 			isa = PBXGroup;
 			children = (
+				DF7E386B2F3B64E5006A4C0A /* TestPlan.xctestplan */,
 				DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */,
 				DF7E324F2F3888A1006A4C0A /* icon.icon */,
 				DF7E2A402F385100006A4C0A /* Config */,
@@ -189,6 +194,7 @@
 			);
 			name = iosTests;
 			packageProductDependencies = (
+				DF7E385C2F3B5EF9006A4C0A /* ViewInspector */,
 			);
 			productName = iosTests;
 			productReference = DF7E2A002F378F47006A4C0A /* iosTests.xctest */;
@@ -252,6 +258,7 @@
 			packageReferences = (
 				DF7E2A1F2F379000006A4C0A /* XCLocalSwiftPackageReference "packages/AssistantCore" */,
 				DF7E37722F3A66EC006A4C0A /* XCRemoteSwiftPackageReference "AgentKit" */,
+				DF7E385B2F3B5EF9006A4C0A /* XCRemoteSwiftPackageReference "ViewInspector" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DF7E29F22F378F46006A4C0A /* Products */;
@@ -271,6 +278,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DF7E37762F3B1D21006A4C0A /* Launch Screen.storyboard in Resources */,
+				DF7E386C2F3B64E5006A4C0A /* TestPlan.xctestplan in Resources */,
 				DF7E32502F3888A1006A4C0A /* icon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -571,15 +579,16 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = P9KK452K8P;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = rxlab.iosTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ios";
 			};
 			name = Debug;
@@ -592,15 +601,16 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = P9KK452K8P;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = rxlab.iosTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ios";
 			};
 			name = Release;
@@ -616,10 +626,12 @@
 				PRODUCT_BUNDLE_IDENTIFIER = rxlab.iosUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = ios;
 			};
 			name = Debug;
@@ -635,10 +647,12 @@
 				PRODUCT_BUNDLE_IDENTIFIER = rxlab.iosUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = ios;
 			};
 			name = Release;
@@ -700,6 +714,14 @@
 				version = 1.2.2;
 			};
 		};
+		DF7E385B2F3B5EF9006A4C0A /* XCRemoteSwiftPackageReference "ViewInspector" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/nalexn/ViewInspector";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.10.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -711,6 +733,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = DF7E37722F3A66EC006A4C0A /* XCRemoteSwiftPackageReference "AgentKit" */;
 			productName = AgentKit;
+		};
+		DF7E385C2F3B5EF9006A4C0A /* ViewInspector */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DF7E385B2F3B5EF9006A4C0A /* XCRemoteSwiftPackageReference "ViewInspector" */;
+			productName = ViewInspector;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

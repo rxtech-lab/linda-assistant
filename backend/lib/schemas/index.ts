@@ -182,6 +182,10 @@ export const selectChatSessionSchema = z.object({
   title: z.string().nullable().describe("Session title"),
   status: z.string().nullable().describe("Current session status"),
   messages: z.array(chatMessageSchema).describe("Conversation message history (AI SDK v6 ModelMessage format)"),
+  assignee: z.object({
+    id: z.string().describe("Assignee ID"),
+    name: z.string().describe("Assignee display name"),
+  }).nullable().optional().describe("Resolved assignee info"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
