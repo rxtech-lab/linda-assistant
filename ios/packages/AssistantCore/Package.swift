@@ -1,26 +1,24 @@
 // swift-tools-version: 6.2
-// The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
 
 let package = Package(
     name: "AssistantCore",
+    platforms: [.iOS(.v26), .macOS(.v26)],
     products: [
-        // Products define the executables and libraries a package produces, making them visible to other packages.
-        .library(
-            name: "AssistantCore",
-            targets: ["AssistantCore"]
-        ),
+        .library(name: "AssistantCore", targets: ["AssistantCore"]),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/rxtech-lab/RxAuthSwift.git", exact: "1.0.2"),
     ],
     targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "AssistantCore"
+            name: "AssistantCore",
+            dependencies: [
+                .product(name: "RxAuthSwift", package: "RxAuthSwift"),
+                .product(name: "RxAuthSwiftUI", package: "RxAuthSwift"),
+            ]
         ),
-        .testTarget(
-            name: "AssistantCoreTests",
-            dependencies: ["AssistantCore"]
-        ),
+        .testTarget(name: "AssistantCoreTests", dependencies: ["AssistantCore"]),
     ]
 )

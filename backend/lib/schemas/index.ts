@@ -113,6 +113,67 @@ export const insertTaskEmailSchema = z.object({
   emailId: z.string().describe("Associated email ID"),
 });
 
+// ---- Chat Messages (AI SDK v6 ModelMessage format) ----
+
+const textPartSchema = z.object({
+  type: z.literal("text").describe("Text content part"),
+  text: z.string().describe("Text content"),
+});
+
+const imagePartSchema = z.object({
+  type: z.literal("image").describe("Image content part"),
+  image: z.string().describe("Image URL or base64 data"),
+  mimeType: z.string().optional().describe("Image MIME type"),
+});
+
+const filePartSchema = z.object({
+  type: z.literal("file").describe("File content part"),
+  data: z.string().describe("File URL or base64 data"),
+  mimeType: z.string().describe("File MIME type"),
+});
+
+const toolCallConfirmationSchema = z.object({
+  id: z.string().describe("Confirmation record ID"),
+  status: z.string().describe("pending, confirmed, or rejected"),
+});
+
+const toolCallPartSchema = z.object({
+  type: z.literal("tool-call").describe("Tool call part"),
+  toolCallId: z.string().describe("Unique tool call identifier"),
+  toolName: z.string().describe("Name of the tool being called"),
+  input: z.record(z.unknown()).describe("Tool call input parameters"),
+  confirmation: toolCallConfirmationSchema.optional().describe("Confirmation info if this tool call requires manual approval"),
+  error: z.string().optional().describe("Error message if the tool call failed"),
+});
+
+const toolResultPartSchema = z.object({
+  type: z.literal("tool-result").describe("Tool result part"),
+  toolCallId: z.string().describe("Matching tool call identifier"),
+  toolName: z.string().describe("Name of the tool"),
+  output: z.unknown().describe("Tool execution output"),
+  approveStatus: z.enum(["auto-approved", "confirmed", "rejected"]).optional()
+    .describe("Approval status — present for tools that went through the permission system"),
+  isError: z.boolean().optional().describe("Whether this tool result is an error"),
+});
+
+const contentPartSchema = z.discriminatedUnion("type", [
+  textPartSchema,
+  imagePartSchema,
+  filePartSchema,
+  toolCallPartSchema,
+  toolResultPartSchema,
+]);
+
+export const chatMessageSchema = z.object({
+  id: z.string().optional().describe("Unique message identifier"),
+  role: z
+    .enum(["system", "user", "assistant", "tool"])
+    .describe("Message role"),
+  content: z
+    .union([z.string(), z.array(contentPartSchema)])
+    .describe("Message content — string for simple text, array of parts for rich content"),
+});
+
 // ---- Chat Sessions ----
 
 export const selectChatSessionSchema = z.object({
@@ -122,7 +183,11 @@ export const selectChatSessionSchema = z.object({
   assigneeId: z.string().nullable().describe("Associated assignee ID"),
   title: z.string().nullable().describe("Session title"),
   status: z.string().nullable().describe("Current session status"),
-  messages: z.array(z.unknown()).describe("Conversation message history"),
+  messages: z.array(chatMessageSchema).describe("Conversation message history (AI SDK v6 ModelMessage format)"),
+  assignee: z.object({
+    id: z.string().describe("Assignee ID"),
+    name: z.string().describe("Assignee display name"),
+  }).nullable().optional().describe("Resolved assignee info"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
@@ -211,6 +276,24 @@ export const presignedUrlSchema = z.object({
 export const presignedUrlResponseSchema = z.object({
   url: z.string().describe("Presigned upload URL"),
   key: z.string().describe("S3 object key"),
+});
+
+// ---- SSE Stream Events ----
+
+export const streamEventSchema = z.object({
+  id: z.string().describe("Message ID — all events from the same agent step share this, matching the stored message's id for deduplication"),
+  type: z
+    .enum(["status", "text-delta", "tool-call", "tool-result", "confirmation_required", "error", "done"])
+    .describe("Event type"),
+  status: z.string().optional().describe("Session status (for status events)"),
+  text: z.string().optional().describe("Text content (for text-delta events)"),
+  toolCallId: z.string().optional().describe("Tool call identifier"),
+  toolName: z.string().optional().describe("Name of the tool"),
+  input: z.record(z.unknown()).optional().describe("Tool call input parameters"),
+  output: z.record(z.unknown()).optional().describe("Tool result output"),
+  parameters: z.record(z.unknown()).optional().describe("Parameters awaiting confirmation"),
+  error: z.string().optional().describe("Error message (for error events or tool-result errors)"),
+  isError: z.boolean().optional().describe("Whether this tool result is an error"),
 });
 
 // ---- Common path params ----

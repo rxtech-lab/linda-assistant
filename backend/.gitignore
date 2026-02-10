@@ -50,3 +50,7 @@ node_modules/
 
 # E2E test database
 e2e-test.db
+e2e-worker.pid
+
+# Worker logs
+worker.log

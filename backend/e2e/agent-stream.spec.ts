@@ -6,6 +6,9 @@ import {
   sendMessageResponseSchema,
 } from "./helpers/schemas";
 
+/** Small delay to ensure SSE subscription is established before posting */
+const SUB_DELAY = 200;
+
 test.describe("Agent Stream", () => {
   let assigneeId: string;
 
@@ -32,6 +35,12 @@ test.describe("Agent Stream", () => {
     chatSessionResponseSchema.parse(session);
     const sessionId = session.id;
 
+    // Subscribe to SSE BEFORE posting so we catch all events
+    const eventsPromise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+    });
+    await new Promise((r) => setTimeout(r, SUB_DELAY));
+
     // Send message
     const msgRes = await request.post(`/api/chat-sessions/${sessionId}/messages`, {
       data: { content: "Hello" },
@@ -39,10 +48,8 @@ test.describe("Agent Stream", () => {
     expect(msgRes.ok()).toBeTruthy();
     sendMessageResponseSchema.parse(await msgRes.json());
 
-    // Connect to SSE stream and collect events
-    const events = await consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
-      headers: { authorization: "Bearer e2e-test-token" },
-    });
+    // Await all events until "done"
+    const events = await eventsPromise;
 
     const eventTypes = events.map((e) => e.event);
     expect(eventTypes).toContain("status");
@@ -85,6 +92,12 @@ test.describe("Agent Stream", () => {
     chatSessionResponseSchema.parse(session);
     const sessionId = session.id;
 
+    // Subscribe to SSE BEFORE posting so we catch all events
+    const eventsPromise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+    });
+    await new Promise((r) => setTimeout(r, SUB_DELAY));
+
     // Send message that triggers create_task
     const msgRes = await request.post(`/api/chat-sessions/${sessionId}/messages`, {
       data: { content: "[TOOL:create_task] Create a test task" },
@@ -93,9 +106,7 @@ test.describe("Agent Stream", () => {
     sendMessageResponseSchema.parse(await msgRes.json());
 
     // Stream should complete without pausing
-    const events = await consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
-      headers: { authorization: "Bearer e2e-test-token" },
-    });
+    const events = await eventsPromise;
 
     const eventTypes = events.map((e) => e.event);
     expect(eventTypes).toContain("tool-call");

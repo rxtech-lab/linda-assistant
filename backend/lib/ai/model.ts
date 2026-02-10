@@ -70,6 +70,21 @@ function buildStreamChunks(
     ];
   }
 
+  // Scenario: update_task tool call (with non-existent id to trigger error)
+  if (lastText.includes("[TOOL:update_task]")) {
+    const input = JSON.stringify({
+      taskId: "non-existent-id-12345",
+      status: "finished",
+    });
+    return [
+      { type: "tool-input-start", id: "call-3", toolName: "update_task" },
+      { type: "tool-input-delta", id: "call-3", delta: input },
+      { type: "tool-input-end", id: "call-3" },
+      { type: "tool-call", toolCallId: "call-3", toolName: "update_task", input },
+      { type: "finish", finishReason: { unified: "tool-calls", raw: undefined }, usage: MOCK_USAGE },
+    ];
+  }
+
   // Default: stream "Hello, world!"
   return [
     { type: "text-start", id: "text-1" },

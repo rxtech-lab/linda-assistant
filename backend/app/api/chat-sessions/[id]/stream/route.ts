@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { chatSessions } from "@/lib/db/schema";
@@ -6,17 +7,27 @@ import { authenticate } from "@/lib/auth/middleware";
 import { idParamSchema } from "@/lib/schemas";
 import { errorJson } from "@/lib/utils/response";
 import { createSSEStream, sseResponse } from "@/lib/streaming/sse";
-import {
-  getStreamChunks,
-  isStreamActive,
-  consumeAgentTrigger,
-} from "@/lib/streaming/manager";
-import { runAgent } from "@/lib/ai/agent";
+import { subscribeToEvents } from "@/lib/queue/consumer";
 
 /**
+ * SSE stream for real-time agent events.
+ *
+ * The stream stays open indefinitely — the client connects once and receives
+ * live events for all agent runs in this session. Only closes when the client
+ * disconnects. No replay — the client fetches existing messages via
+ * `GET /api/chat-sessions/[id]` before connecting.
+ *
+ * Flow:
+ * 1. Subscribes to the RabbitMQ `agent-events` exchange (routing key: session.<id>)
+ * 2. Sends current session status
+ * 3. Forwards live agent events as they arrive from the worker
+ *
+ * Events: status, text-delta, tool-call, tool-result, confirmation_required, error, done
+ *
  * @openapi
  * @operationId streamChatSession
  * @pathParams idParamSchema
+ * @response streamEventSchema
  * @responseDescription SSE stream of agent events
  */
 export async function GET(
@@ -39,104 +50,40 @@ export async function GET(
   if (!session) return errorJson("Chat session not found", 404);
 
   const { stream, send, close } = createSSEStream();
-  const abortController = new AbortController();
-
-  // Handle client disconnect
-  request.signal.addEventListener("abort", () => {
-    abortController.abort();
-    close();
-  });
 
   // Start streaming in the background
   (async () => {
-    try {
-      // Replay cached chunks for reconnection
-      const cachedChunks = await getStreamChunks(id);
-      for (const chunk of cachedChunks) {
-        try {
-          const parsed = JSON.parse(chunk);
-          send(parsed.type, parsed);
-        } catch {
-          send("chunk", { raw: chunk });
-        }
-      }
+    let subscription: Awaited<ReturnType<typeof subscribeToEvents>> | null =
+      null;
+    let cleanedUp = false;
 
-      // Check if agent is already running
-      const active = await isStreamActive(id);
-      if (active) {
-        send("status", { status: "already_running" });
-        // Wait and poll for updates
-        await pollForUpdates(id, send, close, abortController.signal);
-        return;
-      }
-
-      // Check if there's a trigger to start the agent
-      const triggered = await consumeAgentTrigger(id);
-      if (
-        triggered ||
-        session.status === "starting" ||
-        session.status === "in_progress"
-      ) {
-        send("status", { status: "starting" });
-
-        await runAgent({
-          sessionId: id,
-          userId: auth.userId,
-          onEvent: (event, data) => {
-            send(event, data);
-          },
-          signal: abortController.signal,
-        });
-      } else {
-        send("status", { status: session.status });
-      }
-
-      send("done", {});
-    } catch (error) {
-      if (!abortController.signal.aborted) {
-        send("error", { error: String(error) });
-      }
-    } finally {
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      subscription?.close();
       close();
+    };
+
+    try {
+      // Handle client disconnect
+      request.signal.addEventListener("abort", cleanup);
+
+      // Subscribe to live events from the worker
+      console.log(`[Stream] Subscribing to events for session=${id}`);
+      subscription = await subscribeToEvents(id, (agentEvent) => {
+        console.log(`[Stream] Live event: ${agentEvent.event} session=${id}`);
+        send(agentEvent.event, agentEvent.data);
+      });
+
+      // Send current session status
+      send("status", { id: crypto.randomUUID(), status: session.status });
+    } catch (error) {
+      if (!request.signal.aborted) {
+        send("error", { id: crypto.randomUUID(), error: String(error) });
+      }
+      cleanup();
     }
   })();
 
   return sseResponse(stream);
-}
-
-async function pollForUpdates(
-  sessionId: string,
-  send: (event: string, data: unknown) => void,
-  close: () => void,
-  signal: AbortSignal
-) {
-  const maxPolls = 120; // 2 minutes at 1s intervals
-  for (let i = 0; i < maxPolls; i++) {
-    if (signal.aborted) return;
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    const active = await isStreamActive(sessionId);
-    if (!active) {
-      // Agent finished - send final status
-      const [session] = await db
-        .select({ status: chatSessions.status })
-        .from(chatSessions)
-        .where(eq(chatSessions.id, sessionId));
-
-      send("status", { status: session?.status || "stopped" });
-      return;
-    }
-
-    // Replay new chunks
-    const chunks = await getStreamChunks(sessionId);
-    for (const chunk of chunks) {
-      try {
-        const parsed = JSON.parse(chunk);
-        send(parsed.type, parsed);
-      } catch {
-        send("chunk", { raw: chunk });
-      }
-    }
-  }
 }

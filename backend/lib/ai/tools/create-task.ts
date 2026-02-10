@@ -1,8 +1,7 @@
-import { tool } from "ai";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
-import { sql } from "drizzle-orm";
+import { tool } from "ai";
+import { z } from "zod";
 
 export const createTaskTool = (userId: string) =>
   tool({
@@ -25,7 +24,11 @@ export const createTaskTool = (userId: string) =>
         })
         .returning();
 
-      return { taskId: created.id, title: created.title, status: created.status };
+      return {
+        taskId: created.id,
+        title: created.title,
+        status: created.status,
+      };
     },
   });
 

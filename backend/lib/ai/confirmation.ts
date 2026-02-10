@@ -1,10 +1,13 @@
+import crypto from "crypto";
+import type { ModelMessage } from "ai";
 import { db } from "@/lib/db";
-import { confirmations, chatSessions } from "@/lib/db/schema";
+import { confirmations, chatSessions, assignees } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { sendPushNotification } from "@/lib/push";
 import { resend } from "@/lib/resend";
 import { syncTaskStatus } from "@/lib/utils/task-status-sync";
-import { setAgentTrigger } from "@/lib/streaming/manager";
+import { publishTask, publishEvent } from "@/lib/queue/producer";
+import { annotateToolCallConfirmation } from "./agent";
 
 interface CreateConfirmationParams {
   userId: string;
@@ -66,18 +69,29 @@ export async function resolveConfirmation(
 
   if (!session) throw new Error("Chat session not found");
 
-  const messages = (session.messages as unknown[]) || [];
+  const messages = (session.messages as ModelMessage[]) || [];
+  const resolvedStatus = action === "confirm" ? "confirmed" : "rejected";
+
+  // Update the embedded confirmation status in the stored tool-call content part
+  annotateToolCallConfirmation(
+    messages,
+    confirmation.toolCallId,
+    confirmation.id,
+    resolvedStatus,
+  );
 
   if (action === "confirm") {
     // Execute the confirmed tool
     const toolResult = await executeConfirmedTool(
       confirmation.toolName,
       confirmation.parameters as Record<string, unknown>,
-      confirmation.userId
+      confirmation.userId,
+      confirmation.chatSessionId
     );
 
     // Add tool result to messages (output must match AI SDK v6 ModelMessage format)
     const toolResultMessage = {
+      id: crypto.randomUUID(),
       role: "tool" as const,
       content: [
         {
@@ -85,6 +99,7 @@ export async function resolveConfirmation(
           toolCallId: confirmation.toolCallId,
           toolName: confirmation.toolName,
           output: { type: "json" as const, value: toolResult },
+          approveStatus: "confirmed" as const,
         },
       ],
     };
@@ -101,11 +116,38 @@ export async function resolveConfirmation(
       })
       .where(eq(chatSessions.id, confirmation.chatSessionId));
 
-    // Signal agent to resume
-    await setAgentTrigger(confirmation.chatSessionId);
+    // Emit tool-result event so the iOS client can update the badge
+    await publishEvent({
+      sessionId: confirmation.chatSessionId,
+      event: "tool-result",
+      data: {
+        toolCallId: confirmation.toolCallId,
+        toolName: confirmation.toolName,
+        output: toolResult,
+        approveStatus: "confirmed",
+      },
+      timestamp: Date.now(),
+    });
+
+    // Emit immediate status event so the SSE stream knows we're resuming
+    await publishEvent({
+      sessionId: confirmation.chatSessionId,
+      event: "status",
+      data: { status: "in_progress" },
+      timestamp: Date.now(),
+    });
+
+    // Signal agent to resume via queue
+    await publishTask({
+      sessionId: confirmation.chatSessionId,
+      userId: confirmation.userId,
+      type: "confirmation_resolved",
+      timestamp: Date.now(),
+    });
   } else {
     // Rejection - add rejection message and stop session
     const rejectionMessage = {
+      id: crypto.randomUUID(),
       role: "tool" as const,
       content: [
         {
@@ -119,6 +161,7 @@ export async function resolveConfirmation(
               rejected: true,
             },
           },
+          approveStatus: "rejected" as const,
         },
       ],
     };
@@ -133,6 +176,32 @@ export async function resolveConfirmation(
         updatedAt: sql`(datetime('now'))`,
       })
       .where(eq(chatSessions.id, confirmation.chatSessionId));
+
+    // Publish rejection events to SSE stream
+    const now = Date.now();
+    await publishEvent({
+      sessionId: confirmation.chatSessionId,
+      event: "tool-result",
+      data: {
+        toolCallId: confirmation.toolCallId,
+        toolName: confirmation.toolName,
+        output: { error: "User rejected this action", rejected: true },
+        approveStatus: "rejected",
+      },
+      timestamp: now,
+    });
+    await publishEvent({
+      sessionId: confirmation.chatSessionId,
+      event: "status",
+      data: { status: "stopped" },
+      timestamp: now,
+    });
+    await publishEvent({
+      sessionId: confirmation.chatSessionId,
+      event: "done",
+      data: {},
+      timestamp: now,
+    });
   }
 
   // Sync task status if applicable
@@ -146,7 +215,8 @@ export async function resolveConfirmation(
 async function executeConfirmedTool(
   toolName: string,
   parameters: Record<string, unknown>,
-  userId: string
+  userId: string,
+  chatSessionId: string
 ) {
   switch (toolName) {
     case "send_email": {
@@ -156,9 +226,24 @@ async function executeConfirmedTool(
         body: string;
       };
 
-      // Look up the assignee's email to use as from address
+      // Look up the assignee's email from the chat session's assignee configuration
+      let fromAddress = `linda@${process.env.RESEND_DOMAIN || "assistant.rxlab.io"}`;
+      const [session] = await db
+        .select({ assigneeId: chatSessions.assigneeId })
+        .from(chatSessions)
+        .where(eq(chatSessions.id, chatSessionId));
+      if (session?.assigneeId) {
+        const [assignee] = await db
+          .select({ email: assignees.email })
+          .from(assignees)
+          .where(eq(assignees.id, session.assigneeId));
+        if (assignee?.email) {
+          fromAddress = assignee.email;
+        }
+      }
+
       const result = await resend.emails.send({
-        from: `Linda <linda@${process.env.RESEND_DOMAIN || "assistant.rxlab.io"}>`,
+        from: fromAddress,
         to: [to],
         subject,
         html: body,

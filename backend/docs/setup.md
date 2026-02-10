@@ -10,20 +10,41 @@
 - Anthropic API key
 - Apple Developer account (push notifications)
 
-## Environment Variables
+## Local Infrastructure
 
-Copy `.env.example` to `.env.local` and fill in all values:
+Start RabbitMQ and Redis via Docker:
 
 ```bash
-cp .env.example .env.local
+docker compose up -d
+```
+
+This starts:
+- **RabbitMQ** on port 5672 (management UI on 15672, user: `linda`/`linda`)
+- **Redis** on port 6379
+- **serverless-redis-http** on port 8079 (Upstash-compatible REST proxy, token: `token`)
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and fill in all values:
+
+```bash
+cp .env.example .env
+```
+
+For local development with Docker, set:
+```
+UPSTASH_REDIS_REST_URL=http://localhost:8079
+UPSTASH_REDIS_REST_TOKEN=token
+RABBITMQ_URL=amqp://linda:linda@localhost:5672
 ```
 
 | Variable | Description |
 |----------|-------------|
 | `TURSO_DATABASE_URL` | Turso database URL (`libsql://...`) |
 | `TURSO_AUTH_TOKEN` | Turso auth token |
-| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST URL |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token |
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST URL (or `http://localhost:8079` for local) |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token (or `token` for local) |
+| `RABBITMQ_URL` | RabbitMQ connection URL (defaults to `amqp://linda:linda@localhost:5672`) |
 | `AWS_ACCESS_KEY_ID` | AWS access key for S3 |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret key for S3 |
 | `AWS_REGION` | AWS region (e.g., `us-east-1`) |
@@ -62,17 +83,25 @@ bun run db:migrate
 
 ## Development
 
+You need **two processes** running — the API server and the worker:
+
 ```bash
+# Terminal 1: Next.js API server
 bun run dev
+
+# Terminal 2: Worker process (consumes agent tasks from RabbitMQ)
+bun run worker:dev
 ```
 
-Server starts at `http://localhost:3000`.
+API server starts at `http://localhost:3000`. Worker logs are written to `worker.log`.
 
 ## Available Scripts
 
 | Script | Description |
 |--------|-------------|
 | `bun run dev` | Start dev server |
+| `bun run worker` | Start worker process |
+| `bun run worker:dev` | Start worker with auto-reload + log to `worker.log` |
 | `bun run build` | Production build |
 | `bun run start` | Start production server |
 | `bun run lint` | Run ESLint |

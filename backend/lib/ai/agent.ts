@@ -1,14 +1,11 @@
+import crypto from "crypto";
 import { streamText, type ModelMessage } from "ai";
 import { db } from "@/lib/db";
 import { chatSessions, assignees } from "@/lib/db/schema";
 import type { ToolPermission } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { buildToolSet, getToolPermission } from "./tools";
-import {
-  appendStreamChunk,
-  setStreamActive,
-  clearStreamChunks,
-} from "@/lib/streaming/manager";
+import { setStreamActive } from "@/lib/streaming/manager";
 import { createConfirmation } from "./confirmation";
 import { getModelProvider } from "./model";
 
@@ -16,11 +13,101 @@ import { DEFAULT_MODEL, availableModelSchema } from "./models";
 
 const MAX_STEPS = 10;
 
+/** Annotate a tool-call content part with confirmation info */
+export function annotateToolCallConfirmation(
+  messages: ModelMessage[],
+  toolCallId: string,
+  confirmationId: string,
+  status: string,
+): void {
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (part.type === "tool-call" && part.toolCallId === toolCallId) {
+        part.confirmation = { id: confirmationId, status };
+        return;
+      }
+    }
+  }
+}
+
+/** Annotate a tool-call content part with error info */
+export function annotateToolCallError(
+  messages: ModelMessage[],
+  toolCallId: string,
+  error: string,
+): void {
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (part.type === "tool-call" && part.toolCallId === toolCallId) {
+        part.error = error;
+        return;
+      }
+    }
+  }
+}
+
+/** Unwrap SDK tool output — AI SDK v6 may wrap as { type: "json", value: ... } */
+function unwrapToolOutput(output: unknown): unknown {
+  if (typeof output === "object" && output !== null) {
+    const obj = output as Record<string, unknown>;
+    if (obj.type === "json" && "value" in obj) return obj.value;
+  }
+  return output;
+}
+
+/** Check if a tool-result content part represents an error */
+function isToolResultError(part: Record<string, unknown>): boolean {
+  if ("isError" in part && part.isError) return true;
+  const output = unwrapToolOutput(part.output);
+  if (typeof output === "object" && output !== null && "error" in (output as Record<string, unknown>)) return true;
+  return false;
+}
+
+/** Extract error string from a tool-result content part */
+function extractToolResultError(part: Record<string, unknown>): string {
+  const output = unwrapToolOutput(part.output) as Record<string, unknown> | undefined;
+  if (typeof output === "object" && output !== null && "error" in output) {
+    return String(output.error);
+  }
+  if ("error" in part) return String(part.error);
+  return "Unknown error";
+}
+
+/** Annotate auto-confirmed tool-result content parts with approveStatus */
+function annotateAutoApproved(messages: ModelMessage[]): void {
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (part.type === "tool-result" && !part.approveStatus) {
+        part.approveStatus = "auto-approved";
+      }
+    }
+  }
+}
+
+/** Ensure each message has an id */
+function sanitizeMessages(messages: ModelMessage[], messageId?: string): ModelMessage[] {
+  return messages.map((msg, i) => {
+    const record = msg as Record<string, unknown>;
+    // Assign provided messageId to the first message (assistant), generate for others (tool)
+    const id = record.id ?? (i === 0 && messageId ? messageId : crypto.randomUUID());
+    return { ...record, id } as unknown as ModelMessage;
+  });
+}
+
+export function buildSystemPrompt(assignee?: { name: string; personality: string | null } | null): string {
+  if (!assignee) return "You are a helpful personal assistant.";
+  if (assignee.personality) return assignee.personality;
+  return `You are ${assignee.name}, a helpful personal assistant.`;
+}
+
 interface AgentRunOptions {
   sessionId: string;
   userId: string;
   onTextChunk?: (text: string) => void;
-  onEvent?: (event: string, data: unknown) => void;
+  onEvent?: (event: string, data: unknown) => void | Promise<void>;
   signal?: AbortSignal;
 }
 
@@ -36,33 +123,32 @@ export async function runAgent(options: AgentRunOptions) {
   if (!session) throw new Error("Session not found");
 
   // Load assignee for personality and model config
-  let systemPrompt = "You are Linda, a helpful personal assistant.";
+  let assignee: { name: string; personality: string | null; model: string | null; toolPermissions: ToolPermission[] | null } | null = null;
   let modelId = DEFAULT_MODEL;
   let toolPermissions: ToolPermission[] | null = null;
 
   if (session.assigneeId) {
-    const [assignee] = await db
+    const [found] = await db
       .select()
       .from(assignees)
       .where(eq(assignees.id, session.assigneeId));
 
-    if (assignee) {
-      if (assignee.personality) {
-        systemPrompt = assignee.personality;
-      }
-      if (assignee.model) {
-        const parsed = availableModelSchema.safeParse(assignee.model);
+    if (found) {
+      assignee = found;
+      if (found.model) {
+        const parsed = availableModelSchema.safeParse(found.model);
         modelId = parsed.success ? parsed.data : DEFAULT_MODEL;
       }
-      toolPermissions = assignee.toolPermissions || null;
+      toolPermissions = found.toolPermissions || null;
     }
   }
+
+  const systemPrompt = buildSystemPrompt(assignee);
 
   const tools = buildToolSet(userId, toolPermissions);
   const messages = (session.messages || []) as ModelMessage[];
 
   await setStreamActive(sessionId, true);
-  await clearStreamChunks(sessionId);
 
   // Update session status
   await db
@@ -70,7 +156,7 @@ export async function runAgent(options: AgentRunOptions) {
     .set({ status: "in_progress", updatedAt: sql`(datetime('now'))` })
     .where(eq(chatSessions.id, sessionId));
 
-  onEvent?.("status", { status: "in_progress" });
+  await onEvent?.("status", { status: "in_progress" });
 
   let stepCount = 0;
   let currentMessages: ModelMessage[] = [...messages];
@@ -80,6 +166,10 @@ export async function runAgent(options: AgentRunOptions) {
       if (signal?.aborted) break;
 
       stepCount++;
+
+      // Stable id for this step — all stream events share it,
+      // and the stored assistant message gets the same id for deduplication
+      const id = crypto.randomUUID();
 
       const result = streamText({
         model: getModelProvider(modelId),
@@ -94,17 +184,13 @@ export async function runAgent(options: AgentRunOptions) {
 
         switch (part.type) {
           case "text-delta": {
-            const chunk = JSON.stringify({
-              type: "text-delta",
-              text: part.text,
-            });
-            await appendStreamChunk(sessionId, chunk);
             onTextChunk?.(part.text);
-            onEvent?.("text-delta", { text: part.text });
+            await onEvent?.("text-delta", { id, text: part.text });
             break;
           }
           case "tool-call": {
-            onEvent?.("tool-call", {
+            await onEvent?.("tool-call", {
+              id,
               toolCallId: part.toolCallId,
               toolName: part.toolName,
               input: "input" in part ? part.input : undefined,
@@ -112,15 +198,24 @@ export async function runAgent(options: AgentRunOptions) {
             break;
           }
           case "tool-result": {
-            onEvent?.("tool-result", {
+            const output = "output" in part ? part.output : undefined;
+            const partRecord = part as unknown as Record<string, unknown>;
+            const hasError = isToolResultError(partRecord);
+            const eventData: Record<string, unknown> = {
+              id,
               toolCallId: part.toolCallId,
               toolName: part.toolName,
-              output: "output" in part ? part.output : undefined,
-            });
+              output,
+            };
+            if (hasError) {
+              eventData.isError = true;
+              eventData.error = extractToolResultError(partRecord);
+            }
+            await onEvent?.("tool-result", eventData);
             break;
           }
           case "error": {
-            onEvent?.("error", { error: String(part.error) });
+            await onEvent?.("error", { id, error: String(part.error) });
             break;
           }
         }
@@ -129,10 +224,28 @@ export async function runAgent(options: AgentRunOptions) {
       const finishReason = await result.finishReason;
       const responseMessages = (await result.response).messages;
 
-      // Append response messages to our message history
-      currentMessages = [...currentMessages, ...responseMessages];
+      // Append response messages with the step id as the assistant message's id
+      currentMessages = [
+        ...currentMessages,
+        ...sanitizeMessages(responseMessages as ModelMessage[], id),
+      ];
 
       if (finishReason === "tool-calls") {
+        // Annotate auto-confirmed tool results (only the newly appended response messages)
+        const newMessages = currentMessages.slice(currentMessages.length - responseMessages.length);
+        annotateAutoApproved(newMessages);
+
+        // Annotate tool-call parts with error info from tool-result parts
+        for (const msg of newMessages) {
+          if (!Array.isArray(msg.content)) continue;
+          for (const part of msg.content as Record<string, unknown>[]) {
+            if (part.type === "tool-result" && isToolResultError(part)) {
+              const errorStr = extractToolResultError(part);
+              annotateToolCallError(currentMessages, part.toolCallId as string, errorStr);
+            }
+          }
+        }
+
         // Check if any tool calls require manual confirmation
         const toolCalls = await result.toolCalls;
         const needsConfirmation = toolCalls.find(
@@ -142,7 +255,26 @@ export async function runAgent(options: AgentRunOptions) {
         );
 
         if (needsConfirmation) {
-          // Save messages to DB before pausing
+          // Create confirmation record first so we can annotate the message
+          const input =
+            "input" in needsConfirmation ? needsConfirmation.input : undefined;
+          const confirmation = await createConfirmation({
+            userId,
+            chatSessionId: sessionId,
+            toolCallId: needsConfirmation.toolCallId,
+            toolName: needsConfirmation.toolName,
+            parameters: (input ?? {}) as Record<string, unknown>,
+          });
+
+          // Annotate the tool-call content part with confirmation info
+          annotateToolCallConfirmation(
+            currentMessages,
+            needsConfirmation.toolCallId,
+            confirmation.id,
+            "pending",
+          );
+
+          // Save messages to DB (now includes confirmation metadata)
           await db
             .update(chatSessions)
             .set({
@@ -152,18 +284,8 @@ export async function runAgent(options: AgentRunOptions) {
             })
             .where(eq(chatSessions.id, sessionId));
 
-          // Create confirmation record and notify user
-          const input =
-            "input" in needsConfirmation ? needsConfirmation.input : undefined;
-          await createConfirmation({
-            userId,
-            chatSessionId: sessionId,
-            toolCallId: needsConfirmation.toolCallId,
-            toolName: needsConfirmation.toolName,
-            parameters: (input ?? {}) as Record<string, unknown>,
-          });
-
-          onEvent?.("confirmation_required", {
+          await onEvent?.("confirmation_required", {
+            confirmationId: confirmation.id,
             toolCallId: needsConfirmation.toolCallId,
             toolName: needsConfirmation.toolName,
             parameters: input,
@@ -191,8 +313,8 @@ export async function runAgent(options: AgentRunOptions) {
       })
       .where(eq(chatSessions.id, sessionId));
 
-    onEvent?.("status", { status: "stopped" });
-    onEvent?.("done", {});
+    await onEvent?.("status", { status: "stopped" });
+    await onEvent?.("done", {});
     await setStreamActive(sessionId, false);
 
     return { paused: false, reason: "completed" };
@@ -208,7 +330,7 @@ export async function runAgent(options: AgentRunOptions) {
       .where(eq(chatSessions.id, sessionId));
 
     await setStreamActive(sessionId, false);
-    onEvent?.("error", { error: String(error) });
+    await onEvent?.("error", { error: String(error) });
     throw error;
   }
 }

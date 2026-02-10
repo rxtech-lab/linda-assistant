@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
         assignee: { check: false, required: ["assignee:create"] },
         overall: false,
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 

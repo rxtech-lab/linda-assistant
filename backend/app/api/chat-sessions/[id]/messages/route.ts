@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { chatSessions } from "@/lib/db/schema";
@@ -5,9 +6,19 @@ import { eq, and, sql } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { sendMessageSchema, queuedResponseSchema, idParamSchema } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
-import { setAgentTrigger } from "@/lib/streaming/manager";
+import { publishTask } from "@/lib/queue/producer";
 
 /**
+ * Send a user message to a chat session.
+ *
+ * Appends the message to the session's message history in the database,
+ * sets the session status to "starting", and publishes a task to the
+ * RabbitMQ `agent-tasks` queue. A separate worker process picks up the
+ * task and runs the AI agent. Returns immediately with `{ queued: true }`.
+ *
+ * To receive the agent's response, connect to the SSE stream endpoint:
+ * `GET /api/chat-sessions/[id]/stream`
+ *
  * @openapi
  * @operationId sendMessage
  * @pathParams idParamSchema
@@ -59,6 +70,7 @@ export async function POST(
   }
 
   const userMessage = {
+    id: crypto.randomUUID(),
     role: "user",
     content: contentParts,
   };
@@ -76,8 +88,13 @@ export async function POST(
     })
     .where(eq(chatSessions.id, id));
 
-  // Trigger agent processing
-  await setAgentTrigger(id);
+  // Publish task to queue for worker processing
+  await publishTask({
+    sessionId: id,
+    userId: auth.userId,
+    type: "message",
+    timestamp: Date.now(),
+  });
 
   return successJson({ queued: true });
 }

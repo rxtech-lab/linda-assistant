@@ -1,1 +1,12 @@
 backend/public/openapi.json
+
+# iOS secrets
+ios/Config/Secrets.xcconfig
+ios/Config/Secrets.xcconfig
+ios/Config/Secrets.xcconfig
+*.xcuserstate
+*.db-wal
+*.db-shm
+.build
+*.xcbkptlist
+ios/packages/AssistantCore/Sources/AssistantCore/openapi.json

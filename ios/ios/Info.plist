@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>LindaAssistant</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.business</string>
+	<key>NSHumanReadableCopyright</key>
+	<string></string>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(AUTH_URL_SCHEME)</string>
+			</array>
+		</dict>
+	</array>
+	<key>AppAPIBaseURL</key>
+	<string>$(API_BASE_URL)</string>
+	<key>AppAuthIssuer</key>
+	<string>$(AUTH_ISSUER)</string>
+	<key>AppAuthRedirectURI</key>
+	<string>$(AUTH_REDIRECT_URI)</string>
+	<key>AppAuthScopes</key>
+	<string>$(AUTH_SCOPES)</string>
+	<key>AppAuthClientID</key>
+	<string>$(AUTH_CLIENT_ID)</string>
+	<key>AppAuthURLScheme</key>
+	<string>$(AUTH_URL_SCHEME)</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Face ID is used to confirm sensitive actions like task creation and modifications.</string>
+</dict>
+</plist>

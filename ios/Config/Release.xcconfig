@@ -1,0 +1,17 @@
+// Release.xcconfig
+// Production configuration
+
+// Include secrets if available (gitignored)
+#include? "Secrets.xcconfig"
+
+// API Configuration - Production
+API_BASE_URL = https:/$()/api.linda.rxlab.app
+
+// OAuth Configuration - Production
+AUTH_ISSUER = https:/$()/auth.rxlab.app
+AUTH_URL_SCHEME = rxlablinda
+AUTH_REDIRECT_URI = $(AUTH_URL_SCHEME):/$()/callback
+AUTH_SCOPES = openid email profile offline_access
+
+// Client ID for production
+AUTH_CLIENT_ID = $(AUTH_CLIENT_ID_PROD)
