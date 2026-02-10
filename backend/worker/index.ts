@@ -1,3 +1,4 @@
+import { createServer } from "node:http";
 import { setupTopology, closeConnection } from "@/lib/queue/connection";
 import { consumeTasks } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
@@ -7,7 +8,9 @@ import type { AgentTask } from "@/lib/queue/types";
 
 async function handleTask(task: AgentTask): Promise<void> {
   const { sessionId, userId } = task;
-  console.log(`[Worker] Processing task: session=${sessionId} type=${task.type}`);
+  console.log(
+    `[Worker] Processing task: session=${sessionId} type=${task.type}`,
+  );
 
   // Check if another worker is already handling this session
   const active = await isStreamActive(sessionId);
@@ -39,6 +42,22 @@ async function handleTask(task: AgentTask): Promise<void> {
   console.log(`[Worker] Task complete: session=${sessionId}`);
 }
 
+// Simple HTTP health check for k8s liveness/readiness probes
+let healthy = false;
+const HEALTH_PORT = parseInt(process.env.HEALTH_PORT || "3002", 10);
+
+const healthServer = createServer((req, res) => {
+  if (req.url === "/healthz") {
+    if (healthy && !shuttingDown) {
+      res.writeHead(200).end("ok");
+    } else {
+      res.writeHead(503).end("not ready");
+    }
+  } else {
+    res.writeHead(404).end("not found");
+  }
+}).listen(HEALTH_PORT);
+
 async function main() {
   console.log("[Worker] Starting...");
 
@@ -47,6 +66,9 @@ async function main() {
 
   await consumeTasks(handleTask, { prefetch: 5 });
   console.log("[Worker] Consuming tasks from agent-tasks queue");
+
+  healthy = true;
+  console.log(`[Worker] Health check listening on :${HEALTH_PORT}/healthz`);
 }
 
 // Graceful shutdown
@@ -55,6 +77,7 @@ function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log("[Worker] Shutting down...");
+  healthServer.close();
   closeConnection().then(() => {
     console.log("[Worker] Disconnected");
     process.exit(0);

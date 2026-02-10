@@ -101,6 +101,8 @@ public struct ToolResultPayload: Codable, Sendable {
     public let toolCallId: String
     public let toolName: String
     public let output: AnyCodable?
+    public let isError: Bool?
+    public let error: String?
 }
 
 public struct ConfirmationPayload: Codable, Sendable {

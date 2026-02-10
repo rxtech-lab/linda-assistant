@@ -17,6 +17,8 @@ final class ChatDetailViewModel {
     func loadSession(id: String, apiClient: APIClient, authManager: AuthManager, eventManager: EventManager) async {
         logger.info("loadSession started for id=\(id)")
         isLoading = true
+        let loadingStartTime = ContinuousClock.now
+
         let handler = ChatStreamHandler(
             apiClient: apiClient,
             sseClient: SSEClient(authManager: authManager),
@@ -55,6 +57,14 @@ final class ChatDetailViewModel {
             logger.error("loadSession error: \(error)")
             self.error = error.localizedDescription
         }
+
+        // Ensure minimum loading duration for smooth animation
+        let elapsed = ContinuousClock.now - loadingStartTime
+        let minimumDuration = Duration.seconds(1.5)
+        if elapsed < minimumDuration {
+            try? await Task.sleep(for: minimumDuration - elapsed)
+        }
+
         isLoading = false
 
         logger.info("Connecting SSE...")
@@ -124,15 +134,29 @@ final class ChatDetailViewModel {
         let session = try await apiClient.getChatSession(id: id)
         logger.info("Session loaded: title=\(session.title ?? "nil"), raw messages count=\(session.messages.count)")
         self.session = session
-        self.assigneeName = session.assignee?.name
+        assigneeName = session.assignee?.name
         displayMessages = session.messages.enumerated().compactMap { index, msg in
             // Build tool call infos from historical messages
             let historicalToolCalls = msg.toolCalls.map { tc in
-                ToolCallInfo(
+                // Error annotation takes precedence when no confirmation exists
+                let status: ToolCallStatus
+                let errorMsg: String?
+                if tc.confirmation != nil {
+                    status = ToolCallStatus.from(confirmation: tc.confirmation)
+                    errorMsg = nil
+                } else if tc.error != nil {
+                    status = .failed
+                    errorMsg = tc.error
+                } else {
+                    status = .completed
+                    errorMsg = nil
+                }
+                return ToolCallInfo(
                     toolCallId: tc.toolCallId,
                     toolName: tc.toolName,
                     input: tc.input,
-                    status: ToolCallStatus.from(confirmation: tc.confirmation)
+                    status: status,
+                    errorMessage: errorMsg
                 )
             }
             // Skip messages with no text and no tool calls

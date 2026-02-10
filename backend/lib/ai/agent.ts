@@ -31,6 +31,50 @@ export function annotateToolCallConfirmation(
   }
 }
 
+/** Annotate a tool-call content part with error info */
+export function annotateToolCallError(
+  messages: ModelMessage[],
+  toolCallId: string,
+  error: string,
+): void {
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (part.type === "tool-call" && part.toolCallId === toolCallId) {
+        part.error = error;
+        return;
+      }
+    }
+  }
+}
+
+/** Unwrap SDK tool output — AI SDK v6 may wrap as { type: "json", value: ... } */
+function unwrapToolOutput(output: unknown): unknown {
+  if (typeof output === "object" && output !== null) {
+    const obj = output as Record<string, unknown>;
+    if (obj.type === "json" && "value" in obj) return obj.value;
+  }
+  return output;
+}
+
+/** Check if a tool-result content part represents an error */
+function isToolResultError(part: Record<string, unknown>): boolean {
+  if ("isError" in part && part.isError) return true;
+  const output = unwrapToolOutput(part.output);
+  if (typeof output === "object" && output !== null && "error" in (output as Record<string, unknown>)) return true;
+  return false;
+}
+
+/** Extract error string from a tool-result content part */
+function extractToolResultError(part: Record<string, unknown>): string {
+  const output = unwrapToolOutput(part.output) as Record<string, unknown> | undefined;
+  if (typeof output === "object" && output !== null && "error" in output) {
+    return String(output.error);
+  }
+  if ("error" in part) return String(part.error);
+  return "Unknown error";
+}
+
 /** Annotate auto-confirmed tool-result content parts with approveStatus */
 function annotateAutoApproved(messages: ModelMessage[]): void {
   for (const msg of messages) {
@@ -154,12 +198,20 @@ export async function runAgent(options: AgentRunOptions) {
             break;
           }
           case "tool-result": {
-            await onEvent?.("tool-result", {
+            const output = "output" in part ? part.output : undefined;
+            const partRecord = part as unknown as Record<string, unknown>;
+            const hasError = isToolResultError(partRecord);
+            const eventData: Record<string, unknown> = {
               id,
               toolCallId: part.toolCallId,
               toolName: part.toolName,
-              output: "output" in part ? part.output : undefined,
-            });
+              output,
+            };
+            if (hasError) {
+              eventData.isError = true;
+              eventData.error = extractToolResultError(partRecord);
+            }
+            await onEvent?.("tool-result", eventData);
             break;
           }
           case "error": {
@@ -180,9 +232,19 @@ export async function runAgent(options: AgentRunOptions) {
 
       if (finishReason === "tool-calls") {
         // Annotate auto-confirmed tool results (only the newly appended response messages)
-        annotateAutoApproved(
-          currentMessages.slice(currentMessages.length - responseMessages.length),
-        );
+        const newMessages = currentMessages.slice(currentMessages.length - responseMessages.length);
+        annotateAutoApproved(newMessages);
+
+        // Annotate tool-call parts with error info from tool-result parts
+        for (const msg of newMessages) {
+          if (!Array.isArray(msg.content)) continue;
+          for (const part of msg.content as Record<string, unknown>[]) {
+            if (part.type === "tool-result" && isToolResultError(part)) {
+              const errorStr = extractToolResultError(part);
+              annotateToolCallError(currentMessages, part.toolCallId as string, errorStr);
+            }
+          }
+        }
 
         // Check if any tool calls require manual confirmation
         const toolCalls = await result.toolCalls;

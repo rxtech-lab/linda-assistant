@@ -52,7 +52,7 @@ struct ToolCallBadge: View {
 
                 Spacer()
 
-                if toolCall.status == .pendingConfirmation {
+                if toolCall.status != .running {
                     Image(systemName: "chevron.right")
                         .foregroundStyle(.secondary)
                 }
@@ -89,6 +89,14 @@ private struct ToolCallBadgePreviewData {
         input: nil,
         status: .completed
     )
+
+    static let failed = ToolCallInfo(
+        toolCallId: "preview-failed",
+        toolName: "UpdateTask",
+        input: nil,
+        status: .failed,
+        errorMessage: "Task not found"
+    )
 }
 
 #Preview("ToolCallBadge") {
@@ -96,6 +104,7 @@ private struct ToolCallBadgePreviewData {
         ToolCallBadge(toolCall: ToolCallBadgePreviewData.running)
         ToolCallBadge(toolCall: ToolCallBadgePreviewData.pending)
         ToolCallBadge(toolCall: ToolCallBadgePreviewData.completed)
+        ToolCallBadge(toolCall: ToolCallBadgePreviewData.failed)
     }
     .padding()
 }

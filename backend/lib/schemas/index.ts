@@ -143,6 +143,7 @@ const toolCallPartSchema = z.object({
   toolName: z.string().describe("Name of the tool being called"),
   input: z.record(z.unknown()).describe("Tool call input parameters"),
   confirmation: toolCallConfirmationSchema.optional().describe("Confirmation info if this tool call requires manual approval"),
+  error: z.string().optional().describe("Error message if the tool call failed"),
 });
 
 const toolResultPartSchema = z.object({
@@ -152,6 +153,7 @@ const toolResultPartSchema = z.object({
   output: z.unknown().describe("Tool execution output"),
   approveStatus: z.enum(["auto-approved", "confirmed", "rejected"]).optional()
     .describe("Approval status — present for tools that went through the permission system"),
+  isError: z.boolean().optional().describe("Whether this tool result is an error"),
 });
 
 const contentPartSchema = z.discriminatedUnion("type", [
@@ -290,7 +292,8 @@ export const streamEventSchema = z.object({
   input: z.record(z.unknown()).optional().describe("Tool call input parameters"),
   output: z.record(z.unknown()).optional().describe("Tool result output"),
   parameters: z.record(z.unknown()).optional().describe("Parameters awaiting confirmation"),
-  error: z.string().optional().describe("Error message (for error events)"),
+  error: z.string().optional().describe("Error message (for error events or tool-result errors)"),
+  isError: z.boolean().optional().describe("Whether this tool result is an error"),
 });
 
 // ---- Common path params ----

@@ -8,6 +8,7 @@ struct MessageList: View {
     var streamingToolCalls: [ToolCallInfo] = []
     var showPendingIndicator = false
     var onConfirmationTap: (() -> Void)?
+    var onToolCallTap: ((ToolCallInfo) -> Void)?
 
     var body: some View {
         // Historical messages
@@ -29,6 +30,8 @@ struct MessageList: View {
                 ToolCallBadge(toolCall: toolCall) {
                     if toolCall.status == .pendingConfirmation {
                         onConfirmationTap?()
+                    } else if toolCall.status != .running {
+                        onToolCallTap?(toolCall)
                     }
                 }
             }
@@ -63,7 +66,11 @@ struct MessageList: View {
 
         // Streaming tool calls
         ForEach(streamingToolCalls) { toolCall in
-            ToolCallBadge(toolCall: toolCall)
+            ToolCallBadge(toolCall: toolCall) {
+                if toolCall.status != .running {
+                    onToolCallTap?(toolCall)
+                }
+            }
         }
 
         Spacer()
@@ -106,6 +113,29 @@ struct MessageList: View {
                 assigneeName: "Avery",
                 streamingText: "Let me check your calendar..."
             )
+        }
+        .padding()
+    }
+}
+
+#Preview("MessageList - Failed Tool Call") {
+    ScrollView {
+        LazyVStack(alignment: .leading, spacing: 12) {
+            MessageList(messages: [
+                DisplayMessage(id: "1", role: .user, content: "Update task xyz to finished"),
+                DisplayMessage(
+                    id: "2", role: .assistant, content: "",
+                    toolCalls: [ToolCallInfo(
+                        toolCallId: "tc-err",
+                        toolName: "update_task",
+                        input: ["taskId": .string("xyz"), "status": .string("finished")],
+                        status: .failed,
+                        errorMessage: "Task not found"
+                    )],
+                    assigneeName: "Avery"
+                ),
+                DisplayMessage(id: "3", role: .assistant, content: "Sorry, I couldn't find that task.", assigneeName: "Avery"),
+            ])
         }
         .padding()
     }

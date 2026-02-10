@@ -202,7 +202,8 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
                     toolCallId: part.toolCallId ?? "",
                     toolName: toolName,
                     input: part.input,
-                    confirmation: part.confirmation
+                    confirmation: part.confirmation,
+                    error: part.error
                 )
             }
             var statuses: [String: String] = [:]
@@ -239,6 +240,7 @@ public struct ChatToolCall: Codable, Sendable, Identifiable {
     public let toolName: String
     public let input: [String: AnyCodable]?
     public let confirmation: ToolCallConfirmation?
+    public let error: String?
 }
 
 private struct ContentPart: Codable {
@@ -249,6 +251,7 @@ private struct ContentPart: Codable {
     let input: [String: AnyCodable]?
     let confirmation: ToolCallConfirmation?
     let approveStatus: String?
+    let error: String?
 }
 
 // MARK: - Email

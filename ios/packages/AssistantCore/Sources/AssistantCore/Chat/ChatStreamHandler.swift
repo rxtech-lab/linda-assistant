@@ -140,9 +140,14 @@ public final class ChatStreamHandler: @unchecked Sendable {
             toolCalls.append(info)
 
         case .toolResult(let payload):
-            logger.info("toolResult: toolCallId=\(payload.toolCallId)")
+            logger.info("toolResult: toolCallId=\(payload.toolCallId), isError=\(payload.isError ?? false)")
             if let index = toolCalls.firstIndex(where: { $0.toolCallId == payload.toolCallId }) {
-                toolCalls[index].status = .completed
+                if payload.isError == true {
+                    toolCalls[index].status = .failed
+                    toolCalls[index].errorMessage = payload.error
+                } else {
+                    toolCalls[index].status = .completed
+                }
                 toolCalls[index].result = payload.output
             }
 
@@ -194,13 +199,15 @@ public struct ToolCallInfo: Identifiable, Sendable {
     public let input: [String: AnyCodable]?
     public var status: ToolCallStatus
     public var result: AnyCodable?
+    public var errorMessage: String?
 
-    public init(toolCallId: String, toolName: String, input: [String: AnyCodable]?, status: ToolCallStatus, result: AnyCodable? = nil) {
+    public init(toolCallId: String, toolName: String, input: [String: AnyCodable]?, status: ToolCallStatus, result: AnyCodable? = nil, errorMessage: String? = nil) {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.input = input
         self.status = status
         self.result = result
+        self.errorMessage = errorMessage
     }
 }
 

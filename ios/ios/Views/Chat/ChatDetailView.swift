@@ -7,6 +7,7 @@ struct ChatDetailView: View {
     @Environment(EventManager.self) private var eventManager
     @State private var viewModel = ChatDetailViewModel()
     @State private var messageText = ""
+    @State private var selectedToolCall: ToolCallInfo?
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -25,45 +26,62 @@ struct ChatDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        MessageList(
-                            messages: viewModel.displayMessages,
-                            assigneeName: viewModel.assigneeName,
-                            streamingText: viewModel.streamHandler?.isStreaming == true ? viewModel.streamHandler?.streamedText : nil,
-                            streamingToolCalls: viewModel.streamHandler?.toolCalls ?? [],
-                            showPendingIndicator: showPendingIndicator
-                        ) {
-                            viewModel.showingConfirmation = true
+            ZStack {
+                // Loading view
+                if viewModel.isLoading {
+                    MessagesLoadingView()
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                }
+                
+                // Content view
+                if !viewModel.isLoading {
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 12) {
+                                MessageList(
+                                    messages: viewModel.displayMessages,
+                                    assigneeName: viewModel.assigneeName,
+                                    streamingText: viewModel.streamHandler?.isStreaming == true ? viewModel.streamHandler?.streamedText : nil,
+                                    streamingToolCalls: viewModel.streamHandler?.toolCalls ?? [],
+                                    showPendingIndicator: showPendingIndicator,
+                                    onConfirmationTap: {
+                                        viewModel.showingConfirmation = true
+                                    },
+                                    onToolCallTap: { toolCall in
+                                        selectedToolCall = toolCall
+                                    }
+                                )
+                            }
+                            .padding()
+                        }
+                        .onChange(of: viewModel.displayMessages.count) {
+                            withAnimation {
+                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                            }
+                        }
+                        .onChange(of: viewModel.streamHandler?.streamedText) {
+                            proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                        }
+                        .onChange(of: viewModel.streamHandler?.toolCalls.count) {
+                            withAnimation {
+                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                            }
+                        }
+                        .onChange(of: viewModel.streamHandler?.isStreaming) {
+                            withAnimation {
+                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                            }
+                        }
+                        .onChange(of: viewModel.streamHandler?.pendingConfirmation?.toolCallId) {
+                            if viewModel.streamHandler?.pendingConfirmation != nil {
+                                viewModel.showingConfirmation = true
+                            }
                         }
                     }
-                    .padding()
-                }
-                .onChange(of: viewModel.displayMessages.count) {
-                    withAnimation {
-                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                    }
-                }
-                .onChange(of: viewModel.streamHandler?.streamedText) {
-                    proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                }
-                .onChange(of: viewModel.streamHandler?.toolCalls.count) {
-                    withAnimation {
-                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                    }
-                }
-                .onChange(of: viewModel.streamHandler?.isStreaming) {
-                    withAnimation {
-                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                    }
-                }
-                .onChange(of: viewModel.streamHandler?.pendingConfirmation?.toolCallId) {
-                    if viewModel.streamHandler?.pendingConfirmation != nil {
-                        viewModel.showingConfirmation = true
-                    }
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
+            .animation(.easeInOut(duration: 0.5), value: viewModel.isLoading)
 
             Divider()
 
@@ -96,6 +114,9 @@ struct ChatDetailView: View {
                 )
             }
         }
+        .sheet(item: $selectedToolCall) { toolCall in
+            ToolCallDetailSheet(toolCall: toolCall)
+        }
         .toolbar(.hidden, for: .tabBar)
         .task {
             await viewModel.loadSession(id: sessionId, apiClient: apiClient, authManager: authManager, eventManager: eventManager)
@@ -105,3 +126,15 @@ struct ChatDetailView: View {
         }
     }
 }
+#Preview("Loading State") {
+    NavigationStack {
+        ChatDetailView(sessionId: "preview-session")
+            .environment(AuthManager())
+            .environment(EventManager())
+    }
+}
+
+#Preview("Loading View Only") {
+    MessagesLoadingView()
+}
+

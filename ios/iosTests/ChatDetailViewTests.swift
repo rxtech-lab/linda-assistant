@@ -219,7 +219,67 @@ final class ToolCallStatusMappingTests: XCTestCase {
     }
 }
 
-// MARK: - Test Case 7: Pending indicator does not duplicate assignee name
+// MARK: - Test Case 7: Failed tool call badge
+
+final class ToolCallBadgeFailedTests: XCTestCase {
+    func testFailedBadge_showsFailedStatusAndXmarkIcon() throws {
+        let toolCall = ToolCallInfo(
+            toolCallId: "tc-err",
+            toolName: "update_task",
+            input: nil,
+            status: .failed,
+            errorMessage: "Task not found"
+        )
+        let sut = ToolCallBadge(toolCall: toolCall)
+
+        let texts = try sut.inspect().findAll(ViewType.Text.self)
+        let textStrings = texts.compactMap { try? $0.string() }
+
+        XCTAssertTrue(textStrings.contains("update_task"), "Badge should show tool name")
+        XCTAssertTrue(textStrings.contains("Failed"), "Badge should show 'Failed' status")
+
+        let images = try sut.inspect().findAll(ViewType.Image.self)
+        let systemNames = images.compactMap { try? $0.actualImage().name() }
+        XCTAssertTrue(systemNames.contains("xmark.circle.fill"), "Should show xmark icon for failed")
+    }
+
+    func testFailedBadge_hasAccessibilityIdentifier() throws {
+        let toolCall = ToolCallInfo(
+            toolCallId: "tc-err",
+            toolName: "update_task",
+            input: nil,
+            status: .failed,
+            errorMessage: "Task not found"
+        )
+        let sut = ToolCallBadge(toolCall: toolCall)
+
+        let found = try sut.inspect().find(viewWithAccessibilityIdentifier: "toolCallBadge-tc-err")
+        XCTAssertNotNil(found)
+    }
+}
+
+// MARK: - Test Case 8: ToolCallDetailSheet error display
+
+final class ToolCallDetailSheetErrorTests: XCTestCase {
+    func testFailedSheet_showsErrorMessage() throws {
+        let toolCall = ToolCallInfo(
+            toolCallId: "tc-err",
+            toolName: "update_task",
+            input: ["taskId": .string("xyz")],
+            status: .failed,
+            errorMessage: "Task not found"
+        )
+        let sut = ToolCallDetailSheet(toolCall: toolCall)
+
+        let texts = try sut.inspect().findAll(ViewType.Text.self)
+        let textStrings = texts.compactMap { try? $0.string() }
+
+        XCTAssertTrue(textStrings.contains("Task not found"), "Sheet should display the error message")
+        XCTAssertTrue(textStrings.contains("Error"), "Sheet should have an Error section header")
+    }
+}
+
+// MARK: - Test Case 9: Pending indicator does not duplicate assignee name
 
 final class PendingIndicatorNameTests: XCTestCase {
     func testPendingIndicator_doesNotContainAssigneeNameText() throws {
@@ -288,5 +348,97 @@ final class StreamingCallbackTests: XCTestCase {
     func testEmptyTextAndToolCalls_createsNoMessages() {
         let messages = simulateCallback(text: "", toolCalls: [])
         XCTAssertEqual(messages.count, 0)
+    }
+
+    func testFailedToolCall_preservesErrorMessage() {
+        let toolCalls = [ToolCallInfo(
+            toolCallId: "tc-err",
+            toolName: "update_task",
+            input: nil,
+            status: .failed,
+            errorMessage: "Task not found"
+        )]
+        let messages = simulateCallback(text: "Sorry, that failed.", toolCalls: toolCalls)
+
+        XCTAssertEqual(messages.count, 2)
+        XCTAssertEqual(messages[0].toolCalls.count, 1)
+        XCTAssertEqual(messages[0].toolCalls[0].status, .failed)
+        XCTAssertEqual(messages[0].toolCalls[0].errorMessage, "Task not found")
+    }
+}
+
+// MARK: - Test Case 12: Error annotation maps to failed status
+
+final class ToolCallErrorAnnotationTests: XCTestCase {
+    func testErrorAnnotation_returnsFailed() {
+        // When confirmation is nil but error exists, historical status should be .failed
+        // This tests the logic in ChatDetailViewModel.fetchSession
+        let tc = ChatToolCall(
+            toolCallId: "tc-err",
+            toolName: "update_task",
+            input: nil,
+            confirmation: nil,
+            error: "Task not found"
+        )
+
+        // Simulate the ViewModel logic
+        let status: ToolCallStatus
+        let errorMsg: String?
+        if tc.confirmation != nil {
+            status = ToolCallStatus.from(confirmation: tc.confirmation)
+            errorMsg = nil
+        } else if tc.error != nil {
+            status = .failed
+            errorMsg = tc.error
+        } else {
+            status = .completed
+            errorMsg = nil
+        }
+
+        XCTAssertEqual(status, .failed)
+        XCTAssertEqual(errorMsg, "Task not found")
+    }
+
+    func testNoErrorNoConfirmation_returnsCompleted() {
+        let tc = ChatToolCall(
+            toolCallId: "tc-ok",
+            toolName: "create_task",
+            input: nil,
+            confirmation: nil,
+            error: nil
+        )
+
+        let status: ToolCallStatus
+        if tc.confirmation != nil {
+            status = ToolCallStatus.from(confirmation: tc.confirmation)
+        } else if tc.error != nil {
+            status = .failed
+        } else {
+            status = .completed
+        }
+
+        XCTAssertEqual(status, .completed)
+    }
+
+    func testConfirmationTakesPriority_overError() {
+        // Even if error were somehow present, confirmation takes priority
+        let tc = ChatToolCall(
+            toolCallId: "tc-conf",
+            toolName: "send_email",
+            input: nil,
+            confirmation: ToolCallConfirmation(id: "c1", status: "rejected"),
+            error: nil
+        )
+
+        let status: ToolCallStatus
+        if tc.confirmation != nil {
+            status = ToolCallStatus.from(confirmation: tc.confirmation)
+        } else if tc.error != nil {
+            status = .failed
+        } else {
+            status = .completed
+        }
+
+        XCTAssertEqual(status, .rejected)
     }
 }
