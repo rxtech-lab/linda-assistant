@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 struct AssistantPendingIndicator: View {
     @State private var animating = false
@@ -16,7 +19,7 @@ struct AssistantPendingIndicator: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
-                .background(Color(UIColor.systemGray6))
+                .background(pendingBubbleBackgroundColor)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
             }
 
@@ -88,7 +91,7 @@ struct WaveLoadingIndicator: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
-                .background(Color(UIColor.systemGray6))
+                .background(pendingBubbleBackgroundColor)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
             }
             
@@ -161,7 +164,7 @@ struct MorphingDotsIndicator: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .background(Color(UIColor.systemGray6))
+                .background(pendingBubbleBackgroundColor)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
             }
             
@@ -216,7 +219,7 @@ struct OrbitLoadingIndicator: View {
                 .frame(width: 32, height: 32)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .background(Color(UIColor.systemGray6))
+                .background(pendingBubbleBackgroundColor)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
             }
             
@@ -231,6 +234,16 @@ struct OrbitLoadingIndicator: View {
             }
         }
     }
+}
+
+private var pendingBubbleBackgroundColor: Color {
+    #if canImport(UIKit)
+    return Color(.systemGray6)
+    #elseif canImport(AppKit)
+    return Color(nsColor: .windowBackgroundColor).opacity(0.7)
+    #else
+    return Color.gray.opacity(0.2)
+    #endif
 }
 
 // MARK: - Previews

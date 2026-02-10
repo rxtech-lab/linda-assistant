@@ -37,10 +37,7 @@ struct AssigneeFormSheet: View {
                 Section("Info") {
                     TextField("Name", text: $name)
                     TextField("Email", text: $email)
-                        .textContentType(.emailAddress)
-                        .keyboardType(.emailAddress)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
+                        .emailFieldInputModifiers()
                 }
 
                 Section("Personality") {
@@ -184,5 +181,20 @@ struct AssigneeFormSheet: View {
         }
 
         isSubmitting = false
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func emailFieldInputModifiers() -> some View {
+        #if os(iOS)
+        self
+            .textContentType(.emailAddress)
+            .keyboardType(.emailAddress)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
+        #else
+        self
+        #endif
     }
 }

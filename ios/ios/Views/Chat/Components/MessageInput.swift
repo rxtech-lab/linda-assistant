@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 struct MessageInput: View {
     @Binding var text: String
@@ -84,13 +87,13 @@ struct MessageInput: View {
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(isStreaming ? AnyShapeStyle(animatedBackgroundGradient) : AnyShapeStyle(Color(.secondarySystemBackground)))
+                .fill(isStreaming ? AnyShapeStyle(animatedBackgroundGradient) : AnyShapeStyle(inputBackgroundColor))
         )
         .glassEffect(in: .rect(cornerRadius: 20))
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(
-                    isStreaming ? animatedBorderGradient : AnyShapeStyle(Color(.separator).opacity(0.3)),
+                    isStreaming ? animatedBorderGradient : AnyShapeStyle(inputBorderColor),
                     lineWidth: isStreaming ? 2.5 : 1
                 )
                 .blur(radius: isStreaming ? 1 : 0)
@@ -191,6 +194,26 @@ struct MessageInput: View {
             shimmerOffset = 2
         }
     }
+}
+
+private var inputBackgroundColor: Color {
+    #if canImport(UIKit)
+    return Color(.secondarySystemBackground)
+    #elseif canImport(AppKit)
+    return Color(nsColor: .windowBackgroundColor).opacity(0.75)
+    #else
+    return Color.gray.opacity(0.2)
+    #endif
+}
+
+private var inputBorderColor: Color {
+    #if canImport(UIKit)
+    return Color(.separator).opacity(0.3)
+    #elseif canImport(AppKit)
+    return Color(nsColor: .separatorColor).opacity(0.3)
+    #else
+    return Color.gray.opacity(0.3)
+    #endif
 }
 
 private struct MessageInputPreview: View {

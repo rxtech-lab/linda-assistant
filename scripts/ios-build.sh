@@ -70,6 +70,7 @@ if command -v xcbeautify &> /dev/null; then
         -destination "$DESTINATION" \
         -derivedDataPath "$BUILD_DIR" \
         -skipPackagePluginValidation \
+        -skipMacroValidation \
         CODE_SIGN_IDENTITY="" \
         CODE_SIGNING_REQUIRED=NO \
         CODE_SIGNING_ALLOWED=NO \
@@ -83,6 +84,7 @@ else
         -destination "$DESTINATION" \
         -derivedDataPath "$BUILD_DIR" \
         -skipPackagePluginValidation \
+        -skipMacroValidation \
         CODE_SIGN_IDENTITY="" \
         CODE_SIGNING_REQUIRED=NO \
         CODE_SIGNING_ALLOWED=NO \

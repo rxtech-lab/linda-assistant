@@ -103,7 +103,9 @@ struct TaskDetailView: View {
             case .assignee(let id, let name): AssigneeDetailView(assigneeId: id, assigneeName: name)
             }
         }
+        #if os(iOS)
         .toolbar(.hidden, for: .tabBar)
+        #endif
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {

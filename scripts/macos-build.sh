@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# macOS Build Script for RxStorage
+# macOS Build Script for Linda Assistant
 
 set -e
 set -o pipefail
 
 echo "======================================"
-echo "RxStorage macOS Build Script"
+echo "Linda Assistant macOS Build Script"
 echo "======================================"
 echo ""
 
@@ -16,8 +16,10 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-PROJECT_PATH="RxStorage/RxStorage.xcodeproj"
-SCHEME="${SCHEME:-RxStorage}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_PATH="$PROJECT_ROOT/ios/ios.xcodeproj"
+SCHEME="${SCHEME:-ios}"
 CONFIGURATION="${CONFIGURATION:-Debug}"
 BUILD_DIR="${BUILD_DIR:-.build}"
 
@@ -41,7 +43,7 @@ xcodebuild clean \
     > /dev/null 2>&1 || true
 
 echo ""
-echo "🔨 Building RxStorage for macOS..."
+echo "🔨 Building Linda Assistant for macOS..."
 echo ""
 
 set +e  # Temporarily disable exit on error to capture the exit code
@@ -54,6 +56,7 @@ if command -v xcbeautify &> /dev/null; then
         -destination "$DESTINATION" \
         -derivedDataPath "$BUILD_DIR" \
         -skipPackagePluginValidation \
+        -skipMacroValidation \
         CODE_SIGN_IDENTITY="-" \
         CODE_SIGNING_REQUIRED=NO \
         CODE_SIGNING_ALLOWED=NO \
@@ -72,6 +75,7 @@ else
         -destination "$DESTINATION" \
         -derivedDataPath "$BUILD_DIR" \
         -skipPackagePluginValidation \
+        -skipMacroValidation \
         CODE_SIGN_IDENTITY="-" \
         CODE_SIGNING_REQUIRED=NO \
         CODE_SIGNING_ALLOWED=NO \

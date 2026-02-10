@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 struct MessagesLoadingView: View {
     @State private var visibleRows: Set<Int> = []
@@ -113,7 +116,7 @@ private struct MessageSkeletonRow: View {
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(isUser ? Color.orange.opacity(0.15) : Color(.systemGray5))
+                    .fill(isUser ? Color.orange.opacity(0.15) : skeletonBubbleBackgroundColor)
             )
 
             if !isUser {
@@ -129,7 +132,7 @@ private struct SkeletonLine: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: 4)
-            .fill(Color(.systemGray4))
+            .fill(skeletonLineColor)
             .frame(width: width, height: 12)
             .overlay(
                 GeometryReader { geometry in
@@ -151,6 +154,26 @@ private struct SkeletonLine: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: 4))
     }
+}
+
+private var skeletonBubbleBackgroundColor: Color {
+    #if canImport(UIKit)
+    return Color(.systemGray5)
+    #elseif canImport(AppKit)
+    return Color(nsColor: .windowBackgroundColor).opacity(0.5)
+    #else
+    return Color.gray.opacity(0.2)
+    #endif
+}
+
+private var skeletonLineColor: Color {
+    #if canImport(UIKit)
+    return Color(.systemGray4)
+    #elseif canImport(AppKit)
+    return Color(nsColor: .separatorColor).opacity(0.6)
+    #else
+    return Color.gray.opacity(0.3)
+    #endif
 }
 
 #Preview("Messages Loading") {

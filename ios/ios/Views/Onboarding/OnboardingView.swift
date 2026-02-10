@@ -20,10 +20,7 @@ struct OnboardingView: View {
             Section("Assistant Info") {
                 TextField("Name", text: $viewModel.name)
                 TextField("Email", text: $viewModel.email)
-                    .textContentType(.emailAddress)
-                    .keyboardType(.emailAddress)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
+                    .emailFieldInputModifiers()
             }
 
             Section("Personality") {
@@ -94,6 +91,21 @@ struct OnboardingView: View {
         } message: {
             Text(viewModel.error ?? "")
         }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func emailFieldInputModifiers() -> some View {
+        #if os(iOS)
+        self
+            .textContentType(.emailAddress)
+            .keyboardType(.emailAddress)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
+        #else
+        self
+        #endif
     }
 }
 
