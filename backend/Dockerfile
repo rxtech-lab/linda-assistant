@@ -24,7 +24,8 @@ COPY . .
 # Uncomment the following line in case you want to disable telemetry during the build.
 # ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN bun run build
+# Run openapi:generate + next build, skip db:push (handled at deploy time)
+RUN bun run openapi:generate && bun next build
 
 # Production image, copy all the files and run next
 FROM base AS runner
@@ -52,3 +53,21 @@ USER nextjs
 EXPOSE 3000
 
 CMD ["bun", "./server.js"]
+
+# Target: worker (runs TypeScript directly via Bun, no Next.js build needed)
+FROM base AS worker
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN groupadd --system --gid 1001 nodejs && \
+    useradd --system --uid 1001 --no-log-init -g nodejs nextjs
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --chown=nextjs:nodejs . .
+
+USER nextjs
+
+EXPOSE 3002
+
+CMD ["bun", "worker/index.ts"]

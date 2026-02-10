@@ -1,0 +1,51 @@
+name: iOS CI
+
+on:
+  push
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ios:
+    name: Build iOS App
+    uses: ./.github/workflows/ios-setup.yml
+    with:
+      job-name: Build iOS App
+      script: ios-build.sh
+      scheme: ios
+      configuration: Debug
+      sdk: iphonesimulator
+      artifact-name: ios-build-logs
+      artifact-path: build.log
+    secrets: inherit
+
+  build-macos:
+    name: Build macOS App
+    uses: ./.github/workflows/ios-setup.yml
+    with:
+      job-name: Build macOS App
+      script: macos-build.sh
+      scheme: ios
+      configuration: Debug
+      sdk: macosx
+      runs-on: '"macos-26"'
+      artifact-name: macos-build-logs
+      artifact-path: build-macos.log
+    secrets: inherit
+
+  test:
+    name: Run Tests
+    uses: ./.github/workflows/ios-setup.yml
+    with:
+      runs-on: '"macos-26"'
+      job-name: Run Tests
+      script: ios-test-plan.sh
+      scheme: ios
+      configuration: Debug
+      sdk: iphonesimulator
+      artifact-name: test-logs
+      artifact-path: test.log
+      upload-test-results: true
+    secrets: inherit

@@ -97,7 +97,9 @@ struct ChatDetailView: View {
             }
         }
         .navigationTitle(viewModel.session?.title ?? "Chat")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .sheet(isPresented: $viewModel.showingConfirmation) {
             if let confirmation = viewModel.streamHandler?.pendingConfirmation {
                 ConfirmationSheetView(
@@ -117,7 +119,9 @@ struct ChatDetailView: View {
         .sheet(item: $selectedToolCall) { toolCall in
             ToolCallDetailSheet(toolCall: toolCall)
         }
+        #if os(iOS)
         .toolbar(.hidden, for: .tabBar)
+        #endif
         .task {
             await viewModel.loadSession(id: sessionId, apiClient: apiClient, authManager: authManager, eventManager: eventManager)
         }
@@ -137,4 +141,3 @@ struct ChatDetailView: View {
 #Preview("Loading View Only") {
     MessagesLoadingView()
 }
-

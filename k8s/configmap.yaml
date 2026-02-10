@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: linda-config
+  namespace: linda
+  labels:
+    app: linda-assistant
+data:
+  RABBITMQ_URL: "amqp://linda:linda@rabbitmq.linda.svc.cluster.local:5672"

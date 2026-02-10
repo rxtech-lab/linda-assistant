@@ -1,5 +1,10 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
+#if canImport(AppKit)
+import AppKit
+#endif
 
 struct MessageBubble: View {
     let message: DisplayMessage
@@ -19,7 +24,7 @@ struct MessageBubble: View {
 
                 Text(markdownAttributedString(message.content))
                     .padding(12)
-                    .background(message.role == .user ? Color.accentColor.opacity(0.15) : Color(.systemGray6))
+                    .background(bubbleBackground(for: message.role))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .textSelection(.enabled)
             }
@@ -52,8 +57,28 @@ private func markdownAttributedString(_ text: String) -> AttributedString {
     (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
 }
 
+private func bubbleBackground(for role: DisplayMessage.MessageRole) -> Color {
+    if role == .user {
+        return Color.accentColor.opacity(0.15)
+    }
+
+    #if canImport(UIKit)
+    return Color(.systemGray6)
+    #elseif canImport(AppKit)
+    return Color(nsColor: .windowBackgroundColor).opacity(0.7)
+    #else
+    return Color.gray.opacity(0.15)
+    #endif
+}
+
 private func copyToPasteboard(_ text: String) {
+    #if canImport(UIKit)
     UIPasteboard.general.string = text
+    #elseif canImport(AppKit)
+    let pasteboard = NSPasteboard.general
+    pasteboard.clearContents()
+    pasteboard.setString(text, forType: .string)
+    #endif
 }
 
 #Preview("MessageBubble") {

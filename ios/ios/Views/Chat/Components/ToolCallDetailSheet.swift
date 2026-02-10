@@ -73,7 +73,9 @@ struct ToolCallDetailSheet: View {
                 )
                 .ignoresSafeArea()
             )
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
         }
         .presentationDetents([.height(200), .large])
     }

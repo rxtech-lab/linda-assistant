@@ -1,0 +1,143 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  release:
+    types:
+      - created
+
+jobs:
+  build-images:
+    name: Build Docker Image (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image: linda-frontend
+            target: runner
+          - image: linda-worker
+            target: worker
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'release'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          tags: |
+            type=semver,pattern=v{{version}}
+            type=semver,pattern=v{{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            type=sha,prefix=sha-
+
+      - name: Build Docker image (test only)
+        if: github.event_name != 'release'
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          target: ${{ matrix.target }}
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Build and push Docker image
+        if: github.event_name == 'release'
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  k8s-deploy:
+    name: Deploy to Kubernetes
+    needs: build-images
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "latest"
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.K8S_CONFIG_FILE_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Verify kubectl connection
+        run: kubectl cluster-info
+
+      - name: Deploy with kustomize
+        run: kubectl kustomize k8s/ | kubectl apply -f -
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Run database migrations
+        working-directory: backend
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: |
+          bun install --frozen-lockfile
+          bun drizzle-kit push
+
+      - name: Update deployment images
+        run: |
+          VERSION="${{ github.ref_name }}"
+          kubectl set image deployment/linda-frontend \
+            linda-frontend=ghcr.io/${{ github.repository_owner }}/linda-frontend:${VERSION} \
+            -n linda
+          kubectl set image deployment/linda-worker \
+            linda-worker=ghcr.io/${{ github.repository_owner }}/linda-worker:${VERSION} \
+            -n linda
+
+      - name: Wait for rollouts
+        run: |
+          kubectl rollout status deployment/linda-frontend -n linda --timeout=300s
+          kubectl rollout status deployment/linda-worker -n linda --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -n linda
+          echo "=== Services ==="
+          kubectl get services -n linda
+          echo "=== Ingress ==="
+          kubectl get ingress -n linda

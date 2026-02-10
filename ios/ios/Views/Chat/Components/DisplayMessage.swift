@@ -1,5 +1,8 @@
 import AssistantCore
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 struct DisplayMessage: Identifiable {
     let id: String
@@ -49,10 +52,20 @@ private struct DisplayMessagePreview: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemGray6))
+        .background(previewBackgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .padding()
     }
+}
+
+private var previewBackgroundColor: Color {
+    #if canImport(UIKit)
+    return Color(.systemGray6)
+    #elseif canImport(AppKit)
+    return Color(nsColor: .windowBackgroundColor).opacity(0.7)
+    #else
+    return Color.gray.opacity(0.15)
+    #endif
 }
 
 #Preview("DisplayMessage - User") {

@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linda-worker
+  namespace: linda
+  labels:
+    app: linda-worker
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: linda-worker
+  template:
+    metadata:
+      labels:
+        app: linda-worker
+    spec:
+      containers:
+        - name: linda-worker
+          image: ghcr.io/rxtech-lab/linda-worker:latest
+          ports:
+            - containerPort: 3002
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: linda-config
+            - secretRef:
+                name: linda-secrets
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1536Mi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3002
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3002
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            capabilities:
+              drop:
+                - ALL
+      securityContext:
+        fsGroup: 1001
+      restartPolicy: Always

@@ -10,7 +10,7 @@
 		DF7E2A3E2F385000006A4C0A /* AssistantCore in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E2A202F379000006A4C0A /* AssistantCore */; };
 		DF7E32502F3888A1006A4C0A /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = DF7E324F2F3888A1006A4C0A /* icon.icon */; };
 		DF7E37742F3A66EC006A4C0A /* AgentKit in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E37732F3A66EC006A4C0A /* AgentKit */; };
-		DF7E37762F3B1D21006A4C0A /* Launch Screen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */; };
+		DF7E37762F3B1D21006A4C0A /* Launch Screen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */; platformFilter = ios; };
 		DF7E385D2F3B5EF9006A4C0A /* ViewInspector in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E385C2F3B5EF9006A4C0A /* ViewInspector */; };
 		DF7E386C2F3B64E5006A4C0A /* TestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = DF7E386B2F3B64E5006A4C0A /* TestPlan.xctestplan */; };
 /* End PBXBuildFile section */
