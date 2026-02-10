@@ -8,14 +8,12 @@ metadata:
 resources:
   - namespace.yaml
   - configmap.yaml
-  - secrets.yaml
   - frontend-deployment.yaml
   - frontend-service.yaml
   - worker-deployment.yaml
   - rabbitmq-deployment.yaml
   - rabbitmq-service.yaml
   - ingress.yaml
-  - cluster-issuer.yaml
 
 namespace: linda
 
