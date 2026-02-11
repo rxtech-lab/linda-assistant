@@ -17,18 +17,23 @@ export default async function globalSetup() {
 
   const client = createClient({ url: `file:${dbPath}` });
 
-  // Read migration SQL
-  const sqlPath = path.resolve(__dirname, "..", "drizzle", "0000_gray_tarantula.sql");
-  const sqlContent = fs.readFileSync(sqlPath, "utf-8");
+  // Read and execute all migration SQL files in lexicographic order
+  const drizzleDir = path.resolve(__dirname, "..", "drizzle");
+  const sqlFiles = fs
+    .readdirSync(drizzleDir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
 
-  // Split by statement breakpoint and execute each CREATE TABLE
-  const statements = sqlContent
-    .split("--> statement-breakpoint")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+  for (const file of sqlFiles) {
+    const sqlContent = fs.readFileSync(path.join(drizzleDir, file), "utf-8");
+    const statements = sqlContent
+      .split("--> statement-breakpoint")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
 
-  for (const stmt of statements) {
-    await client.execute(stmt);
+    for (const stmt of statements) {
+      await client.execute(stmt);
+    }
   }
 
   // Enable WAL mode for concurrent access from worker + Next.js server

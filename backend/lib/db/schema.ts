@@ -76,9 +76,21 @@ export const chatSessions = sqliteTable("chat_sessions", {
   }),
   title: text("title"),
   status: text("status").default("starting"),
-  messages: text("messages", { mode: "json" }).$type<unknown[]>().default([]),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
+export const messages = sqliteTable("messages", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  chatSessionId: text("chat_session_id")
+    .notNull()
+    .references(() => chatSessions.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  role: text("role").notNull(),
+  content: text("content", { mode: "json" }).$type<unknown>(),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
 });
 
 export const confirmations = sqliteTable("confirmations", {

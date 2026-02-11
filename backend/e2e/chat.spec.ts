@@ -138,7 +138,9 @@ test.describe("Chat Endpoints", () => {
     expect(page1.nextCursor).toBeTruthy(); // There are more messages
 
     // Use cursor to load older messages
-    const page2Res = await request.get(`/api/chat/${aid}/messages?limit=2&before=${page1.nextCursor}`);
+    const page2Res = await request.get(
+      `/api/chat/${aid}/messages?limit=2&before=${page1.nextCursor}`,
+    );
     expect(page2Res.ok()).toBeTruthy();
     const page2 = await page2Res.json();
     expect(page2.messages.length).toBe(2);
@@ -267,6 +269,59 @@ test.describe("Chat Endpoints", () => {
     expect(resumeEventTypes).toContain("tool-result");
     expect(resumeEventTypes).toContain("text-delta");
     expect(resumeEventTypes).toContain("done");
+  });
+
+  test("clear messages deletes all messages", async ({ request }) => {
+    // Create a fresh assignee
+    const assigneeRes = await request.post("/api/assignees", {
+      data: {
+        name: "Clear Chat Assistant",
+        email: "clear-chat@example.com",
+      },
+    });
+    expect(assigneeRes.ok()).toBeTruthy();
+    const testAssigneeId = (await assigneeRes.json()).id;
+
+    // Send a message to auto-create session
+    const msgRes = await request.post(`/api/chat/${testAssigneeId}/message`, {
+      data: { content: "Hello" },
+    });
+    expect(msgRes.ok()).toBeTruthy();
+    await waitForStopped(request, testAssigneeId);
+
+    // Verify messages exist
+    const beforeRes = await request.get(`/api/chat/${testAssigneeId}/messages`);
+    expect(beforeRes.ok()).toBeTruthy();
+    const beforeBody = await beforeRes.json();
+    expect(beforeBody.messages.length).toBeGreaterThan(0);
+
+    // Clear messages
+    const deleteRes = await request.delete(`/api/chat/${testAssigneeId}/messages`);
+    expect(deleteRes.ok()).toBeTruthy();
+    const deleteBody = await deleteRes.json();
+    expect(deleteBody.deleted).toBe(true);
+
+    // Verify messages are now empty
+    const afterRes = await request.get(`/api/chat/${testAssigneeId}/messages`);
+    expect(afterRes.ok()).toBeTruthy();
+    const afterBody = await afterRes.json();
+    expect(afterBody.messages.length).toBe(0);
+    expect(afterBody.nextCursor).toBeNull();
+  });
+
+  test("clear messages on non-existent session returns 404", async ({ request }) => {
+    // Create assignee with no session
+    const assigneeRes = await request.post("/api/assignees", {
+      data: {
+        name: "No Session Clear",
+        email: "nosession-clear@example.com",
+      },
+    });
+    expect(assigneeRes.ok()).toBeTruthy();
+    const testAssigneeId = (await assigneeRes.json()).id;
+
+    const res = await request.delete(`/api/chat/${testAssigneeId}/messages`);
+    expect(res.status()).toBe(404);
   });
 
   test("stream before message returns 404", async ({ request }) => {

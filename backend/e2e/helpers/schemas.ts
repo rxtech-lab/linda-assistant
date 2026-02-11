@@ -67,7 +67,7 @@ export const taskSessionsResponseSchema = z.array(
 // Chat Sessions
 export const chatSessionResponseSchema = selectChatSessionSchema;
 export const chatSessionListResponseSchema = z.object({
-  data: z.array(selectChatSessionSchema.omit({ messages: true })),
+  data: z.array(selectChatSessionSchema),
   pagination: paginationSchema,
 });
 

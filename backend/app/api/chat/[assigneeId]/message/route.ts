@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import type { ModelMessage } from "ai";
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { assignees, chatSessions } from "@/lib/db/schema";
@@ -7,6 +8,7 @@ import { authenticate } from "@/lib/auth/middleware";
 import { sendMessageSchema, queuedResponseSchema, assigneeIdParamSchema } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
 import { publishTask } from "@/lib/queue/producer";
+import { insertMessages } from "@/lib/db/messages";
 
 /**
  * Send a message to an assignee's persistent chat.
@@ -47,7 +49,7 @@ export async function POST(
 
   // Find or create persistent session for this assignee+user pair
   let [session] = await db
-    .select()
+    .select({ id: chatSessions.id })
     .from(chatSessions)
     .where(and(eq(chatSessions.assigneeId, assigneeId), eq(chatSessions.userId, auth.userId)))
     .limit(1);
@@ -59,7 +61,7 @@ export async function POST(
         userId: auth.userId,
         assigneeId,
       })
-      .returning();
+      .returning({ id: chatSessions.id });
     session = created;
   }
 
@@ -85,18 +87,15 @@ export async function POST(
 
   const userMessage = {
     id: crypto.randomUUID(),
-    role: "user",
+    role: "user" as const,
     content: contentParts,
-  };
+  } as ModelMessage;
 
-  const messages = (session.messages as unknown[]) || [];
-  const updatedMessages = [...messages, userMessage];
-
-  // Save message and update session
+  // Insert message to messages table and update session status
+  await insertMessages(session.id, [userMessage]);
   await db
     .update(chatSessions)
     .set({
-      messages: updatedMessages,
       status: "starting",
       updatedAt: sql`(datetime('now'))`,
     })

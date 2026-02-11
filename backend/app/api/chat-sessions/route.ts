@@ -9,7 +9,7 @@ import { successJson, errorJson, paginatedJson } from "@/lib/utils/response";
 import { z } from "zod";
 
 const listResponseSchema = z.object({
-  data: z.array(selectChatSessionSchema.omit({ messages: true })),
+  data: z.array(selectChatSessionSchema),
   pagination: z.object({
     total: z.number(),
     limit: z.number(),
@@ -73,7 +73,6 @@ export async function POST(request: NextRequest) {
     .values({
       ...parsed.data,
       userId: auth.userId,
-      messages: [],
     })
     .returning();
 

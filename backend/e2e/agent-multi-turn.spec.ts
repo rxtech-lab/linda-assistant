@@ -80,23 +80,28 @@ test.describe("Stream Lifecycle", () => {
     const streamStepId = [...stepIds][0];
     expect(typeof streamStepId).toBe("string");
 
-    // Fetch stored messages
-    const getRes = await request.get(`/api/chat-sessions/${sessionId}`);
-    expect(getRes.ok()).toBeTruthy();
-    const stored = await getRes.json();
-    chatSessionResponseSchema.parse(stored);
+    // Fetch stored messages via messages endpoint
+    const msgsRes = await request.get(`/api/chat-sessions/${sessionId}/messages`);
+    expect(msgsRes.ok()).toBeTruthy();
+    const msgsBody = await msgsRes.json();
 
     // Session has 2 messages: user + assistant
-    expect(stored.messages.length).toBe(2);
-    expect(stored.status).toBe("stopped");
+    expect(msgsBody.messages.length).toBe(2);
+
+    // Check session status
+    const statusRes = await request.get(`/api/chat-sessions/${sessionId}`);
+    expect(statusRes.ok()).toBeTruthy();
+    const statusBody = await statusRes.json();
+    chatSessionResponseSchema.parse(statusBody);
+    expect(statusBody.status).toBe("stopped");
 
     // User message has an ID
-    const userMsg = stored.messages[0];
+    const userMsg = msgsBody.messages[0];
     expect(userMsg.role).toBe("user");
     expect(typeof userMsg.id).toBe("string");
 
     // Assistant message ID matches the stream step ID
-    const assistantMsg = stored.messages[1];
+    const assistantMsg = msgsBody.messages[1];
     expect(assistantMsg.role).toBe("assistant");
     expect(assistantMsg.id).toBe(streamStepId);
   });
@@ -155,9 +160,8 @@ test.describe("Stream Lifecycle", () => {
     expect(turn2Id).not.toBe(turn1Id);
 
     // DB has 4 messages, all unique IDs
-    const getRes = await request.get(`/api/chat-sessions/${sessionId}`);
+    const getRes = await request.get(`/api/chat-sessions/${sessionId}/messages`);
     const stored = await getRes.json();
-    chatSessionResponseSchema.parse(stored);
     expect(stored.messages.length).toBe(4);
 
     const allIds = stored.messages.map((m: { id: string }) => m.id);
@@ -183,9 +187,10 @@ test.describe("Stream Lifecycle", () => {
     });
 
     // Poll GET until agent finishes
-    const stored1 = await waitForStatus(request, sessionId, "stopped");
-    chatSessionResponseSchema.parse(stored1);
-    const historicalIds = stored1.messages.map((m: { id: string }) => m.id);
+    await waitForStatus(request, sessionId, "stopped");
+    const msgs1Res = await request.get(`/api/chat-sessions/${sessionId}/messages`);
+    const msgs1Body = await msgs1Res.json();
+    const historicalIds = msgs1Body.messages.map((m: { id: string }) => m.id);
     expect(historicalIds.length).toBe(2); // user + assistant
 
     // Subscribe first, then send second message
@@ -211,11 +216,12 @@ test.describe("Stream Lifecycle", () => {
     }
 
     // DB now has 4 messages, all unique IDs
-    const stored2 = await waitForStatus(request, sessionId, "stopped");
-    chatSessionResponseSchema.parse(stored2);
-    expect(stored2.messages.length).toBe(4);
+    await waitForStatus(request, sessionId, "stopped");
+    const msgs2Res = await request.get(`/api/chat-sessions/${sessionId}/messages`);
+    const msgs2Body = await msgs2Res.json();
+    expect(msgs2Body.messages.length).toBe(4);
 
-    const allIds = stored2.messages.map((m: { id: string }) => m.id);
+    const allIds = msgs2Body.messages.map((m: { id: string }) => m.id);
     expect(new Set(allIds).size).toBe(4);
   });
 
@@ -246,16 +252,17 @@ test.describe("Stream Lifecycle", () => {
     expect(gotTextDelta).toBe(true);
 
     // Agent completes in the worker despite our disconnect — poll until stopped
-    const stored = await waitForStatus(request, sessionId, "stopped");
-    chatSessionResponseSchema.parse(stored);
+    await waitForStatus(request, sessionId, "stopped");
+    const msgsRes = await request.get(`/api/chat-sessions/${sessionId}/messages`);
+    const msgsBody = await msgsRes.json();
 
     // Session has 2 messages — agent ran to completion
-    expect(stored.messages.length).toBe(2);
-    expect(stored.messages[0].role).toBe("user");
-    expect(stored.messages[1].role).toBe("assistant");
+    expect(msgsBody.messages.length).toBe(2);
+    expect(msgsBody.messages[0].role).toBe("user");
+    expect(msgsBody.messages[1].role).toBe("assistant");
 
     // All messages have IDs
-    for (const msg of stored.messages) {
+    for (const msg of msgsBody.messages) {
       expect(typeof msg.id).toBe("string");
     }
 

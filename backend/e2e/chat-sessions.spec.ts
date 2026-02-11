@@ -30,7 +30,6 @@ test.describe("Chat Sessions CRUD", () => {
     expect(body.assigneeId).toBe(assigneeId);
     expect(body.userId).toBe("e2e-test-user");
     expect(body.status).toBe("starting");
-    expect(body.messages).toEqual([]);
     expect(body.id).toBeTruthy();
     sessionId = body.id;
   });
@@ -68,7 +67,6 @@ test.describe("Chat Sessions CRUD", () => {
     const body = await res.json();
     chatSessionResponseSchema.parse(body);
     expect(body.id).toBe(sessionId);
-    expect(body.messages).toEqual([]);
     expect(body.assigneeId).toBe(assigneeId);
   });
 

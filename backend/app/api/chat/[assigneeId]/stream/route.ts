@@ -71,7 +71,9 @@ export async function GET(
       request.signal.addEventListener("abort", cleanup);
 
       // Subscribe to live events from the worker
-      console.log(`[Stream] Subscribing to events for session=${session.id} (assignee=${assigneeId})`);
+      console.log(
+        `[Stream] Subscribing to events for session=${session.id} (assignee=${assigneeId})`,
+      );
       subscription = await subscribeToEvents(session.id, (agentEvent) => {
         console.log(`[Stream] Live event: ${agentEvent.event} session=${session.id}`);
         send(agentEvent.event, agentEvent.data);
