@@ -10,3 +10,6 @@ ios/Config/Secrets.xcconfig
 .build
 *.xcbkptlist
 ios/packages/AssistantCore/Sources/AssistantCore/openapi.json
+secrets.yaml
+k8s/secrets.yaml
+test-results/.last-run.json

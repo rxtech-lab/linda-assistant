@@ -1,0 +1,5 @@
+mem0ai
+uvicorn
+fastapi
+upstash-vector
+qdrant-client

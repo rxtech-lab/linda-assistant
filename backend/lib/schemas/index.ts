@@ -342,6 +342,20 @@ export const streamEventSchema = z.object({
 
 export const idParamSchema = z.object({ id: z.string().describe("Resource ID") });
 
+export const assigneeIdParamSchema = z.object({
+  assigneeId: z.string().describe("Assignee ID"),
+});
+
+// ---- Chat Messages (cursor-paginated) ----
+
+export const chatMessagesResponseSchema = z.object({
+  messages: z.array(chatMessageSchema).describe("Messages in chronological order"),
+  nextCursor: z
+    .string()
+    .nullable()
+    .describe("Cursor for loading older messages (pass as 'before' query param). Null if no more messages."),
+});
+
 // ---- Common response schemas ----
 
 export const deletedResponseSchema = z.object({

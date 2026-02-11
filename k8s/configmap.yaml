@@ -7,3 +7,5 @@ metadata:
     app: linda-assistant
 data:
   RABBITMQ_URL: "amqp://linda:linda@rabbitmq.linda.svc.cluster.local:5672"
+  MEM0_BASE_URL: "http://mem0.linda.svc.cluster.local:8000"
+  MEM0_VECTOR_STORE_PROVIDER: "upstash_vector"
