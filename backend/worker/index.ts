@@ -8,9 +8,7 @@ import type { AgentTask } from "@/lib/queue/types";
 
 async function handleTask(task: AgentTask): Promise<void> {
   const { sessionId, userId } = task;
-  console.log(
-    `[Worker] Processing task: session=${sessionId} type=${task.type}`,
-  );
+  console.log(`[Worker] Processing task: session=${sessionId} type=${task.type}`);
 
   // Check if another worker is already handling this session
   const active = await isStreamActive(sessionId);

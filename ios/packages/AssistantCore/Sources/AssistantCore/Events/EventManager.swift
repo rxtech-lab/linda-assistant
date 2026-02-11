@@ -1,5 +1,5 @@
-import Foundation
 @preconcurrency import Combine
+import Foundation
 import os
 
 private let logger = Logger(subsystem: "lindaAssistant", category: "EventManager")

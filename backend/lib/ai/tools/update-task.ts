@@ -4,9 +4,10 @@ import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
-export const updateTaskTool = (userId: string) =>
+export const updateTaskTool = (userId: string, needsApproval: boolean) =>
   tool({
     description: "Update an existing task's status or details",
+    needsApproval,
     inputSchema: z.object({
       taskId: z.string().describe("ID of the task to update"),
       title: z.string().optional().describe("New task title"),
@@ -23,12 +24,10 @@ export const updateTaskTool = (userId: string) =>
         updatedAt: sql`(datetime('now'))`,
       };
       if (updates.title !== undefined) setValues.title = updates.title;
-      if (updates.description !== undefined)
-        setValues.description = updates.description;
+      if (updates.description !== undefined) setValues.description = updates.description;
       if (updates.status !== undefined) setValues.status = updates.status;
       if (updates.tags !== undefined) setValues.tags = updates.tags;
-      if (updates.categories !== undefined)
-        setValues.categories = updates.categories;
+      if (updates.categories !== undefined) setValues.categories = updates.categories;
 
       const [updated] = await db
         .update(tasks)

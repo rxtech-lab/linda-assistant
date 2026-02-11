@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 @Observable
 final class TaskDetailViewModel {
@@ -31,14 +31,14 @@ final class TaskDetailViewModel {
     func subscribeToEvents(taskId: String, eventManager: EventManager, apiClient: APIClient) async {
         for await event in eventManager.stream {
             switch event {
-            case .chatSessionCreated(let session) where session.taskId == taskId:
-                await loadTask(id: taskId, apiClient: apiClient)
-            case .chatSessionDeleted:
-                await loadTask(id: taskId, apiClient: apiClient)
-            case .taskUpdated(let updated) where updated.id == taskId:
-                await loadTask(id: taskId, apiClient: apiClient)
-            default:
-                break
+                case let .chatSessionCreated(session) where session.taskId == taskId:
+                    await loadTask(id: taskId, apiClient: apiClient)
+                case .chatSessionDeleted:
+                    await loadTask(id: taskId, apiClient: apiClient)
+                case let .taskUpdated(updated) where updated.id == taskId:
+                    await loadTask(id: taskId, apiClient: apiClient)
+                default:
+                    break
             }
         }
     }

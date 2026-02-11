@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 @Observable
 final class AssigneeListViewModel {
@@ -35,10 +35,10 @@ final class AssigneeListViewModel {
     func subscribeToEvents(eventManager: EventManager, apiClient: APIClient) async {
         for await event in eventManager.stream {
             switch event {
-            case .assigneeCreated, .assigneeUpdated, .assigneeDeleted:
-                await loadAssignees(apiClient: apiClient)
-            default:
-                break
+                case .assigneeCreated, .assigneeUpdated, .assigneeDeleted:
+                    await loadAssignees(apiClient: apiClient)
+                default:
+                    break
             }
         }
     }

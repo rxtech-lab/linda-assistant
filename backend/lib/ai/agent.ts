@@ -2,9 +2,8 @@ import crypto from "crypto";
 import { streamText, type ModelMessage } from "ai";
 import { db } from "@/lib/db";
 import { chatSessions, assignees } from "@/lib/db/schema";
-import type { ToolPermission } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { buildToolSet, getToolPermission } from "./tools";
+import { buildToolSet } from "./tools";
 import { setStreamActive } from "@/lib/streaming/manager";
 import { createConfirmation } from "./confirmation";
 import { getModelProvider } from "./model";
@@ -61,7 +60,12 @@ function unwrapToolOutput(output: unknown): unknown {
 function isToolResultError(part: Record<string, unknown>): boolean {
   if ("isError" in part && part.isError) return true;
   const output = unwrapToolOutput(part.output);
-  if (typeof output === "object" && output !== null && "error" in (output as Record<string, unknown>)) return true;
+  if (
+    typeof output === "object" &&
+    output !== null &&
+    "error" in (output as Record<string, unknown>)
+  )
+    return true;
   return false;
 }
 
@@ -97,7 +101,9 @@ function sanitizeMessages(messages: ModelMessage[], messageId?: string): ModelMe
   });
 }
 
-export function buildSystemPrompt(assignee?: { name: string; personality: string | null } | null): string {
+export function buildSystemPrompt(
+  assignee?: { name: string; personality: string | null } | null,
+): string {
   if (!assignee) return "You are a helpful personal assistant.";
   if (assignee.personality) return assignee.personality;
   return `You are ${assignee.name}, a helpful personal assistant.`;
@@ -115,21 +121,25 @@ export async function runAgent(options: AgentRunOptions) {
   const { sessionId, userId, onTextChunk, onEvent, signal } = options;
 
   // Load session with messages
-  const [session] = await db
-    .select()
-    .from(chatSessions)
-    .where(eq(chatSessions.id, sessionId));
+  const [session] = await db.select().from(chatSessions).where(eq(chatSessions.id, sessionId));
 
   if (!session) throw new Error("Session not found");
 
   // Load assignee for personality and model config
-  let assignee: { name: string; personality: string | null; model: string | null; toolPermissions: ToolPermission[] | null } | null = null;
+  let assignee: {
+    name: string;
+    personality: string | null;
+    model: string | null;
+  } | null = null;
   let modelId = DEFAULT_MODEL;
-  let toolPermissions: ToolPermission[] | null = null;
 
   if (session.assigneeId) {
     const [found] = await db
-      .select()
+      .select({
+        name: assignees.name,
+        personality: assignees.personality,
+        model: assignees.model,
+      })
       .from(assignees)
       .where(eq(assignees.id, session.assigneeId));
 
@@ -139,13 +149,12 @@ export async function runAgent(options: AgentRunOptions) {
         const parsed = availableModelSchema.safeParse(found.model);
         modelId = parsed.success ? parsed.data : DEFAULT_MODEL;
       }
-      toolPermissions = found.toolPermissions || null;
     }
   }
 
   const systemPrompt = buildSystemPrompt(assignee);
 
-  const tools = buildToolSet(userId, toolPermissions);
+  const { tools } = await buildToolSet(userId, session.assigneeId ?? null);
   const messages = (session.messages || []) as ModelMessage[];
 
   await setStreamActive(sessionId, true);
@@ -178,6 +187,12 @@ export async function runAgent(options: AgentRunOptions) {
         tools: tools as Parameters<typeof streamText>[0]["tools"],
         abortSignal: signal,
       });
+
+      // Track tool-approval-request parts emitted by SDK for needsApproval tools
+      const pendingApprovals: Array<{
+        approvalId: string;
+        toolCall: { toolCallId: string; toolName: string; input: unknown };
+      }> = [];
 
       for await (const part of result.fullStream) {
         if (signal?.aborted) break;
@@ -214,6 +229,13 @@ export async function runAgent(options: AgentRunOptions) {
             await onEvent?.("tool-result", eventData);
             break;
           }
+          case "tool-approval-request": {
+            pendingApprovals.push({
+              approvalId: (part as unknown as { approvalId: string }).approvalId,
+              toolCall: (part as unknown as { toolCall: { toolCallId: string; toolName: string; input: unknown } }).toolCall,
+            });
+            break;
+          }
           case "error": {
             await onEvent?.("error", { id, error: String(part.error) });
             break;
@@ -230,8 +252,49 @@ export async function runAgent(options: AgentRunOptions) {
         ...sanitizeMessages(responseMessages as ModelMessage[], id),
       ];
 
+      if (finishReason === "tool-calls" && pendingApprovals.length > 0) {
+        // SDK detected tools needing approval — create confirmation and pause
+        const approval = pendingApprovals[0];
+        const confirmation = await createConfirmation({
+          userId,
+          chatSessionId: sessionId,
+          toolCallId: approval.toolCall.toolCallId,
+          toolName: approval.toolCall.toolName,
+          approvalId: approval.approvalId,
+          parameters: (approval.toolCall.input ?? {}) as Record<string, unknown>,
+        });
+
+        // Annotate the tool-call content part with confirmation info
+        annotateToolCallConfirmation(
+          currentMessages,
+          approval.toolCall.toolCallId,
+          confirmation.id,
+          "pending",
+        );
+
+        // Save messages to DB (now includes confirmation metadata)
+        await db
+          .update(chatSessions)
+          .set({
+            messages: currentMessages as unknown[],
+            status: "waiting_confirmation",
+            updatedAt: sql`(datetime('now'))`,
+          })
+          .where(eq(chatSessions.id, sessionId));
+
+        await onEvent?.("confirmation_required", {
+          confirmationId: confirmation.id,
+          toolCallId: approval.toolCall.toolCallId,
+          toolName: approval.toolCall.toolName,
+          parameters: approval.toolCall.input,
+        });
+
+        await setStreamActive(sessionId, false);
+        return { paused: true, reason: "confirmation_required" };
+      }
+
       if (finishReason === "tool-calls") {
-        // Annotate auto-confirmed tool results (only the newly appended response messages)
+        // All tools auto-executed by SDK — annotate and continue
         const newMessages = currentMessages.slice(currentMessages.length - responseMessages.length);
         annotateAutoApproved(newMessages);
 
@@ -246,56 +309,6 @@ export async function runAgent(options: AgentRunOptions) {
           }
         }
 
-        // Check if any tool calls require manual confirmation
-        const toolCalls = await result.toolCalls;
-        const needsConfirmation = toolCalls.find(
-          (tc: { toolName: string }) =>
-            getToolPermission(tc.toolName, toolPermissions) ===
-            "manual-confirm",
-        );
-
-        if (needsConfirmation) {
-          // Create confirmation record first so we can annotate the message
-          const input =
-            "input" in needsConfirmation ? needsConfirmation.input : undefined;
-          const confirmation = await createConfirmation({
-            userId,
-            chatSessionId: sessionId,
-            toolCallId: needsConfirmation.toolCallId,
-            toolName: needsConfirmation.toolName,
-            parameters: (input ?? {}) as Record<string, unknown>,
-          });
-
-          // Annotate the tool-call content part with confirmation info
-          annotateToolCallConfirmation(
-            currentMessages,
-            needsConfirmation.toolCallId,
-            confirmation.id,
-            "pending",
-          );
-
-          // Save messages to DB (now includes confirmation metadata)
-          await db
-            .update(chatSessions)
-            .set({
-              messages: currentMessages as unknown[],
-              status: "waiting_confirmation",
-              updatedAt: sql`(datetime('now'))`,
-            })
-            .where(eq(chatSessions.id, sessionId));
-
-          await onEvent?.("confirmation_required", {
-            confirmationId: confirmation.id,
-            toolCallId: needsConfirmation.toolCallId,
-            toolName: needsConfirmation.toolName,
-            parameters: input,
-          });
-
-          await setStreamActive(sessionId, false);
-          return { paused: true, reason: "confirmation_required" };
-        }
-
-        // Tool calls were auto-confirmed, continue loop
         continue;
       }
 

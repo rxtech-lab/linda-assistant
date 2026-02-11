@@ -14,6 +14,15 @@ final class ChatDetailViewModel {
     var showingConfirmation = false
     var assigneeName: String?
 
+    var displayError: String? {
+        streamHandler?.error ?? error
+    }
+
+    func clearError() {
+        streamHandler?.clearError()
+        error = nil
+    }
+
     func loadSession(id: String, apiClient: APIClient, authManager: AuthManager, eventManager: EventManager) async {
         logger.info("loadSession started for id=\(id)")
         isLoading = true
@@ -76,7 +85,7 @@ final class ChatDetailViewModel {
         logger.info("subscribeToEvents: start for sessionId=\(sessionId)")
         if let event = eventManager.lastEvent {
             logger.info("subscribeToEvents: lastEvent=\(String(describing: event))")
-            if case .chatSessionCreated(let session) = event, session.id == sessionId {
+            if case let .chatSessionCreated(session) = event, session.id == sessionId {
                 do {
                     try await fetchSession(id: sessionId, apiClient: apiClient)
                 } catch {
@@ -88,15 +97,15 @@ final class ChatDetailViewModel {
         for await event in eventManager.stream {
             logger.info("subscribeToEvents: received event=\(String(describing: event))")
             switch event {
-            case .chatSessionCreated(let session) where session.id == sessionId:
-                do {
-                    try await fetchSession(id: sessionId, apiClient: apiClient)
-                } catch {
-                    logger.error("subscribeToEvents reload error: \(error)")
-                    self.error = error.localizedDescription
-                }
-            default:
-                break
+                case let .chatSessionCreated(session) where session.id == sessionId:
+                    do {
+                        try await fetchSession(id: sessionId, apiClient: apiClient)
+                    } catch {
+                        logger.error("subscribeToEvents reload error: \(error)")
+                        self.error = error.localizedDescription
+                    }
+                default:
+                    break
             }
         }
     }
@@ -160,7 +169,8 @@ final class ChatDetailViewModel {
                 )
             }
             // Skip messages with no text and no tool calls
-            guard (msg.textContent != nil && !msg.textContent!.isEmpty) || !historicalToolCalls.isEmpty else { return nil }
+            guard (msg.textContent != nil && !msg.textContent!.isEmpty) || !historicalToolCalls.isEmpty
+            else { return nil }
             return DisplayMessage(
                 id: "\(index)-\(msg.role)",
                 role: msg.role == "user" ? .user : .assistant,

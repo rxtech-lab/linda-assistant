@@ -45,9 +45,7 @@ test.describe("Chat Sessions CRUD", () => {
     expect(body.title).toBe("My Chat");
   });
 
-  test("GET /api/chat-sessions lists sessions with pagination", async ({
-    request,
-  }) => {
+  test("GET /api/chat-sessions lists sessions with pagination", async ({ request }) => {
     const res = await request.get("/api/chat-sessions");
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -59,16 +57,12 @@ test.describe("Chat Sessions CRUD", () => {
       hasMore: expect.any(Boolean),
     });
     // List omits messages
-    const found = body.data.find(
-      (s: { id: string }) => s.id === sessionId
-    );
+    const found = body.data.find((s: { id: string }) => s.id === sessionId);
     expect(found).toBeTruthy();
     expect(found).not.toHaveProperty("messages");
   });
 
-  test("GET /api/chat-sessions/:id returns session with messages", async ({
-    request,
-  }) => {
+  test("GET /api/chat-sessions/:id returns session with messages", async ({ request }) => {
     const res = await request.get(`/api/chat-sessions/${sessionId}`);
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -78,9 +72,7 @@ test.describe("Chat Sessions CRUD", () => {
     expect(body.assigneeId).toBe(assigneeId);
   });
 
-  test("DELETE /api/chat-sessions/:id removes the session", async ({
-    request,
-  }) => {
+  test("DELETE /api/chat-sessions/:id removes the session", async ({ request }) => {
     const res = await request.delete(`/api/chat-sessions/${sessionId}`);
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -114,9 +106,7 @@ test.describe("Chat Sessions cross-user isolation", () => {
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
-    const found = body.data.find(
-      (s: { id: string }) => s.id === user1SessionId
-    );
+    const found = body.data.find((s: { id: string }) => s.id === user1SessionId);
     expect(found).toBeUndefined();
   });
 
@@ -139,13 +129,10 @@ test.describe("Chat Sessions cross-user isolation", () => {
   });
 
   test("user2 cannot POST message to user1 session", async ({ request }) => {
-    const res = await request.post(
-      `/api/chat-sessions/${user1SessionId}/messages`,
-      {
-        headers: user2Headers,
-        data: { content: "Trying to inject message" },
-      }
-    );
+    const res = await request.post(`/api/chat-sessions/${user1SessionId}/messages`, {
+      headers: user2Headers,
+      data: { content: "Trying to inject message" },
+    });
     expect(res.status()).toBe(404);
   });
 });
@@ -169,9 +156,7 @@ test.describe("Chat Sessions non-existing resource", () => {
     expect(body.error).toBe("Chat session not found");
   });
 
-  test("POST message to non-existing session returns 404", async ({
-    request,
-  }) => {
+  test("POST message to non-existing session returns 404", async ({ request }) => {
     const res = await request.post(`/api/chat-sessions/${fakeId}/messages`, {
       data: { content: "Hello" },
     });

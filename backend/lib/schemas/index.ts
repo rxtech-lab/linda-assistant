@@ -142,7 +142,9 @@ const toolCallPartSchema = z.object({
   toolCallId: z.string().describe("Unique tool call identifier"),
   toolName: z.string().describe("Name of the tool being called"),
   input: z.record(z.unknown()).describe("Tool call input parameters"),
-  confirmation: toolCallConfirmationSchema.optional().describe("Confirmation info if this tool call requires manual approval"),
+  confirmation: toolCallConfirmationSchema
+    .optional()
+    .describe("Confirmation info if this tool call requires manual approval"),
   error: z.string().optional().describe("Error message if the tool call failed"),
 });
 
@@ -151,9 +153,24 @@ const toolResultPartSchema = z.object({
   toolCallId: z.string().describe("Matching tool call identifier"),
   toolName: z.string().describe("Name of the tool"),
   output: z.unknown().describe("Tool execution output"),
-  approveStatus: z.enum(["auto-approved", "confirmed", "rejected"]).optional()
+  approveStatus: z
+    .enum(["auto-approved", "confirmed", "rejected"])
+    .optional()
     .describe("Approval status — present for tools that went through the permission system"),
   isError: z.boolean().optional().describe("Whether this tool result is an error"),
+});
+
+const toolApprovalRequestPartSchema = z.object({
+  type: z.literal("tool-approval-request").describe("Tool approval request part"),
+  approvalId: z.string().describe("Unique approval request ID"),
+  toolCallId: z.string().describe("Tool call that requires approval"),
+});
+
+const toolApprovalResponsePartSchema = z.object({
+  type: z.literal("tool-approval-response").describe("Tool approval response part"),
+  approvalId: z.string().describe("Matching approval request ID"),
+  approved: z.boolean().describe("Whether the tool call was approved"),
+  reason: z.string().optional().describe("Reason for denial"),
 });
 
 const contentPartSchema = z.discriminatedUnion("type", [
@@ -162,13 +179,13 @@ const contentPartSchema = z.discriminatedUnion("type", [
   filePartSchema,
   toolCallPartSchema,
   toolResultPartSchema,
+  toolApprovalRequestPartSchema,
+  toolApprovalResponsePartSchema,
 ]);
 
 export const chatMessageSchema = z.object({
   id: z.string().optional().describe("Unique message identifier"),
-  role: z
-    .enum(["system", "user", "assistant", "tool"])
-    .describe("Message role"),
+  role: z.enum(["system", "user", "assistant", "tool"]).describe("Message role"),
   content: z
     .union([z.string(), z.array(contentPartSchema)])
     .describe("Message content — string for simple text, array of parts for rich content"),
@@ -183,11 +200,17 @@ export const selectChatSessionSchema = z.object({
   assigneeId: z.string().nullable().describe("Associated assignee ID"),
   title: z.string().nullable().describe("Session title"),
   status: z.string().nullable().describe("Current session status"),
-  messages: z.array(chatMessageSchema).describe("Conversation message history (AI SDK v6 ModelMessage format)"),
-  assignee: z.object({
-    id: z.string().describe("Assignee ID"),
-    name: z.string().describe("Assignee display name"),
-  }).nullable().optional().describe("Resolved assignee info"),
+  messages: z
+    .array(chatMessageSchema)
+    .describe("Conversation message history (AI SDK v6 ModelMessage format)"),
+  assignee: z
+    .object({
+      id: z.string().describe("Assignee ID"),
+      name: z.string().describe("Assignee display name"),
+    })
+    .nullable()
+    .optional()
+    .describe("Resolved assignee info"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
@@ -215,6 +238,7 @@ export const selectConfirmationSchema = z.object({
   chatSessionId: z.string().describe("Associated chat session ID"),
   toolCallId: z.string().describe("Tool call that triggered this confirmation"),
   toolName: z.string().describe("Name of the tool requiring confirmation"),
+  approvalId: z.string().describe("SDK approval ID for tool-approval-response matching"),
   parameters: z.record(z.unknown()).nullable().describe("Tool call parameters"),
   status: z.string().nullable().describe("Confirmation status (pending/confirmed/rejected)"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
@@ -223,6 +247,10 @@ export const selectConfirmationSchema = z.object({
 
 export const resolveConfirmationSchema = z.object({
   action: z.enum(["confirm", "reject"]).describe("Whether to confirm or reject the tool call"),
+  alwaysAllow: z
+    .boolean()
+    .optional()
+    .describe("If true, update assignee permissions to auto-confirm this tool in the future"),
 });
 
 // ---- Devices ----
@@ -250,7 +278,7 @@ export const sendMessageSchema = z.object({
         type: z.enum(["image", "audio", "pdf", "file"]).describe("Attachment media type"),
         url: z.string().url().describe("Attachment URL"),
         name: z.string().optional().describe("Attachment filename"),
-      })
+      }),
     )
     .optional()
     .describe("File attachments"),
@@ -259,10 +287,12 @@ export const sendMessageSchema = z.object({
 // ---- Onboard ----
 
 export const onboardResponseSchema = z.object({
-  assignee: z.object({
-    check: z.boolean().describe("Whether an assignee exists"),
-    required: z.array(z.string()).optional().describe("Missing setup steps"),
-  }).describe("Assignee onboarding status"),
+  assignee: z
+    .object({
+      check: z.boolean().describe("Whether an assignee exists"),
+      required: z.array(z.string()).optional().describe("Missing setup steps"),
+    })
+    .describe("Assignee onboarding status"),
   overall: z.boolean().describe("Whether onboarding is complete"),
 });
 
@@ -281,9 +311,21 @@ export const presignedUrlResponseSchema = z.object({
 // ---- SSE Stream Events ----
 
 export const streamEventSchema = z.object({
-  id: z.string().describe("Message ID — all events from the same agent step share this, matching the stored message's id for deduplication"),
+  id: z
+    .string()
+    .describe(
+      "Message ID — all events from the same agent step share this, matching the stored message's id for deduplication",
+    ),
   type: z
-    .enum(["status", "text-delta", "tool-call", "tool-result", "confirmation_required", "error", "done"])
+    .enum([
+      "status",
+      "text-delta",
+      "tool-call",
+      "tool-result",
+      "confirmation_required",
+      "error",
+      "done",
+    ])
     .describe("Event type"),
   status: z.string().optional().describe("Session status (for status events)"),
   text: z.string().optional().describe("Text content (for text-delta events)"),
@@ -302,11 +344,17 @@ export const idParamSchema = z.object({ id: z.string().describe("Resource ID") }
 
 // ---- Common response schemas ----
 
-export const deletedResponseSchema = z.object({ deleted: z.boolean().describe("Whether the resource was deleted") });
+export const deletedResponseSchema = z.object({
+  deleted: z.boolean().describe("Whether the resource was deleted"),
+});
 
-export const queuedResponseSchema = z.object({ queued: z.boolean().describe("Whether the message was queued for processing") });
+export const queuedResponseSchema = z.object({
+  queued: z.boolean().describe("Whether the message was queued for processing"),
+});
 
-export const receivedResponseSchema = z.object({ received: z.boolean().describe("Whether the webhook was received") });
+export const receivedResponseSchema = z.object({
+  received: z.boolean().describe("Whether the webhook was received"),
+});
 
 export const resolveResponseSchema = z.object({
   action: z.enum(["confirm", "reject"]).describe("Action taken"),

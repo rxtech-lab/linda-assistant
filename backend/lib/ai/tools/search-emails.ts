@@ -4,9 +4,10 @@ import { db } from "@/lib/db";
 import { emailInbox } from "@/lib/db/schema";
 import { eq, like, or, and, desc } from "drizzle-orm";
 
-export const searchEmailsTool = (userId: string) =>
+export const searchEmailsTool = (userId: string, needsApproval: boolean) =>
   tool({
     description: "Search through the user's email inbox by keyword",
+    needsApproval,
     inputSchema: z.object({
       query: z.string().describe("Search query to match against subject, body, or sender"),
       limit: z.number().default(10).describe("Maximum number of results"),
@@ -30,9 +31,9 @@ export const searchEmailsTool = (userId: string) =>
               like(emailInbox.subject, pattern),
               like(emailInbox.body, pattern),
               like(emailInbox.fromEmail, pattern),
-              like(emailInbox.fromName, pattern)
-            )
-          )
+              like(emailInbox.fromName, pattern),
+            ),
+          ),
         )
         .limit(limit)
         .orderBy(desc(emailInbox.receivedAt));

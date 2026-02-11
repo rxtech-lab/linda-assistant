@@ -10,10 +10,7 @@ import { NextRequest } from "next/server";
  * @pathParams idParamSchema
  * @response selectChatSessionSchema
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 

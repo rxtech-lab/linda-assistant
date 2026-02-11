@@ -8,12 +8,7 @@ export function errorJson(error: string, status = 400) {
   return NextResponse.json({ error }, { status });
 }
 
-export function paginatedJson<T>(
-  data: T[],
-  total: number,
-  limit: number,
-  offset: number,
-) {
+export function paginatedJson<T>(data: T[], total: number, limit: number, offset: number) {
   return NextResponse.json({
     data,
     pagination: {

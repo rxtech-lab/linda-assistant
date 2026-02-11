@@ -17,9 +17,7 @@ test.describe("Agent Tool Error Handling", () => {
       data: {
         name: "Error Test Assistant",
         email: "error-test@example.com",
-        toolPermissions: [
-          { toolName: "update_task", permission: "auto-confirm" },
-        ],
+        toolPermissions: [{ toolName: "update_task", permission: "auto-confirm" }],
       },
     });
     expect(res.ok()).toBeTruthy();
@@ -42,17 +40,17 @@ test.describe("Agent Tool Error Handling", () => {
     const sessionId = session.id;
 
     // Subscribe to SSE BEFORE posting so we catch all events
-    const eventsPromise = consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      { headers: { authorization: "Bearer e2e-test-token" } },
-    );
+    const eventsPromise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+    });
     await new Promise((r) => setTimeout(r, SUB_DELAY));
 
     // Send message that triggers update_task with a non-existent taskId
-    const msgRes = await request.post(
-      `/api/chat-sessions/${sessionId}/messages`,
-      { data: { content: "[TOOL:update_task] Update task with id non-existent-id-12345 to status finished" } },
-    );
+    const msgRes = await request.post(`/api/chat-sessions/${sessionId}/messages`, {
+      data: {
+        content: "[TOOL:update_task] Update task with id non-existent-id-12345 to status finished",
+      },
+    });
     expect(msgRes.ok()).toBeTruthy();
     sendMessageResponseSchema.parse(await msgRes.json());
 

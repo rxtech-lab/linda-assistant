@@ -1,7 +1,7 @@
 import AssistantCore
 import SwiftUI
 #if canImport(AppKit)
-import AppKit
+    import AppKit
 #endif
 
 struct DisplayMessage: Identifiable {
@@ -60,11 +60,11 @@ private struct DisplayMessagePreview: View {
 
 private var previewBackgroundColor: Color {
     #if canImport(UIKit)
-    return Color(.systemGray6)
+        return Color(.systemGray6)
     #elseif canImport(AppKit)
-    return Color(nsColor: .windowBackgroundColor).opacity(0.7)
+        return Color(nsColor: .windowBackgroundColor).opacity(0.7)
     #else
-    return Color.gray.opacity(0.15)
+        return Color.gray.opacity(0.15)
     #endif
 }
 

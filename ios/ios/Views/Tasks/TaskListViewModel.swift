@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 @Observable
 final class TaskListViewModel {
@@ -35,10 +35,10 @@ final class TaskListViewModel {
     func subscribeToEvents(eventManager: EventManager, apiClient: APIClient) async {
         for await event in eventManager.stream {
             switch event {
-            case .taskCreated, .taskUpdated, .taskDeleted:
-                await loadTasks(apiClient: apiClient)
-            default:
-                break
+                case .taskCreated, .taskUpdated, .taskDeleted:
+                    await loadTasks(apiClient: apiClient)
+                default:
+                    break
             }
         }
     }

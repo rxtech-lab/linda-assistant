@@ -14,7 +14,7 @@ import { successJson, errorJson } from "@/lib/utils/response";
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;

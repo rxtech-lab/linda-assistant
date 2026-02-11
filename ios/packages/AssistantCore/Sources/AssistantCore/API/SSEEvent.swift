@@ -8,9 +8,9 @@ public enum SSEEventType: String, Sendable {
     case toolCall = "tool-call"
     case toolResult = "tool-result"
     case confirmationRequired = "confirmation_required"
-    case error = "error"
-    case done = "done"
-    case status = "status"
+    case error
+    case done
+    case status
     case unknown
 }
 
@@ -30,44 +30,44 @@ public struct SSEEvent: Sendable {
         }
         let decoder = JSONDecoder()
         switch type {
-        case .status:
-            do {
-                let payload = try decoder.decode(StatusPayload.self, from: jsonData)
-                logger.info("parse: status=\(payload.status)")
-                return .status(payload)
-            } catch {
-                logger.error("parse: status decode failed: \(error)")
-            }
-        case .textDelta:
-            do {
-                let payload = try decoder.decode(TextDeltaPayload.self, from: jsonData)
-                logger.info("parse: textDelta len=\(payload.text.count)")
-                return .textDelta(payload)
-            } catch {
-                logger.error("parse: textDelta decode failed: \(error), raw=\(data.prefix(200))")
-            }
-        case .toolCall:
-            if let payload = try? decoder.decode(ToolCallPayload.self, from: jsonData) {
-                return .toolCall(payload)
-            }
-        case .toolResult:
-            if let payload = try? decoder.decode(ToolResultPayload.self, from: jsonData) {
-                return .toolResult(payload)
-            }
-        case .confirmationRequired:
-            if let payload = try? decoder.decode(ConfirmationPayload.self, from: jsonData) {
-                return .confirmationRequired(payload)
-            }
-        case .error:
-            if let payload = try? decoder.decode(SSEErrorPayload.self, from: jsonData) {
-                return .error(payload)
-            }
-        case .done:
-            logger.info("parse: done")
-            return .done
-        case .unknown:
-            logger.warning("parse: unknown type, data=\(data.prefix(200))")
-            return .unknown(data)
+            case .status:
+                do {
+                    let payload = try decoder.decode(StatusPayload.self, from: jsonData)
+                    logger.info("parse: status=\(payload.status)")
+                    return .status(payload)
+                } catch {
+                    logger.error("parse: status decode failed: \(error)")
+                }
+            case .textDelta:
+                do {
+                    let payload = try decoder.decode(TextDeltaPayload.self, from: jsonData)
+                    logger.info("parse: textDelta len=\(payload.text.count)")
+                    return .textDelta(payload)
+                } catch {
+                    logger.error("parse: textDelta decode failed: \(error), raw=\(data.prefix(200))")
+                }
+            case .toolCall:
+                if let payload = try? decoder.decode(ToolCallPayload.self, from: jsonData) {
+                    return .toolCall(payload)
+                }
+            case .toolResult:
+                if let payload = try? decoder.decode(ToolResultPayload.self, from: jsonData) {
+                    return .toolResult(payload)
+                }
+            case .confirmationRequired:
+                if let payload = try? decoder.decode(ConfirmationPayload.self, from: jsonData) {
+                    return .confirmationRequired(payload)
+                }
+            case .error:
+                if let payload = try? decoder.decode(SSEErrorPayload.self, from: jsonData) {
+                    return .error(payload)
+                }
+            case .done:
+                logger.info("parse: done")
+                return .done
+            case .unknown:
+                logger.warning("parse: unknown type, data=\(data.prefix(200))")
+                return .unknown(data)
         }
         logger.error("parse: fell through for type=\(type.rawValue), returning unknown")
         return .unknown(data)
@@ -163,42 +163,45 @@ public enum AnyCodable: Codable, Sendable, CustomStringConvertible, Hashable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
-        case .null: try container.encodeNil()
-        case .bool(let v): try container.encode(v)
-        case .int(let v): try container.encode(v)
-        case .double(let v): try container.encode(v)
-        case .string(let v): try container.encode(v)
-        case .array(let v): try container.encode(v)
-        case .object(let v): try container.encode(v)
+            case .null: try container.encodeNil()
+            case let .bool(v): try container.encode(v)
+            case let .int(v): try container.encode(v)
+            case let .double(v): try container.encode(v)
+            case let .string(v): try container.encode(v)
+            case let .array(v): try container.encode(v)
+            case let .object(v): try container.encode(v)
         }
     }
 
     public var description: String {
         switch self {
-        case .null: "null"
-        case .bool(let v): "\(v)"
-        case .int(let v): "\(v)"
-        case .double(let v): "\(v)"
-        case .string(let v): v
-        case .array(let v): "\(v)"
-        case .object(let v): "\(v)"
+            case .null: "null"
+            case let .bool(v): "\(v)"
+            case let .int(v): "\(v)"
+            case let .double(v): "\(v)"
+            case let .string(v): v
+            case let .array(v): "\(v)"
+            case let .object(v): "\(v)"
         }
     }
 
     public var stringValue: String? {
-        if case .string(let v) = self { return v }
+        if case let .string(v) = self { return v }
         return nil
     }
+
     public var intValue: Int? {
-        if case .int(let v) = self { return v }
+        if case let .int(v) = self { return v }
         return nil
     }
+
     public var doubleValue: Double? {
-        if case .double(let v) = self { return v }
+        if case let .double(v) = self { return v }
         return nil
     }
+
     public var boolValue: Bool? {
-        if case .bool(let v) = self { return v }
+        if case let .bool(v) = self { return v }
         return nil
     }
 }

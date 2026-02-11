@@ -23,29 +23,29 @@ final class NavigationManager {
 
         var title: String {
             switch self {
-            case .tasks: "Tasks"
-            case .emails: "Email"
-            case .assignees: "Assignees"
-            case .settings: "Settings"
+                case .tasks: "Tasks"
+                case .emails: "Email"
+                case .assignees: "Assignees"
+                case .settings: "Settings"
             }
         }
 
         var icon: String {
             switch self {
-            case .tasks: "checklist"
-            case .emails: "envelope"
-            case .assignees: "person.2"
-            case .settings: "gearshape"
+                case .tasks: "checklist"
+                case .emails: "envelope"
+                case .assignees: "person.2"
+                case .settings: "gearshape"
             }
         }
     }
 
     func resetCurrentTab() {
         switch selectedTab {
-        case .tasks: tasksPath = NavigationPath()
-        case .emails: emailsPath = NavigationPath()
-        case .assignees: assigneesPath = NavigationPath()
-        case .settings: settingsPath = NavigationPath()
+            case .tasks: tasksPath = NavigationPath()
+            case .emails: emailsPath = NavigationPath()
+            case .assignees: assigneesPath = NavigationPath()
+            case .settings: settingsPath = NavigationPath()
         }
     }
 }

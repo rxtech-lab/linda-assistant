@@ -3,9 +3,10 @@ import { tasks } from "@/lib/db/schema";
 import { tool } from "ai";
 import { z } from "zod";
 
-export const createTaskTool = (userId: string) =>
+export const createTaskTool = (userId: string, needsApproval: boolean) =>
   tool({
     description: "Create a new task for the user",
+    needsApproval,
     inputSchema: z.object({
       title: z.string().describe("Task title"),
       description: z.string().optional().describe("Task description"),

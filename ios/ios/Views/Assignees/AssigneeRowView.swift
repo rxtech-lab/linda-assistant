@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 struct AssigneeRowView: View {
     let assignee: Assignee

@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 @Observable
 final class EmailListViewModel {
@@ -35,10 +35,10 @@ final class EmailListViewModel {
     func subscribeToEvents(eventManager: EventManager, apiClient: APIClient) async {
         for await event in eventManager.stream {
             switch event {
-            case .emailUpdated, .emailDeleted:
-                await loadEmails(apiClient: apiClient)
-            default:
-                break
+                case .emailUpdated, .emailDeleted:
+                    await loadEmails(apiClient: apiClient)
+                default:
+                    break
             }
         }
     }

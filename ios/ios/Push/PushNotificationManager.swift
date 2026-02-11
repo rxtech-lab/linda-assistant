@@ -1,6 +1,6 @@
+import AssistantCore
 import SwiftUI
 import UserNotifications
-import AssistantCore
 
 @Observable
 final class PushNotificationManager: NSObject, @unchecked Sendable {
@@ -11,7 +11,7 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
             if granted {
                 DispatchQueue.main.async {
                     #if canImport(UIKit)
-                    UIApplication.shared.registerForRemoteNotifications()
+                        UIApplication.shared.registerForRemoteNotifications()
                     #endif
                 }
             }
@@ -23,7 +23,7 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
 
     func handleDeviceToken(_ token: Data) {
         let tokenString = token.map { String(format: "%02.2hhx", $0) }.joined()
-        self.deviceToken = tokenString
+        deviceToken = tokenString
     }
 
     func registerWithBackend(apiClient: APIClient) async {

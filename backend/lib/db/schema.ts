@@ -91,6 +91,7 @@ export const confirmations = sqliteTable("confirmations", {
     .references(() => chatSessions.id, { onDelete: "cascade" }),
   toolCallId: text("tool_call_id").notNull(),
   toolName: text("tool_name").notNull(),
+  approvalId: text("approval_id").notNull(),
   parameters: text("parameters", { mode: "json" }).$type<Record<string, unknown>>(),
   status: text("status").default("pending"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),

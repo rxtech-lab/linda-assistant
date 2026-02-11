@@ -74,9 +74,7 @@ test.describe("Agent Stream", () => {
       data: {
         name: "Auto Confirm Assistant",
         email: "auto@example.com",
-        toolPermissions: [
-          { toolName: "create_task", permission: "auto-confirm" },
-        ],
+        toolPermissions: [{ toolName: "create_task", permission: "auto-confirm" }],
       },
     });
     expect(assigneeRes.ok()).toBeTruthy();

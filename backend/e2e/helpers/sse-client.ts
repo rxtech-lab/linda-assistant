@@ -9,7 +9,7 @@ export async function consumeSSE(
     headers?: Record<string, string>;
     stopOnEvent?: string;
     timeoutMs?: number;
-  } = {}
+  } = {},
 ): Promise<SSEEvent[]> {
   const { headers = {}, stopOnEvent = "done", timeoutMs = 15000 } = options;
 

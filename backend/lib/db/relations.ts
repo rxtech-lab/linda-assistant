@@ -38,20 +38,17 @@ export const taskEmailsRelations = relations(taskEmails, ({ one }) => ({
   }),
 }));
 
-export const chatSessionsRelations = relations(
-  chatSessions,
-  ({ one, many }) => ({
-    task: one(tasks, {
-      fields: [chatSessions.taskId],
-      references: [tasks.id],
-    }),
-    assignee: one(assignees, {
-      fields: [chatSessions.assigneeId],
-      references: [assignees.id],
-    }),
-    confirmations: many(confirmations),
-  })
-);
+export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => ({
+  task: one(tasks, {
+    fields: [chatSessions.taskId],
+    references: [tasks.id],
+  }),
+  assignee: one(assignees, {
+    fields: [chatSessions.assigneeId],
+    references: [assignees.id],
+  }),
+  confirmations: many(confirmations),
+}));
 
 export const confirmationsRelations = relations(confirmations, ({ one }) => ({
   chatSession: one(chatSessions, {

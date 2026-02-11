@@ -17,7 +17,7 @@ struct WelcomeSplashView: View {
                         LinearGradient(
                             colors: [
                                 Color.black.opacity(colorScheme == .dark ? 0.55 : 0.12),
-                                Color.black.opacity(colorScheme == .dark ? 0.35 : 0.04)
+                                Color.black.opacity(colorScheme == .dark ? 0.35 : 0.04),
                             ],
                             startPoint: .top,
                             endPoint: .bottom

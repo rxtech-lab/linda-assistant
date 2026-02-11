@@ -30,10 +30,7 @@ import { subscribeToEvents } from "@/lib/queue/consumer";
  * @response streamEventSchema
  * @responseDescription SSE stream of agent events
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -43,9 +40,7 @@ export async function GET(
   const [session] = await db
     .select()
     .from(chatSessions)
-    .where(
-      and(eq(chatSessions.id, id), eq(chatSessions.userId, auth.userId))
-    );
+    .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, auth.userId)));
 
   if (!session) return errorJson("Chat session not found", 404);
 
@@ -53,8 +48,7 @@ export async function GET(
 
   // Start streaming in the background
   (async () => {
-    let subscription: Awaited<ReturnType<typeof subscribeToEvents>> | null =
-      null;
+    let subscription: Awaited<ReturnType<typeof subscribeToEvents>> | null = null;
     let cleanedUp = false;
 
     const cleanup = () => {

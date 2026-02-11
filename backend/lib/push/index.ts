@@ -33,25 +33,20 @@ export async function sendPushNotification(
     title: string;
     body: string;
     data?: Record<string, string>;
-  }
+  },
 ) {
   if (process.env.IS_E2E) {
     return [];
   }
 
-  const userDevices = await db
-    .select()
-    .from(devices)
-    .where(eq(devices.userId, userId));
+  const userDevices = await db.select().from(devices).where(eq(devices.userId, userId));
 
   if (userDevices.length === 0) return;
 
   const token = await getApnsToken();
   const bundleId = process.env.APNS_BUNDLE_ID!;
   const isProduction = process.env.APNS_ENVIRONMENT === "production";
-  const host = isProduction
-    ? "https://api.push.apple.com"
-    : "https://api.sandbox.push.apple.com";
+  const host = isProduction ? "https://api.push.apple.com" : "https://api.sandbox.push.apple.com";
 
   const apnsPayload = {
     aps: {
@@ -64,26 +59,23 @@ export async function sendPushNotification(
 
   const results = await Promise.allSettled(
     userDevices.map(async (device) => {
-      const response = await fetch(
-        `${host}/3/device/${device.deviceToken}`,
-        {
-          method: "POST",
-          headers: {
-            authorization: `bearer ${token}`,
-            "apns-topic": bundleId,
-            "apns-push-type": "alert",
-            "apns-priority": "10",
-            "content-type": "application/json",
-          },
-          body: JSON.stringify(apnsPayload),
-        }
-      );
+      const response = await fetch(`${host}/3/device/${device.deviceToken}`, {
+        method: "POST",
+        headers: {
+          authorization: `bearer ${token}`,
+          "apns-topic": bundleId,
+          "apns-push-type": "alert",
+          "apns-priority": "10",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(apnsPayload),
+      });
 
       if (!response.ok) {
         const error = await response.text();
         console.error(`APNs error for device ${device.id}:`, error);
       }
-    })
+    }),
   );
 
   return results;

@@ -1,10 +1,5 @@
 import { createChannel } from "./connection";
-import {
-  AGENT_TASKS_QUEUE,
-  AGENT_EVENTS_EXCHANGE,
-  type AgentTask,
-  type AgentEvent,
-} from "./types";
+import { AGENT_TASKS_QUEUE, AGENT_EVENTS_EXCHANGE, type AgentTask, type AgentEvent } from "./types";
 
 export async function publishTask(task: AgentTask): Promise<void> {
   const ch = await createChannel();
@@ -17,9 +12,5 @@ export async function publishTask(task: AgentTask): Promise<void> {
 export async function publishEvent(event: AgentEvent): Promise<void> {
   const ch = await createChannel();
   const routingKey = `session.${event.sessionId}`;
-  ch.publish(
-    AGENT_EVENTS_EXCHANGE,
-    routingKey,
-    Buffer.from(JSON.stringify(event))
-  );
+  ch.publish(AGENT_EVENTS_EXCHANGE, routingKey, Buffer.from(JSON.stringify(event)));
 }

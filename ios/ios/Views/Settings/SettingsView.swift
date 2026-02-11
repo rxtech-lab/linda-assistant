@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 struct SettingsView: View {
     @Environment(AuthManager.self) private var authManager

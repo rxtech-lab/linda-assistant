@@ -1,7 +1,7 @@
-import XCTest
-import ViewInspector
 @testable import AssistantCore
 @testable import ios
+import ViewInspector
+import XCTest
 
 // MARK: - Test Case 1: Confirmed tool call badge
 
@@ -118,7 +118,10 @@ final class ToolCallWithTextTests: XCTestCase {
         // Verify MessageBubble renders for text message
         let bubble = MessageBubble(message: textMsg)
         let bubbleTexts = try bubble.inspect().findAll(ViewType.Text.self).compactMap { try? $0.string() }
-        XCTAssertTrue(bubbleTexts.contains(where: { $0.contains("sent that email") }), "Bubble should contain the assistant text")
+        XCTAssertTrue(
+            bubbleTexts.contains(where: { $0.contains("sent that email") }),
+            "Bubble should contain the assistant text"
+        )
 
         // Verify MessageBubble has accessibility identifier
         let found = try bubble.inspect().find(viewWithAccessibilityIdentifier: "messageBubble-text-1")
@@ -169,7 +172,7 @@ final class ConfirmationSheetTests: XCTestCase {
         )
         let sut = ConfirmationSheetView(
             confirmation: payload,
-            onResolve: { _ in }
+            onResolve: { _, _ in }
         )
 
         let confirmBtn = try sut.inspect().find(viewWithAccessibilityIdentifier: "confirmButton")
@@ -188,7 +191,7 @@ final class ConfirmationSheetTests: XCTestCase {
         )
         let sut = ConfirmationSheetView(
             confirmation: payload,
-            onResolve: { _ in }
+            onResolve: { _, _ in }
         )
 
         let texts = try sut.inspect().findAll(ViewType.Text.self).compactMap { try? $0.string() }
@@ -291,8 +294,8 @@ final class PendingIndicatorNameTests: XCTestCase {
         XCTAssertFalse(
             textStrings.contains(where: { !$0.isEmpty }),
             "AssistantPendingIndicator should not render any text labels; " +
-            "the assignee name is rendered by the group header in MessageList. " +
-            "Found: \(textStrings)"
+                "the assignee name is rendered by the group header in MessageList. " +
+                "Found: \(textStrings)"
         )
     }
 }
@@ -408,13 +411,12 @@ final class ToolCallErrorAnnotationTests: XCTestCase {
             error: nil
         )
 
-        let status: ToolCallStatus
-        if tc.confirmation != nil {
-            status = ToolCallStatus.from(confirmation: tc.confirmation)
+        let status: ToolCallStatus = if tc.confirmation != nil {
+            ToolCallStatus.from(confirmation: tc.confirmation)
         } else if tc.error != nil {
-            status = .failed
+            .failed
         } else {
-            status = .completed
+            .completed
         }
 
         XCTAssertEqual(status, .completed)
@@ -430,13 +432,12 @@ final class ToolCallErrorAnnotationTests: XCTestCase {
             error: nil
         )
 
-        let status: ToolCallStatus
-        if tc.confirmation != nil {
-            status = ToolCallStatus.from(confirmation: tc.confirmation)
+        let status: ToolCallStatus = if tc.confirmation != nil {
+            ToolCallStatus.from(confirmation: tc.confirmation)
         } else if tc.error != nil {
-            status = .failed
+            .failed
         } else {
-            status = .completed
+            .completed
         }
 
         XCTAssertEqual(status, .rejected)

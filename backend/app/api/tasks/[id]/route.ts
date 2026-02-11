@@ -3,7 +3,12 @@ import { db } from "@/lib/db";
 import { tasks, chatSessions, taskEmails, emailInbox } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import { updateTaskSchema, selectTaskSchema, deletedResponseSchema, idParamSchema } from "@/lib/schemas";
+import {
+  updateTaskSchema,
+  selectTaskSchema,
+  deletedResponseSchema,
+  idParamSchema,
+} from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
 import { z } from "zod";
 
@@ -14,7 +19,7 @@ const taskDetailSchema = selectTaskSchema.extend({
       title: z.string().nullable(),
       status: z.string().nullable(),
       updatedAt: z.string().nullable(),
-    })
+    }),
   ),
   emails: z.array(z.any()),
 });
@@ -25,10 +30,7 @@ const taskDetailSchema = selectTaskSchema.extend({
  * @pathParams idParamSchema
  * @response taskDetailSchema
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -74,10 +76,7 @@ export async function GET(
  * @body updateTaskSchema
  * @response selectTaskSchema
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -104,7 +103,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
@@ -118,4 +117,3 @@ export async function DELETE(
   if (!deleted) return errorJson("Task not found", 404);
   return successJson({ deleted: true });
 }
-

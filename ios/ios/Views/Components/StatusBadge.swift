@@ -15,12 +15,12 @@ struct StatusBadge: View {
 
     private var color: Color {
         switch status.lowercased() {
-        case "pending", "starting": .orange
-        case "running", "in_progress": .blue
-        case "finished", "stopped": .green
-        case "cancelled": .secondary
-        case "waiting_confirmation": .purple
-        default: .secondary
+            case "pending", "starting": .orange
+            case "running", "in_progress": .blue
+            case "finished", "stopped": .green
+            case "cancelled": .secondary
+            case "waiting_confirmation": .purple
+            default: .secondary
         }
     }
 }

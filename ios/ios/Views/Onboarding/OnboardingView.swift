@@ -98,13 +98,12 @@ private extension View {
     @ViewBuilder
     func emailFieldInputModifiers() -> some View {
         #if os(iOS)
-        self
-            .textContentType(.emailAddress)
-            .keyboardType(.emailAddress)
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
+            textContentType(.emailAddress)
+                .keyboardType(.emailAddress)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
         #else
-        self
+            self
         #endif
     }
 }

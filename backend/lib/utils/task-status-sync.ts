@@ -12,9 +12,7 @@ export async function syncTaskStatus(taskId: string) {
 
   const hasActive = sessions.some(
     (s) =>
-      s.status === "starting" ||
-      s.status === "in_progress" ||
-      s.status === "waiting_confirmation"
+      s.status === "starting" || s.status === "in_progress" || s.status === "waiting_confirmation",
   );
 
   const newStatus = hasActive ? "running" : "finished";
@@ -25,7 +23,5 @@ export async function syncTaskStatus(taskId: string) {
       status: newStatus,
       updatedAt: sql`(datetime('now'))`,
     })
-    .where(
-      and(eq(tasks.id, taskId), ne(tasks.status, "cancelled"))
-    );
+    .where(and(eq(tasks.id, taskId), ne(tasks.status, "cancelled")));
 }

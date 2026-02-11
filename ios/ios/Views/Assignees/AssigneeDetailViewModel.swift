@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 @Observable
 final class AssigneeDetailViewModel {

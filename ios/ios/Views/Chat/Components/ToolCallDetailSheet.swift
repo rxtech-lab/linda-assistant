@@ -6,30 +6,30 @@ struct ToolCallDetailSheet: View {
 
     private var statusIcon: String {
         switch toolCall.status {
-        case .completed: "checkmark.circle.fill"
-        case .failed: "xmark.circle.fill"
-        case .rejected: "nosign"
-        case .pendingConfirmation: "exclamationmark.shield.fill"
-        case .running: "arrow.trianglehead.2.clockwise"
+            case .completed: "checkmark.circle.fill"
+            case .failed: "xmark.circle.fill"
+            case .rejected: "nosign"
+            case .pendingConfirmation: "exclamationmark.shield.fill"
+            case .running: "arrow.trianglehead.2.clockwise"
         }
     }
 
     private var statusColor: Color {
         switch toolCall.status {
-        case .completed: .green
-        case .failed, .rejected: .red
-        case .pendingConfirmation: .orange
-        case .running: .blue
+            case .completed: .green
+            case .failed, .rejected: .red
+            case .pendingConfirmation: .orange
+            case .running: .blue
         }
     }
 
     private var statusTitle: String {
         switch toolCall.status {
-        case .completed: "Tool Completed"
-        case .failed: "Tool Failed"
-        case .rejected: "Tool Rejected"
-        case .pendingConfirmation: "Pending Confirmation"
-        case .running: "Tool Running"
+            case .completed: "Tool Completed"
+            case .failed: "Tool Failed"
+            case .rejected: "Tool Rejected"
+            case .pendingConfirmation: "Pending Confirmation"
+            case .running: "Tool Running"
         }
     }
 

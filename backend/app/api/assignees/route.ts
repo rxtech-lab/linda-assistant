@@ -3,10 +3,7 @@ import { db } from "@/lib/db";
 import { assignees } from "@/lib/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import {
-  insertAssigneeSchema,
-  selectAssigneeSchema,
-} from "@/lib/schemas";
+import { insertAssigneeSchema, selectAssigneeSchema } from "@/lib/schemas";
 import { parsePagination } from "@/lib/utils/pagination";
 import { successJson, errorJson, paginatedJson } from "@/lib/utils/response";
 import { z } from "zod";
@@ -71,4 +68,3 @@ export async function POST(request: NextRequest) {
 
   return successJson(created, 201);
 }
-

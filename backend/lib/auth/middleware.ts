@@ -4,15 +4,10 @@ export interface AuthContext {
   userId: string;
 }
 
-export async function authenticate(
-  request: NextRequest,
-): Promise<AuthContext | NextResponse> {
+export async function authenticate(request: NextRequest): Promise<AuthContext | NextResponse> {
   const authHeader = request.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json(
-      { error: "Missing or invalid authorization header" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "Missing or invalid authorization header" }, { status: 401 });
   }
 
   if (process.env.IS_E2E) {
@@ -28,27 +23,18 @@ export async function authenticate(
     });
 
     if (!response.ok) {
-      return NextResponse.json(
-        { error: "Invalid or expired token" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
     }
 
     const userInfo = await response.json();
     const userId = userInfo.sub;
 
     if (!userId) {
-      return NextResponse.json(
-        { error: "Token missing user identifier" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Token missing user identifier" }, { status: 401 });
     }
 
     return { userId };
   } catch {
-    return NextResponse.json(
-      { error: "Authentication service unavailable" },
-      { status: 503 },
-    );
+    return NextResponse.json({ error: "Authentication service unavailable" }, { status: 503 });
   }
 }

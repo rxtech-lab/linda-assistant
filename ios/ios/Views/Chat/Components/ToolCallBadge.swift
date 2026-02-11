@@ -3,34 +3,34 @@ import SwiftUI
 
 struct ToolCallBadge: View {
     let toolCall: ToolCallInfo
-    var onTap: (() -> Void)? = nil
+    var onTap: (() -> Void)?
 
     private var icon: String {
         switch toolCall.status {
-        case .completed: "checkmark.circle.fill"
-        case .pendingConfirmation: "exclamationmark.shield.fill"
-        case .failed: "xmark.circle.fill"
-        case .running: "arrow.trianglehead.2.clockwise"
-        case .rejected: "nosign"
+            case .completed: "checkmark.circle.fill"
+            case .pendingConfirmation: "exclamationmark.shield.fill"
+            case .failed: "xmark.circle.fill"
+            case .running: "arrow.trianglehead.2.clockwise"
+            case .rejected: "nosign"
         }
     }
 
     private var iconColor: Color {
         switch toolCall.status {
-        case .completed: .green
-        case .pendingConfirmation: .orange
-        case .failed, .rejected: .red
-        case .running: .blue
+            case .completed: .green
+            case .pendingConfirmation: .orange
+            case .failed, .rejected: .red
+            case .running: .blue
         }
     }
 
     private var statusText: String {
         switch toolCall.status {
-        case .completed: "Completed"
-        case .pendingConfirmation: "Needs Confirmation"
-        case .failed: "Failed"
-        case .running: "Running..."
-        case .rejected: "Rejected"
+            case .completed: "Completed"
+            case .pendingConfirmation: "Needs Confirmation"
+            case .failed: "Failed"
+            case .running: "Running..."
+            case .rejected: "Rejected"
         }
     }
 
@@ -68,7 +68,7 @@ struct ToolCallBadge: View {
     }
 }
 
-private struct ToolCallBadgePreviewData {
+private enum ToolCallBadgePreviewData {
     static let running = ToolCallInfo(
         toolCallId: "preview-running",
         toolName: "FetchTasks",

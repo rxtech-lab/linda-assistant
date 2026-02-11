@@ -17,10 +17,7 @@ export async function POST(request: NextRequest) {
   const svixSignature = request.headers.get("svix-signature");
 
   if (!svixId || !svixTimestamp || !svixSignature) {
-    return NextResponse.json(
-      { error: "Missing Svix headers" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Missing Svix headers" }, { status: 400 });
   }
 
   const webhookSecret = process.env.RESEND_WEBHOOK_SECRET!;
@@ -34,10 +31,7 @@ export async function POST(request: NextRequest) {
       "svix-signature": svixSignature,
     }) as Record<string, unknown>;
   } catch {
-    return NextResponse.json(
-      { error: "Invalid webhook signature" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
   }
 
   const eventType = payload.type as string;
@@ -52,10 +46,7 @@ export async function POST(request: NextRequest) {
   const html = (data.html as string) || (data.text as string) || "";
 
   // Find assignee by email to determine user
-  const [assignee] = await db
-    .select()
-    .from(assignees)
-    .where(eq(assignees.email, toEmail));
+  const [assignee] = await db.select().from(assignees).where(eq(assignees.email, toEmail));
 
   if (!assignee) {
     // No assignee found for this email address, still acknowledge

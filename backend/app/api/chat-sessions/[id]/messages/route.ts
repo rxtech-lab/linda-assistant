@@ -25,10 +25,7 @@ import { publishTask } from "@/lib/queue/producer";
  * @body sendMessageSchema
  * @response queuedResponseSchema
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -41,16 +38,12 @@ export async function POST(
   const [session] = await db
     .select()
     .from(chatSessions)
-    .where(
-      and(eq(chatSessions.id, id), eq(chatSessions.userId, auth.userId))
-    );
+    .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, auth.userId)));
 
   if (!session) return errorJson("Chat session not found", 404);
 
   // Build user message parts
-  const contentParts: unknown[] = [
-    { type: "text", text: parsed.data.content },
-  ];
+  const contentParts: unknown[] = [{ type: "text", text: parsed.data.content }];
 
   if (parsed.data.attachments) {
     for (const attachment of parsed.data.attachments) {
@@ -109,4 +102,3 @@ function getMimeType(type: string): string {
       return "application/octet-stream";
   }
 }
-

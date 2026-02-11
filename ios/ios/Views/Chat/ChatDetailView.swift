@@ -8,6 +8,7 @@ struct ChatDetailView: View {
     @State private var viewModel = ChatDetailViewModel()
     @State private var messageText = ""
     @State private var selectedToolCall: ToolCallInfo?
+    @State private var errorDismissTask: Task<Void, Never>?
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -32,7 +33,7 @@ struct ChatDetailView: View {
                     MessagesLoadingView()
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 }
-                
+
                 // Content view
                 if !viewModel.isLoading {
                     ScrollViewReader { proxy in
@@ -41,7 +42,8 @@ struct ChatDetailView: View {
                                 MessageList(
                                     messages: viewModel.displayMessages,
                                     assigneeName: viewModel.assigneeName,
-                                    streamingText: viewModel.streamHandler?.isStreaming == true ? viewModel.streamHandler?.streamedText : nil,
+                                    streamingText: viewModel.streamHandler?.isStreaming == true ? viewModel
+                                        .streamHandler?.streamedText : nil,
                                     streamingToolCalls: viewModel.streamHandler?.toolCalls ?? [],
                                     showPendingIndicator: showPendingIndicator,
                                     onConfirmationTap: {
@@ -82,6 +84,28 @@ struct ChatDetailView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.5), value: viewModel.isLoading)
+            .overlay(alignment: .top) {
+                if let errorMessage = viewModel.displayError {
+                    ErrorBannerView(message: errorMessage) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            viewModel.clearError()
+                        }
+                    }
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: viewModel.displayError != nil)
+            .onChange(of: viewModel.displayError) {
+                errorDismissTask?.cancel()
+                if viewModel.displayError != nil {
+                    errorDismissTask = Task {
+                        try? await Task.sleep(for: .seconds(6))
+                        guard !Task.isCancelled else { return }
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            viewModel.clearError()
+                        }
+                    }
+                }
+            }
 
             Divider()
 
@@ -98,38 +122,45 @@ struct ChatDetailView: View {
         }
         .navigationTitle(viewModel.session?.title ?? "Chat")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
         #endif
-        .sheet(isPresented: $viewModel.showingConfirmation) {
-            if let confirmation = viewModel.streamHandler?.pendingConfirmation {
-                ConfirmationSheetView(
-                    confirmation: confirmation,
-                    onResolve: { action in
-                        Task {
-                            await viewModel.streamHandler?.resolveConfirmation(
-                                confirmationId: confirmation.confirmationId,
-                                action: action
-                            )
+            .sheet(isPresented: $viewModel.showingConfirmation) {
+                if let confirmation = viewModel.streamHandler?.pendingConfirmation {
+                    ConfirmationSheetView(
+                        confirmation: confirmation,
+                        onResolve: { action, alwaysAllow in
+                            Task {
+                                await viewModel.streamHandler?.resolveConfirmation(
+                                    confirmationId: confirmation.confirmationId,
+                                    action: action,
+                                    alwaysAllow: alwaysAllow
+                                )
+                            }
+                            viewModel.showingConfirmation = false
                         }
-                        viewModel.showingConfirmation = false
-                    }
+                    )
+                }
+            }
+            .sheet(item: $selectedToolCall) { toolCall in
+                ToolCallDetailSheet(toolCall: toolCall)
+            }
+        #if os(iOS)
+            .toolbar(.hidden, for: .tabBar)
+        #endif
+            .task {
+                await viewModel.loadSession(
+                    id: sessionId,
+                    apiClient: apiClient,
+                    authManager: authManager,
+                    eventManager: eventManager
                 )
             }
-        }
-        .sheet(item: $selectedToolCall) { toolCall in
-            ToolCallDetailSheet(toolCall: toolCall)
-        }
-        #if os(iOS)
-        .toolbar(.hidden, for: .tabBar)
-        #endif
-        .task {
-            await viewModel.loadSession(id: sessionId, apiClient: apiClient, authManager: authManager, eventManager: eventManager)
-        }
-        .onDisappear {
-            viewModel.disconnect()
-        }
+            .onDisappear {
+                viewModel.disconnect()
+            }
     }
 }
+
 #Preview("Loading State") {
     NavigationStack {
         ChatDetailView(sessionId: "preview-session")

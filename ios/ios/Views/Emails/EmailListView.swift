@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 struct EmailListView: View {
     @Environment(AuthManager.self) private var authManager
@@ -12,7 +12,7 @@ struct EmailListView: View {
 
     var body: some View {
         Group {
-            if viewModel.isLoading && viewModel.emails.isEmpty {
+            if viewModel.isLoading, viewModel.emails.isEmpty {
                 ProgressView()
             } else if let error = viewModel.error, viewModel.emails.isEmpty {
                 ErrorRetryView(message: error) {
@@ -32,7 +32,11 @@ struct EmailListView: View {
                         }
                     }
                     .onDelete { offsets in
-                        Task { await viewModel.deleteEmails(at: offsets, apiClient: apiClient, eventManager: eventManager) }
+                        Task { await viewModel.deleteEmails(
+                            at: offsets,
+                            apiClient: apiClient,
+                            eventManager: eventManager
+                        ) }
                     }
                 }
                 .refreshable {
@@ -43,10 +47,10 @@ struct EmailListView: View {
         .navigationTitle("Email Inbox")
         .navigationDestination(for: AppDestination.self) { destination in
             switch destination {
-            case .task(let id): TaskDetailView(taskId: id)
-            case .chatSession(let id): ChatDetailView(sessionId: id)
-            case .email(let id): EmailDetailView(emailId: id)
-            case .assignee(let id, let name): AssigneeDetailView(assigneeId: id, assigneeName: name)
+                case let .task(id): TaskDetailView(taskId: id)
+                case let .chatSession(id): ChatDetailView(sessionId: id)
+                case let .email(id): EmailDetailView(emailId: id)
+                case let .assignee(id, name): AssigneeDetailView(assigneeId: id, assigneeName: name)
             }
         }
         .task {

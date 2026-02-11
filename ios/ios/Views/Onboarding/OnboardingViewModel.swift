@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 @Observable
 final class OnboardingViewModel {
@@ -16,8 +16,8 @@ final class OnboardingViewModel {
 
     var isValid: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !email.trimmingCharacters(in: .whitespaces).isEmpty &&
-        email.contains("@")
+            !email.trimmingCharacters(in: .whitespaces).isEmpty &&
+            email.contains("@")
     }
 
     func bindingForTool(_ toolName: String) -> Binding<String> {

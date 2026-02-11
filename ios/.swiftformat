@@ -1,0 +1,13 @@
+--swiftversion 5.9
+--indent 4
+--indentcase true
+--trimwhitespace always
+--stripunusedargs closure-only
+--maxwidth 120
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen balanced
+--commas always
+--semicolons never
+--exclude .build,packages/AssistantCore/.build

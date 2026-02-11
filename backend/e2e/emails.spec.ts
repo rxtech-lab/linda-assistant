@@ -36,9 +36,7 @@ test.describe("Emails CRUD", () => {
     emailId = body.id;
   });
 
-  test("GET /api/emails lists emails with pagination", async ({
-    request,
-  }) => {
+  test("GET /api/emails lists emails with pagination", async ({ request }) => {
     const res = await request.get("/api/emails");
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -118,9 +116,7 @@ test.describe("Emails cross-user isolation", () => {
     const res = await request.get("/api/emails", { headers: user2Headers });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
-    const found = body.data.find(
-      (e: { id: string }) => e.id === user1EmailId
-    );
+    const found = body.data.find((e: { id: string }) => e.id === user1EmailId);
     expect(found).toBeUndefined();
   });
 
