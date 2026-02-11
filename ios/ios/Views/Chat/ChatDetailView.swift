@@ -79,6 +79,15 @@ struct ChatDetailView: View {
                                 viewModel.showingConfirmation = true
                             }
                         }
+                        .onAppear {
+                            if !viewModel.displayMessages.isEmpty {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    withAnimation(.easeOut(duration: 0.5)) {
+                                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                                    }
+                                }
+                            }
+                        }
                     }
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }

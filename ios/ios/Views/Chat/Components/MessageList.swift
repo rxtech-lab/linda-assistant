@@ -10,6 +10,9 @@ struct MessageList: View {
     var onConfirmationTap: (() -> Void)?
     var onToolCallTap: ((ToolCallInfo) -> Void)?
 
+    /// Disable animation initially, enable after view has loaded
+    @State private var animationEnabled = false
+
     var body: some View {
         // Historical messages
         ForEach(Array(messages.enumerated()), id: \.element.id) { index, msg in
@@ -23,7 +26,7 @@ struct MessageList: View {
             }
 
             if !msg.content.isEmpty {
-                MessageBubble(message: msg)
+                MessageBubble(message: msg, disableAnimation: !animationEnabled)
             }
 
             ForEach(msg.toolCalls) { toolCall in
@@ -76,6 +79,12 @@ struct MessageList: View {
         Spacer()
             .frame(height: 30)
             .id("bottomAnchor")
+            .onAppear {
+                // Enable animation after initial load
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    animationEnabled = true
+                }
+            }
     }
 }
 

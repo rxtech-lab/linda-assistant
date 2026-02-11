@@ -7,12 +7,14 @@ private let logger = Logger(subsystem: "lindaAssistant", category: "ChatStreamHa
 public final class ChatStreamHandler: @unchecked Sendable {
     public private(set) var isStreaming = false
     public private(set) var isConnected = false
+    public private(set) var isReconnecting = false
     public private(set) var streamedText = ""
     public private(set) var pendingConfirmation: ConfirmationPayload?
     public private(set) var toolCalls: [ToolCallInfo] = []
     public private(set) var error: String?
 
     public var onAssistantMessage: (@MainActor (String, [ToolCallInfo]) -> Void)?
+    public var onReconnected: (@MainActor () async -> Void)?
 
     private let apiClient: APIClient
     private let sseClient: SSEClient
@@ -34,7 +36,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     }
 
     public func sendChatMessage(assigneeId: String, content: String) async {
-        logger.info("sendChatMessage: assigneeId=\(assigneeId), isConnected=\(isConnected)")
+        logger.info("sendChatMessage: assigneeId=\(assigneeId), isConnected=\(self.isConnected)")
         await MainActor.run {
             self.streamedText = ""
             self.pendingConfirmation = nil
@@ -104,7 +106,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     }
 
     public func sendMessage(sessionId: String, content: String) async {
-        logger.info("sendMessage: sessionId=\(sessionId), isConnected=\(isConnected)")
+        logger.info("sendMessage: sessionId=\(sessionId), isConnected=\(self.isConnected)")
         // Reset per-run state on MainActor so @Observable triggers SwiftUI updates
         await MainActor.run {
             self.streamedText = ""
@@ -159,11 +161,24 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
     @MainActor
     private func handleEvent(_ message: SSEMessage) {
+        // Track reconnection transitions
+        if case .reconnecting = message {
+            isReconnecting = true
+        } else if isReconnecting {
+            // First real event after reconnecting -> we're back
+            isReconnecting = false
+            logger.info("handleEvent: reconnected, calling onReconnected")
+            Task { await onReconnected?() }
+        }
+
         switch message {
+            case .reconnecting:
+                logger.info("handleEvent: reconnecting...")
+
             case let .textDelta(payload):
                 if !isStreaming { isStreaming = true }
                 streamedText += payload.text
-                logger.debug("textDelta: accumulated length=\(streamedText.count), isStreaming=\(isStreaming)")
+                logger.debug("textDelta: accumulated length=\(self.streamedText.count), isStreaming=\(self.isStreaming)")
 
             case let .toolCall(payload):
                 logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
@@ -197,7 +212,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 finalizeResponse()
 
             case .done:
-                logger.info("done: streamedText length=\(streamedText.count)")
+                logger.info("done: streamedText length=\(self.streamedText.count)")
                 finalizeResponse()
 
             case let .status(payload):
@@ -217,12 +232,12 @@ public final class ChatStreamHandler: @unchecked Sendable {
     private func finalizeResponse() {
         logger
             .info(
-                "finalizeResponse: streamedText.count=\(streamedText.count), toolCalls.count=\(toolCalls.count), hasCallback=\(onAssistantMessage != nil)"
+                "finalizeResponse: streamedText.count=\(self.streamedText.count), toolCalls.count=\(self.toolCalls.count), hasCallback=\(self.onAssistantMessage != nil)"
             )
         if !streamedText.isEmpty || !toolCalls.isEmpty {
             logger
                 .info(
-                    "finalizeResponse: calling onAssistantMessage with text=\(streamedText.prefix(100)), toolCalls=\(toolCalls.count)"
+                    "finalizeResponse: calling onAssistantMessage with text=\(self.streamedText.prefix(100)), toolCalls=\(self.toolCalls.count)"
                 )
             onAssistantMessage?(streamedText, toolCalls)
         }

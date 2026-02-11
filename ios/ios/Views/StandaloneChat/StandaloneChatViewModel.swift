@@ -31,7 +31,6 @@ final class ChatTabViewModel {
     // MARK: - Initial Load
 
     func load(
-        storedAssigneeId: String,
         apiClient: APIClient,
         authManager: AuthManager,
         eventManager: EventManager
@@ -42,13 +41,7 @@ final class ChatTabViewModel {
         do {
             let response = try await apiClient.listAssignees(limit: 100)
             assignees = response.data
-
-            // Resolve stored assignee or fall back to first
-            if let stored = assignees.first(where: { $0.id == storedAssigneeId }) {
-                selectedAssignee = stored
-            } else {
-                selectedAssignee = assignees.first
-            }
+            selectedAssignee = assignees.first
 
             if let assignee = selectedAssignee {
                 await loadMessages(assigneeId: assignee.id, apiClient: apiClient)

@@ -60,23 +60,36 @@ struct TaskFormSheet: View {
                     }
                 }
 
-                Section {
-                    Button {
-                        Task { await save() }
-                    } label: {
-                        if isSubmitting {
-                            ProgressView().frame(maxWidth: .infinity)
-                        } else {
-                            Text("Save").frame(maxWidth: .infinity)
+                #if os(iOS)
+                    Section {
+                        Button {
+                            Task { await save() }
+                        } label: {
+                            if isSubmitting {
+                                ProgressView().frame(maxWidth: .infinity)
+                            } else {
+                                Text("Save").frame(maxWidth: .infinity)
+                            }
                         }
+                        .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSubmitting)
                     }
-                    .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSubmitting)
-                }
+                #endif
             }
             .navigationTitle(isEdit ? "Edit Task" : "New Task")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    if isSubmitting {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Button("Save") {
+                            Task { await save() }
+                        }
+                        .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
                 }
             }
             .onAppear { populateForEdit() }

@@ -1,14 +1,17 @@
 import AssistantCore
+import os
 import SwiftUI
+
+private let logger = Logger(subsystem: "lindaAssistant", category: "StandaloneChatView")
 
 struct ChatTabView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(EventManager.self) private var eventManager
+    @Environment(NavigationManager.self) private var navigationManager
     @State private var viewModel = ChatTabViewModel()
     @State private var messageText = ""
     @State private var selectedToolCall: ToolCallInfo?
     @State private var errorDismissTask: Task<Void, Never>?
-    @AppStorage("lastChatAssigneeId") private var lastAssigneeId: String = ""
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -83,13 +86,24 @@ struct ChatTabView: View {
                                 }
                                 .padding()
                             }
-                            .onChange(of: viewModel.displayMessages.count) {
-                                withAnimation {
-                                    proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                            .onAppear {
+                                if !viewModel.displayMessages.isEmpty {
+                                    logger
+                                        .debug(
+                                            "ScrollView appeared with \(viewModel.displayMessages.count) messages, scrolling to bottom"
+                                        )
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                        withAnimation(.easeOut(duration: 0.5)) {
+                                            proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                                        }
+                                        logger.debug("Scroll to bottom executed")
+                                    }
                                 }
                             }
                             .onChange(of: viewModel.streamHandler?.streamedText) {
-                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                                }
                             }
                             .onChange(of: viewModel.streamHandler?.toolCalls.count) {
                                 withAnimation {
@@ -107,7 +121,7 @@ struct ChatTabView: View {
                                 }
                             }
                         }
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        .transition(.opacity)
                     }
                 }
                 .animation(.easeInOut(duration: 0.5), value: viewModel.isLoading)
@@ -159,7 +173,6 @@ struct ChatTabView: View {
                     Menu {
                         ForEach(viewModel.assignees) { assignee in
                             Button {
-                                lastAssigneeId = assignee.id
                                 Task {
                                     await viewModel.switchAssignee(
                                         assignee,
@@ -187,6 +200,16 @@ struct ChatTabView: View {
                     }
                 }
             }
+
+            #if os(iOS)
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        navigationManager.showingTabs = true
+                    } label: {
+                        Image(systemName: "square.grid.2x2")
+                    }
+                }
+            #endif
         }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -213,14 +236,10 @@ struct ChatTabView: View {
         }
         .task {
             await viewModel.load(
-                storedAssigneeId: lastAssigneeId,
                 apiClient: apiClient,
                 authManager: authManager,
                 eventManager: eventManager
             )
-            if let id = viewModel.selectedAssignee?.id {
-                lastAssigneeId = id
-            }
         }
         .onDisappear {
             viewModel.disconnect()

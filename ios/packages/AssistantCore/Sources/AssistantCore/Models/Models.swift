@@ -158,6 +158,24 @@ public struct ChatSession: Codable, Identifiable, Sendable {
     public let assignee: AssigneeRef?
     public let createdAt: String?
     public let updatedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, userId, taskId, assigneeId, title, status, messages, assignee, createdAt, updatedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        userId = try container.decode(String.self, forKey: .userId)
+        taskId = try container.decodeIfPresent(String.self, forKey: .taskId)
+        assigneeId = try container.decodeIfPresent(String.self, forKey: .assigneeId)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        status = try container.decodeIfPresent(String.self, forKey: .status)
+        messages = (try? container.decode([ChatMessage].self, forKey: .messages)) ?? []
+        assignee = try container.decodeIfPresent(AssigneeRef.self, forKey: .assignee)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+    }
 }
 
 public struct SessionSummary: Codable, Identifiable, Sendable {

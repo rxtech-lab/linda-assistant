@@ -21,6 +21,16 @@ export function createSSEStream() {
     }
   }
 
+  /** Send an SSE comment as a keepalive ping (ignored by EventSource parsers). */
+  function ping() {
+    if (!controller) return;
+    try {
+      controller.enqueue(encoder.encode(": ping\n\n"));
+    } catch {
+      // Stream closed
+    }
+  }
+
   function close() {
     if (!controller) return;
     try {
@@ -31,7 +41,7 @@ export function createSSEStream() {
     controller = null;
   }
 
-  return { stream, send, close };
+  return { stream, send, ping, close };
 }
 
 export function sseResponse(stream: ReadableStream) {

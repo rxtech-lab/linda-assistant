@@ -208,6 +208,7 @@ export const selectChatSessionSchema = z.object({
     .nullable()
     .optional()
     .describe("Resolved assignee info"),
+  messages: z.array(z.any()).optional().describe("Session messages (included in detail view)"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });

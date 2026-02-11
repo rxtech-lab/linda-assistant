@@ -68,6 +68,7 @@ test.describe("Chat Sessions CRUD", () => {
     chatSessionResponseSchema.parse(body);
     expect(body.id).toBe(sessionId);
     expect(body.assigneeId).toBe(assigneeId);
+    expect(body.messages).toEqual([]);
   });
 
   test("DELETE /api/chat-sessions/:id removes the session", async ({ request }) => {

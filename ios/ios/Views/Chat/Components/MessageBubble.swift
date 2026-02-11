@@ -8,6 +8,7 @@ import SwiftUI
 
 struct MessageBubble: View {
     let message: DisplayMessage
+    var disableAnimation = false
 
     @State private var hasAppeared = false
 
@@ -45,8 +46,12 @@ struct MessageBubble: View {
         .opacity(hasAppeared ? 1 : 0)
         .offset(x: hasAppeared ? 0 : (message.role == .user ? 80 : -80))
         .onAppear {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            if disableAnimation {
                 hasAppeared = true
+            } else {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    hasAppeared = true
+                }
             }
         }
         .accessibilityIdentifier("messageBubble-\(message.id)")
