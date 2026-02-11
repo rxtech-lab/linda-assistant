@@ -329,9 +329,11 @@ public struct Confirmation: Codable, Identifiable, Sendable {
 
 public struct ResolveConfirmation: Codable, Sendable {
     public let action: String
+    public let alwaysAllow: Bool?
 
-    public init(action: String) {
+    public init(action: String, alwaysAllow: Bool? = nil) {
         self.action = action
+        self.alwaysAllow = alwaysAllow
     }
 }
 

@@ -4,9 +4,10 @@ import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
-export const updateTaskTool = (userId: string) =>
+export const updateTaskTool = (userId: string, needsApproval: boolean) =>
   tool({
     description: "Update an existing task's status or details",
+    needsApproval,
     inputSchema: z.object({
       taskId: z.string().describe("ID of the task to update"),
       title: z.string().optional().describe("New task title"),

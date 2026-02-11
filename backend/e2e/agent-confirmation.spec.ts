@@ -104,7 +104,6 @@ test.describe("Agent Confirmation", () => {
     const toolResultEvent = resumeEvents.find((e) => e.event === "tool-result");
     expect(toolResultEvent?.data.toolCallId).toBeTruthy();
     expect(toolResultEvent?.data.toolName).toBe("send_email");
-    expect(toolResultEvent?.data.approveStatus).toBe("confirmed");
 
     // tool-result should come before text-delta
     const toolResultIdx = resumeEvents.findIndex((e) => e.event === "tool-result");
@@ -123,7 +122,7 @@ test.describe("Agent Confirmation", () => {
     expect(finalBody.status).toBe("stopped");
   });
 
-  test("send_email pauses, stops on reject", async ({ request, baseURL }) => {
+  test("send_email pauses, resumes on reject", async ({ request, baseURL }) => {
     // Create session
     const sessionRes = await request.post("/api/chat-sessions", {
       data: { assigneeId },
@@ -158,24 +157,30 @@ test.describe("Agent Confirmation", () => {
     const confirmationId = result.rows[0].id as string;
     client.close();
 
-    // Reject the confirmation (no worker task — rejection updates DB directly)
+    // Subscribe to SSE before rejecting — rejection now resumes the agent
+    const rejectEventsPromise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+    });
+    await new Promise((r) => setTimeout(r, SUB_DELAY));
+
+    // Reject the confirmation
     const resolveRes = await request.post(`/api/confirmations/${confirmationId}/resolve`, {
       data: { action: "reject" },
     });
     expect(resolveRes.ok()).toBeTruthy();
     resolveConfirmationResponseSchema.parse(await resolveRes.json());
 
+    // Agent should resume, model acknowledges rejection, then complete
+    const rejectEvents = await rejectEventsPromise;
+    const rejectEventTypes = rejectEvents.map((e) => e.event);
+
+    expect(rejectEventTypes).toContain("text-delta");
+    expect(rejectEventTypes).toContain("done");
+
     // Session should be stopped
     const finalSession = await request.get(`/api/chat-sessions/${sessionId}`);
     const finalBody = await finalSession.json();
     expect(finalBody.status).toBe("stopped");
-
-    // Check that last message has rejection info
-    const messages = finalBody.messages;
-    const lastMsg = messages[messages.length - 1];
-    expect(lastMsg.role).toBe("tool");
-    const toolResult = lastMsg.content[0];
-    expect(toolResult.output.value.rejected).toBe(true);
   });
 
   test("reject while connected to stream delivers events", async ({ request, baseURL }) => {
@@ -222,17 +227,14 @@ test.describe("Agent Confirmation", () => {
     });
     expect(resolveRes.ok()).toBeTruthy();
 
-    // Await rejection events via SSE
+    // Agent resumes, model acknowledges rejection, then completes
     const rejectEvents = await rejectEventsPromise;
     const rejectEventTypes = rejectEvents.map((e) => e.event);
 
-    expect(rejectEventTypes).toContain("tool-result");
+    // Should see text from model acknowledging rejection, then done
+    expect(rejectEventTypes).toContain("text-delta");
     expect(rejectEventTypes).toContain("status");
-
-    // Verify tool-result has rejected flag
-    const toolResultEvent = rejectEvents.find((e) => e.event === "tool-result");
-    expect(toolResultEvent?.data.approveStatus).toBe("rejected");
-    expect(toolResultEvent?.data.output.rejected).toBe(true);
+    expect(rejectEventTypes).toContain("done");
 
     // Verify status is stopped
     const statusEvent = rejectEvents.find(
@@ -276,13 +278,16 @@ test.describe("Agent Confirmation", () => {
     const confirmationId = result.rows[0].id as string;
     client.close();
 
-    // Reject WITHOUT an SSE connection open
+    // Reject WITHOUT an SSE connection — agent resumes in background
     const resolveRes = await request.post(`/api/confirmations/${confirmationId}/resolve`, {
       data: { action: "reject" },
     });
     expect(resolveRes.ok()).toBeTruthy();
 
-    // Now connect to SSE AFTER rejection
+    // Wait for the agent to finish in the background
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // Now connect to SSE AFTER agent has finished
     const lateEvents = await consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
       headers: { authorization: "Bearer e2e-test-token" },
       stopOnEvent: "status",

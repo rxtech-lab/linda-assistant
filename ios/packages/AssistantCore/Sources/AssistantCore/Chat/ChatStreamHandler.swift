@@ -73,7 +73,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     }
 
     public func sendMessage(sessionId: String, content: String) async {
-        logger.info("sendMessage: sessionId=\(sessionId), isConnected=\(isConnected)")
+        logger.info("sendMessage: sessionId=\(sessionId), isConnected=\(self.isConnected)")
         // Reset per-run state on MainActor so @Observable triggers SwiftUI updates
         await MainActor.run {
             self.streamedText = ""
@@ -96,9 +96,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
         }
     }
 
-    public func resolveConfirmation(confirmationId: String, action: String) async {
+    public func resolveConfirmation(confirmationId: String, action: String, alwaysAllow: Bool = false) async {
         do {
-            let body = ResolveConfirmation(action: action)
+            let body = ResolveConfirmation(action: action, alwaysAllow: alwaysAllow ? true : nil)
             let response = try await apiClient.resolveConfirmation(id: confirmationId, body)
             pendingConfirmation = nil
             eventManager.emit(.confirmationResolved(response.confirmationId, response.action))
@@ -110,6 +110,11 @@ public final class ChatStreamHandler: @unchecked Sendable {
     @MainActor
     public func setPendingConfirmation(_ payload: ConfirmationPayload) {
         pendingConfirmation = payload
+    }
+
+    @MainActor
+    public func clearError() {
+        error = nil
     }
 
     @MainActor
@@ -127,7 +132,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
             case let .textDelta(payload):
                 if !isStreaming { isStreaming = true }
                 streamedText += payload.text
-                logger.debug("textDelta: accumulated length=\(streamedText.count), isStreaming=\(isStreaming)")
+                logger.debug("textDelta: accumulated length=\(self.streamedText.count), isStreaming=\(self.isStreaming)")
 
             case let .toolCall(payload):
                 logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
@@ -158,9 +163,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
             case let .error(payload):
                 logger.error("SSE error event: \(payload.error)")
                 error = payload.error
+                finalizeResponse()
 
             case .done:
-                logger.info("done: streamedText length=\(streamedText.count)")
+                logger.info("done: streamedText length=\(self.streamedText.count)")
                 finalizeResponse()
 
             case let .status(payload):
@@ -180,12 +186,12 @@ public final class ChatStreamHandler: @unchecked Sendable {
     private func finalizeResponse() {
         logger
             .info(
-                "finalizeResponse: streamedText.count=\(streamedText.count), toolCalls.count=\(toolCalls.count), hasCallback=\(onAssistantMessage != nil)"
+                "finalizeResponse: streamedText.count=\(self.streamedText.count), toolCalls.count=\(self.toolCalls.count), hasCallback=\(self.onAssistantMessage != nil)"
             )
         if !streamedText.isEmpty || !toolCalls.isEmpty {
             logger
                 .info(
-                    "finalizeResponse: calling onAssistantMessage with text=\(streamedText.prefix(100)), toolCalls=\(toolCalls.count)"
+                    "finalizeResponse: calling onAssistantMessage with text=\(self.streamedText.prefix(100)), toolCalls=\(self.toolCalls.count)"
                 )
             onAssistantMessage?(streamedText, toolCalls)
         }

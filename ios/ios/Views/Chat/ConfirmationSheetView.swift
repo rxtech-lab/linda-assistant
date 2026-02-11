@@ -4,7 +4,10 @@ import SwiftUI
 
 struct ConfirmationSheetView: View {
     let confirmation: ConfirmationPayload
-    let onResolve: (String) -> Void
+    let onResolve: (String, Bool) -> Void
+
+    @State private var alwaysAllow = false
+    @State private var isLoading = false
 
     var body: some View {
         NavigationStack {
@@ -17,6 +20,8 @@ struct ConfirmationSheetView: View {
                     } else {
                         emptyDetailsSection
                     }
+
+                    alwaysAllowSection
 
                     actionSection
                 }
@@ -57,7 +62,7 @@ struct ConfirmationSheetView: View {
                 "notify": .bool(true),
             ]
         ),
-        onResolve: { _ in }
+        onResolve: { _, _ in }
     )
 }
 
@@ -138,27 +143,62 @@ private extension ConfirmationSheetView {
         }
     }
 
+    var alwaysAllowSection: some View {
+        Toggle(isOn: $alwaysAllow) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Always allow")
+                    .font(.body.weight(.medium))
+                Text("Skip confirmation for \(confirmation.toolName.replacingOccurrences(of: "_", with: " ")) in the future")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .tint(.orange)
+        .padding(16)
+        .background(.background)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(Color.primary.opacity(0.08))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .disabled(isLoading)
+    }
+
     var actionSection: some View {
         VStack(spacing: 12) {
             Button {
                 authenticateWithBiometrics()
             } label: {
-                Label("Confirm with Face ID", systemImage: "faceid")
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    if isLoading {
+                        ProgressView()
+                            .tint(.white)
+                    }
+                    Label("Confirm with Face ID", systemImage: "faceid")
+                }
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .tint(.orange)
             .controlSize(.large)
+            .disabled(isLoading)
             .accessibilityIdentifier("confirmButton")
 
             Button(role: .destructive) {
-                onResolve("reject")
+                isLoading = true
+                onResolve("reject", false)
             } label: {
-                Label("Reject", systemImage: "xmark.circle")
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    if isLoading {
+                        ProgressView()
+                    }
+                    Label("Reject", systemImage: "xmark.circle")
+                }
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
             .controlSize(.large)
+            .disabled(isLoading)
             .accessibilityIdentifier("rejectButton")
         }
         .padding(.top, 4)
@@ -174,7 +214,8 @@ private extension ConfirmationSheetView {
             context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, _ in
                 DispatchQueue.main.async {
                     if success {
-                        onResolve("confirm")
+                        isLoading = true
+                        onResolve("confirm", alwaysAllow)
                     }
                 }
             }
@@ -186,13 +227,15 @@ private extension ConfirmationSheetView {
                 context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, _ in
                     DispatchQueue.main.async {
                         if success {
-                            onResolve("confirm")
+                            isLoading = true
+                            onResolve("confirm", alwaysAllow)
                         }
                     }
                 }
             } else {
                 // No authentication available, proceed without
-                onResolve("confirm")
+                isLoading = true
+                onResolve("confirm", alwaysAllow)
             }
         }
     }
@@ -212,6 +255,6 @@ private extension ConfirmationSheetView {
                 "notify": .bool(true),
             ]
         ),
-        onResolve: { _ in }
+        onResolve: { _, _ in }
     )
 }

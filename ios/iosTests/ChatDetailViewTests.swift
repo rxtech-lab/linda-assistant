@@ -172,7 +172,7 @@ final class ConfirmationSheetTests: XCTestCase {
         )
         let sut = ConfirmationSheetView(
             confirmation: payload,
-            onResolve: { _ in }
+            onResolve: { _, _ in }
         )
 
         let confirmBtn = try sut.inspect().find(viewWithAccessibilityIdentifier: "confirmButton")
@@ -191,7 +191,7 @@ final class ConfirmationSheetTests: XCTestCase {
         )
         let sut = ConfirmationSheetView(
             confirmation: payload,
-            onResolve: { _ in }
+            onResolve: { _, _ in }
         )
 
         let texts = try sut.inspect().findAll(ViewType.Text.self).compactMap { try? $0.string() }

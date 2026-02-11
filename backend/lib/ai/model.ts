@@ -7,18 +7,42 @@ const MOCK_USAGE = {
   outputTokens: { total: 20, text: 20, reasoning: undefined },
 } as const;
 
-function buildStreamChunks(messages: unknown[]): LanguageModelV3StreamPart[] {
-  // Look for tool-result in prompt (resumed after confirmation)
-  const hasToolResult = messages.some(
+function buildStreamChunks(
+  messages: unknown[],
+  availableTools?: Set<string>,
+): LanguageModelV3StreamPart[] {
+  // Check for tool-approval-response in messages (resumed after confirmation)
+  const hasApprovalResponse = messages.some(
     (m: any) =>
-      m.role === "tool" ||
-      (Array.isArray(m.content) && m.content.some((c: any) => c.type === "tool-result")),
+      m.role === "tool" &&
+      Array.isArray(m.content) &&
+      m.content.some((c: any) => c.type === "tool-approval-response"),
   );
 
-  if (hasToolResult) {
+  // Check for tool-result in prompt (resumed after auto-confirm execution)
+  const hasToolResult = messages.some(
+    (m: any) =>
+      m.role === "tool" &&
+      Array.isArray(m.content) &&
+      m.content.some((c: any) => c.type === "tool-result"),
+  );
+
+  if (hasApprovalResponse || hasToolResult) {
+    // Check if this is a rejection (approval response with approved: false)
+    const isRejection = messages.some(
+      (m: any) =>
+        m.role === "tool" &&
+        Array.isArray(m.content) &&
+        m.content.some((c: any) => c.type === "tool-approval-response" && c.approved === false),
+    );
+
+    const text = isRejection
+      ? "I understand, I won't do that."
+      : "Email sent successfully.";
+
     return [
       { type: "text-start", id: "text-1" },
-      { type: "text-delta", id: "text-1", delta: "Email sent successfully." },
+      { type: "text-delta", id: "text-1", delta: text },
       { type: "text-end", id: "text-1" },
       { type: "finish", finishReason: { unified: "stop", raw: undefined }, usage: MOCK_USAGE },
     ];
@@ -36,8 +60,8 @@ function buildStreamChunks(messages: unknown[]): LanguageModelV3StreamPart[] {
         ? (lastUserMsg as any).content
         : "";
 
-  // Scenario: send_email tool call
-  if (lastText.includes("[TOOL:send_email]")) {
+  // Scenario: send_email tool call (only if tool is available)
+  if (lastText.includes("[TOOL:send_email]") && (!availableTools || availableTools.has("send_email"))) {
     const input = JSON.stringify({
       to: "test@example.com",
       subject: "Test Email",
@@ -56,8 +80,8 @@ function buildStreamChunks(messages: unknown[]): LanguageModelV3StreamPart[] {
     ];
   }
 
-  // Scenario: create_task tool call
-  if (lastText.includes("[TOOL:create_task]")) {
+  // Scenario: create_task tool call (only if tool is available)
+  if (lastText.includes("[TOOL:create_task]") && (!availableTools || availableTools.has("create_task"))) {
     const input = JSON.stringify({
       title: "Test Task",
       description: "A test task created by the agent",
@@ -76,7 +100,7 @@ function buildStreamChunks(messages: unknown[]): LanguageModelV3StreamPart[] {
   }
 
   // Scenario: update_task tool call (with non-existent id to trigger error)
-  if (lastText.includes("[TOOL:update_task]")) {
+  if (lastText.includes("[TOOL:update_task]") && (!availableTools || availableTools.has("update_task"))) {
     const input = JSON.stringify({
       taskId: "non-existent-id-12345",
       status: "finished",
@@ -117,9 +141,14 @@ export function getModelProvider(modelId: string) {
         usage: MOCK_USAGE,
         warnings: [],
       }),
-      doStream: async ({ prompt }) => ({
+      doStream: async ({ prompt, tools: modelTools }) => ({
         stream: simulateReadableStream({
-          chunks: buildStreamChunks(prompt as unknown[]),
+          chunks: buildStreamChunks(
+            prompt as unknown[],
+            modelTools
+              ? new Set((modelTools as Array<{ name: string }>).map((t) => t.name))
+              : undefined,
+          ),
           chunkDelayInMs: null,
           initialDelayInMs: null,
         }),

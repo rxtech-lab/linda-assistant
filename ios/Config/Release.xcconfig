@@ -5,7 +5,7 @@
 #include? "Secrets.xcconfig"
 
 // API Configuration - Production
-API_BASE_URL = https:/$()/api.linda.rxlab.app
+API_BASE_URL = https:/$()/linda.rxlab.app
 
 // OAuth Configuration - Production
 AUTH_ISSUER = https:/$()/auth.rxlab.app

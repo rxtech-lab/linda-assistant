@@ -30,6 +30,7 @@ CREATE TABLE `confirmations` (
 	`chat_session_id` text NOT NULL,
 	`tool_call_id` text NOT NULL,
 	`tool_name` text NOT NULL,
+	`approval_id` text NOT NULL,
 	`parameters` text,
 	`status` text DEFAULT 'pending',
 	`created_at` text DEFAULT (datetime('now')),

@@ -32,7 +32,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!confirmation) return errorJson("Confirmation not found", 404);
   if (confirmation.status !== "pending") return errorJson("Confirmation already resolved", 409);
 
-  const result = await resolveConfirmation(id, parsed.data.action);
+  const result = await resolveConfirmation(id, parsed.data.action, {
+    alwaysAllow: parsed.data.alwaysAllow,
+  });
 
   return successJson(result);
 }

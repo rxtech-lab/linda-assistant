@@ -97,7 +97,7 @@ struct MessageInput: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(
                     isStreaming ? animatedBorderGradient : AnyShapeStyle(inputBorderColor),
-                    lineWidth: isStreaming ? 2.5 : 1
+                    lineWidth: isStreaming ? 0 : 1
                 )
                 .blur(radius: isStreaming ? 1 : 0)
         )

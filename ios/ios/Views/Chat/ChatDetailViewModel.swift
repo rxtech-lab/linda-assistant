@@ -14,6 +14,15 @@ final class ChatDetailViewModel {
     var showingConfirmation = false
     var assigneeName: String?
 
+    var displayError: String? {
+        streamHandler?.error ?? error
+    }
+
+    func clearError() {
+        streamHandler?.clearError()
+        error = nil
+    }
+
     func loadSession(id: String, apiClient: APIClient, authManager: AuthManager, eventManager: EventManager) async {
         logger.info("loadSession started for id=\(id)")
         isLoading = true

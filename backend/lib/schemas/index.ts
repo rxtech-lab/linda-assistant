@@ -160,12 +160,27 @@ const toolResultPartSchema = z.object({
   isError: z.boolean().optional().describe("Whether this tool result is an error"),
 });
 
+const toolApprovalRequestPartSchema = z.object({
+  type: z.literal("tool-approval-request").describe("Tool approval request part"),
+  approvalId: z.string().describe("Unique approval request ID"),
+  toolCallId: z.string().describe("Tool call that requires approval"),
+});
+
+const toolApprovalResponsePartSchema = z.object({
+  type: z.literal("tool-approval-response").describe("Tool approval response part"),
+  approvalId: z.string().describe("Matching approval request ID"),
+  approved: z.boolean().describe("Whether the tool call was approved"),
+  reason: z.string().optional().describe("Reason for denial"),
+});
+
 const contentPartSchema = z.discriminatedUnion("type", [
   textPartSchema,
   imagePartSchema,
   filePartSchema,
   toolCallPartSchema,
   toolResultPartSchema,
+  toolApprovalRequestPartSchema,
+  toolApprovalResponsePartSchema,
 ]);
 
 export const chatMessageSchema = z.object({
@@ -223,6 +238,7 @@ export const selectConfirmationSchema = z.object({
   chatSessionId: z.string().describe("Associated chat session ID"),
   toolCallId: z.string().describe("Tool call that triggered this confirmation"),
   toolName: z.string().describe("Name of the tool requiring confirmation"),
+  approvalId: z.string().describe("SDK approval ID for tool-approval-response matching"),
   parameters: z.record(z.unknown()).nullable().describe("Tool call parameters"),
   status: z.string().nullable().describe("Confirmation status (pending/confirmed/rejected)"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
@@ -231,6 +247,10 @@ export const selectConfirmationSchema = z.object({
 
 export const resolveConfirmationSchema = z.object({
   action: z.enum(["confirm", "reject"]).describe("Whether to confirm or reject the tool call"),
+  alwaysAllow: z
+    .boolean()
+    .optional()
+    .describe("If true, update assignee permissions to auto-confirm this tool in the future"),
 });
 
 // ---- Devices ----

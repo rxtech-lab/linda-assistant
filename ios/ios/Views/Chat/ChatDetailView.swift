@@ -8,6 +8,7 @@ struct ChatDetailView: View {
     @State private var viewModel = ChatDetailViewModel()
     @State private var messageText = ""
     @State private var selectedToolCall: ToolCallInfo?
+    @State private var errorDismissTask: Task<Void, Never>?
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -83,6 +84,28 @@ struct ChatDetailView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.5), value: viewModel.isLoading)
+            .overlay(alignment: .top) {
+                if let errorMessage = viewModel.displayError {
+                    ErrorBannerView(message: errorMessage) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            viewModel.clearError()
+                        }
+                    }
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: viewModel.displayError != nil)
+            .onChange(of: viewModel.displayError) {
+                errorDismissTask?.cancel()
+                if viewModel.displayError != nil {
+                    errorDismissTask = Task {
+                        try? await Task.sleep(for: .seconds(6))
+                        guard !Task.isCancelled else { return }
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            viewModel.clearError()
+                        }
+                    }
+                }
+            }
 
             Divider()
 
@@ -105,11 +128,12 @@ struct ChatDetailView: View {
                 if let confirmation = viewModel.streamHandler?.pendingConfirmation {
                     ConfirmationSheetView(
                         confirmation: confirmation,
-                        onResolve: { action in
+                        onResolve: { action, alwaysAllow in
                             Task {
                                 await viewModel.streamHandler?.resolveConfirmation(
                                     confirmationId: confirmation.confirmationId,
-                                    action: action
+                                    action: action,
+                                    alwaysAllow: alwaysAllow
                                 )
                             }
                             viewModel.showingConfirmation = false
