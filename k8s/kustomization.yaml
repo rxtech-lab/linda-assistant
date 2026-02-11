@@ -13,6 +13,8 @@ resources:
   - worker-deployment.yaml
   - rabbitmq-deployment.yaml
   - rabbitmq-service.yaml
+  - mem0-deployment.yaml
+  - mem0-service.yaml
   - ingress.yaml
 
 namespace: linda
@@ -21,4 +23,6 @@ images:
   - name: ghcr.io/rxtech-lab/linda-frontend
     newTag: latest
   - name: ghcr.io/rxtech-lab/linda-worker
+    newTag: latest
+  - name: ghcr.io/rxtech-lab/linda-mem0
     newTag: latest

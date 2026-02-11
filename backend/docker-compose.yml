@@ -21,7 +21,27 @@ services:
       SRH_MODE: env
       SRH_TOKEN: token
       SRH_CONNECTION_STRING: "redis://redis:6379"
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+  mem0:
+    build:
+      context: ../mem0
+    ports:
+      - "8000:8000"
+    environment:
+      - MEM0_VECTOR_STORE_PROVIDER=qdrant
+      - QDRANT_HOST=qdrant
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - MEM0_LLM_MODEL=${MEM0_LLM_MODEL:-gpt-4.1-nano-2025-04-14}
+    depends_on:
+      - qdrant
 
 volumes:
   rabbitmq_data:
+  qdrant_data:
 

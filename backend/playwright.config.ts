@@ -27,7 +27,7 @@ export default defineConfig({
   webServer: {
     command: "bun next dev --port 3001",
     url: "http://localhost:3001",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 30000,
     env: {
       IS_E2E: "true",
