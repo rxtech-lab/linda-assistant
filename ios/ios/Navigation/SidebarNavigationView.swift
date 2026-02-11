@@ -25,6 +25,10 @@ struct SidebarNavigationView: View {
                     NavigationStack(path: $nav.tasksPath) {
                         TaskListView()
                     }
+                case .chat:
+                    NavigationStack(path: $nav.chatPath) {
+                        ChatTabView()
+                    }
                 case .emails:
                     NavigationStack(path: $nav.emailsPath) {
                         EmailListView()

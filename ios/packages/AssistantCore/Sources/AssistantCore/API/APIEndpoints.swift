@@ -109,6 +109,24 @@ public extension APIClient {
         try await request(path: "chat-sessions/\(sessionId)/messages", method: "POST", body: body)
     }
 
+    // MARK: - Chat (assignee-scoped)
+
+    func sendChatMessage(assigneeId: String, _ body: SendMessage) async throws -> QueuedResponse {
+        try await request(path: "chat/\(assigneeId)/message", method: "POST", body: body)
+    }
+
+    func getChatMessages(
+        assigneeId: String,
+        limit: Int = 100,
+        before: String? = nil
+    ) async throws -> ChatMessagesResponse {
+        var queryItems = [URLQueryItem(name: "limit", value: "\(limit)")]
+        if let before {
+            queryItems.append(URLQueryItem(name: "before", value: before))
+        }
+        return try await request(path: "chat/\(assigneeId)/messages", queryItems: queryItems)
+    }
+
     // MARK: - Emails
 
     func listEmails(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Email> {

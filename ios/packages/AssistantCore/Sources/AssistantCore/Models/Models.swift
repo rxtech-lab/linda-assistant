@@ -287,6 +287,13 @@ private struct ContentPart: Codable {
     let error: String?
 }
 
+// MARK: - Chat Messages Response (assignee-scoped)
+
+public struct ChatMessagesResponse: Codable, Sendable {
+    public let messages: [ChatMessage]
+    public let nextCursor: String?
+}
+
 // MARK: - Email
 
 public struct Email: Codable, Identifiable, Sendable {

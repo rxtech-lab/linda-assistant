@@ -148,9 +148,11 @@ private extension ConfirmationSheetView {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Always allow")
                     .font(.body.weight(.medium))
-                Text("Skip confirmation for \(confirmation.toolName.replacingOccurrences(of: "_", with: " ")) in the future")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(
+                    "Skip confirmation for \(confirmation.toolName.replacingOccurrences(of: "_", with: " ")) in the future"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
         .tint(.orange)

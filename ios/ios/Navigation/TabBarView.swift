@@ -13,6 +13,12 @@ struct TabBarView: View {
                 }
             }
 
+            Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: .chat) {
+                NavigationStack(path: $nav.chatPath) {
+                    ChatTabView()
+                }
+            }
+
             Tab("Email", systemImage: "envelope", value: .emails) {
                 NavigationStack(path: $nav.emailsPath) {
                     EmailListView()

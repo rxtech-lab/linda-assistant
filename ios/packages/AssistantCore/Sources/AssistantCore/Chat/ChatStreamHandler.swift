@@ -25,14 +25,45 @@ public final class ChatStreamHandler: @unchecked Sendable {
         self.eventManager = eventManager
     }
 
+    public func connectByAssignee(assigneeId: String) async {
+        await connectToPath("chat/\(assigneeId)/stream")
+    }
+
     public func connect(sessionId: String) async {
+        await connectToPath("chat-sessions/\(sessionId)/stream")
+    }
+
+    public func sendChatMessage(assigneeId: String, content: String) async {
+        logger.info("sendChatMessage: assigneeId=\(assigneeId), isConnected=\(isConnected)")
+        await MainActor.run {
+            self.streamedText = ""
+            self.pendingConfirmation = nil
+            self.toolCalls = []
+            self.error = nil
+            self.isStreaming = true
+        }
+
+        do {
+            _ = try await apiClient.sendChatMessage(assigneeId: assigneeId, SendMessage(content: content))
+            logger.info("sendChatMessage: API call succeeded")
+        } catch {
+            logger.error("sendChatMessage error: \(error)")
+            await MainActor.run {
+                self.error = error.localizedDescription
+                self.isStreaming = false
+            }
+            eventManager.emit(.error(message: error.localizedDescription))
+        }
+    }
+
+    private func connectToPath(_ path: String) async {
         guard !isConnected else {
             logger.info("connect: already connected")
             return
         }
 
         do {
-            let request = try await apiClient.buildSSERequest(path: "chat-sessions/\(sessionId)/stream")
+            let request = try await apiClient.buildSSERequest(path: path)
             guard let url = request.url else {
                 throw APIError.invalidResponse
             }
@@ -73,7 +104,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     }
 
     public func sendMessage(sessionId: String, content: String) async {
-        logger.info("sendMessage: sessionId=\(sessionId), isConnected=\(self.isConnected)")
+        logger.info("sendMessage: sessionId=\(sessionId), isConnected=\(isConnected)")
         // Reset per-run state on MainActor so @Observable triggers SwiftUI updates
         await MainActor.run {
             self.streamedText = ""
@@ -132,7 +163,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
             case let .textDelta(payload):
                 if !isStreaming { isStreaming = true }
                 streamedText += payload.text
-                logger.debug("textDelta: accumulated length=\(self.streamedText.count), isStreaming=\(self.isStreaming)")
+                logger.debug("textDelta: accumulated length=\(streamedText.count), isStreaming=\(isStreaming)")
 
             case let .toolCall(payload):
                 logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
@@ -166,7 +197,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 finalizeResponse()
 
             case .done:
-                logger.info("done: streamedText length=\(self.streamedText.count)")
+                logger.info("done: streamedText length=\(streamedText.count)")
                 finalizeResponse()
 
             case let .status(payload):
@@ -186,12 +217,12 @@ public final class ChatStreamHandler: @unchecked Sendable {
     private func finalizeResponse() {
         logger
             .info(
-                "finalizeResponse: streamedText.count=\(self.streamedText.count), toolCalls.count=\(self.toolCalls.count), hasCallback=\(self.onAssistantMessage != nil)"
+                "finalizeResponse: streamedText.count=\(streamedText.count), toolCalls.count=\(toolCalls.count), hasCallback=\(onAssistantMessage != nil)"
             )
         if !streamedText.isEmpty || !toolCalls.isEmpty {
             logger
                 .info(
-                    "finalizeResponse: calling onAssistantMessage with text=\(self.streamedText.prefix(100)), toolCalls=\(self.toolCalls.count)"
+                    "finalizeResponse: calling onAssistantMessage with text=\(streamedText.prefix(100)), toolCalls=\(toolCalls.count)"
                 )
             onAssistantMessage?(streamedText, toolCalls)
         }
