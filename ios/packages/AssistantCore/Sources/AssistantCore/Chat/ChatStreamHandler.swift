@@ -48,7 +48,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
                         guard let self else { return }
                         let message = event.parse()
                         logger.debug("SSE event: type=\(event.type.rawValue) data=\(event.data.prefix(100))")
-                        await self.handleEvent(message)
+                        await handleEvent(message)
                     }
                     logger.info("SSE stream ended normally")
                 } catch {
@@ -73,7 +73,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     }
 
     public func sendMessage(sessionId: String, content: String) async {
-        logger.info("sendMessage: sessionId=\(sessionId), isConnected=\(self.isConnected)")
+        logger.info("sendMessage: sessionId=\(sessionId), isConnected=\(isConnected)")
         // Reset per-run state on MainActor so @Observable triggers SwiftUI updates
         await MainActor.run {
             self.streamedText = ""
@@ -124,63 +124,69 @@ public final class ChatStreamHandler: @unchecked Sendable {
     @MainActor
     private func handleEvent(_ message: SSEMessage) {
         switch message {
-        case .textDelta(let payload):
-            if !isStreaming { isStreaming = true }
-            streamedText += payload.text
-            logger.debug("textDelta: accumulated length=\(self.streamedText.count), isStreaming=\(self.isStreaming)")
+            case let .textDelta(payload):
+                if !isStreaming { isStreaming = true }
+                streamedText += payload.text
+                logger.debug("textDelta: accumulated length=\(streamedText.count), isStreaming=\(isStreaming)")
 
-        case .toolCall(let payload):
-            logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
-            let info = ToolCallInfo(
-                toolCallId: payload.toolCallId,
-                toolName: payload.toolName,
-                input: payload.input,
-                status: .running
-            )
-            toolCalls.append(info)
+            case let .toolCall(payload):
+                logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
+                let info = ToolCallInfo(
+                    toolCallId: payload.toolCallId,
+                    toolName: payload.toolName,
+                    input: payload.input,
+                    status: .running
+                )
+                toolCalls.append(info)
 
-        case .toolResult(let payload):
-            logger.info("toolResult: toolCallId=\(payload.toolCallId), isError=\(payload.isError ?? false)")
-            if let index = toolCalls.firstIndex(where: { $0.toolCallId == payload.toolCallId }) {
-                if payload.isError == true {
-                    toolCalls[index].status = .failed
-                    toolCalls[index].errorMessage = payload.error
-                } else {
-                    toolCalls[index].status = .completed
+            case let .toolResult(payload):
+                logger.info("toolResult: toolCallId=\(payload.toolCallId), isError=\(payload.isError ?? false)")
+                if let index = toolCalls.firstIndex(where: { $0.toolCallId == payload.toolCallId }) {
+                    if payload.isError == true {
+                        toolCalls[index].status = .failed
+                        toolCalls[index].errorMessage = payload.error
+                    } else {
+                        toolCalls[index].status = .completed
+                    }
+                    toolCalls[index].result = payload.output
                 }
-                toolCalls[index].result = payload.output
-            }
 
-        case .confirmationRequired(let payload):
-            logger.info("confirmationRequired: \(payload.toolName) id=\(payload.confirmationId)")
-            pendingConfirmation = payload
+            case let .confirmationRequired(payload):
+                logger.info("confirmationRequired: \(payload.toolName) id=\(payload.confirmationId)")
+                pendingConfirmation = payload
 
-        case .error(let payload):
-            logger.error("SSE error event: \(payload.error)")
-            self.error = payload.error
+            case let .error(payload):
+                logger.error("SSE error event: \(payload.error)")
+                error = payload.error
 
-        case .done:
-            logger.info("done: streamedText length=\(self.streamedText.count)")
-            finalizeResponse()
-
-        case .status(let payload):
-            logger.info("status: \(payload.status)")
-            if payload.status == "in_progress" {
-                isStreaming = true
-            } else if payload.status == "stopped" {
+            case .done:
+                logger.info("done: streamedText length=\(streamedText.count)")
                 finalizeResponse()
-            }
 
-        case .unknown(let data):
-            logger.warning("unknown event, data=\(data.prefix(200))")
+            case let .status(payload):
+                logger.info("status: \(payload.status)")
+                if payload.status == "in_progress" {
+                    isStreaming = true
+                } else if payload.status == "stopped" {
+                    finalizeResponse()
+                }
+
+            case let .unknown(data):
+                logger.warning("unknown event, data=\(data.prefix(200))")
         }
     }
 
     @MainActor
     private func finalizeResponse() {
-        logger.info("finalizeResponse: streamedText.count=\(self.streamedText.count), toolCalls.count=\(self.toolCalls.count), hasCallback=\(self.onAssistantMessage != nil)")
+        logger
+            .info(
+                "finalizeResponse: streamedText.count=\(streamedText.count), toolCalls.count=\(toolCalls.count), hasCallback=\(onAssistantMessage != nil)"
+            )
         if !streamedText.isEmpty || !toolCalls.isEmpty {
-            logger.info("finalizeResponse: calling onAssistantMessage with text=\(self.streamedText.prefix(100)), toolCalls=\(self.toolCalls.count)")
+            logger
+                .info(
+                    "finalizeResponse: calling onAssistantMessage with text=\(streamedText.prefix(100)), toolCalls=\(toolCalls.count)"
+                )
             onAssistantMessage?(streamedText, toolCalls)
         }
         streamedText = ""
@@ -201,7 +207,14 @@ public struct ToolCallInfo: Identifiable, Sendable {
     public var result: AnyCodable?
     public var errorMessage: String?
 
-    public init(toolCallId: String, toolName: String, input: [String: AnyCodable]?, status: ToolCallStatus, result: AnyCodable? = nil, errorMessage: String? = nil) {
+    public init(
+        toolCallId: String,
+        toolName: String,
+        input: [String: AnyCodable]?,
+        status: ToolCallStatus,
+        result: AnyCodable? = nil,
+        errorMessage: String? = nil
+    ) {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.input = input
@@ -222,9 +235,9 @@ public enum ToolCallStatus: Sendable, Equatable {
     public static func from(confirmation: ToolCallConfirmation?) -> ToolCallStatus {
         guard let status = confirmation?.status else { return .completed }
         switch status {
-        case "rejected": return .rejected
-        case "pending": return .pendingConfirmation
-        default: return .completed
+            case "rejected": return .rejected
+            case "pending": return .pendingConfirmation
+            default: return .completed
         }
     }
 }

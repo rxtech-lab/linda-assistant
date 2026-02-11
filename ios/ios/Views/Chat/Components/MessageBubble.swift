@@ -1,14 +1,14 @@
 import SwiftUI
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 #if canImport(AppKit)
-import AppKit
+    import AppKit
 #endif
 
 struct MessageBubble: View {
     let message: DisplayMessage
-    
+
     @State private var hasAppeared = false
 
     var body: some View {
@@ -54,7 +54,8 @@ struct MessageBubble: View {
 }
 
 private func markdownAttributedString(_ text: String) -> AttributedString {
-    (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
+    (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ??
+        AttributedString(text)
 }
 
 private func bubbleBackground(for role: DisplayMessage.MessageRole) -> Color {
@@ -63,21 +64,21 @@ private func bubbleBackground(for role: DisplayMessage.MessageRole) -> Color {
     }
 
     #if canImport(UIKit)
-    return Color(.systemGray6)
+        return Color(.systemGray6)
     #elseif canImport(AppKit)
-    return Color(nsColor: .windowBackgroundColor).opacity(0.7)
+        return Color(nsColor: .windowBackgroundColor).opacity(0.7)
     #else
-    return Color.gray.opacity(0.15)
+        return Color.gray.opacity(0.15)
     #endif
 }
 
 private func copyToPasteboard(_ text: String) {
     #if canImport(UIKit)
-    UIPasteboard.general.string = text
+        UIPasteboard.general.string = text
     #elseif canImport(AppKit)
-    let pasteboard = NSPasteboard.general
-    pasteboard.clearContents()
-    pasteboard.setString(text, forType: .string)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
     #endif
 }
 

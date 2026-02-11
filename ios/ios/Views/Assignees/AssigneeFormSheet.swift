@@ -135,7 +135,7 @@ struct AssigneeFormSheet: View {
     }
 
     private func populateForEdit() {
-        guard case .edit(let assignee) = mode else { return }
+        guard case let .edit(assignee) = mode else { return }
         name = assignee.name
         email = assignee.email
         personality = assignee.personality ?? ""
@@ -154,7 +154,7 @@ struct AssigneeFormSheet: View {
         let permissions = toolPermissions.map { ToolPermission(toolName: $0.key, permission: $0.value) }
 
         do {
-            if case .edit(let existing) = mode {
+            if case let .edit(existing) = mode {
                 let body = UpdateAssignee(
                     name: name.trimmingCharacters(in: .whitespaces),
                     email: email.trimmingCharacters(in: .whitespaces),
@@ -188,13 +188,12 @@ private extension View {
     @ViewBuilder
     func emailFieldInputModifiers() -> some View {
         #if os(iOS)
-        self
-            .textContentType(.emailAddress)
-            .keyboardType(.emailAddress)
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
+            textContentType(.emailAddress)
+                .keyboardType(.emailAddress)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
         #else
-        self
+            self
         #endif
     }
 }

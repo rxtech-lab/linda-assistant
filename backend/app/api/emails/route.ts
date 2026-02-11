@@ -66,4 +66,3 @@ export async function POST(request: NextRequest) {
 
   return successJson(created, 201);
 }
-

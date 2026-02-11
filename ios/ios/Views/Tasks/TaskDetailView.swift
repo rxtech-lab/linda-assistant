@@ -66,7 +66,11 @@ struct TaskDetailView: View {
                             }
                             .onDelete { offsets in
                                 Task {
-                                    await viewModel.deleteChatSessions(at: offsets, apiClient: apiClient, eventManager: eventManager)
+                                    await viewModel.deleteChatSessions(
+                                        at: offsets,
+                                        apiClient: apiClient,
+                                        eventManager: eventManager
+                                    )
                                 }
                             }
                         }
@@ -97,10 +101,10 @@ struct TaskDetailView: View {
         .navigationTitle(viewModel.task?.title ?? "Task")
         .navigationDestination(for: AppDestination.self) { destination in
             switch destination {
-            case .task(let id): TaskDetailView(taskId: id)
-            case .chatSession(let id): ChatDetailView(sessionId: id)
-            case .email(let id): EmailDetailView(emailId: id)
-            case .assignee(let id, let name): AssigneeDetailView(assigneeId: id, assigneeName: name)
+                case let .task(id): TaskDetailView(taskId: id)
+                case let .chatSession(id): ChatDetailView(sessionId: id)
+                case let .email(id): EmailDetailView(emailId: id)
+                case let .assignee(id, name): AssigneeDetailView(assigneeId: id, assigneeName: name)
             }
         }
         #if os(iOS)

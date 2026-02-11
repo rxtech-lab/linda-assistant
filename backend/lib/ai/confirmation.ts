@@ -18,10 +18,7 @@ interface CreateConfirmationParams {
 }
 
 export async function createConfirmation(params: CreateConfirmationParams) {
-  const [confirmation] = await db
-    .insert(confirmations)
-    .values(params)
-    .returning();
+  const [confirmation] = await db.insert(confirmations).values(params).returning();
 
   // Send push notification
   await sendPushNotification(params.userId, {
@@ -39,18 +36,14 @@ export async function createConfirmation(params: CreateConfirmationParams) {
   return confirmation;
 }
 
-export async function resolveConfirmation(
-  confirmationId: string,
-  action: "confirm" | "reject"
-) {
+export async function resolveConfirmation(confirmationId: string, action: "confirm" | "reject") {
   const [confirmation] = await db
     .select()
     .from(confirmations)
     .where(eq(confirmations.id, confirmationId));
 
   if (!confirmation) throw new Error("Confirmation not found");
-  if (confirmation.status !== "pending")
-    throw new Error("Confirmation already resolved");
+  if (confirmation.status !== "pending") throw new Error("Confirmation already resolved");
 
   // Update confirmation status
   await db
@@ -73,12 +66,7 @@ export async function resolveConfirmation(
   const resolvedStatus = action === "confirm" ? "confirmed" : "rejected";
 
   // Update the embedded confirmation status in the stored tool-call content part
-  annotateToolCallConfirmation(
-    messages,
-    confirmation.toolCallId,
-    confirmation.id,
-    resolvedStatus,
-  );
+  annotateToolCallConfirmation(messages, confirmation.toolCallId, confirmation.id, resolvedStatus);
 
   if (action === "confirm") {
     // Execute the confirmed tool
@@ -86,7 +74,7 @@ export async function resolveConfirmation(
       confirmation.toolName,
       confirmation.parameters as Record<string, unknown>,
       confirmation.userId,
-      confirmation.chatSessionId
+      confirmation.chatSessionId,
     );
 
     // Add tool result to messages (output must match AI SDK v6 ModelMessage format)
@@ -216,7 +204,7 @@ async function executeConfirmedTool(
   toolName: string,
   parameters: Record<string, unknown>,
   userId: string,
-  chatSessionId: string
+  chatSessionId: string,
 ) {
   switch (toolName) {
     case "send_email": {

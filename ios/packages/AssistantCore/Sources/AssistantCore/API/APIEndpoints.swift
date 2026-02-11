@@ -2,29 +2,28 @@ import Foundation
 
 // MARK: - API Endpoints Extension
 
-extension APIClient {
-
+public extension APIClient {
     // MARK: - Onboard
 
-    public func getOnboardStatus() async throws -> OnboardStatus {
+    func getOnboardStatus() async throws -> OnboardStatus {
         try await request(path: "onboard")
     }
 
     // MARK: - Models
 
-    public func listModels() async throws -> [String] {
+    func listModels() async throws -> [String] {
         try await request(path: "models")
     }
 
     // MARK: - Tools
 
-    public func listTools() async throws -> [AgentTool] {
+    func listTools() async throws -> [AgentTool] {
         try await request(path: "tools")
     }
 
     // MARK: - Assignees
 
-    public func listAssignees(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Assignee> {
+    func listAssignees(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Assignee> {
         try await request(
             path: "assignees",
             queryItems: [
@@ -34,25 +33,25 @@ extension APIClient {
         )
     }
 
-    public func getAssignee(id: String) async throws -> Assignee {
+    func getAssignee(id: String) async throws -> Assignee {
         try await request(path: "assignees/\(id)")
     }
 
-    public func createAssignee(_ body: CreateAssignee) async throws -> Assignee {
+    func createAssignee(_ body: CreateAssignee) async throws -> Assignee {
         try await request(path: "assignees", method: "POST", body: body)
     }
 
-    public func updateAssignee(id: String, _ body: UpdateAssignee) async throws -> Assignee {
+    func updateAssignee(id: String, _ body: UpdateAssignee) async throws -> Assignee {
         try await request(path: "assignees/\(id)", method: "PUT", body: body)
     }
 
-    public func deleteAssignee(id: String) async throws {
+    func deleteAssignee(id: String) async throws {
         try await requestNoContent(path: "assignees/\(id)")
     }
 
     // MARK: - Tasks
 
-    public func listTasks(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<LindaTask> {
+    func listTasks(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<LindaTask> {
         try await request(
             path: "tasks",
             queryItems: [
@@ -62,29 +61,29 @@ extension APIClient {
         )
     }
 
-    public func getTask(id: String) async throws -> TaskDetail {
+    func getTask(id: String) async throws -> TaskDetail {
         try await request(path: "tasks/\(id)")
     }
 
-    public func createTask(_ body: CreateTask) async throws -> LindaTask {
+    func createTask(_ body: CreateTask) async throws -> LindaTask {
         try await request(path: "tasks", method: "POST", body: body)
     }
 
-    public func updateTask(id: String, _ body: UpdateTask) async throws -> LindaTask {
+    func updateTask(id: String, _ body: UpdateTask) async throws -> LindaTask {
         try await request(path: "tasks/\(id)", method: "PUT", body: body)
     }
 
-    public func deleteTask(id: String) async throws {
+    func deleteTask(id: String) async throws {
         try await requestNoContent(path: "tasks/\(id)")
     }
 
-    public func listTaskChatSessions(taskId: String) async throws -> [SessionSummary] {
+    func listTaskChatSessions(taskId: String) async throws -> [SessionSummary] {
         try await request(path: "tasks/\(taskId)/chat-sessions")
     }
 
     // MARK: - Chat Sessions
 
-    public func listChatSessions(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<ChatSession> {
+    func listChatSessions(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<ChatSession> {
         try await request(
             path: "chat-sessions",
             queryItems: [
@@ -94,25 +93,25 @@ extension APIClient {
         )
     }
 
-    public func getChatSession(id: String) async throws -> ChatSession {
+    func getChatSession(id: String) async throws -> ChatSession {
         try await request(path: "chat-sessions/\(id)")
     }
 
-    public func createChatSession(_ body: CreateChatSession) async throws -> ChatSession {
+    func createChatSession(_ body: CreateChatSession) async throws -> ChatSession {
         try await request(path: "chat-sessions", method: "POST", body: body)
     }
 
-    public func deleteChatSession(id: String) async throws {
+    func deleteChatSession(id: String) async throws {
         try await requestNoContent(path: "chat-sessions/\(id)")
     }
 
-    public func sendMessage(sessionId: String, _ body: SendMessage) async throws -> QueuedResponse {
+    func sendMessage(sessionId: String, _ body: SendMessage) async throws -> QueuedResponse {
         try await request(path: "chat-sessions/\(sessionId)/messages", method: "POST", body: body)
     }
 
     // MARK: - Emails
 
-    public func listEmails(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Email> {
+    func listEmails(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Email> {
         try await request(
             path: "emails",
             queryItems: [
@@ -122,41 +121,41 @@ extension APIClient {
         )
     }
 
-    public func getEmail(id: String) async throws -> Email {
+    func getEmail(id: String) async throws -> Email {
         try await request(path: "emails/\(id)")
     }
 
-    public func updateEmail(id: String, _ body: UpdateEmail) async throws -> Email {
+    func updateEmail(id: String, _ body: UpdateEmail) async throws -> Email {
         try await request(path: "emails/\(id)", method: "PUT", body: body)
     }
 
-    public func deleteEmail(id: String) async throws {
+    func deleteEmail(id: String) async throws {
         try await requestNoContent(path: "emails/\(id)")
     }
 
     // MARK: - Confirmations
 
-    public func listConfirmations() async throws -> [Confirmation] {
+    func listConfirmations() async throws -> [Confirmation] {
         try await request(path: "confirmations")
     }
 
-    public func resolveConfirmation(id: String, _ body: ResolveConfirmation) async throws -> ResolveResponse {
+    func resolveConfirmation(id: String, _ body: ResolveConfirmation) async throws -> ResolveResponse {
         try await request(path: "confirmations/\(id)/resolve", method: "POST", body: body)
     }
 
     // MARK: - Devices
 
-    public func registerDevice(_ body: RegisterDevice) async throws -> Device {
+    func registerDevice(_ body: RegisterDevice) async throws -> Device {
         try await request(path: "devices", method: "POST", body: body)
     }
 
-    public func deleteDevice(id: String) async throws {
+    func deleteDevice(id: String) async throws {
         try await requestNoContent(path: "devices/\(id)")
     }
 
     // MARK: - Uploads
 
-    public func createPresignedURL(_ body: PresignedURLRequest) async throws -> PresignedURLResponse {
+    func createPresignedURL(_ body: PresignedURLRequest) async throws -> PresignedURLResponse {
         try await request(path: "uploads/presigned-url", method: "POST", body: body)
     }
 }

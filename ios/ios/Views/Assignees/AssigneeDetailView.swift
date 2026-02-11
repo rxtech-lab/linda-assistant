@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 struct AssigneeDetailView: View {
     let assigneeId: String

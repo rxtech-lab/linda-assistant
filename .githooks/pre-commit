@@ -1,0 +1,63 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Get staged files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [ -z "$STAGED_FILES" ]; then
+  exit 0
+fi
+
+HAS_BACKEND=false
+HAS_IOS=false
+
+for file in $STAGED_FILES; do
+  case $file in
+    backend/*.ts|backend/*.tsx|backend/*.js|backend/*.jsx)
+      HAS_BACKEND=true
+      ;;
+    ios/*.swift)
+      HAS_IOS=true
+      ;;
+  esac
+done
+
+# Format backend files
+if [ "$HAS_BACKEND" = true ]; then
+  echo "Formatting staged backend files with Biome..."
+  BACKEND_FILES=$(echo "$STAGED_FILES" | grep -E '^backend/.*\.(ts|tsx|js|jsx)$' || true)
+
+  if [ -n "$BACKEND_FILES" ]; then
+    # Format only staged files
+    cd "$PROJECT_ROOT/backend"
+    RELATIVE_FILES=$(echo "$BACKEND_FILES" | sed 's|^backend/||')
+    echo "$RELATIVE_FILES" | xargs bunx biome format --write
+
+    # Re-stage formatted files
+    cd "$PROJECT_ROOT"
+    echo "$BACKEND_FILES" | xargs git add
+  fi
+fi
+
+# Format iOS files
+if [ "$HAS_IOS" = true ]; then
+  if command -v swiftformat &> /dev/null; then
+    echo "Formatting staged iOS files with SwiftFormat..."
+    IOS_FILES=$(echo "$STAGED_FILES" | grep -E '^ios/.*\.swift$' || true)
+
+    if [ -n "$IOS_FILES" ]; then
+      cd "$PROJECT_ROOT"
+      echo "$IOS_FILES" | xargs swiftformat
+
+      # Re-stage formatted files
+      echo "$IOS_FILES" | xargs git add
+    fi
+  else
+    echo "Warning: swiftformat not installed, skipping iOS formatting"
+  fi
+fi
+
+echo "Pre-commit formatting complete."

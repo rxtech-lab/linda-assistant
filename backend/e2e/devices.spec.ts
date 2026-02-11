@@ -1,9 +1,5 @@
 import { test, expect } from "@playwright/test";
-import {
-  deviceResponseSchema,
-  deleteResponseSchema,
-  errorResponseSchema,
-} from "./helpers/schemas";
+import { deviceResponseSchema, deleteResponseSchema, errorResponseSchema } from "./helpers/schemas";
 
 const user2Headers = { "x-test-user-id": "e2e-user-2" };
 

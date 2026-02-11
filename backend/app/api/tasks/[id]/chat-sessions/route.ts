@@ -16,7 +16,7 @@ const sessionSummarySchema = z.array(
     assigneeId: z.string().nullable(),
     createdAt: z.string().nullable(),
     updatedAt: z.string().nullable(),
-  })
+  }),
 );
 
 /**
@@ -25,10 +25,7 @@ const sessionSummarySchema = z.array(
  * @pathParams idParamSchema
  * @response sessionSummarySchema
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -56,4 +53,3 @@ export async function GET(
 
   return NextResponse.json(sessions);
 }
-

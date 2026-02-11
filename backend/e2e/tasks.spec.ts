@@ -53,9 +53,7 @@ test.describe("Tasks CRUD", () => {
     expect(found).toBeTruthy();
   });
 
-  test("GET /api/tasks/:id returns task with relations", async ({
-    request,
-  }) => {
+  test("GET /api/tasks/:id returns task with relations", async ({ request }) => {
     const res = await request.get(`/api/tasks/${taskId}`);
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -66,9 +64,7 @@ test.describe("Tasks CRUD", () => {
     expect(body.emails).toEqual([]);
   });
 
-  test("PUT /api/tasks/:id updates and preserves unchanged fields", async ({
-    request,
-  }) => {
+  test("PUT /api/tasks/:id updates and preserves unchanged fields", async ({ request }) => {
     const res = await request.put(`/api/tasks/${taskId}`, {
       data: { title: "Updated Task", status: "running" },
     });
@@ -108,9 +104,7 @@ test.describe("Tasks cross-user isolation", () => {
     const res = await request.get("/api/tasks", { headers: user2Headers });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
-    const found = body.data.find(
-      (t: { id: string }) => t.id === user1TaskId
-    );
+    const found = body.data.find((t: { id: string }) => t.id === user1TaskId);
     expect(found).toBeUndefined();
   });
 
@@ -260,9 +254,7 @@ test.describe("Task chat sessions relationship", () => {
     taskId = taskBody.id;
   });
 
-  test("GET /api/tasks/:id/chat-sessions returns empty initially", async ({
-    request,
-  }) => {
+  test("GET /api/tasks/:id/chat-sessions returns empty initially", async ({ request }) => {
     const res = await request.get(`/api/tasks/${taskId}/chat-sessions`);
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -270,9 +262,7 @@ test.describe("Task chat sessions relationship", () => {
     expect(body).toEqual([]);
   });
 
-  test("chat sessions linked to task appear in response", async ({
-    request,
-  }) => {
+  test("chat sessions linked to task appear in response", async ({ request }) => {
     // Create a session linked to the task
     const sessionRes = await request.post("/api/chat-sessions", {
       data: { assigneeId, taskId },
@@ -288,9 +278,7 @@ test.describe("Task chat sessions relationship", () => {
     expect(taskBody.chatSessions[0].id).toBe(sessionBody.id);
 
     // Also check the dedicated endpoint
-    const sessionsRes = await request.get(
-      `/api/tasks/${taskId}/chat-sessions`
-    );
+    const sessionsRes = await request.get(`/api/tasks/${taskId}/chat-sessions`);
     const sessionsBody = await sessionsRes.json();
     taskSessionsResponseSchema.parse(sessionsBody);
     expect(sessionsBody).toHaveLength(1);

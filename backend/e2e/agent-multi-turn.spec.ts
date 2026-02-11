@@ -10,7 +10,7 @@ async function waitForStatus(
   request: APIRequestContext,
   sessionId: string,
   status: string,
-  timeoutMs = 10000
+  timeoutMs = 10000,
 ) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -19,9 +19,7 @@ async function waitForStatus(
     if (body.status === status) return body;
     await new Promise((r) => setTimeout(r, 200));
   }
-  throw new Error(
-    `Timeout: session ${sessionId} did not reach status "${status}"`
-  );
+  throw new Error(`Timeout: session ${sessionId} did not reach status "${status}"`);
 }
 
 /** Small delay to ensure SSE subscription is established before posting */
@@ -57,17 +55,15 @@ test.describe("Stream Lifecycle", () => {
     const sessionId = session.id;
 
     // Start SSE subscription BEFORE posting so we catch all events
-    const eventsPromise = consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      { headers: { authorization: "Bearer e2e-test-token" } }
-    );
+    const eventsPromise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+    });
     await new Promise((r) => setTimeout(r, SUB_DELAY));
 
     // Send message (triggers worker via RabbitMQ)
-    const msgRes = await request.post(
-      `/api/chat-sessions/${sessionId}/messages`,
-      { data: { content: "Hello" } }
-    );
+    const msgRes = await request.post(`/api/chat-sessions/${sessionId}/messages`, {
+      data: { content: "Hello" },
+    });
     expect(msgRes.ok()).toBeTruthy();
     sendMessageResponseSchema.parse(await msgRes.json());
 
@@ -105,10 +101,7 @@ test.describe("Stream Lifecycle", () => {
     expect(assistantMsg.id).toBe(streamStepId);
   });
 
-  test("no message replay after disconnect and reconnect", async ({
-    request,
-    baseURL,
-  }) => {
+  test("no message replay after disconnect and reconnect", async ({ request, baseURL }) => {
     // Create session
     const sessionRes = await request.post("/api/chat-sessions", {
       data: { assigneeId },
@@ -119,10 +112,9 @@ test.describe("Stream Lifecycle", () => {
     const sessionId = session.id;
 
     // Turn 1: subscribe first, then send message
-    const events1Promise = consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      { headers: { authorization: "Bearer e2e-test-token" } }
-    );
+    const events1Promise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+    });
     await new Promise((r) => setTimeout(r, SUB_DELAY));
 
     await request.post(`/api/chat-sessions/${sessionId}/messages`, {
@@ -130,31 +122,23 @@ test.describe("Stream Lifecycle", () => {
     });
 
     const events1 = await events1Promise;
-    const turn1Ids = new Set(
-      events1
-        .filter((e) => e.event === "text-delta")
-        .map((e) => e.data.id)
-    );
+    const turn1Ids = new Set(events1.filter((e) => e.event === "text-delta").map((e) => e.data.id));
     expect(turn1Ids.size).toBe(1);
 
     // Reconnect — should get only status event, no replay of turn 1
-    const reconnectEvents = await consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      {
-        headers: { authorization: "Bearer e2e-test-token" },
-        stopOnEvent: "status",
-        timeoutMs: 3000,
-      }
-    );
+    const reconnectEvents = await consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+      stopOnEvent: "status",
+      timeoutMs: 3000,
+    });
     const reconnectTypes = reconnectEvents.map((e) => e.event);
     expect(reconnectTypes).toContain("status");
     expect(reconnectTypes).not.toContain("text-delta");
 
     // Turn 2: subscribe first, then send message
-    const events2Promise = consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      { headers: { authorization: "Bearer e2e-test-token" } }
-    );
+    const events2Promise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+    });
     await new Promise((r) => setTimeout(r, SUB_DELAY));
 
     await request.post(`/api/chat-sessions/${sessionId}/messages`, {
@@ -162,11 +146,7 @@ test.describe("Stream Lifecycle", () => {
     });
 
     const events2 = await events2Promise;
-    const turn2Ids = new Set(
-      events2
-        .filter((e) => e.event === "text-delta")
-        .map((e) => e.data.id)
-    );
+    const turn2Ids = new Set(events2.filter((e) => e.event === "text-delta").map((e) => e.data.id));
     expect(turn2Ids.size).toBe(1);
 
     // Turn 2 IDs differ from turn 1
@@ -209,10 +189,9 @@ test.describe("Stream Lifecycle", () => {
     expect(historicalIds.length).toBe(2); // user + assistant
 
     // Subscribe first, then send second message
-    const eventsPromise = consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      { headers: { authorization: "Bearer e2e-test-token" } }
-    );
+    const eventsPromise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+    });
     await new Promise((r) => setTimeout(r, SUB_DELAY));
 
     await request.post(`/api/chat-sessions/${sessionId}/messages`, {
@@ -222,9 +201,7 @@ test.describe("Stream Lifecycle", () => {
     const events = await eventsPromise;
 
     const newEventIds = new Set(
-      events
-        .filter((e) => e.event === "text-delta")
-        .map((e) => e.data.id)
+      events.filter((e) => e.event === "text-delta").map((e) => e.data.id),
     );
     expect(newEventIds.size).toBe(1);
 
@@ -242,10 +219,7 @@ test.describe("Stream Lifecycle", () => {
     expect(new Set(allIds).size).toBe(4);
   });
 
-  test("partial stream consumption with GET catch-up", async ({
-    request,
-    baseURL,
-  }) => {
+  test("partial stream consumption with GET catch-up", async ({ request, baseURL }) => {
     // Create session
     const sessionRes = await request.post("/api/chat-sessions", {
       data: { assigneeId },
@@ -256,13 +230,10 @@ test.describe("Stream Lifecycle", () => {
     const sessionId = session.id;
 
     // Subscribe first, then send message
-    const partialEventsPromise = consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      {
-        headers: { authorization: "Bearer e2e-test-token" },
-        stopOnEvent: "text-delta",
-      }
-    );
+    const partialEventsPromise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+      stopOnEvent: "text-delta",
+    });
     await new Promise((r) => setTimeout(r, SUB_DELAY));
 
     await request.post(`/api/chat-sessions/${sessionId}/messages`, {
@@ -289,14 +260,11 @@ test.describe("Stream Lifecycle", () => {
     }
 
     // Reconnect — only status event, no replay
-    const reconnectEvents = await consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      {
-        headers: { authorization: "Bearer e2e-test-token" },
-        stopOnEvent: "status",
-        timeoutMs: 3000,
-      }
-    );
+    const reconnectEvents = await consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+      stopOnEvent: "status",
+      timeoutMs: 3000,
+    });
     const reconnectTypes = reconnectEvents.map((e) => e.event);
     expect(reconnectTypes).toContain("status");
     expect(reconnectTypes).not.toContain("text-delta");

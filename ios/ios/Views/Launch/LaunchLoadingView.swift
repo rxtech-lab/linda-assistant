@@ -20,7 +20,7 @@ struct LaunchLoadingView: View {
                         LinearGradient(
                             colors: [
                                 Color.black.opacity(0.55),
-                                Color.black.opacity(0.35)
+                                Color.black.opacity(0.35),
                             ],
                             startPoint: .top,
                             endPoint: .bottom

@@ -20,10 +20,7 @@ export const s3Client = new Proxy({} as S3Client, {
   },
 });
 
-export async function getPresignedUploadUrl(
-  contentType: string,
-  prefix = "uploads"
-) {
+export async function getPresignedUploadUrl(contentType: string, prefix = "uploads") {
   const key = `${prefix}/${nanoid()}-${Date.now()}`;
   const command = new PutObjectCommand({
     Bucket: process.env.S3_BUCKET_NAME!,

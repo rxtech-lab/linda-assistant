@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 struct EmailDetailView: View {
     let emailId: String
@@ -28,7 +28,10 @@ struct EmailDetailView: View {
                             Text(email.subject ?? "No Subject")
                                 .font(.title2.bold())
 
-                            LabeledContent("From", value: email.fromName.map { "\($0) <\(email.fromEmail)>" } ?? email.fromEmail)
+                            LabeledContent(
+                                "From",
+                                value: email.fromName.map { "\($0) <\(email.fromEmail)>" } ?? email.fromEmail
+                            )
                             LabeledContent("To", value: email.toEmail)
                             LabeledContent("Received", value: email.receivedAt)
                         }

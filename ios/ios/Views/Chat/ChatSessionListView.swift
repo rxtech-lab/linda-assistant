@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 struct ChatSessionListView: View {
     let taskId: String
@@ -14,7 +14,7 @@ struct ChatSessionListView: View {
 
     var body: some View {
         Group {
-            if viewModel.isLoading && viewModel.sessions.isEmpty {
+            if viewModel.isLoading, viewModel.sessions.isEmpty {
                 ProgressView()
             } else if viewModel.sessions.isEmpty {
                 EmptyStateView(
@@ -44,7 +44,11 @@ struct ChatSessionListView: View {
                         }
                     }
                     .onDelete { offsets in
-                        Task { await viewModel.deleteSessions(at: offsets, apiClient: apiClient, eventManager: eventManager) }
+                        Task { await viewModel.deleteSessions(
+                            at: offsets,
+                            apiClient: apiClient,
+                            eventManager: eventManager
+                        ) }
                     }
                 }
                 .refreshable {
@@ -55,10 +59,10 @@ struct ChatSessionListView: View {
         .navigationTitle("Chat Sessions")
         .navigationDestination(for: AppDestination.self) { destination in
             switch destination {
-            case .task(let id): TaskDetailView(taskId: id)
-            case .chatSession(let id): ChatDetailView(sessionId: id)
-            case .email(let id): EmailDetailView(emailId: id)
-            case .assignee(let id, let name): AssigneeDetailView(assigneeId: id, assigneeName: name)
+                case let .task(id): TaskDetailView(taskId: id)
+                case let .chatSession(id): ChatDetailView(sessionId: id)
+                case let .email(id): EmailDetailView(emailId: id)
+                case let .assignee(id, name): AssigneeDetailView(assigneeId: id, assigneeName: name)
             }
         }
         .toolbar {

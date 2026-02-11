@@ -8,10 +8,7 @@ export const sendEmailTool = tool({
     to: z.string().email().describe("Recipient email address"),
     subject: z.string().describe("Email subject line"),
     body: z.string().describe("Email body in HTML format"),
-    replyToEmailId: z
-      .string()
-      .optional()
-      .describe("ID of the email being replied to"),
+    replyToEmailId: z.string().optional().describe("ID of the email being replied to"),
   }),
   outputSchema: z.object({
     sent: z.boolean(),

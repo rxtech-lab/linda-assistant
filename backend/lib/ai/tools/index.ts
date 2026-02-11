@@ -3,22 +3,31 @@ import { searchEmailsTool, SEARCH_EMAILS_TOOL_NAME } from "./search-emails";
 import { createTaskTool, CREATE_TASK_TOOL_NAME } from "./create-task";
 import { updateTaskTool, UPDATE_TASK_TOOL_NAME } from "./update-task";
 import type { ToolPermission } from "@/lib/db/schema";
+import { loadAssigneePermissions, resolvePermission } from "./permission";
 
-export function getToolPermission(
-  toolName: string,
-  toolPermissions?: ToolPermission[] | null
-): ToolPermission["permission"] {
-  if (!toolPermissions || toolPermissions.length === 0) {
-    return "manual-confirm";
-  }
-  const entry = toolPermissions.find((tp) => tp.toolName === toolName);
-  return entry?.permission ?? "manual-confirm";
+export interface ToolSetResult {
+  /** Tools filtered to exclude auto-reject entries, ready for streamText */
+  tools: Record<
+    string,
+    | typeof sendEmailTool
+    | ReturnType<typeof searchEmailsTool>
+    | ReturnType<typeof createTaskTool>
+    | ReturnType<typeof updateTaskTool>
+  >;
+  /** Check permission for a tool name using permissions loaded at build time. Synchronous. */
+  checkPermission: (toolName: string) => ToolPermission["permission"];
 }
 
-export function buildToolSet(
+/**
+ * Build the tool set for the agent, filtering out auto-rejected tools.
+ * Loads permissions from the database using assigneeId.
+ */
+export async function buildToolSet(
   userId: string,
-  toolPermissions?: ToolPermission[] | null
-) {
+  assigneeId: string | null,
+): Promise<ToolSetResult> {
+  const toolPermissions = assigneeId ? await loadAssigneePermissions(assigneeId) : null;
+
   const allTools = {
     [SEND_EMAIL_TOOL_NAME]: sendEmailTool,
     [SEARCH_EMAILS_TOOL_NAME]: searchEmailsTool(userId),
@@ -26,19 +35,17 @@ export function buildToolSet(
     [UPDATE_TASK_TOOL_NAME]: updateTaskTool(userId),
   };
 
-  if (!toolPermissions || toolPermissions.length === 0) {
-    return allTools;
-  }
-
-  // Filter out tools with auto-reject permission
   const filtered: Record<string, (typeof allTools)[keyof typeof allTools]> = {};
   for (const [name, tool] of Object.entries(allTools)) {
-    const permission = getToolPermission(name, toolPermissions);
-    if (permission !== "auto-reject") {
+    if (resolvePermission(name, toolPermissions) !== "auto-reject") {
       filtered[name] = tool;
     }
   }
-  return filtered;
+
+  return {
+    tools: filtered,
+    checkPermission: (toolName: string) => resolvePermission(toolName, toolPermissions),
+  };
 }
 
 export {

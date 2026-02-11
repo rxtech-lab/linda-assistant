@@ -85,7 +85,7 @@ struct TaskFormSheet: View {
     }
 
     private func populateForEdit() {
-        guard case .edit(let task) = mode else { return }
+        guard case let .edit(task) = mode else { return }
         title = task.title
         description = task.description ?? ""
         status = task.status ?? "pending"
@@ -103,7 +103,7 @@ struct TaskFormSheet: View {
         error = nil
 
         do {
-            if case .edit(let existing) = mode {
+            if case let .edit(existing) = mode {
                 let body = UpdateTask(
                     title: title.trimmingCharacters(in: .whitespaces),
                     description: description.isEmpty ? nil : description,

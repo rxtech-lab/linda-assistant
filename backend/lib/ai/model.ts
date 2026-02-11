@@ -7,15 +7,12 @@ const MOCK_USAGE = {
   outputTokens: { total: 20, text: 20, reasoning: undefined },
 } as const;
 
-function buildStreamChunks(
-  messages: unknown[]
-): LanguageModelV3StreamPart[] {
+function buildStreamChunks(messages: unknown[]): LanguageModelV3StreamPart[] {
   // Look for tool-result in prompt (resumed after confirmation)
   const hasToolResult = messages.some(
     (m: any) =>
       m.role === "tool" ||
-      (Array.isArray(m.content) &&
-        m.content.some((c: any) => c.type === "tool-result"))
+      (Array.isArray(m.content) && m.content.some((c: any) => c.type === "tool-result")),
   );
 
   if (hasToolResult) {
@@ -51,7 +48,11 @@ function buildStreamChunks(
       { type: "tool-input-delta", id: "call-1", delta: input },
       { type: "tool-input-end", id: "call-1" },
       { type: "tool-call", toolCallId: "call-1", toolName: "send_email", input },
-      { type: "finish", finishReason: { unified: "tool-calls", raw: undefined }, usage: MOCK_USAGE },
+      {
+        type: "finish",
+        finishReason: { unified: "tool-calls", raw: undefined },
+        usage: MOCK_USAGE,
+      },
     ];
   }
 
@@ -66,7 +67,11 @@ function buildStreamChunks(
       { type: "tool-input-delta", id: "call-2", delta: input },
       { type: "tool-input-end", id: "call-2" },
       { type: "tool-call", toolCallId: "call-2", toolName: "create_task", input },
-      { type: "finish", finishReason: { unified: "tool-calls", raw: undefined }, usage: MOCK_USAGE },
+      {
+        type: "finish",
+        finishReason: { unified: "tool-calls", raw: undefined },
+        usage: MOCK_USAGE,
+      },
     ];
   }
 
@@ -81,7 +86,11 @@ function buildStreamChunks(
       { type: "tool-input-delta", id: "call-3", delta: input },
       { type: "tool-input-end", id: "call-3" },
       { type: "tool-call", toolCallId: "call-3", toolName: "update_task", input },
-      { type: "finish", finishReason: { unified: "tool-calls", raw: undefined }, usage: MOCK_USAGE },
+      {
+        type: "finish",
+        finishReason: { unified: "tool-calls", raw: undefined },
+        usage: MOCK_USAGE,
+      },
     ];
   }
 

@@ -3,10 +3,7 @@ import { db } from "@/lib/db";
 import { chatSessions } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import {
-  insertChatSessionSchema,
-  selectChatSessionSchema,
-} from "@/lib/schemas";
+import { insertChatSessionSchema, selectChatSessionSchema } from "@/lib/schemas";
 import { parsePagination } from "@/lib/utils/pagination";
 import { successJson, errorJson, paginatedJson } from "@/lib/utils/response";
 import { z } from "zod";

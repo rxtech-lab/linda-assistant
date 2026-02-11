@@ -21,13 +21,7 @@ export async function GET(request: NextRequest) {
   const items = await db
     .select()
     .from(confirmations)
-    .where(
-      and(
-        eq(confirmations.userId, auth.userId),
-        eq(confirmations.status, "pending")
-      )
-    );
+    .where(and(eq(confirmations.userId, auth.userId), eq(confirmations.status, "pending")));
 
   return NextResponse.json(items);
 }
-

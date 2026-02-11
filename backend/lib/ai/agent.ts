@@ -2,9 +2,8 @@ import crypto from "crypto";
 import { streamText, type ModelMessage } from "ai";
 import { db } from "@/lib/db";
 import { chatSessions, assignees } from "@/lib/db/schema";
-import type { ToolPermission } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { buildToolSet, getToolPermission } from "./tools";
+import { buildToolSet } from "./tools";
 import { setStreamActive } from "@/lib/streaming/manager";
 import { createConfirmation } from "./confirmation";
 import { getModelProvider } from "./model";
@@ -61,7 +60,12 @@ function unwrapToolOutput(output: unknown): unknown {
 function isToolResultError(part: Record<string, unknown>): boolean {
   if ("isError" in part && part.isError) return true;
   const output = unwrapToolOutput(part.output);
-  if (typeof output === "object" && output !== null && "error" in (output as Record<string, unknown>)) return true;
+  if (
+    typeof output === "object" &&
+    output !== null &&
+    "error" in (output as Record<string, unknown>)
+  )
+    return true;
   return false;
 }
 
@@ -97,7 +101,9 @@ function sanitizeMessages(messages: ModelMessage[], messageId?: string): ModelMe
   });
 }
 
-export function buildSystemPrompt(assignee?: { name: string; personality: string | null } | null): string {
+export function buildSystemPrompt(
+  assignee?: { name: string; personality: string | null } | null,
+): string {
   if (!assignee) return "You are a helpful personal assistant.";
   if (assignee.personality) return assignee.personality;
   return `You are ${assignee.name}, a helpful personal assistant.`;
@@ -115,21 +121,25 @@ export async function runAgent(options: AgentRunOptions) {
   const { sessionId, userId, onTextChunk, onEvent, signal } = options;
 
   // Load session with messages
-  const [session] = await db
-    .select()
-    .from(chatSessions)
-    .where(eq(chatSessions.id, sessionId));
+  const [session] = await db.select().from(chatSessions).where(eq(chatSessions.id, sessionId));
 
   if (!session) throw new Error("Session not found");
 
   // Load assignee for personality and model config
-  let assignee: { name: string; personality: string | null; model: string | null; toolPermissions: ToolPermission[] | null } | null = null;
+  let assignee: {
+    name: string;
+    personality: string | null;
+    model: string | null;
+  } | null = null;
   let modelId = DEFAULT_MODEL;
-  let toolPermissions: ToolPermission[] | null = null;
 
   if (session.assigneeId) {
     const [found] = await db
-      .select()
+      .select({
+        name: assignees.name,
+        personality: assignees.personality,
+        model: assignees.model,
+      })
       .from(assignees)
       .where(eq(assignees.id, session.assigneeId));
 
@@ -139,13 +149,12 @@ export async function runAgent(options: AgentRunOptions) {
         const parsed = availableModelSchema.safeParse(found.model);
         modelId = parsed.success ? parsed.data : DEFAULT_MODEL;
       }
-      toolPermissions = found.toolPermissions || null;
     }
   }
 
   const systemPrompt = buildSystemPrompt(assignee);
 
-  const tools = buildToolSet(userId, toolPermissions);
+  const { tools, checkPermission } = await buildToolSet(userId, session.assigneeId ?? null);
   const messages = (session.messages || []) as ModelMessage[];
 
   await setStreamActive(sessionId, true);
@@ -249,15 +258,12 @@ export async function runAgent(options: AgentRunOptions) {
         // Check if any tool calls require manual confirmation
         const toolCalls = await result.toolCalls;
         const needsConfirmation = toolCalls.find(
-          (tc: { toolName: string }) =>
-            getToolPermission(tc.toolName, toolPermissions) ===
-            "manual-confirm",
+          (tc: { toolName: string }) => checkPermission(tc.toolName) === "manual-confirm",
         );
 
         if (needsConfirmation) {
           // Create confirmation record first so we can annotate the message
-          const input =
-            "input" in needsConfirmation ? needsConfirmation.input : undefined;
+          const input = "input" in needsConfirmation ? needsConfirmation.input : undefined;
           const confirmation = await createConfirmation({
             userId,
             chatSessionId: sessionId,

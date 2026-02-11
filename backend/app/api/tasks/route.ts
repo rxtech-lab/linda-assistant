@@ -30,16 +30,8 @@ export async function GET(request: NextRequest) {
   const { limit, offset } = parsePagination(request.nextUrl.searchParams);
 
   const [items, countResult] = await Promise.all([
-    db
-      .select()
-      .from(tasks)
-      .where(eq(tasks.userId, auth.userId))
-      .limit(limit)
-      .offset(offset),
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(tasks)
-      .where(eq(tasks.userId, auth.userId)),
+    db.select().from(tasks).where(eq(tasks.userId, auth.userId)).limit(limit).offset(offset),
+    db.select({ count: sql<number>`count(*)` }).from(tasks).where(eq(tasks.userId, auth.userId)),
   ]);
 
   return paginatedJson(items, countResult[0].count, limit, offset);
@@ -66,4 +58,3 @@ export async function POST(request: NextRequest) {
 
   return successJson(created, 201);
 }
-

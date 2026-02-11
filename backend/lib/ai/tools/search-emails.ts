@@ -30,9 +30,9 @@ export const searchEmailsTool = (userId: string) =>
               like(emailInbox.subject, pattern),
               like(emailInbox.body, pattern),
               like(emailInbox.fromEmail, pattern),
-              like(emailInbox.fromName, pattern)
-            )
-          )
+              like(emailInbox.fromName, pattern),
+            ),
+          ),
         )
         .limit(limit)
         .orderBy(desc(emailInbox.receivedAt));

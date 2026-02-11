@@ -1,14 +1,9 @@
 import { createChannel, getConnection } from "./connection";
-import {
-  AGENT_TASKS_QUEUE,
-  AGENT_EVENTS_EXCHANGE,
-  type AgentTask,
-  type AgentEvent,
-} from "./types";
+import { AGENT_TASKS_QUEUE, AGENT_EVENTS_EXCHANGE, type AgentTask, type AgentEvent } from "./types";
 
 export async function consumeTasks(
   handler: (task: AgentTask) => Promise<void>,
-  options: { prefetch?: number } = {}
+  options: { prefetch?: number } = {},
 ): Promise<void> {
   const ch = await createChannel();
   await ch.prefetch(options.prefetch ?? 5);
@@ -28,7 +23,7 @@ export async function consumeTasks(
         ch.ack(msg);
       }
     },
-    { noAck: false }
+    { noAck: false },
   );
 }
 
@@ -38,7 +33,7 @@ export interface EventSubscription {
 
 export async function subscribeToEvents(
   sessionId: string,
-  handler: (event: AgentEvent) => void
+  handler: (event: AgentEvent) => void,
 ): Promise<EventSubscription> {
   // Each subscription gets its own channel to avoid interference
   const conn = await getConnection();
@@ -67,7 +62,7 @@ export async function subscribeToEvents(
         console.error("[Consumer] Failed to parse event:", error);
       }
     },
-    { noAck: true }
+    { noAck: true },
   );
 
   return {

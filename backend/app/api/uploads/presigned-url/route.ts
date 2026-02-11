@@ -18,11 +18,7 @@ export async function POST(request: NextRequest) {
   const parsed = presignedUrlSchema.safeParse(body);
   if (!parsed.success) return errorJson(parsed.error.message, 422);
 
-  const result = await getPresignedUploadUrl(
-    parsed.data.contentType,
-    parsed.data.prefix
-  );
+  const result = await getPresignedUploadUrl(parsed.data.contentType, parsed.data.prefix);
 
   return successJson(result);
 }
-

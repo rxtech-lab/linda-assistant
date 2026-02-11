@@ -16,10 +16,7 @@ import { successJson, errorJson } from "@/lib/utils/response";
  * @pathParams idParamSchema
  * @response selectAssigneeSchema
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -40,10 +37,7 @@ export async function GET(
  * @body updateAssigneeSchema
  * @response selectAssigneeSchema
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -70,7 +64,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
@@ -84,4 +78,3 @@ export async function DELETE(
   if (!deleted) return errorJson("Assignee not found", 404);
   return successJson({ deleted: true });
 }
-

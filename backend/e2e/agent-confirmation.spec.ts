@@ -30,10 +30,7 @@ test.describe("Agent Confirmation", () => {
     assigneeId = body.id;
   });
 
-  test("send_email pauses for confirmation, resumes on confirm", async ({
-    request,
-    baseURL,
-  }) => {
+  test("send_email pauses for confirmation, resumes on confirm", async ({ request, baseURL }) => {
     // Create session
     const sessionRes = await request.post("/api/chat-sessions", {
       data: { assigneeId },
@@ -44,13 +41,10 @@ test.describe("Agent Confirmation", () => {
     const sessionId = session.id;
 
     // Subscribe to SSE BEFORE posting so we catch all events
-    const eventsPromise = consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      {
-        headers: { authorization: "Bearer e2e-test-token" },
-        stopOnEvent: "confirmation_required",
-      }
-    );
+    const eventsPromise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+      stopOnEvent: "confirmation_required",
+    });
     await new Promise((r) => setTimeout(r, SUB_DELAY));
 
     // Send message that triggers send_email
@@ -86,17 +80,15 @@ test.describe("Agent Confirmation", () => {
     client.close();
 
     // Subscribe to SSE BEFORE resolving — resolve publishes a resume task to RabbitMQ
-    const resumeEventsPromise = consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      { headers: { authorization: "Bearer e2e-test-token" } }
-    );
+    const resumeEventsPromise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+    });
     await new Promise((r) => setTimeout(r, SUB_DELAY));
 
     // Resolve confirmation
-    const resolveRes = await request.post(
-      `/api/confirmations/${confirmationId}/resolve`,
-      { data: { action: "confirm" } }
-    );
+    const resolveRes = await request.post(`/api/confirmations/${confirmationId}/resolve`, {
+      data: { action: "confirm" },
+    });
     expect(resolveRes.ok()).toBeTruthy();
     resolveConfirmationResponseSchema.parse(await resolveRes.json());
 
@@ -142,13 +134,10 @@ test.describe("Agent Confirmation", () => {
     const sessionId = session.id;
 
     // Subscribe to SSE BEFORE posting so we catch all events
-    const eventsPromise = consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      {
-        headers: { authorization: "Bearer e2e-test-token" },
-        stopOnEvent: "confirmation_required",
-      }
-    );
+    const eventsPromise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+      stopOnEvent: "confirmation_required",
+    });
     await new Promise((r) => setTimeout(r, SUB_DELAY));
 
     // Send message that triggers send_email
@@ -170,10 +159,9 @@ test.describe("Agent Confirmation", () => {
     client.close();
 
     // Reject the confirmation (no worker task — rejection updates DB directly)
-    const resolveRes = await request.post(
-      `/api/confirmations/${confirmationId}/resolve`,
-      { data: { action: "reject" } }
-    );
+    const resolveRes = await request.post(`/api/confirmations/${confirmationId}/resolve`, {
+      data: { action: "reject" },
+    });
     expect(resolveRes.ok()).toBeTruthy();
     resolveConfirmationResponseSchema.parse(await resolveRes.json());
 
@@ -190,10 +178,7 @@ test.describe("Agent Confirmation", () => {
     expect(toolResult.output.value.rejected).toBe(true);
   });
 
-  test("reject while connected to stream delivers events", async ({
-    request,
-    baseURL,
-  }) => {
+  test("reject while connected to stream delivers events", async ({ request, baseURL }) => {
     // Create session
     const sessionRes = await request.post("/api/chat-sessions", {
       data: { assigneeId },
@@ -203,13 +188,10 @@ test.describe("Agent Confirmation", () => {
     const sessionId = session.id;
 
     // Subscribe to SSE and send message that triggers send_email
-    const eventsPromise = consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      {
-        headers: { authorization: "Bearer e2e-test-token" },
-        stopOnEvent: "confirmation_required",
-      }
-    );
+    const eventsPromise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+      stopOnEvent: "confirmation_required",
+    });
     await new Promise((r) => setTimeout(r, SUB_DELAY));
 
     await request.post(`/api/chat-sessions/${sessionId}/messages`, {
@@ -229,17 +211,15 @@ test.describe("Agent Confirmation", () => {
     client.close();
 
     // Subscribe to SSE BEFORE rejecting so we catch the rejection events
-    const rejectEventsPromise = consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      { headers: { authorization: "Bearer e2e-test-token" } }
-    );
+    const rejectEventsPromise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+    });
     await new Promise((r) => setTimeout(r, SUB_DELAY));
 
     // Reject the confirmation
-    const resolveRes = await request.post(
-      `/api/confirmations/${confirmationId}/resolve`,
-      { data: { action: "reject" } }
-    );
+    const resolveRes = await request.post(`/api/confirmations/${confirmationId}/resolve`, {
+      data: { action: "reject" },
+    });
     expect(resolveRes.ok()).toBeTruthy();
 
     // Await rejection events via SSE
@@ -256,7 +236,7 @@ test.describe("Agent Confirmation", () => {
 
     // Verify status is stopped
     const statusEvent = rejectEvents.find(
-      (e) => e.event === "status" && e.data.status === "stopped"
+      (e) => e.event === "status" && e.data.status === "stopped",
     );
     expect(statusEvent).toBeTruthy();
   });
@@ -274,13 +254,10 @@ test.describe("Agent Confirmation", () => {
     const sessionId = session.id;
 
     // Subscribe to SSE and send message that triggers send_email
-    const eventsPromise = consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      {
-        headers: { authorization: "Bearer e2e-test-token" },
-        stopOnEvent: "confirmation_required",
-      }
-    );
+    const eventsPromise = consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+      stopOnEvent: "confirmation_required",
+    });
     await new Promise((r) => setTimeout(r, SUB_DELAY));
 
     await request.post(`/api/chat-sessions/${sessionId}/messages`, {
@@ -300,21 +277,17 @@ test.describe("Agent Confirmation", () => {
     client.close();
 
     // Reject WITHOUT an SSE connection open
-    const resolveRes = await request.post(
-      `/api/confirmations/${confirmationId}/resolve`,
-      { data: { action: "reject" } }
-    );
+    const resolveRes = await request.post(`/api/confirmations/${confirmationId}/resolve`, {
+      data: { action: "reject" },
+    });
     expect(resolveRes.ok()).toBeTruthy();
 
     // Now connect to SSE AFTER rejection
-    const lateEvents = await consumeSSE(
-      `${baseURL}/api/chat-sessions/${sessionId}/stream`,
-      {
-        headers: { authorization: "Bearer e2e-test-token" },
-        stopOnEvent: "status",
-        timeoutMs: 5000,
-      }
-    );
+    const lateEvents = await consumeSSE(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+      stopOnEvent: "status",
+      timeoutMs: 5000,
+    });
 
     // The stream route sends initial status on connect — should be "stopped"
     const statusEvent = lateEvents.find((e) => e.event === "status");

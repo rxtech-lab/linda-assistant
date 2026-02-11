@@ -31,7 +31,13 @@ public struct CreateAssignee: Codable, Sendable {
     public let model: String?
     public let toolPermissions: [ToolPermission]?
 
-    public init(name: String, email: String, personality: String? = nil, model: String? = nil, toolPermissions: [ToolPermission]? = nil) {
+    public init(
+        name: String,
+        email: String,
+        personality: String? = nil,
+        model: String? = nil,
+        toolPermissions: [ToolPermission]? = nil
+    ) {
         self.name = name
         self.email = email
         self.personality = personality
@@ -47,7 +53,13 @@ public struct UpdateAssignee: Codable, Sendable {
     public let model: String?
     public let toolPermissions: [ToolPermission]?
 
-    public init(name: String? = nil, email: String? = nil, personality: String? = nil, model: String? = nil, toolPermissions: [ToolPermission]? = nil) {
+    public init(
+        name: String? = nil,
+        email: String? = nil,
+        personality: String? = nil,
+        model: String? = nil,
+        toolPermissions: [ToolPermission]? = nil
+    ) {
         self.name = name
         self.email = email
         self.personality = personality
@@ -91,7 +103,13 @@ public struct CreateTask: Codable, Sendable {
     public let tags: [String]?
     public let categories: [String]?
 
-    public init(title: String, description: String? = nil, status: String? = nil, tags: [String]? = nil, categories: [String]? = nil) {
+    public init(
+        title: String,
+        description: String? = nil,
+        status: String? = nil,
+        tags: [String]? = nil,
+        categories: [String]? = nil
+    ) {
         self.title = title
         self.description = description
         self.status = status
@@ -107,7 +125,13 @@ public struct UpdateTask: Codable, Sendable {
     public let tags: [String]?
     public let categories: [String]?
 
-    public init(title: String? = nil, description: String? = nil, status: String? = nil, tags: [String]? = nil, categories: [String]? = nil) {
+    public init(
+        title: String? = nil,
+        description: String? = nil,
+        status: String? = nil,
+        tags: [String]? = nil,
+        categories: [String]? = nil
+    ) {
         self.title = title
         self.description = description
         self.status = status
@@ -170,7 +194,10 @@ public struct SendMessage: Codable, Sendable {
 // MARK: - Chat Message (from backend JSON messages array)
 
 public struct ChatMessage: Codable, Sendable, Identifiable {
-    public var id: String { "\(role)-\(textContent?.prefix(20) ?? "empty")-\(UUID().uuidString.prefix(8))" }
+    public var id: String {
+        "\(role)-\(textContent?.prefix(20) ?? "empty")-\(UUID().uuidString.prefix(8))"
+    }
+
     public let role: String
     public let textContent: String?
     public let toolCalls: [ChatToolCall]
@@ -178,7 +205,9 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
     public let toolResultStatuses: [String: String]
 
     /// Backwards-compatible: returns textContent
-    public var content: String? { textContent }
+    public var content: String? {
+        textContent
+    }
 
     enum CodingKeys: String, CodingKey {
         case role, content
@@ -210,7 +239,8 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
             for part in parts {
                 if part.type == "tool-result",
                    let callId = part.toolCallId,
-                   let status = part.approveStatus {
+                   let status = part.approveStatus
+                {
                     statuses[callId] = status
                 }
             }
@@ -235,7 +265,10 @@ public struct ToolCallConfirmation: Codable, Sendable {
 }
 
 public struct ChatToolCall: Codable, Sendable, Identifiable {
-    public var id: String { toolCallId }
+    public var id: String {
+        toolCallId
+    }
+
     public let toolCallId: String
     public let toolName: String
     public let input: [String: AnyCodable]?
@@ -330,7 +363,10 @@ public struct RegisterDevice: Codable, Sendable {
 // MARK: - Tool
 
 public struct AgentTool: Codable, Sendable, Identifiable {
-    public var id: String { name }
+    public var id: String {
+        name
+    }
+
     public let name: String
     public let description: String
     public let defaultPermission: String

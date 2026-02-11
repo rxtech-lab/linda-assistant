@@ -21,22 +21,22 @@ struct SidebarNavigationView: View {
             .listStyle(.sidebar)
         } detail: {
             switch navigationManager.selectedTab {
-            case .tasks:
-                NavigationStack(path: $nav.tasksPath) {
-                    TaskListView()
-                }
-            case .emails:
-                NavigationStack(path: $nav.emailsPath) {
-                    EmailListView()
-                }
-            case .assignees:
-                NavigationStack(path: $nav.assigneesPath) {
-                    AssigneeListView()
-                }
-            case .settings:
-                NavigationStack(path: $nav.settingsPath) {
-                    SettingsView()
-                }
+                case .tasks:
+                    NavigationStack(path: $nav.tasksPath) {
+                        TaskListView()
+                    }
+                case .emails:
+                    NavigationStack(path: $nav.emailsPath) {
+                        EmailListView()
+                    }
+                case .assignees:
+                    NavigationStack(path: $nav.assigneesPath) {
+                        AssigneeListView()
+                    }
+                case .settings:
+                    NavigationStack(path: $nav.settingsPath) {
+                        SettingsView()
+                    }
             }
         }
     }

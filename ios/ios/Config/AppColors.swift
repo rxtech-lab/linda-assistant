@@ -6,7 +6,6 @@
 //
 import SwiftUI
 
-
 extension Color {
     static let primaryButtonColor = Color.orange
 }

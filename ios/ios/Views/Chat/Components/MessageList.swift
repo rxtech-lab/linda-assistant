@@ -86,17 +86,37 @@ struct MessageList: View {
                 DisplayMessage(id: "1", role: .user, content: "Can you check my tasks and send a summary email?"),
                 DisplayMessage(
                     id: "2", role: .assistant, content: "",
-                    toolCalls: [ToolCallInfo(toolCallId: "tc-1", toolName: "FetchTasks", input: nil, status: .completed)],
+                    toolCalls: [ToolCallInfo(
+                        toolCallId: "tc-1",
+                        toolName: "FetchTasks",
+                        input: nil,
+                        status: .completed
+                    )],
                     assigneeName: "Avery"
                 ),
-                DisplayMessage(id: "3", role: .assistant, content: "I found 3 tasks. Let me send that summary.", assigneeName: "Avery"),
+                DisplayMessage(
+                    id: "3",
+                    role: .assistant,
+                    content: "I found 3 tasks. Let me send that summary.",
+                    assigneeName: "Avery"
+                ),
                 DisplayMessage(
                     id: "4", role: .assistant, content: "",
-                    toolCalls: [ToolCallInfo(toolCallId: "tc-2", toolName: "SendEmail", input: nil, status: .pendingConfirmation)],
+                    toolCalls: [ToolCallInfo(
+                        toolCallId: "tc-2",
+                        toolName: "SendEmail",
+                        input: nil,
+                        status: .pendingConfirmation
+                    )],
                     assigneeName: "Avery"
                 ),
                 DisplayMessage(id: "5", role: .user, content: "Thanks! What about tomorrow's schedule?"),
-                DisplayMessage(id: "6", role: .assistant, content: "Let me look that up for you.", assigneeName: "Avery"),
+                DisplayMessage(
+                    id: "6",
+                    role: .assistant,
+                    content: "Let me look that up for you.",
+                    assigneeName: "Avery"
+                ),
             ])
         }
         .padding()
@@ -134,7 +154,12 @@ struct MessageList: View {
                     )],
                     assigneeName: "Avery"
                 ),
-                DisplayMessage(id: "3", role: .assistant, content: "Sorry, I couldn't find that task.", assigneeName: "Avery"),
+                DisplayMessage(
+                    id: "3",
+                    role: .assistant,
+                    content: "Sorry, I couldn't find that task.",
+                    assigneeName: "Avery"
+                ),
             ])
         }
         .padding()

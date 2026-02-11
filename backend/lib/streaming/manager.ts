@@ -29,4 +29,3 @@ export async function isStreamActive(sessionId: string): Promise<boolean> {
   const val = await redis.get(ACTIVE_KEY(sessionId));
   return val === "1";
 }
-

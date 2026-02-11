@@ -37,9 +37,7 @@ test.describe("Assignees CRUD", () => {
     assigneeId = body.id;
   });
 
-  test("GET /api/assignees lists assignees with pagination", async ({
-    request,
-  }) => {
+  test("GET /api/assignees lists assignees with pagination", async ({ request }) => {
     const res = await request.get("/api/assignees");
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -50,15 +48,11 @@ test.describe("Assignees CRUD", () => {
       offset: expect.any(Number),
       hasMore: expect.any(Boolean),
     });
-    const found = body.data.find(
-      (a: { id: string }) => a.id === assigneeId
-    );
+    const found = body.data.find((a: { id: string }) => a.id === assigneeId);
     expect(found).toBeTruthy();
   });
 
-  test("GET /api/assignees/:id returns a single assignee", async ({
-    request,
-  }) => {
+  test("GET /api/assignees/:id returns a single assignee", async ({ request }) => {
     const res = await request.get(`/api/assignees/${assigneeId}`);
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -67,9 +61,7 @@ test.describe("Assignees CRUD", () => {
     expect(body.name).toBe("Test Assistant");
   });
 
-  test("PUT /api/assignees/:id updates and preserves unchanged fields", async ({
-    request,
-  }) => {
+  test("PUT /api/assignees/:id updates and preserves unchanged fields", async ({ request }) => {
     const res = await request.put(`/api/assignees/${assigneeId}`, {
       data: { name: "Updated Assistant", email: "updated@example.com" },
     });
@@ -83,9 +75,7 @@ test.describe("Assignees CRUD", () => {
     expect(body.model).toBe(TEST_MODEL);
   });
 
-  test("DELETE /api/assignees/:id removes the assignee", async ({
-    request,
-  }) => {
+  test("DELETE /api/assignees/:id removes the assignee", async ({ request }) => {
     const res = await request.delete(`/api/assignees/${assigneeId}`);
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -115,9 +105,7 @@ test.describe("Cross-user isolation", () => {
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
-    const found = body.data.find(
-      (a: { id: string }) => a.id === user1AssigneeId
-    );
+    const found = body.data.find((a: { id: string }) => a.id === user1AssigneeId);
     expect(found).toBeUndefined();
   });
 
@@ -152,9 +140,7 @@ test.describe("Cross-user isolation", () => {
     expect(getRes.ok()).toBeTruthy();
   });
 
-  test("user2 can create own assignee, invisible to user1", async ({
-    request,
-  }) => {
+  test("user2 can create own assignee, invisible to user1", async ({ request }) => {
     const createRes = await request.post("/api/assignees", {
       headers: user2Headers,
       data: { name: "User2 Assistant", email: "user2@example.com" },
@@ -166,9 +152,7 @@ test.describe("Cross-user isolation", () => {
     // User1 cannot see it
     const listRes = await request.get("/api/assignees");
     const listBody = await listRes.json();
-    const found = listBody.data.find(
-      (a: { id: string }) => a.id === created.id
-    );
+    const found = listBody.data.find((a: { id: string }) => a.id === created.id);
     expect(found).toBeUndefined();
   });
 });
@@ -245,9 +229,7 @@ test.describe("Partial update", () => {
     expect(body.model).toBe(TEST_MODEL);
   });
 
-  test("update only personality preserves other fields", async ({
-    request,
-  }) => {
+  test("update only personality preserves other fields", async ({ request }) => {
     const res = await request.put(`/api/assignees/${assigneeId}`, {
       data: { personality: "Bold and brave" },
     });
@@ -309,9 +291,7 @@ test.describe("Tool permissions", () => {
   });
 
   test("PUT replaces entire permissions array", async ({ request }) => {
-    const newPermissions = [
-      { toolName: "search_emails", permission: "auto-confirm" as const },
-    ];
+    const newPermissions = [{ toolName: "search_emails", permission: "auto-confirm" as const }];
     const res = await request.put(`/api/assignees/${assigneeId}`, {
       data: { toolPermissions: newPermissions },
     });

@@ -49,7 +49,7 @@ export const taskDetailResponseSchema = selectTaskSchema.extend({
       title: z.string().nullable(),
       status: z.string().nullable(),
       updatedAt: z.string().nullable(),
-    })
+    }),
   ),
   emails: z.array(z.any()),
 });
@@ -61,7 +61,7 @@ export const taskSessionsResponseSchema = z.array(
     assigneeId: z.string().nullable(),
     createdAt: z.string().nullable(),
     updatedAt: z.string().nullable(),
-  })
+  }),
 );
 
 // Chat Sessions
@@ -86,12 +86,8 @@ export const toolsResponseSchema = z.array(
   z.object({
     name: z.string(),
     description: z.string(),
-    defaultPermission: z.enum([
-      "auto-confirm",
-      "manual-confirm",
-      "auto-reject",
-    ]),
-  })
+    defaultPermission: z.enum(["auto-confirm", "manual-confirm", "auto-reject"]),
+  }),
 );
 
 // Models

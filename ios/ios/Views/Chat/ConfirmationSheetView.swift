@@ -28,7 +28,7 @@ struct ConfirmationSheetView: View {
                 LinearGradient(
                     colors: [
                         Color.orange.opacity(0.12),
-                        Color.clear
+                        Color.clear,
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -54,7 +54,7 @@ struct ConfirmationSheetView: View {
                 "priority": .string("high"),
                 "dueDate": .string("2026-02-14"),
                 "estimateHours": .double(3.5),
-                "notify": .bool(true)
+                "notify": .bool(true),
             ]
         ),
         onResolve: { _ in }
@@ -209,7 +209,7 @@ private extension ConfirmationSheetView {
                 "priority": .string("high"),
                 "dueDate": .string("2026-02-14"),
                 "estimateHours": .double(3.5),
-                "notify": .bool(true)
+                "notify": .bool(true),
             ]
         ),
         onResolve: { _ in }

@@ -1,6 +1,6 @@
 import SwiftUI
 #if canImport(AppKit)
-import AppKit
+    import AppKit
 #endif
 
 struct AssistantPendingIndicator: View {
@@ -10,7 +10,7 @@ struct AssistantPendingIndicator: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 4) {
-                    ForEach(0..<3, id: \.self) { index in
+                    ForEach(0 ..< 3, id: \.self) { index in
                         PulsingDot(
                             delay: Double(index) * 0.15,
                             isAnimating: animating
@@ -32,10 +32,10 @@ struct AssistantPendingIndicator: View {
 struct PulsingDot: View {
     let delay: Double
     let isAnimating: Bool
-    
+
     @State private var scale: CGFloat = 0.4
     @State private var opacity: Double = 0.3
-    
+
     var body: some View {
         Circle()
             .fill(
@@ -59,12 +59,12 @@ struct PulsingDot: View {
                 }
             }
     }
-    
+
     private func startAnimation() {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             withAnimation(
                 .easeInOut(duration: 0.5)
-                .repeatForever(autoreverses: true)
+                    .repeatForever(autoreverses: true)
             ) {
                 scale = 1.0
                 opacity = 1.0
@@ -77,12 +77,12 @@ struct PulsingDot: View {
 
 struct WaveLoadingIndicator: View {
     @State private var phase: CGFloat = 0
-    
+
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
                 HStack(spacing: 3) {
-                    ForEach(0..<5, id: \.self) { index in
+                    ForEach(0 ..< 5, id: \.self) { index in
                         WaveBar(
                             index: index,
                             phase: phase
@@ -94,13 +94,13 @@ struct WaveLoadingIndicator: View {
                 .background(pendingBubbleBackgroundColor)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
             }
-            
+
             Spacer(minLength: 60)
         }
         .onAppear {
             withAnimation(
                 .linear(duration: 1.2)
-                .repeatForever(autoreverses: false)
+                    .repeatForever(autoreverses: false)
             ) {
                 phase = .pi * 2
             }
@@ -111,13 +111,13 @@ struct WaveLoadingIndicator: View {
 struct WaveBar: View {
     let index: Int
     let phase: CGFloat
-    
+
     private var height: CGFloat {
         let offset = CGFloat(index) * 0.4
         let sineValue = sin(phase + offset)
         return 8 + (sineValue + 1) * 6
     }
-    
+
     var body: some View {
         RoundedRectangle(cornerRadius: 2)
             .fill(
@@ -137,12 +137,12 @@ struct WaveBar: View {
 struct MorphingDotsIndicator: View {
     @State private var currentIndex = 0
     @State private var timerTask: Task<Void, Never>?
-    
+
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
                 HStack(spacing: 6) {
-                    ForEach(0..<3, id: \.self) { index in
+                    ForEach(0 ..< 3, id: \.self) { index in
                         Circle()
                             .fill(
                                 index == currentIndex
@@ -167,7 +167,7 @@ struct MorphingDotsIndicator: View {
                 .background(pendingBubbleBackgroundColor)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
             }
-            
+
             Spacer(minLength: 60)
         }
         .onAppear {
@@ -190,7 +190,7 @@ struct MorphingDotsIndicator: View {
 
 struct OrbitLoadingIndicator: View {
     @State private var rotation: Double = 0
-    
+
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
@@ -199,9 +199,9 @@ struct OrbitLoadingIndicator: View {
                     Circle()
                         .fill(Color.gray.opacity(0.3))
                         .frame(width: 6, height: 6)
-                    
+
                     // Orbiting dots
-                    ForEach(0..<3, id: \.self) { index in
+                    ForEach(0 ..< 3, id: \.self) { index in
                         Circle()
                             .fill(
                                 LinearGradient(
@@ -222,13 +222,13 @@ struct OrbitLoadingIndicator: View {
                 .background(pendingBubbleBackgroundColor)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
             }
-            
+
             Spacer(minLength: 60)
         }
         .onAppear {
             withAnimation(
                 .linear(duration: 1.5)
-                .repeatForever(autoreverses: false)
+                    .repeatForever(autoreverses: false)
             ) {
                 rotation = 360
             }
@@ -238,11 +238,11 @@ struct OrbitLoadingIndicator: View {
 
 private var pendingBubbleBackgroundColor: Color {
     #if canImport(UIKit)
-    return Color(.systemGray6)
+        return Color(.systemGray6)
     #elseif canImport(AppKit)
-    return Color(nsColor: .windowBackgroundColor).opacity(0.7)
+        return Color(nsColor: .windowBackgroundColor).opacity(0.7)
     #else
-    return Color.gray.opacity(0.2)
+        return Color.gray.opacity(0.2)
     #endif
 }
 
@@ -276,21 +276,21 @@ private var pendingBubbleBackgroundColor: Color {
                 .foregroundStyle(.secondary)
             AssistantPendingIndicator()
         }
-        
+
         VStack(alignment: .leading, spacing: 8) {
             Text("Wave Bars")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             WaveLoadingIndicator()
         }
-        
+
         VStack(alignment: .leading, spacing: 8) {
             Text("Morphing Dots")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             MorphingDotsIndicator()
         }
-        
+
         VStack(alignment: .leading, spacing: 8) {
             Text("Orbit")
                 .font(.caption)

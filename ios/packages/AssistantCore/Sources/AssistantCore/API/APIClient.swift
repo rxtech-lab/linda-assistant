@@ -10,9 +10,9 @@ public actor APIClient {
     public init(baseURL: URL = AppConfig.apiBaseURL, authManager: AuthManager) {
         self.baseURL = baseURL
         self.authManager = authManager
-        self.session = URLSession.shared
-        self.decoder = JSONDecoder()
-        self.encoder = JSONEncoder()
+        session = URLSession.shared
+        decoder = JSONDecoder()
+        encoder = JSONEncoder()
     }
 
     // MARK: - Request Building
@@ -108,23 +108,23 @@ public actor APIClient {
         }
 
         switch httpResponse.statusCode {
-        case 200...201:
-            return
-        case 204:
-            if allowNoContent { return }
-            throw APIError.invalidResponse
-        case 400:
-            let errorBody = parseError(data)
-            throw APIError.badRequest(errorBody)
-        case 401:
-            throw APIError.unauthorized
-        case 403:
-            throw APIError.forbidden
-        case 404:
-            throw APIError.notFound
-        default:
-            let errorBody = parseError(data)
-            throw APIError.serverError(httpResponse.statusCode, errorBody)
+            case 200 ... 201:
+                return
+            case 204:
+                if allowNoContent { return }
+                throw APIError.invalidResponse
+            case 400:
+                let errorBody = parseError(data)
+                throw APIError.badRequest(errorBody)
+            case 401:
+                throw APIError.unauthorized
+            case 403:
+                throw APIError.forbidden
+            case 404:
+                throw APIError.notFound
+            default:
+                let errorBody = parseError(data)
+                throw APIError.serverError(httpResponse.statusCode, errorBody)
         }
     }
 
@@ -149,12 +149,12 @@ public enum APIError: Error, LocalizedError, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case .invalidResponse: "Invalid server response"
-        case .badRequest(let msg): msg
-        case .unauthorized: "Authentication required"
-        case .forbidden: "Access denied"
-        case .notFound: "Resource not found"
-        case .serverError(let code, let msg): "Server error (\(code)): \(msg)"
+            case .invalidResponse: "Invalid server response"
+            case let .badRequest(msg): msg
+            case .unauthorized: "Authentication required"
+            case .forbidden: "Access denied"
+            case .notFound: "Resource not found"
+            case let .serverError(code, msg): "Server error (\(code)): \(msg)"
         }
     }
 }

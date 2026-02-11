@@ -142,7 +142,9 @@ const toolCallPartSchema = z.object({
   toolCallId: z.string().describe("Unique tool call identifier"),
   toolName: z.string().describe("Name of the tool being called"),
   input: z.record(z.unknown()).describe("Tool call input parameters"),
-  confirmation: toolCallConfirmationSchema.optional().describe("Confirmation info if this tool call requires manual approval"),
+  confirmation: toolCallConfirmationSchema
+    .optional()
+    .describe("Confirmation info if this tool call requires manual approval"),
   error: z.string().optional().describe("Error message if the tool call failed"),
 });
 
@@ -151,7 +153,9 @@ const toolResultPartSchema = z.object({
   toolCallId: z.string().describe("Matching tool call identifier"),
   toolName: z.string().describe("Name of the tool"),
   output: z.unknown().describe("Tool execution output"),
-  approveStatus: z.enum(["auto-approved", "confirmed", "rejected"]).optional()
+  approveStatus: z
+    .enum(["auto-approved", "confirmed", "rejected"])
+    .optional()
     .describe("Approval status — present for tools that went through the permission system"),
   isError: z.boolean().optional().describe("Whether this tool result is an error"),
 });
@@ -166,9 +170,7 @@ const contentPartSchema = z.discriminatedUnion("type", [
 
 export const chatMessageSchema = z.object({
   id: z.string().optional().describe("Unique message identifier"),
-  role: z
-    .enum(["system", "user", "assistant", "tool"])
-    .describe("Message role"),
+  role: z.enum(["system", "user", "assistant", "tool"]).describe("Message role"),
   content: z
     .union([z.string(), z.array(contentPartSchema)])
     .describe("Message content — string for simple text, array of parts for rich content"),
@@ -183,11 +185,17 @@ export const selectChatSessionSchema = z.object({
   assigneeId: z.string().nullable().describe("Associated assignee ID"),
   title: z.string().nullable().describe("Session title"),
   status: z.string().nullable().describe("Current session status"),
-  messages: z.array(chatMessageSchema).describe("Conversation message history (AI SDK v6 ModelMessage format)"),
-  assignee: z.object({
-    id: z.string().describe("Assignee ID"),
-    name: z.string().describe("Assignee display name"),
-  }).nullable().optional().describe("Resolved assignee info"),
+  messages: z
+    .array(chatMessageSchema)
+    .describe("Conversation message history (AI SDK v6 ModelMessage format)"),
+  assignee: z
+    .object({
+      id: z.string().describe("Assignee ID"),
+      name: z.string().describe("Assignee display name"),
+    })
+    .nullable()
+    .optional()
+    .describe("Resolved assignee info"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
@@ -250,7 +258,7 @@ export const sendMessageSchema = z.object({
         type: z.enum(["image", "audio", "pdf", "file"]).describe("Attachment media type"),
         url: z.string().url().describe("Attachment URL"),
         name: z.string().optional().describe("Attachment filename"),
-      })
+      }),
     )
     .optional()
     .describe("File attachments"),
@@ -259,10 +267,12 @@ export const sendMessageSchema = z.object({
 // ---- Onboard ----
 
 export const onboardResponseSchema = z.object({
-  assignee: z.object({
-    check: z.boolean().describe("Whether an assignee exists"),
-    required: z.array(z.string()).optional().describe("Missing setup steps"),
-  }).describe("Assignee onboarding status"),
+  assignee: z
+    .object({
+      check: z.boolean().describe("Whether an assignee exists"),
+      required: z.array(z.string()).optional().describe("Missing setup steps"),
+    })
+    .describe("Assignee onboarding status"),
   overall: z.boolean().describe("Whether onboarding is complete"),
 });
 
@@ -281,9 +291,21 @@ export const presignedUrlResponseSchema = z.object({
 // ---- SSE Stream Events ----
 
 export const streamEventSchema = z.object({
-  id: z.string().describe("Message ID — all events from the same agent step share this, matching the stored message's id for deduplication"),
+  id: z
+    .string()
+    .describe(
+      "Message ID — all events from the same agent step share this, matching the stored message's id for deduplication",
+    ),
   type: z
-    .enum(["status", "text-delta", "tool-call", "tool-result", "confirmation_required", "error", "done"])
+    .enum([
+      "status",
+      "text-delta",
+      "tool-call",
+      "tool-result",
+      "confirmation_required",
+      "error",
+      "done",
+    ])
     .describe("Event type"),
   status: z.string().optional().describe("Session status (for status events)"),
   text: z.string().optional().describe("Text content (for text-delta events)"),
@@ -302,11 +324,17 @@ export const idParamSchema = z.object({ id: z.string().describe("Resource ID") }
 
 // ---- Common response schemas ----
 
-export const deletedResponseSchema = z.object({ deleted: z.boolean().describe("Whether the resource was deleted") });
+export const deletedResponseSchema = z.object({
+  deleted: z.boolean().describe("Whether the resource was deleted"),
+});
 
-export const queuedResponseSchema = z.object({ queued: z.boolean().describe("Whether the message was queued for processing") });
+export const queuedResponseSchema = z.object({
+  queued: z.boolean().describe("Whether the message was queued for processing"),
+});
 
-export const receivedResponseSchema = z.object({ received: z.boolean().describe("Whether the webhook was received") });
+export const receivedResponseSchema = z.object({
+  received: z.boolean().describe("Whether the webhook was received"),
+});
 
 export const resolveResponseSchema = z.object({
   action: z.enum(["confirm", "reject"]).describe("Action taken"),

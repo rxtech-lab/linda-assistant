@@ -3,7 +3,12 @@ import { db } from "@/lib/db";
 import { emailInbox } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import { updateEmailSchema, selectEmailSchema, deletedResponseSchema, idParamSchema } from "@/lib/schemas";
+import {
+  updateEmailSchema,
+  selectEmailSchema,
+  deletedResponseSchema,
+  idParamSchema,
+} from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
 /**
  * @openapi
@@ -11,10 +16,7 @@ import { successJson, errorJson } from "@/lib/utils/response";
  * @pathParams idParamSchema
  * @response selectEmailSchema
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -35,10 +37,7 @@ export async function GET(
  * @body updateEmailSchema
  * @response selectEmailSchema
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -65,7 +64,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
@@ -79,4 +78,3 @@ export async function DELETE(
   if (!deleted) return errorJson("Email not found", 404);
   return successJson({ deleted: true });
 }
-

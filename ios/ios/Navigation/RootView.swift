@@ -1,5 +1,5 @@
-import SwiftUI
 import AssistantCore
+import SwiftUI
 
 struct RootView: View {
     @Environment(AuthManager.self) private var authManager
@@ -9,12 +9,12 @@ struct RootView: View {
     var body: some View {
         ZStack {
             switch authManager.authState {
-            case .unknown:
-                Color.clear
-            case .authenticated:
-                OnboardingGate(onReady: dismissSplash)
-            case .unauthenticated:
-                SignInView()
+                case .unknown:
+                    Color.clear
+                case .authenticated:
+                    OnboardingGate(onReady: dismissSplash)
+                case .unauthenticated:
+                    SignInView()
             }
 
             if showSplash {

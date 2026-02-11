@@ -9,7 +9,7 @@ describe("buildSystemPrompt", () => {
 
   test("uses assignee name when no personality is set", () => {
     expect(buildSystemPrompt({ name: "Linda", personality: null })).toBe(
-      "You are Linda, a helpful personal assistant."
+      "You are Linda, a helpful personal assistant.",
     );
   });
 

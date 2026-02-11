@@ -23,12 +23,10 @@ export const updateTaskTool = (userId: string) =>
         updatedAt: sql`(datetime('now'))`,
       };
       if (updates.title !== undefined) setValues.title = updates.title;
-      if (updates.description !== undefined)
-        setValues.description = updates.description;
+      if (updates.description !== undefined) setValues.description = updates.description;
       if (updates.status !== undefined) setValues.status = updates.status;
       if (updates.tags !== undefined) setValues.tags = updates.tags;
-      if (updates.categories !== undefined)
-        setValues.categories = updates.categories;
+      if (updates.categories !== undefined) setValues.categories = updates.categories;
 
       const [updated] = await db
         .update(tasks)

@@ -1,24 +1,24 @@
 import SwiftUI
 #if canImport(AppKit)
-import AppKit
+    import AppKit
 #endif
 
 struct MessagesLoadingView: View {
     @State private var visibleRows: Set<Int> = []
     @State private var shimmerOffset: CGFloat = -1.0
     @State private var isShimmering = false
-    
+
     private let appearDelay: Double = 0.2
     private let disappearDelay: Double = 0.15
-    
+
     var body: some View {
         GeometryReader { geometry in
             let rowHeight: CGFloat = 80
             let spacing: CGFloat = 16
             let rowCount = Int((geometry.size.height + spacing) / (rowHeight + spacing))
-            
+
             VStack(alignment: .leading, spacing: spacing) {
-                ForEach(0..<rowCount, id: \.self) { index in
+                ForEach(0 ..< rowCount, id: \.self) { index in
                     MessageSkeletonRow(
                         isUser: index % 2 == 0,
                         shimmerOffset: isShimmering ? shimmerOffset : -1.0
@@ -42,12 +42,12 @@ struct MessagesLoadingView: View {
             }
         }
     }
-    
+
     private func startAnimation(rowCount: Int) {
         guard rowCount > 0 else { return }
-        
+
         // Phase 1: Appear one by one from top to bottom
-        for index in 0..<rowCount {
+        for index in 0 ..< rowCount {
             let animation = Animation
                 .spring(response: 0.4, dampingFraction: 0.75)
                 .delay(Double(index) * appearDelay)
@@ -55,7 +55,7 @@ struct MessagesLoadingView: View {
                 visibleRows.insert(index)
             }
         }
-        
+
         // Start shimmer after first row appears
         DispatchQueue.main.asyncAfter(deadline: .now() + appearDelay) {
             isShimmering = true
@@ -66,18 +66,18 @@ struct MessagesLoadingView: View {
                 shimmerOffset = 1.0
             }
         }
-        
+
         // Phase 2: Disappear one by one from top to bottom
         let totalAppearTime = Double(rowCount) * appearDelay + 0.4
         let holdTime = 1.2
         let disappearStart = totalAppearTime + holdTime
-        
+
         // Stop shimmer before disappearing
         DispatchQueue.main.asyncAfter(deadline: .now() + disappearStart - 0.2) {
             isShimmering = false
         }
-        
-        for index in 0..<rowCount {
+
+        for index in 0 ..< rowCount {
             let animation = Animation
                 .easeInOut(duration: 0.35)
                 .delay(disappearStart + Double(index) * disappearDelay)
@@ -85,7 +85,7 @@ struct MessagesLoadingView: View {
                 visibleRows.remove(index)
             }
         }
-        
+
         // Phase 3: Restart the animation cycle
         let totalCycleTime = disappearStart + Double(rowCount) * disappearDelay + 0.4
         DispatchQueue.main.asyncAfter(deadline: .now() + totalCycleTime) {
@@ -142,7 +142,7 @@ private struct SkeletonLine: View {
                                 colors: [
                                     Color.clear,
                                     Color.white.opacity(0.5),
-                                    Color.clear
+                                    Color.clear,
                                 ],
                                 startPoint: .leading,
                                 endPoint: .trailing
@@ -158,21 +158,21 @@ private struct SkeletonLine: View {
 
 private var skeletonBubbleBackgroundColor: Color {
     #if canImport(UIKit)
-    return Color(.systemGray5)
+        return Color(.systemGray5)
     #elseif canImport(AppKit)
-    return Color(nsColor: .windowBackgroundColor).opacity(0.5)
+        return Color(nsColor: .windowBackgroundColor).opacity(0.5)
     #else
-    return Color.gray.opacity(0.2)
+        return Color.gray.opacity(0.2)
     #endif
 }
 
 private var skeletonLineColor: Color {
     #if canImport(UIKit)
-    return Color(.systemGray4)
+        return Color(.systemGray4)
     #elseif canImport(AppKit)
-    return Color(nsColor: .separatorColor).opacity(0.6)
+        return Color(nsColor: .separatorColor).opacity(0.6)
     #else
-    return Color.gray.opacity(0.3)
+        return Color.gray.opacity(0.3)
     #endif
 }
 
