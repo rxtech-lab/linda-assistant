@@ -170,25 +170,8 @@ struct ChatTabView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 if !viewModel.assignees.isEmpty {
-                    Menu {
-                        ForEach(viewModel.assignees) { assignee in
-                            Button {
-                                Task {
-                                    await viewModel.switchAssignee(
-                                        assignee,
-                                        apiClient: apiClient,
-                                        authManager: authManager,
-                                        eventManager: eventManager
-                                    )
-                                }
-                            } label: {
-                                if assignee.id == viewModel.selectedAssignee?.id {
-                                    Label(assignee.name, systemImage: "checkmark")
-                                } else {
-                                    Text(assignee.name)
-                                }
-                            }
-                        }
+                    Button {
+                        viewModel.showingAssigneeSheet = true
                     } label: {
                         HStack(spacing: 4) {
                             Text(viewModel.selectedAssignee?.name ?? "Chat")
@@ -198,6 +181,7 @@ struct ChatTabView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -233,6 +217,29 @@ struct ChatTabView: View {
         }
         .sheet(item: $selectedToolCall) { toolCall in
             ToolCallDetailSheet(toolCall: toolCall)
+        }
+        .sheet(isPresented: $viewModel.showingAssigneeSheet) {
+            ChatOptionsSheet(
+                assignees: viewModel.assignees,
+                selectedAssigneeId: viewModel.selectedAssignee?.id,
+                onSelectAssignee: { assignee in
+                    viewModel.showingAssigneeSheet = false
+                    Task {
+                        await viewModel.switchAssignee(
+                            assignee,
+                            apiClient: apiClient,
+                            authManager: authManager,
+                            eventManager: eventManager
+                        )
+                    }
+                },
+                onClearMessages: {
+                    viewModel.showingAssigneeSheet = false
+                    Task {
+                        await viewModel.clearMessages(apiClient: apiClient)
+                    }
+                }
+            )
         }
         .task {
             await viewModel.load(
