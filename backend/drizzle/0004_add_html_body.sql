@@ -1,0 +1,1 @@
+ALTER TABLE `email_inbox` ADD `html_body` text;

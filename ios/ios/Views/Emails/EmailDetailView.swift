@@ -21,37 +21,12 @@ struct EmailDetailView: View {
                     Task { await loadEmail() }
                 }
             } else if let email {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        // Header
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(email.subject ?? "No Subject")
-                                .font(.title2.bold())
-
-                            LabeledContent(
-                                "From",
-                                value: email.fromName.map { "\($0) <\(email.fromEmail)>" } ?? email.fromEmail
-                            )
-                            LabeledContent("To", value: email.toEmail)
-                            LabeledContent("Received", value: email.receivedAt)
-                        }
-                        .padding()
-
-                        Divider()
-
-                        // Body
-                        if let body = email.body {
-                            Text(body)
-                                .padding()
-                        } else {
-                            Text("No content")
-                                .foregroundStyle(.secondary)
-                                .padding()
-                        }
-                    }
-                }
+                EmailContentView(email: email)
             }
         }
+        #if os(iOS)
+        .toolbar(.hidden, for: .tabBar)
+        #endif
         .navigationTitle(email?.subject ?? "Email")
         .task {
             await loadEmail()
@@ -74,3 +49,4 @@ struct EmailDetailView: View {
         isLoading = false
     }
 }
+

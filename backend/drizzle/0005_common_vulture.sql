@@ -1,0 +1,1 @@
+ALTER TABLE `email_inbox` RENAME COLUMN "body" TO "text_body";

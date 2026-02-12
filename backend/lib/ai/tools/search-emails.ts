@@ -9,7 +9,9 @@ export const searchEmailsTool = (userId: string, needsApproval: boolean) =>
     description: "Search through the user's email inbox by keyword",
     needsApproval,
     inputSchema: z.object({
-      query: z.string().describe("Search query to match against subject, body, or sender"),
+      query: z
+        .string()
+        .describe("Search query to match against subject, body, or sender"),
       limit: z.number().default(10).describe("Maximum number of results"),
     }),
     execute: async ({ query, limit }) => {
@@ -22,6 +24,7 @@ export const searchEmailsTool = (userId: string, needsApproval: boolean) =>
           subject: emailInbox.subject,
           receivedAt: emailInbox.receivedAt,
           isRead: emailInbox.isRead,
+          attachments: emailInbox.attachments,
         })
         .from(emailInbox)
         .where(
@@ -29,7 +32,8 @@ export const searchEmailsTool = (userId: string, needsApproval: boolean) =>
             eq(emailInbox.userId, userId),
             or(
               like(emailInbox.subject, pattern),
-              like(emailInbox.body, pattern),
+              like(emailInbox.textBody, pattern),
+              like(emailInbox.htmlBody, pattern),
               like(emailInbox.fromEmail, pattern),
               like(emailInbox.fromName, pattern),
             ),

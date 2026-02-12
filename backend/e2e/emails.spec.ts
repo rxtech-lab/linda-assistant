@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { nanoid } from "nanoid";
 import {
   emailResponseSchema,
   emailListResponseSchema,
@@ -14,10 +15,11 @@ test.describe("Emails CRUD", () => {
   test("POST /api/emails creates an email", async ({ request }) => {
     const res = await request.post("/api/emails", {
       data: {
+        emailId: nanoid(),
         fromEmail: "sender@example.com",
         toEmail: "recipient@example.com",
         subject: "Test Email",
-        body: "<p>Hello world</p>",
+        htmlBody: "<p>Hello world</p>",
         receivedAt: "2026-01-15T10:00:00Z",
       },
     });
@@ -28,7 +30,7 @@ test.describe("Emails CRUD", () => {
       fromEmail: "sender@example.com",
       toEmail: "recipient@example.com",
       subject: "Test Email",
-      body: "<p>Hello world</p>",
+      htmlBody: "<p>Hello world</p>",
     });
     expect(body.id).toBeTruthy();
     expect(body.userId).toBe("e2e-test-user");
@@ -102,6 +104,7 @@ test.describe("Emails cross-user isolation", () => {
   test.beforeAll(async ({ request }) => {
     const res = await request.post("/api/emails", {
       data: {
+        emailId: nanoid(),
         fromEmail: "from@example.com",
         toEmail: "user1@example.com",
         subject: "User1 Email",

@@ -1,5 +1,5 @@
 {
-  "originHash" : "2171598c36655f6e37ca7d6e3cf465f8dfd267fd580d49f9d1bb58d24ab8483e",
+  "originHash" : "36312cbb0c48282995dc0ab4ceb108257b1518721611f5b81d0fd20cac082a31",
   "pins" : [
     {
       "identity" : "agentkit",
@@ -17,6 +17,15 @@
       "state" : {
         "revision" : "2849f5323265386e200484b0d0f896e73c3411b9",
         "version" : "6.0.1"
+      }
+    },
+    {
+      "identity" : "richtext",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/NuPlay/RichText",
+      "state" : {
+        "revision" : "50ab84fd9df8afad2060bc11d4fc8a41d8459cc6",
+        "version" : "3.0.2"
       }
     },
     {

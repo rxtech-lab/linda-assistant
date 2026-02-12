@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { emailInbox } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { insertEmailSchema, selectEmailSchema } from "@/lib/schemas";
 import { parsePagination } from "@/lib/utils/pagination";
@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
       .select()
       .from(emailInbox)
       .where(eq(emailInbox.userId, auth.userId))
+      .orderBy(desc(emailInbox.receivedAt))
       .limit(limit)
       .offset(offset),
     db
