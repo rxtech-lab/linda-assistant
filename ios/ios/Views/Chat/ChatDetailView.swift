@@ -57,22 +57,16 @@ struct ChatDetailView: View {
                             .padding()
                         }
                         .onChange(of: viewModel.displayMessages.count) {
-                            withAnimation {
-                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                            }
+                            proxy.scrollTo("bottomAnchor", anchor: .bottom)
                         }
                         .onChange(of: viewModel.streamHandler?.streamedText) {
                             proxy.scrollTo("bottomAnchor", anchor: .bottom)
                         }
                         .onChange(of: viewModel.streamHandler?.toolCalls.count) {
-                            withAnimation {
-                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                            }
+                            proxy.scrollTo("bottomAnchor", anchor: .bottom)
                         }
                         .onChange(of: viewModel.streamHandler?.isStreaming) {
-                            withAnimation {
-                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                            }
+                            proxy.scrollTo("bottomAnchor", anchor: .bottom)
                         }
                         .onChange(of: viewModel.streamHandler?.pendingConfirmation?.toolCallId) {
                             if viewModel.streamHandler?.pendingConfirmation != nil {

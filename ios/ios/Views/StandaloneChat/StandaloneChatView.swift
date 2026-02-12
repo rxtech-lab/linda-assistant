@@ -101,19 +101,13 @@ struct ChatTabView: View {
                                 }
                             }
                             .onChange(of: viewModel.streamHandler?.streamedText) {
-                                withAnimation(.easeOut(duration: 0.15)) {
-                                    proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                                }
+                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
                             }
                             .onChange(of: viewModel.streamHandler?.toolCalls.count) {
-                                withAnimation {
-                                    proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                                }
+                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
                             }
                             .onChange(of: viewModel.streamHandler?.isStreaming) {
-                                withAnimation {
-                                    proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                                }
+                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
                             }
                             .onChange(of: viewModel.streamHandler?.pendingConfirmation?.toolCallId) {
                                 if viewModel.streamHandler?.pendingConfirmation != nil {
@@ -247,6 +241,9 @@ struct ChatTabView: View {
                 authManager: authManager,
                 eventManager: eventManager
             )
+        }
+        .task {
+            await viewModel.subscribeToEvents(eventManager: eventManager)
         }
         .onDisappear {
             viewModel.disconnect()

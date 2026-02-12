@@ -17,3 +17,12 @@ All commands should be run via the `scripts/` folder from the project root.
 ## Type Checking
 
 - Backend: `./scripts/backend-typecheck.sh` (don't use `bun run build` for type checking — it hits a Turbopack bug)
+
+## iOS Event-Driven Updates
+
+The iOS app uses `EventManager` (in `AssistantCore`) with `AppEvent` enum for cross-view reactivity. When any view performs CRUD on a resource, it must:
+
+1. **Emit** the event via `eventManager.emit(.resourceCreated/Updated/Deleted(...))`
+2. **Subscribe** in every view that displays that resource, using `subscribeToEvents()` in a `.task` modifier
+
+Existing event types: `assigneeCreated/Updated/Deleted`, `taskCreated/Updated/Deleted`, `emailUpdated/Deleted`, `chatSessionCreated/Deleted`, `confirmationResolved`, `error`.

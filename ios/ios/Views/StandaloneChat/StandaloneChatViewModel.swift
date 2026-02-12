@@ -284,6 +284,34 @@ final class ChatTabViewModel {
         }
     }
 
+    // MARK: - Event Subscription
+
+    func subscribeToEvents(eventManager: EventManager) async {
+        for await event in eventManager.stream {
+            switch event {
+            case .assigneeCreated(let assignee):
+                assignees.append(assignee)
+                if selectedAssignee == nil {
+                    selectedAssignee = assignee
+                }
+            case .assigneeUpdated(let updated):
+                if let idx = assignees.firstIndex(where: { $0.id == updated.id }) {
+                    assignees[idx] = updated
+                }
+                if selectedAssignee?.id == updated.id {
+                    selectedAssignee = updated
+                }
+            case .assigneeDeleted(let id):
+                assignees.removeAll { $0.id == id }
+                if selectedAssignee?.id == id {
+                    selectedAssignee = assignees.first
+                }
+            default:
+                break
+            }
+        }
+    }
+
     // MARK: - Cleanup
 
     func disconnect() {

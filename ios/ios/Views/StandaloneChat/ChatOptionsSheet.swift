@@ -38,7 +38,9 @@ struct ChatOptionsSheet: View {
                 }
             }
             .navigationTitle("Options")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
         }
         .presentationDetents([.medium])
     }
