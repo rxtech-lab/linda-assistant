@@ -7,12 +7,14 @@ private let logger = Logger(subsystem: "lindaAssistant", category: "ChatStreamHa
 public final class ChatStreamHandler: @unchecked Sendable {
     public private(set) var isStreaming = false
     public private(set) var isConnected = false
+    public private(set) var isReconnecting = false
     public private(set) var streamedText = ""
     public private(set) var pendingConfirmation: ConfirmationPayload?
     public private(set) var toolCalls: [ToolCallInfo] = []
     public private(set) var error: String?
 
     public var onAssistantMessage: (@MainActor (String, [ToolCallInfo]) -> Void)?
+    public var onReconnected: (@MainActor () async -> Void)?
 
     private let apiClient: APIClient
     private let sseClient: SSEClient
@@ -25,14 +27,45 @@ public final class ChatStreamHandler: @unchecked Sendable {
         self.eventManager = eventManager
     }
 
+    public func connectByAssignee(assigneeId: String) async {
+        await connectToPath("chat/\(assigneeId)/stream")
+    }
+
     public func connect(sessionId: String) async {
+        await connectToPath("chat-sessions/\(sessionId)/stream")
+    }
+
+    public func sendChatMessage(assigneeId: String, content: String) async {
+        logger.info("sendChatMessage: assigneeId=\(assigneeId), isConnected=\(self.isConnected)")
+        await MainActor.run {
+            self.streamedText = ""
+            self.pendingConfirmation = nil
+            self.toolCalls = []
+            self.error = nil
+            self.isStreaming = true
+        }
+
+        do {
+            _ = try await apiClient.sendChatMessage(assigneeId: assigneeId, SendMessage(content: content))
+            logger.info("sendChatMessage: API call succeeded")
+        } catch {
+            logger.error("sendChatMessage error: \(error)")
+            await MainActor.run {
+                self.error = error.localizedDescription
+                self.isStreaming = false
+            }
+            eventManager.emit(.error(message: error.localizedDescription))
+        }
+    }
+
+    private func connectToPath(_ path: String) async {
         guard !isConnected else {
             logger.info("connect: already connected")
             return
         }
 
         do {
-            let request = try await apiClient.buildSSERequest(path: "chat-sessions/\(sessionId)/stream")
+            let request = try await apiClient.buildSSERequest(path: path)
             guard let url = request.url else {
                 throw APIError.invalidResponse
             }
@@ -128,7 +161,20 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
     @MainActor
     private func handleEvent(_ message: SSEMessage) {
+        // Track reconnection transitions
+        if case .reconnecting = message {
+            isReconnecting = true
+        } else if isReconnecting {
+            // First real event after reconnecting -> we're back
+            isReconnecting = false
+            logger.info("handleEvent: reconnected, calling onReconnected")
+            Task { await onReconnected?() }
+        }
+
         switch message {
+            case .reconnecting:
+                logger.info("handleEvent: reconnecting...")
+
             case let .textDelta(payload):
                 if !isStreaming { isStreaming = true }
                 streamedText += payload.text

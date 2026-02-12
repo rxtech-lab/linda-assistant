@@ -8,6 +8,7 @@ import { sendPushNotification } from "@/lib/push";
 import { syncTaskStatus } from "@/lib/utils/task-status-sync";
 import { publishTask, publishEvent } from "@/lib/queue/producer";
 import { annotateToolCallConfirmation } from "./agent";
+import { getSessionMessages, insertMessages, updateMessageContent } from "@/lib/db/messages";
 
 interface CreateConfirmationParams {
   userId: string;
@@ -59,22 +60,42 @@ export async function resolveConfirmation(
     })
     .where(eq(confirmations.id, confirmationId));
 
-  // Load the chat session
+  // Load the chat session (only need metadata, not messages)
   const [session] = await db
-    .select()
+    .select({
+      id: chatSessions.id,
+      assigneeId: chatSessions.assigneeId,
+      taskId: chatSessions.taskId,
+    })
     .from(chatSessions)
     .where(eq(chatSessions.id, confirmation.chatSessionId));
 
   if (!session) throw new Error("Chat session not found");
 
-  const messages = (session.messages as ModelMessage[]) || [];
   const resolvedStatus = action === "confirm" ? "confirmed" : "rejected";
 
-  // Update the embedded confirmation status in the stored tool-call content part
-  annotateToolCallConfirmation(messages, confirmation.toolCallId, confirmation.id, resolvedStatus);
+  // Load persisted messages, annotate the tool-call, then update the specific row
+  const persistedMessages = await getSessionMessages(confirmation.chatSessionId);
+  annotateToolCallConfirmation(
+    persistedMessages,
+    confirmation.toolCallId,
+    confirmation.id,
+    resolvedStatus,
+  );
+
+  // Find the annotated message and update its content in DB
+  for (const msg of persistedMessages) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (part.type === "tool-call" && part.toolCallId === confirmation.toolCallId) {
+        const record = msg as Record<string, unknown>;
+        await updateMessageContent(record.id as string, msg.content);
+      }
+    }
+  }
 
   // Add SDK tool-approval-response so the agent can resume with the SDK's approval flow
-  const approvalResponse = {
+  const approvalResponse: ModelMessage = {
     id: crypto.randomUUID(),
     role: "tool" as const,
     content: [
@@ -85,16 +106,13 @@ export async function resolveConfirmation(
         ...(action === "reject" ? { reason: "User rejected this action" } : {}),
       },
     ],
-  };
+  } as ModelMessage;
 
-  const updatedMessages = [...messages, approvalResponse];
-
-  // Both confirm and reject → set in_progress, resume agent
-  // The SDK will execute the tool (if approved) or emit tool-output-denied (if rejected)
+  // Insert the approval response as a new message row and update session status
+  await insertMessages(confirmation.chatSessionId, [approvalResponse]);
   await db
     .update(chatSessions)
     .set({
-      messages: updatedMessages as unknown[],
       status: "in_progress",
       updatedAt: sql`(datetime('now'))`,
     })

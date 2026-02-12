@@ -36,9 +36,7 @@ function buildStreamChunks(
         m.content.some((c: any) => c.type === "tool-approval-response" && c.approved === false),
     );
 
-    const text = isRejection
-      ? "I understand, I won't do that."
-      : "Email sent successfully.";
+    const text = isRejection ? "I understand, I won't do that." : "Email sent successfully.";
 
     return [
       { type: "text-start", id: "text-1" },
@@ -61,7 +59,10 @@ function buildStreamChunks(
         : "";
 
   // Scenario: send_email tool call (only if tool is available)
-  if (lastText.includes("[TOOL:send_email]") && (!availableTools || availableTools.has("send_email"))) {
+  if (
+    lastText.includes("[TOOL:send_email]") &&
+    (!availableTools || availableTools.has("send_email"))
+  ) {
     const input = JSON.stringify({
       to: "test@example.com",
       subject: "Test Email",
@@ -81,7 +82,10 @@ function buildStreamChunks(
   }
 
   // Scenario: create_task tool call (only if tool is available)
-  if (lastText.includes("[TOOL:create_task]") && (!availableTools || availableTools.has("create_task"))) {
+  if (
+    lastText.includes("[TOOL:create_task]") &&
+    (!availableTools || availableTools.has("create_task"))
+  ) {
     const input = JSON.stringify({
       title: "Test Task",
       description: "A test task created by the agent",
@@ -100,7 +104,10 @@ function buildStreamChunks(
   }
 
   // Scenario: update_task tool call (with non-existent id to trigger error)
-  if (lastText.includes("[TOOL:update_task]") && (!availableTools || availableTools.has("update_task"))) {
+  if (
+    lastText.includes("[TOOL:update_task]") &&
+    (!availableTools || availableTools.has("update_task"))
+  ) {
     const input = JSON.stringify({
       taskId: "non-existent-id-12345",
       status: "finished",

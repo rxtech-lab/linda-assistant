@@ -72,22 +72,25 @@ test.describe("Agent Tool Error Handling", () => {
     expect(toolResultEvent?.data.error).toBeTruthy();
     expect(typeof toolResultEvent?.data.error).toBe("string");
 
-    // Verify stored messages have error annotation on tool-call part
+    // Verify session is stopped
     const statusRes = await request.get(`/api/chat-sessions/${sessionId}`);
     const statusBody = await statusRes.json();
     chatSessionResponseSchema.parse(statusBody);
     expect(statusBody.status).toBe("stopped");
 
+    // Verify stored messages have error annotation on tool-call part
+    const msgsRes = await request.get(`/api/chat-sessions/${sessionId}/messages`);
+    const msgsBody = await msgsRes.json();
+
     // Find the assistant message with tool-call parts
-    const assistantMessages = statusBody.messages.filter(
+    const assistantMessages = msgsBody.messages.filter(
       (m: { role: string }) => m.role === "assistant",
     );
     expect(assistantMessages.length).toBeGreaterThan(0);
 
     // Find tool-call content part with error annotation
-    const allMessages = statusBody.messages;
     let foundToolCallError = false;
-    for (const msg of allMessages) {
+    for (const msg of msgsBody.messages) {
       if (!Array.isArray(msg.content)) continue;
       for (const part of msg.content) {
         if (part.type === "tool-call" && part.error) {

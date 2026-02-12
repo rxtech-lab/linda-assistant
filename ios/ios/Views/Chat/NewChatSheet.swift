@@ -56,6 +56,7 @@ struct NewChatSheet: View {
                     .disabled(isSubmitting)
                 }
             }
+            .formStyle(.grouped)
             .navigationTitle("New Chat")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

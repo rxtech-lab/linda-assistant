@@ -7,6 +7,7 @@ import { buildToolSet } from "./tools";
 import { setStreamActive } from "@/lib/streaming/manager";
 import { createConfirmation } from "./confirmation";
 import { getModelProvider } from "./model";
+import { getSessionMessages, insertMessages } from "@/lib/db/messages";
 
 import { DEFAULT_MODEL, availableModelSchema } from "./models";
 
@@ -155,7 +156,7 @@ export async function runAgent(options: AgentRunOptions) {
   const systemPrompt = buildSystemPrompt(assignee);
 
   const { tools } = await buildToolSet(userId, session.assigneeId ?? null);
-  const messages = (session.messages || []) as ModelMessage[];
+  const messages = await getSessionMessages(sessionId);
 
   await setStreamActive(sessionId, true);
 
@@ -169,6 +170,7 @@ export async function runAgent(options: AgentRunOptions) {
 
   let stepCount = 0;
   let currentMessages: ModelMessage[] = [...messages];
+  let persistedCount = messages.length;
 
   try {
     while (stepCount < MAX_STEPS) {
@@ -232,7 +234,11 @@ export async function runAgent(options: AgentRunOptions) {
           case "tool-approval-request": {
             pendingApprovals.push({
               approvalId: (part as unknown as { approvalId: string }).approvalId,
-              toolCall: (part as unknown as { toolCall: { toolCallId: string; toolName: string; input: unknown } }).toolCall,
+              toolCall: (
+                part as unknown as {
+                  toolCall: { toolCallId: string; toolName: string; input: unknown };
+                }
+              ).toolCall,
             });
             break;
           }
@@ -272,11 +278,12 @@ export async function runAgent(options: AgentRunOptions) {
           "pending",
         );
 
-        // Save messages to DB (now includes confirmation metadata)
+        // Persist new messages and update session status
+        await insertMessages(sessionId, currentMessages.slice(persistedCount));
+        persistedCount = currentMessages.length;
         await db
           .update(chatSessions)
           .set({
-            messages: currentMessages as unknown[],
             status: "waiting_confirmation",
             updatedAt: sql`(datetime('now'))`,
           })
@@ -316,11 +323,12 @@ export async function runAgent(options: AgentRunOptions) {
       break;
     }
 
-    // Save final messages and mark session as stopped
+    // Persist new messages and mark session as stopped
+    await insertMessages(sessionId, currentMessages.slice(persistedCount));
+    persistedCount = currentMessages.length;
     await db
       .update(chatSessions)
       .set({
-        messages: currentMessages as unknown[],
         status: "stopped",
         updatedAt: sql`(datetime('now'))`,
       })
@@ -332,11 +340,12 @@ export async function runAgent(options: AgentRunOptions) {
 
     return { paused: false, reason: "completed" };
   } catch (error) {
-    // Save whatever we have and mark as stopped
+    // Persist whatever we have and mark as stopped
+    await insertMessages(sessionId, currentMessages.slice(persistedCount));
+    persistedCount = currentMessages.length;
     await db
       .update(chatSessions)
       .set({
-        messages: currentMessages as unknown[],
         status: "stopped",
         updatedAt: sql`(datetime('now'))`,
       })

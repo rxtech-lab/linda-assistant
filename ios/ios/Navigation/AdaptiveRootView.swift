@@ -5,9 +5,18 @@ struct AdaptiveRootView: View {
     @State private var navigationManager = NavigationManager()
 
     var body: some View {
+        @Bindable var nav = navigationManager
+
         Group {
             if horizontalSizeClass == .compact {
-                TabBarView()
+                NavigationStack(path: $nav.chatPath) {
+                    ChatTabView()
+                }
+                #if os(iOS)
+                .fullScreenCover(isPresented: $nav.showingTabs) {
+                    TabBarView()
+                }
+                #endif
             } else {
                 SidebarNavigationView()
             }

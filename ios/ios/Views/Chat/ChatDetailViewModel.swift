@@ -58,6 +58,16 @@ final class ChatDetailViewModel {
                 displayMessages.append(textMsg)
             }
         }
+        handler.onReconnected = { [weak self] in
+            guard let self else { return }
+            logger.info("onReconnected: refetching session \(id)")
+            do {
+                try await fetchSession(id: id, apiClient: apiClient)
+            } catch {
+                logger.error("onReconnected: fetch error: \(error)")
+                self.error = error.localizedDescription
+            }
+        }
         streamHandler = handler
 
         do {

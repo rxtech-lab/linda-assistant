@@ -11,6 +11,7 @@ public enum SSEEventType: String, Sendable {
     case error
     case done
     case status
+    case reconnecting
     case unknown
 }
 
@@ -65,6 +66,9 @@ public struct SSEEvent: Sendable {
             case .done:
                 logger.info("parse: done")
                 return .done
+            case .reconnecting:
+                logger.info("parse: reconnecting")
+                return .reconnecting
             case .unknown:
                 logger.warning("parse: unknown type, data=\(data.prefix(200))")
                 return .unknown(data)
@@ -82,6 +86,7 @@ public enum SSEMessage: Sendable {
     case confirmationRequired(ConfirmationPayload)
     case error(SSEErrorPayload)
     case done
+    case reconnecting
     case unknown(String)
 }
 

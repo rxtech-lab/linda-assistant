@@ -200,9 +200,6 @@ export const selectChatSessionSchema = z.object({
   assigneeId: z.string().nullable().describe("Associated assignee ID"),
   title: z.string().nullable().describe("Session title"),
   status: z.string().nullable().describe("Current session status"),
-  messages: z
-    .array(chatMessageSchema)
-    .describe("Conversation message history (AI SDK v6 ModelMessage format)"),
   assignee: z
     .object({
       id: z.string().describe("Assignee ID"),
@@ -211,8 +208,20 @@ export const selectChatSessionSchema = z.object({
     .nullable()
     .optional()
     .describe("Resolved assignee info"),
+  messages: z.array(z.any()).optional().describe("Session messages (included in detail view)"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
+});
+
+export const selectMessageSchema = z.object({
+  id: z.string().describe("Unique message identifier"),
+  chatSessionId: z.string().describe("Parent chat session ID"),
+  seq: z.number().describe("0-based ordering within session"),
+  role: z.enum(["system", "user", "assistant", "tool"]).describe("Message role"),
+  content: z
+    .union([z.string(), z.array(contentPartSchema), z.null()])
+    .describe("Message content — string for simple text, array of parts for rich content"),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
 });
 
 export const insertChatSessionSchema = z.object({
@@ -353,7 +362,9 @@ export const chatMessagesResponseSchema = z.object({
   nextCursor: z
     .string()
     .nullable()
-    .describe("Cursor for loading older messages (pass as 'before' query param). Null if no more messages."),
+    .describe(
+      "Cursor for loading older messages (pass as 'before' query param). Null if no more messages.",
+    ),
 });
 
 // ---- Common response schemas ----

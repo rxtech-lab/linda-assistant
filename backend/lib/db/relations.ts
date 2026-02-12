@@ -5,6 +5,7 @@ import {
   tasks,
   taskEmails,
   chatSessions,
+  messages,
   confirmations,
   devices,
 } from "./schema";
@@ -47,7 +48,15 @@ export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => 
     fields: [chatSessions.assigneeId],
     references: [assignees.id],
   }),
+  messages: many(messages),
   confirmations: many(confirmations),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  chatSession: one(chatSessions, {
+    fields: [messages.chatSessionId],
+    references: [chatSessions.id],
+  }),
 }));
 
 export const confirmationsRelations = relations(confirmations, ({ one }) => ({

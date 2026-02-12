@@ -81,24 +81,38 @@ struct AssigneeFormSheet: View {
                     }
                 }
 
-                Section {
-                    Button {
-                        Task { await save() }
-                    } label: {
-                        if isSubmitting {
-                            ProgressView().frame(maxWidth: .infinity)
-                        } else {
-                            Text("Save").frame(maxWidth: .infinity)
+                #if os(iOS)
+                    Section {
+                        Button {
+                            Task { await save() }
+                        } label: {
+                            if isSubmitting {
+                                ProgressView().frame(maxWidth: .infinity)
+                            } else {
+                                Text("Save").frame(maxWidth: .infinity)
+                            }
                         }
+                        .foregroundStyle(Color.primaryButtonColor)
+                        .disabled(name.isEmpty || email.isEmpty || isSubmitting)
                     }
-                    .foregroundStyle(Color.primaryButtonColor)
-                    .disabled(name.isEmpty || email.isEmpty || isSubmitting)
-                }
+                #endif
             }
+            .formStyle(.grouped)
             .navigationTitle(isEdit ? "Edit Assistant" : "New Assistant")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    if isSubmitting {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Button("Save") {
+                            Task { await save() }
+                        }
+                        .disabled(name.isEmpty || email.isEmpty)
+                    }
                 }
             }
             .task {

@@ -52,16 +52,18 @@ export async function GET(
 
   if (!session) return errorJson("No chat session exists for this assignee", 404);
 
-  const { stream, send, close } = createSSEStream();
+  const { stream, send, ping, close } = createSSEStream();
 
   // Start streaming in the background
   (async () => {
     let subscription: Awaited<ReturnType<typeof subscribeToEvents>> | null = null;
+    let heartbeat: ReturnType<typeof setInterval> | null = null;
     let cleanedUp = false;
 
     const cleanup = () => {
       if (cleanedUp) return;
       cleanedUp = true;
+      if (heartbeat) clearInterval(heartbeat);
       subscription?.close();
       close();
     };
@@ -70,8 +72,13 @@ export async function GET(
       // Handle client disconnect
       request.signal.addEventListener("abort", cleanup);
 
+      // Keep connection alive with periodic pings (every 30s)
+      heartbeat = setInterval(ping, 30_000);
+
       // Subscribe to live events from the worker
-      console.log(`[Stream] Subscribing to events for session=${session.id} (assignee=${assigneeId})`);
+      console.log(
+        `[Stream] Subscribing to events for session=${session.id} (assignee=${assigneeId})`,
+      );
       subscription = await subscribeToEvents(session.id, (agentEvent) => {
         console.log(`[Stream] Live event: ${agentEvent.event} session=${session.id}`);
         send(agentEvent.event, agentEvent.data);

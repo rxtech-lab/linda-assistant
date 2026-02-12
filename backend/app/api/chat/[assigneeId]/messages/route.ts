@@ -3,8 +3,13 @@ import { db } from "@/lib/db";
 import { assignees, chatSessions } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import { assigneeIdParamSchema, chatMessagesResponseSchema } from "@/lib/schemas";
-import { errorJson } from "@/lib/utils/response";
+import {
+  assigneeIdParamSchema,
+  chatMessagesResponseSchema,
+  deletedResponseSchema,
+} from "@/lib/schemas";
+import { errorJson, successJson } from "@/lib/utils/response";
+import { getPagedMessages, deleteSessionMessages } from "@/lib/db/messages";
 
 /**
  * Get paginated messages from an assignee's persistent chat.
@@ -29,7 +34,7 @@ export async function GET(
 
   // Verify assignee belongs to user
   const [assignee] = await db
-    .select()
+    .select({ id: assignees.id })
     .from(assignees)
     .where(and(eq(assignees.id, assigneeId), eq(assignees.userId, auth.userId)));
 
@@ -37,7 +42,7 @@ export async function GET(
 
   // Find existing session
   const [session] = await db
-    .select()
+    .select({ id: chatSessions.id })
     .from(chatSessions)
     .where(and(eq(chatSessions.assigneeId, assigneeId), eq(chatSessions.userId, auth.userId)))
     .limit(1);
@@ -45,20 +50,57 @@ export async function GET(
   if (!session) return errorJson("No chat session exists for this assignee", 404);
 
   const url = new URL(request.url);
-  const allMessages = (session.messages as Array<{ id?: string }>) || [];
   const limit = Math.min(parseInt(url.searchParams.get("limit") || "100", 10) || 100, 100);
-  const before = url.searchParams.get("before");
+  const before = url.searchParams.get("before") || undefined;
 
-  let endIndex = allMessages.length;
-  if (before) {
-    const idx = allMessages.findIndex((m) => m.id === before);
-    if (idx === -1) return errorJson("Cursor not found", 400);
-    endIndex = idx;
+  try {
+    const result = await getPagedMessages(session.id, limit, before);
+    return NextResponse.json(result);
+  } catch (e) {
+    if (e instanceof Error && e.message === "Cursor not found") {
+      return errorJson("Cursor not found", 400);
+    }
+    throw e;
   }
+}
 
-  const startIndex = Math.max(0, endIndex - limit);
-  const slice = allMessages.slice(startIndex, endIndex);
-  const nextCursor = startIndex > 0 ? (allMessages[startIndex]?.id ?? null) : null;
+/**
+ * Clear all messages from an assignee's persistent chat.
+ *
+ * Deletes all messages from the messages table for this assignee's chat session.
+ * The session itself is preserved.
+ *
+ * @openapi
+ * @operationId clearChatMessages
+ * @pathParams assigneeIdParamSchema
+ * @response deletedResponseSchema
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ assigneeId: string }> },
+) {
+  const auth = await authenticate(request);
+  if (auth instanceof Response) return auth;
 
-  return NextResponse.json({ messages: slice, nextCursor });
+  const { assigneeId } = await params;
+
+  // Verify assignee belongs to user
+  const [assignee] = await db
+    .select({ id: assignees.id })
+    .from(assignees)
+    .where(and(eq(assignees.id, assigneeId), eq(assignees.userId, auth.userId)));
+
+  if (!assignee) return errorJson("Assignee not found", 404);
+
+  // Find existing session
+  const [session] = await db
+    .select({ id: chatSessions.id })
+    .from(chatSessions)
+    .where(and(eq(chatSessions.assigneeId, assigneeId), eq(chatSessions.userId, auth.userId)))
+    .limit(1);
+
+  if (!session) return errorJson("No chat session exists for this assignee", 404);
+
+  await deleteSessionMessages(session.id);
+  return successJson({ deleted: true });
 }

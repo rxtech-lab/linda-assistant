@@ -1,5 +1,6 @@
 import { authenticate } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
+import { getSessionMessages } from "@/lib/db/messages";
 import { assignees, chatSessions } from "@/lib/db/schema";
 import { errorJson, successJson } from "@/lib/utils/response";
 import { and, eq } from "drizzle-orm";
@@ -25,8 +26,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, auth.userId)));
 
   if (!row) return errorJson("Chat session not found", 404);
+  const messages = await getSessionMessages(id);
   return successJson({
     ...row.session,
+    messages,
     assignee: row.session.assigneeId
       ? { id: row.session.assigneeId, name: row.assigneeName ?? "Assistant" }
       : null,

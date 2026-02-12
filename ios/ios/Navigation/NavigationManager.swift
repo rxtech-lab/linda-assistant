@@ -10,7 +10,9 @@ enum AppDestination: Hashable {
 @Observable
 final class NavigationManager {
     var selectedTab: Tab = .tasks
+    var showingTabs = false
     var tasksPath = NavigationPath()
+    var chatPath = NavigationPath()
     var emailsPath = NavigationPath()
     var assigneesPath = NavigationPath()
     var settingsPath = NavigationPath()
@@ -47,5 +49,9 @@ final class NavigationManager {
             case .assignees: assigneesPath = NavigationPath()
             case .settings: settingsPath = NavigationPath()
         }
+    }
+
+    func resetChatPath() {
+        chatPath = NavigationPath()
     }
 }
