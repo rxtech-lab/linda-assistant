@@ -43,6 +43,20 @@
       "when": 1770879539135,
       "tag": "0005_common_vulture",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1770920977115,
+      "tag": "0006_stale_paibok",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1770921270816,
+      "tag": "0007_worried_electro",
+      "breakpoints": true
     }
   ]
 }

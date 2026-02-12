@@ -1,0 +1,1 @@
+ALTER TABLE `chat_sessions` ADD `access_token` text;
