@@ -127,6 +127,10 @@ public extension APIClient {
         return try await request(path: "chat/\(assigneeId)/messages", queryItems: queryItems)
     }
 
+    func clearChatMessages(assigneeId: String) async throws {
+        try await requestNoContent(path: "chat/\(assigneeId)/messages")
+    }
+
     // MARK: - Emails
 
     func listEmails(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Email> {

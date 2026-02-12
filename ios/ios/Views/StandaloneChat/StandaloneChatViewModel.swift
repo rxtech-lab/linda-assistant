@@ -3,6 +3,7 @@ import os
 import SwiftUI
 
 private let logger = Logger(subsystem: "lindaAssistant", category: "ChatTab")
+private let lastSelectedAssigneeKey = "lastSelectedAssigneeId"
 
 @Observable
 final class ChatTabViewModel {
@@ -15,6 +16,7 @@ final class ChatTabViewModel {
     var error: String?
     var streamHandler: ChatStreamHandler?
     var showingConfirmation = false
+    var showingAssigneeSheet = false
     var hasSession = false
 
     var displayError: String? {
@@ -41,7 +43,19 @@ final class ChatTabViewModel {
         do {
             let response = try await apiClient.listAssignees(limit: 100)
             assignees = response.data
-            selectedAssignee = assignees.first
+
+            // Restore last selected assignee from storage, or default to first
+            let lastAssigneeId = UserDefaults.standard.string(forKey: lastSelectedAssigneeKey)
+            logger.debug("Attempting to restore assignee. Saved ID: \(lastAssigneeId ?? "nil"), Available IDs: \(self.assignees.map { $0.id })")
+            if let lastId = lastAssigneeId,
+               let savedAssignee = self.assignees.first(where: { $0.id == lastId })
+            {
+                logger.debug("Restored saved assignee: \(savedAssignee.name)")
+                selectedAssignee = savedAssignee
+            } else {
+                logger.debug("No saved assignee found, using first: \(self.assignees.first?.name ?? "none")")
+                selectedAssignee = assignees.first
+            }
 
             if let assignee = selectedAssignee {
                 await loadMessages(assigneeId: assignee.id, apiClient: apiClient)
@@ -195,6 +209,11 @@ final class ChatTabViewModel {
         streamHandler?.disconnect()
         streamHandler = nil
         selectedAssignee = assignee
+
+        // Persist the user's selection
+        logger.debug("Saving selected assignee ID: \(assignee.id) for key: \(lastSelectedAssigneeKey)")
+        UserDefaults.standard.set(assignee.id, forKey: lastSelectedAssigneeKey)
+        UserDefaults.standard.synchronize()
         displayMessages = []
         nextCursor = nil
         hasMoreMessages = false
@@ -208,6 +227,29 @@ final class ChatTabViewModel {
 
         if hasSession {
             await streamHandler?.connectByAssignee(assigneeId: assignee.id)
+        }
+    }
+
+    // MARK: - Clear Messages
+
+    func clearMessages(apiClient: APIClient) async {
+        guard let assignee = selectedAssignee else { return }
+        do {
+            try await apiClient.clearChatMessages(assigneeId: assignee.id)
+            // Animate message removal
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    displayMessages = []
+                }
+            }
+            nextCursor = nil
+            hasMoreMessages = false
+            hasSession = false
+            streamHandler?.disconnect()
+            streamHandler = nil
+        } catch {
+            logger.error("clearMessages error: \(error)")
+            self.error = error.localizedDescription
         }
     }
 
@@ -239,6 +281,34 @@ final class ChatTabViewModel {
             }
         } catch {
             logger.error("loadPendingConfirmation error: \(error)")
+        }
+    }
+
+    // MARK: - Event Subscription
+
+    func subscribeToEvents(eventManager: EventManager) async {
+        for await event in eventManager.stream {
+            switch event {
+            case .assigneeCreated(let assignee):
+                assignees.append(assignee)
+                if selectedAssignee == nil {
+                    selectedAssignee = assignee
+                }
+            case .assigneeUpdated(let updated):
+                if let idx = assignees.firstIndex(where: { $0.id == updated.id }) {
+                    assignees[idx] = updated
+                }
+                if selectedAssignee?.id == updated.id {
+                    selectedAssignee = updated
+                }
+            case .assigneeDeleted(let id):
+                assignees.removeAll { $0.id == id }
+                if selectedAssignee?.id == id {
+                    selectedAssignee = assignees.first
+                }
+            default:
+                break
+            }
         }
     }
 

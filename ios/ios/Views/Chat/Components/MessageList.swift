@@ -16,28 +16,34 @@ struct MessageList: View {
     var body: some View {
         // Historical messages
         ForEach(Array(messages.enumerated()), id: \.element.id) { index, msg in
-            if msg.role == .assistant {
-                let isFirstInGroup = index == 0 || messages[index - 1].role != .assistant
-                if isFirstInGroup {
-                    Text(msg.assigneeName ?? "Assistant")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
+            Group {
+                if msg.role == .assistant {
+                    let isFirstInGroup = index == 0 || messages[index - 1].role != .assistant
+                    if isFirstInGroup {
+                        Text(msg.assigneeName ?? "Assistant")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
                 }
-            }
 
-            if !msg.content.isEmpty {
-                MessageBubble(message: msg, disableAnimation: !animationEnabled)
-            }
+                if !msg.content.isEmpty {
+                    MessageBubble(message: msg, disableAnimation: !animationEnabled)
+                }
 
-            ForEach(msg.toolCalls) { toolCall in
-                ToolCallBadge(toolCall: toolCall) {
-                    if toolCall.status == .pendingConfirmation {
-                        onConfirmationTap?()
-                    } else if toolCall.status != .running {
-                        onToolCallTap?(toolCall)
+                ForEach(msg.toolCalls) { toolCall in
+                    ToolCallBadge(toolCall: toolCall) {
+                        if toolCall.status == .pendingConfirmation {
+                            onConfirmationTap?()
+                        } else if toolCall.status != .running {
+                            onToolCallTap?(toolCall)
+                        }
                     }
                 }
             }
+            .transition(.asymmetric(
+                insertion: .opacity.combined(with: .move(edge: .bottom)),
+                removal: .opacity.combined(with: .scale(scale: 0.8))
+            ))
         }
 
         // Streaming group header

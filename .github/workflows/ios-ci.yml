@@ -18,6 +18,7 @@ jobs:
       configuration: Debug
       sdk: iphonesimulator
       artifact-name: ios-build-logs
+      runs-on: '"self-hosted", "macOS"'
       artifact-path: build.log
     secrets: inherit
 
@@ -30,7 +31,7 @@ jobs:
       scheme: ios
       configuration: Debug
       sdk: macosx
-      runs-on: '"macos-26"'
+      runs-on: '"self-hosted", "macOS"'
       artifact-name: macos-build-logs
       artifact-path: build-macos.log
     secrets: inherit
@@ -39,7 +40,7 @@ jobs:
     name: Run Tests
     uses: ./.github/workflows/ios-setup.yml
     with:
-      runs-on: '"macos-26"'
+      runs-on: '"self-hosted", "macOS"'
       job-name: Run Tests
       script: ios-test-plan.sh
       scheme: ios
