@@ -7,6 +7,12 @@ export type ToolPermission = {
   permission: "auto-confirm" | "manual-confirm" | "auto-reject";
 };
 
+export type EmailAttachment = {
+  type: "image" | "pdf" | "file" | "audio";
+  url: string;
+  name: string;
+};
+
 export const assignees = sqliteTable("assignees", {
   id: text("id")
     .primaryKey()
@@ -16,7 +22,9 @@ export const assignees = sqliteTable("assignees", {
   email: text("email").notNull(),
   personality: text("personality"),
   model: text("model"),
-  toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
+  toolPermissions: text("tool_permissions", { mode: "json" }).$type<
+    ToolPermission[]
+  >(),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
@@ -25,6 +33,7 @@ export const emailInbox = sqliteTable("email_inbox", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
+  emailId: text("email_id").notNull().unique(),
   userId: text("user_id").notNull(),
   assigneeId: text("assignee_id").references(() => assignees.id, {
     onDelete: "set null",
@@ -33,9 +42,11 @@ export const emailInbox = sqliteTable("email_inbox", {
   fromName: text("from_name"),
   toEmail: text("to_email").notNull(),
   subject: text("subject"),
-  body: text("body"),
+  textBody: text("text_body"),
+  htmlBody: text("html_body"),
   receivedAt: text("received_at").notNull(),
   isRead: integer("is_read", { mode: "boolean" }).default(false),
+  attachments: text("attachments", { mode: "json" }).$type<EmailAttachment[]>(),
   metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
 });
 
@@ -104,7 +115,9 @@ export const confirmations = sqliteTable("confirmations", {
   toolCallId: text("tool_call_id").notNull(),
   toolName: text("tool_name").notNull(),
   approvalId: text("approval_id").notNull(),
-  parameters: text("parameters", { mode: "json" }).$type<Record<string, unknown>>(),
+  parameters: text("parameters", { mode: "json" }).$type<
+    Record<string, unknown>
+  >(),
   status: text("status").default("pending"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   resolvedAt: text("resolved_at"),

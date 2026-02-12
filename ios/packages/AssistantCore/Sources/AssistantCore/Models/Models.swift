@@ -314,6 +314,14 @@ public struct ChatMessagesResponse: Codable, Sendable {
 
 // MARK: - Email
 
+public struct EmailAttachment: Codable, Identifiable, Sendable {
+    public let type: String // "image", "pdf", "file", "audio"
+    public let url: String
+    public let name: String
+
+    public var id: String { url }
+}
+
 public struct Email: Codable, Identifiable, Sendable {
     public let id: String
     public let userId: String
@@ -322,10 +330,12 @@ public struct Email: Codable, Identifiable, Sendable {
     public let fromName: String?
     public let toEmail: String
     public let subject: String?
-    public let body: String?
+    public let textBody: String?
+    public let htmlBody: String?
     public let receivedAt: String
     public let isRead: Bool?
     public let metadata: [String: AnyCodable]?
+    public let attachments: [EmailAttachment]?
 }
 
 public struct UpdateEmail: Codable, Sendable {
