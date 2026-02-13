@@ -269,6 +269,16 @@ test.describe("Chat Endpoints", () => {
     expect(resumeEventTypes).toContain("tool-result");
     expect(resumeEventTypes).toContain("text-delta");
     expect(resumeEventTypes).toContain("done");
+
+    const inProgressIdx = resumeEvents.findIndex(
+      (e) => e.event === "status" && e.data.status === "in_progress",
+    );
+    expect(inProgressIdx).toBeGreaterThanOrEqual(0);
+
+    const toolResultIdx = resumeEvents.findIndex((e) => e.event === "tool-result");
+    const textDeltaIdx = resumeEvents.findIndex((e) => e.event === "text-delta");
+    expect(inProgressIdx).toBeLessThan(toolResultIdx);
+    expect(inProgressIdx).toBeLessThan(textDeltaIdx);
   });
 
   test("clear messages deletes all messages", async ({ request }) => {

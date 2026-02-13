@@ -20,6 +20,42 @@ struct DisplayMessage: Identifiable {
 }
 
 extension DisplayMessage {
+    /// Convert historical ChatMessage array to DisplayMessage array.
+    static func convert(from messages: [ChatMessage], assigneeName: String?) -> [DisplayMessage] {
+        messages.enumerated().compactMap { index, msg in
+            let historicalToolCalls = msg.toolCalls.map { tc in
+                let status: ToolCallStatus
+                let errorMsg: String?
+                if tc.confirmation != nil {
+                    status = ToolCallStatus.from(confirmation: tc.confirmation)
+                    errorMsg = nil
+                } else if tc.error != nil {
+                    status = .failed
+                    errorMsg = tc.error
+                } else {
+                    status = .completed
+                    errorMsg = nil
+                }
+                return ToolCallInfo(
+                    toolCallId: tc.toolCallId,
+                    toolName: tc.toolName,
+                    input: tc.input,
+                    status: status,
+                    errorMessage: errorMsg
+                )
+            }
+            guard (msg.textContent != nil && !msg.textContent!.isEmpty) || !historicalToolCalls.isEmpty
+            else { return nil }
+            return DisplayMessage(
+                id: "history-\(index)-\(msg.role)",
+                role: msg.role == "user" ? .user : .assistant,
+                content: msg.textContent ?? "",
+                toolCalls: historicalToolCalls,
+                assigneeName: msg.role == "user" ? nil : assigneeName
+            )
+        }
+    }
+
     static var previewUser: DisplayMessage {
         DisplayMessage(
             id: "preview-user",
@@ -33,25 +69,25 @@ extension DisplayMessage {
             id: "preview-assistant",
             role: .assistant,
             content: """
-                Here's a comprehensive overview of authentication best practices for iOS:
+            Here's a comprehensive overview of authentication best practices for iOS:
 
-                ## 1. Use Keychain for Secure Storage
-                Always store sensitive data like tokens and credentials in the **Keychain**, not UserDefaults.
+            ## 1. Use Keychain for Secure Storage
+            Always store sensitive data like tokens and credentials in the **Keychain**, not UserDefaults.
 
-                ## 2. Implement Biometric Authentication
-                Use `LocalAuthentication` framework for Face ID/Touch ID:
-                ```swift
-                let context = LAContext()
-                context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)
-                ```
+            ## 2. Implement Biometric Authentication
+            Use `LocalAuthentication` framework for Face ID/Touch ID:
+            ```swift
+            let context = LAContext()
+            context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)
+            ```
 
-                ## 3. Token Management
-                - Use short-lived access tokens
-                - Implement refresh token rotation
-                - Clear tokens on logout
+            ## 3. Token Management
+            - Use short-lived access tokens
+            - Implement refresh token rotation
+            - Clear tokens on logout
 
-                Let me know if you'd like more details on any of these topics!
-                """,
+            Let me know if you'd like more details on any of these topics!
+            """,
             assigneeName: "Avery"
         )
     }

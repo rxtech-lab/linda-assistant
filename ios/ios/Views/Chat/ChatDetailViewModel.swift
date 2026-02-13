@@ -36,27 +36,7 @@ final class ChatDetailViewModel {
         handler.onAssistantMessage = { [weak self] text, toolCalls in
             guard let self else { return }
             logger.info("onAssistantMessage received, textLength=\(text.count), toolCalls=\(toolCalls.count)")
-            // Append tool-calls-only message first (so badge appears before text)
-            if !toolCalls.isEmpty {
-                let toolMsg = DisplayMessage(
-                    id: "assistant-tools-\(displayMessages.count)",
-                    role: .assistant,
-                    content: "",
-                    toolCalls: toolCalls,
-                    assigneeName: assigneeName
-                )
-                displayMessages.append(toolMsg)
-            }
-            // Then append text message
-            if !text.isEmpty {
-                let textMsg = DisplayMessage(
-                    id: "assistant-\(displayMessages.count)",
-                    role: .assistant,
-                    content: text,
-                    assigneeName: assigneeName
-                )
-                displayMessages.append(textMsg)
-            }
+            appendAssistantMessages(text: text, toolCalls: toolCalls, to: &displayMessages, assigneeName: assigneeName)
         }
         handler.onReconnected = { [weak self] in
             guard let self else { return }
@@ -126,70 +106,20 @@ final class ChatDetailViewModel {
         logger.info("Session loaded: title=\(session.title ?? "nil"), raw messages count=\(session.messages.count)")
         self.session = session
         assigneeName = session.assignee?.name
-        displayMessages = session.messages.enumerated().compactMap { index, msg in
-            // Build tool call infos from historical messages
-            let historicalToolCalls = msg.toolCalls.map { tc in
-                // Error annotation takes precedence when no confirmation exists
-                let status: ToolCallStatus
-                let errorMsg: String?
-                if tc.confirmation != nil {
-                    status = ToolCallStatus.from(confirmation: tc.confirmation)
-                    errorMsg = nil
-                } else if tc.error != nil {
-                    status = .failed
-                    errorMsg = tc.error
-                } else {
-                    status = .completed
-                    errorMsg = nil
-                }
-                return ToolCallInfo(
-                    toolCallId: tc.toolCallId,
-                    toolName: tc.toolName,
-                    input: tc.input,
-                    status: status,
-                    errorMessage: errorMsg
-                )
-            }
-            // Skip messages with no text and no tool calls
-            guard (msg.textContent != nil && !msg.textContent!.isEmpty) || !historicalToolCalls.isEmpty
-            else { return nil }
-            return DisplayMessage(
-                id: "\(index)-\(msg.role)",
-                role: msg.role == "user" ? .user : .assistant,
-                content: msg.textContent ?? "",
-                toolCalls: historicalToolCalls,
-                assigneeName: msg.role == "user" ? nil : assigneeName
-            )
-        }
+        displayMessages = DisplayMessage.convert(from: session.messages, assigneeName: assigneeName)
 
         // Extract pending confirmation directly from message data (no extra API call)
-        logger.info("fetchSession: session.status=\(session.status ?? "nil"), streamHandler=\(self.streamHandler != nil ? "set" : "nil")")
+        logger
+            .info(
+                "fetchSession: session.status=\(session.status ?? "nil"), streamHandler=\(self.streamHandler != nil ? "set" : "nil")"
+            )
         if session.status == "waiting_confirmation" {
-            var foundPayload: ConfirmationPayload?
-            for msg in session.messages {
-                for tc in msg.toolCalls {
-                    logger.info("fetchSession: toolCall=\(tc.toolCallId), toolName=\(tc.toolName), confirmation=\(tc.confirmation?.status ?? "none"), hasInput=\(tc.input != nil)")
-                    if tc.confirmation?.status == "pending" {
-                        foundPayload = ConfirmationPayload(
-                            confirmationId: tc.confirmation!.id,
-                            toolCallId: tc.toolCallId,
-                            toolName: tc.toolName,
-                            parameters: tc.input
-                        )
-                        break
-                    }
-                }
-                if foundPayload != nil { break }
-            }
-            if let payload = foundPayload {
-                logger.info("fetchSession: found pending confirmation id=\(payload.confirmationId), toolName=\(payload.toolName)")
-                await MainActor.run {
-                    streamHandler?.setPendingConfirmation(payload)
-                    showingConfirmation = true
-                    logger.info("fetchSession: after setPendingConfirmation, pendingConfirmation=\(self.streamHandler?.pendingConfirmation != nil ? "set" : "nil"), showingConfirmation=\(self.showingConfirmation)")
-                }
-            } else {
-                logger.warning("fetchSession: session is waiting_confirmation but no pending tool call found in messages")
+            await MainActor.run {
+                extractPendingConfirmation(
+                    from: session.messages,
+                    streamHandler: streamHandler,
+                    showingConfirmation: &showingConfirmation
+                )
             }
         }
     }

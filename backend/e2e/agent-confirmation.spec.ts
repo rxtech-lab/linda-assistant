@@ -100,6 +100,11 @@ test.describe("Agent Confirmation", () => {
     expect(resumeEventTypes).toContain("text-delta");
     expect(resumeEventTypes).toContain("done");
 
+    const inProgressIdx = resumeEvents.findIndex(
+      (e) => e.event === "status" && e.data.status === "in_progress",
+    );
+    expect(inProgressIdx).toBeGreaterThanOrEqual(0);
+
     // Verify tool-result event is emitted after confirmation
     const toolResultEvent = resumeEvents.find((e) => e.event === "tool-result");
     expect(toolResultEvent?.data.toolCallId).toBeTruthy();
@@ -108,6 +113,8 @@ test.describe("Agent Confirmation", () => {
     // tool-result should come before text-delta
     const toolResultIdx = resumeEvents.findIndex((e) => e.event === "tool-result");
     const textDeltaIdx = resumeEvents.findIndex((e) => e.event === "text-delta");
+    expect(inProgressIdx).toBeLessThan(toolResultIdx);
+    expect(inProgressIdx).toBeLessThan(textDeltaIdx);
     expect(toolResultIdx).toBeLessThan(textDeltaIdx);
 
     // Check that the resumed text contains expected content
