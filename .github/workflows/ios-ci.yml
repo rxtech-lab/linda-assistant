@@ -14,7 +14,7 @@ jobs:
     with:
       job-name: Build iOS App
       script: ios-build.sh
-      scheme: ios
+      scheme: LindaAssistant
       configuration: Debug
       sdk: iphonesimulator
       artifact-name: ios-build-logs
@@ -28,7 +28,7 @@ jobs:
     with:
       job-name: Build macOS App
       script: macos-build.sh
-      scheme: ios
+      scheme: LindaAssistant
       configuration: Debug
       sdk: macosx
       runs-on: '"self-hosted", "macOS"'
@@ -43,7 +43,7 @@ jobs:
       runs-on: '"self-hosted", "macOS"'
       job-name: Run Tests
       script: ios-test-plan.sh
-      scheme: ios
+      scheme: LindaAssistant
       configuration: Debug
       sdk: iphonesimulator
       artifact-name: test-logs

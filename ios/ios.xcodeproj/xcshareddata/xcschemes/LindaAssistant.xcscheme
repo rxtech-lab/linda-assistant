@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "DF7E29F02F378F46006A4C0A"
-               BuildableName = "ios.app"
-               BlueprintName = "ios"
+               BuildableName = "LindaAssistant.app"
+               BlueprintName = "LindaAssistant"
                ReferencedContainer = "container:ios.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -77,8 +77,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "DF7E29F02F378F46006A4C0A"
-            BuildableName = "ios.app"
-            BlueprintName = "ios"
+            BuildableName = "LindaAssistant.app"
+            BlueprintName = "LindaAssistant"
             ReferencedContainer = "container:ios.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -94,8 +94,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "DF7E29F02F378F46006A4C0A"
-            BuildableName = "ios.app"
-            BlueprintName = "ios"
+            BuildableName = "LindaAssistant.app"
+            BlueprintName = "LindaAssistant"
             ReferencedContainer = "container:ios.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_PATH="$PROJECT_ROOT/ios/ios.xcodeproj"
-SCHEME="${SCHEME:-ios}"
+SCHEME="${SCHEME:-LindaAssistant}"
 CONFIGURATION="${CONFIGURATION:-Debug}"
 BUILD_DIR="${BUILD_DIR:-.build}"
 

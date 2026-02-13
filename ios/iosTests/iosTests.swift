@@ -5,7 +5,7 @@
 //  Created by Qiwei Li on 2/7/26.
 //
 
-@testable import ios
+@testable import LindaAssistant
 import Testing
 
 struct iosTests {

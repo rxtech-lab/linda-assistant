@@ -1,5 +1,5 @@
 @testable import AssistantCore
-@testable import ios
+@testable import LindaAssistant
 import ViewInspector
 import XCTest
 
