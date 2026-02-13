@@ -8,7 +8,11 @@ import { sendPushNotification } from "@/lib/push";
 import { syncTaskStatus } from "@/lib/utils/task-status-sync";
 import { publishTask, publishEvent } from "@/lib/queue/producer";
 import { annotateToolCallConfirmation } from "./agent";
-import { getSessionMessages, insertMessages, updateMessageContent } from "@/lib/db/messages";
+import {
+  getSessionMessages,
+  insertMessages,
+  updateMessageContent,
+} from "@/lib/db/messages";
 
 interface CreateConfirmationParams {
   userId: string;
@@ -20,7 +24,10 @@ interface CreateConfirmationParams {
 }
 
 export async function createConfirmation(params: CreateConfirmationParams) {
-  const [confirmation] = await db.insert(confirmations).values(params).returning();
+  const [confirmation] = await db
+    .insert(confirmations)
+    .values(params)
+    .returning();
 
   // Send push notification
   await sendPushNotification(params.userId, {
@@ -49,7 +56,8 @@ export async function resolveConfirmation(
     .where(eq(confirmations.id, confirmationId));
 
   if (!confirmation) throw new Error("Confirmation not found");
-  if (confirmation.status !== "pending") throw new Error("Confirmation already resolved");
+  if (confirmation.status !== "pending")
+    throw new Error("Confirmation already resolved");
 
   // Update confirmation status
   await db
@@ -75,7 +83,9 @@ export async function resolveConfirmation(
   const resolvedStatus = action === "confirm" ? "confirmed" : "rejected";
 
   // Load persisted messages, annotate the tool-call, then update the specific row
-  const persistedMessages = await getSessionMessages(confirmation.chatSessionId);
+  const persistedMessages = await getSessionMessages(
+    confirmation.chatSessionId,
+  );
   annotateToolCallConfirmation(
     persistedMessages,
     confirmation.toolCallId,
@@ -87,7 +97,10 @@ export async function resolveConfirmation(
   for (const msg of persistedMessages) {
     if (!Array.isArray(msg.content)) continue;
     for (const part of msg.content as Record<string, unknown>[]) {
-      if (part.type === "tool-call" && part.toolCallId === confirmation.toolCallId) {
+      if (
+        part.type === "tool-call" &&
+        part.toolCallId === confirmation.toolCallId
+      ) {
         const record = msg as Record<string, unknown>;
         await updateMessageContent(record.id as string, msg.content);
       }
@@ -141,12 +154,16 @@ export async function resolveConfirmation(
       .from(assignees)
       .where(eq(assignees.id, session.assigneeId));
 
-    const perms: ToolPermission[] = (assignee?.toolPermissions as ToolPermission[]) ?? [];
+    const perms: ToolPermission[] =
+      (assignee?.toolPermissions as ToolPermission[]) ?? [];
     const idx = perms.findIndex((tp) => tp.toolName === confirmation.toolName);
     if (idx >= 0) {
       perms[idx].permission = "auto-confirm";
     } else {
-      perms.push({ toolName: confirmation.toolName, permission: "auto-confirm" });
+      perms.push({
+        toolName: confirmation.toolName,
+        permission: "auto-confirm",
+      });
     }
 
     await db

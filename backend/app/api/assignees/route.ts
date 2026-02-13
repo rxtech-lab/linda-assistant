@@ -8,16 +8,6 @@ import { parsePagination } from "@/lib/utils/pagination";
 import { successJson, errorJson, paginatedJson } from "@/lib/utils/response";
 import { z } from "zod";
 
-const listResponseSchema = z.object({
-  data: z.array(selectAssigneeSchema),
-  pagination: z.object({
-    total: z.number(),
-    limit: z.number(),
-    offset: z.number(),
-    hasMore: z.boolean(),
-  }),
-});
-
 /**
  * @openapi
  * @operationId listAssignees
