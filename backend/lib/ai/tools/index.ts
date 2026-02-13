@@ -86,6 +86,7 @@ export async function buildToolSet(
   assigneeId: string | null,
   accessToken: string,
 ): Promise<ToolSetResult> {
+  const isE2E = process.env.IS_E2E?.toLowerCase() === "true";
   const toolPermissions = assigneeId
     ? await loadAssigneePermissions(assigneeId)
     : null;
@@ -129,7 +130,7 @@ export async function buildToolSet(
   }
 
   // Skip MCP tools in E2E test mode (no valid OAuth tokens for external services)
-  if (!process.env.IS_E2E) {
+  if (!isE2E) {
     // MCP server configurations - add more MCPs here
     const mcpConfigs: McpConfig[] = [
       {

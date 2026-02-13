@@ -10,6 +10,9 @@ export const createInvoiceMcp = async (
   accessToken: string,
   needsApproval: Record<string, boolean>,
 ) => {
+  if (process.env.IS_E2E?.toLowerCase() === "true") {
+    return {};
+  }
   const mcpUrl = process.env.INVOICE_MCP_URL;
   if (!mcpUrl) {
     throw new Error("INVOICE_MCP_URL is not defined");

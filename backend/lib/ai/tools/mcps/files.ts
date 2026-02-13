@@ -10,6 +10,9 @@ export const createFilesMcp = async (
   accessToken: string,
   needsApproval: Record<string, boolean>,
 ) => {
+  if (process.env.IS_E2E?.toLowerCase() === "true") {
+    return {};
+  }
   const mcpUrl = process.env.FILES_MCP_URL;
   if (!mcpUrl) {
     throw new Error("FILES_MCP_URL is not defined");

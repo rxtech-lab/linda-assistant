@@ -1,15 +1,11 @@
-import { NextRequest } from "next/server";
+import { authenticate } from "@/lib/auth/middleware";
+import { buildToolSet } from "@/lib/ai/tools";
 import { db } from "@/lib/db";
 import { assignees } from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
-import { authenticate } from "@/lib/auth/middleware";
-import {
-  updateAssigneeSchema,
-  selectAssigneeSchema,
-  deletedResponseSchema,
-  idParamSchema,
-} from "@/lib/schemas";
-import { successJson, errorJson } from "@/lib/utils/response";
+import { updateAssigneeSchema } from "@/lib/schemas";
+import { errorJson, successJson } from "@/lib/utils/response";
+import { and, eq, sql } from "drizzle-orm";
+import { NextRequest } from "next/server";
 /**
  * @openapi
  * @operationId getAssignee
@@ -31,7 +27,20 @@ export async function GET(
 
   if (!item) return errorJson("Assignee not found", 404);
 
-  return successJson(item);
+  const { tools } = await buildToolSet(auth.userId, item.id, auth.accessToken);
+  const toolNames = Object.keys(tools);
+  // User-requested permission handling via buildToolSet; do not change.
+  const toolPermissions = toolNames.map((toolName) => {
+    const existing = item.toolPermissions?.find(
+      (permission) => permission.toolName === toolName,
+    );
+    return {
+      toolName,
+      permission: existing?.permission ?? "manual-confirm",
+    };
+  });
+
+  return successJson({ ...item, toolPermissions });
 }
 
 /**
@@ -60,7 +69,25 @@ export async function PUT(
     .returning();
 
   if (!updated) return errorJson("Assignee not found", 404);
-  return successJson(updated);
+
+  const { tools } = await buildToolSet(
+    auth.userId,
+    updated.id,
+    auth.accessToken,
+  );
+  const toolNames = Object.keys(tools);
+  // User-requested permission handling via buildToolSet; do not change.
+  const toolPermissions = toolNames.map((toolName) => {
+    const existing = updated.toolPermissions?.find(
+      (permission) => permission.toolName === toolName,
+    );
+    return {
+      toolName,
+      permission: existing?.permission ?? "manual-confirm",
+    };
+  });
+
+  return successJson({ ...updated, toolPermissions });
 }
 
 /**
