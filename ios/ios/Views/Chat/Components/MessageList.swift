@@ -13,10 +13,31 @@ struct MessageList: View {
     /// Disable animation initially, enable after view has loaded
     @State private var animationEnabled = false
 
+    private let calendar = Calendar.current
+
+    /// Check if we should show a date divider before this message
+    private func shouldShowDateDivider(at index: Int) -> Bool {
+        guard let currentTimestamp = messages[index].timestamp else { return false }
+
+        if index == 0 {
+            return true
+        }
+
+        guard let previousTimestamp = messages[index - 1].timestamp else { return false }
+
+        return !calendar.isDate(currentTimestamp, inSameDayAs: previousTimestamp)
+    }
+
     var body: some View {
         // Historical messages
         ForEach(Array(messages.enumerated()), id: \.element.id) { index, msg in
             Group {
+                // Date divider if date changed
+                if shouldShowDateDivider(at: index), let timestamp = msg.timestamp {
+                    DateDividerView(date: timestamp)
+                        .padding(.vertical, 8)
+                }
+
                 if msg.role == .assistant {
                     let isFirstInGroup = index == 0 || messages[index - 1].role != .assistant
                     if isFirstInGroup {
@@ -94,11 +115,82 @@ struct MessageList: View {
     }
 }
 
+// MARK: - Date Divider
+
+struct DateDividerView: View {
+    let date: Date
+
+    private var dateText: String {
+        let calendar = Calendar.current
+
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear) {
+            // Same week - show day name
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEEE"
+            formatter.timeZone = TimeZone.current
+            return formatter.string(from: date)
+        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
+            // Same year - show month and day
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMMM d"
+            formatter.timeZone = TimeZone.current
+            return formatter.string(from: date)
+        } else {
+            // Different year - show full date
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMMM d, yyyy"
+            formatter.timeZone = TimeZone.current
+            return formatter.string(from: date)
+        }
+    }
+
+    var body: some View {
+        HStack {
+            line
+            Text(dateText)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+            line
+        }
+        .accessibilityIdentifier("dateDivider-\(dateText)")
+    }
+
+    private var line: some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.3))
+            .frame(height: 1)
+    }
+}
+
+#Preview("DateDividerView") {
+    VStack(spacing: 20) {
+        DateDividerView(date: Date())
+        DateDividerView(date: Calendar.current.date(byAdding: .day, value: -1, to: Date())!)
+        DateDividerView(date: Calendar.current.date(byAdding: .day, value: -3, to: Date())!)
+        DateDividerView(date: Calendar.current.date(byAdding: .month, value: -2, to: Date())!)
+        DateDividerView(date: Calendar.current.date(byAdding: .year, value: -1, to: Date())!)
+    }
+    .padding()
+}
+
 #Preview("MessageList - Grouped Messages") {
-    ScrollView {
+    let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+    let today = Date()
+
+    return ScrollView {
         LazyVStack(alignment: .leading, spacing: 12) {
             MessageList(messages: [
-                DisplayMessage(id: "1", role: .user, content: "Can you check my tasks and send a summary email?"),
+                DisplayMessage(
+                    id: "1", role: .user,
+                    content: "Can you check my tasks and send a summary email?",
+                    timestamp: yesterday
+                ),
                 DisplayMessage(
                     id: "2", role: .assistant, content: "",
                     toolCalls: [ToolCallInfo(
@@ -107,13 +199,15 @@ struct MessageList: View {
                         input: nil,
                         status: .completed
                     )],
-                    assigneeName: "Avery"
+                    assigneeName: "Avery",
+                    timestamp: yesterday
                 ),
                 DisplayMessage(
                     id: "3",
                     role: .assistant,
                     content: "I found 3 tasks. Let me send that summary.",
-                    assigneeName: "Avery"
+                    assigneeName: "Avery",
+                    timestamp: yesterday
                 ),
                 DisplayMessage(
                     id: "4", role: .assistant, content: "",
@@ -123,14 +217,20 @@ struct MessageList: View {
                         input: nil,
                         status: .pendingConfirmation
                     )],
-                    assigneeName: "Avery"
+                    assigneeName: "Avery",
+                    timestamp: yesterday
                 ),
-                DisplayMessage(id: "5", role: .user, content: "Thanks! What about tomorrow's schedule?"),
+                DisplayMessage(
+                    id: "5", role: .user,
+                    content: "Thanks! What about tomorrow's schedule?",
+                    timestamp: today
+                ),
                 DisplayMessage(
                     id: "6",
                     role: .assistant,
                     content: "Let me look that up for you.",
-                    assigneeName: "Avery"
+                    assigneeName: "Avery",
+                    timestamp: today
                 ),
             ])
         }

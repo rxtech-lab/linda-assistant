@@ -443,3 +443,167 @@ final class ToolCallErrorAnnotationTests: XCTestCase {
         XCTAssertEqual(status, .rejected)
     }
 }
+
+// MARK: - Test Case 13: DateDividerView accessibility and text
+
+final class DateDividerViewTests: XCTestCase {
+    func testDateDivider_showsTodayForTodaysDate() throws {
+        let today = Date()
+        let sut = DateDividerView(date: today)
+
+        let texts = try sut.inspect().findAll(ViewType.Text.self)
+        let textStrings = texts.compactMap { try? $0.string() }
+
+        XCTAssertTrue(textStrings.contains("Today"), "Should show 'Today' for today's date")
+    }
+
+    func testDateDivider_showsYesterdayForYesterdaysDate() throws {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let sut = DateDividerView(date: yesterday)
+
+        let texts = try sut.inspect().findAll(ViewType.Text.self)
+        let textStrings = texts.compactMap { try? $0.string() }
+
+        XCTAssertTrue(textStrings.contains("Yesterday"), "Should show 'Yesterday' for yesterday's date")
+    }
+
+    func testDateDivider_hasAccessibilityIdentifierForToday() throws {
+        let today = Date()
+        let sut = DateDividerView(date: today)
+
+        let found = try sut.inspect().find(viewWithAccessibilityIdentifier: "dateDivider-Today")
+        XCTAssertNotNil(found)
+    }
+
+    func testDateDivider_hasAccessibilityIdentifierForYesterday() throws {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let sut = DateDividerView(date: yesterday)
+
+        let found = try sut.inspect().find(viewWithAccessibilityIdentifier: "dateDivider-Yesterday")
+        XCTAssertNotNil(found)
+    }
+
+    func testDateDivider_showsDayNameForSameWeek() throws {
+        // Find a date within this week but not today or yesterday
+        let calendar = Calendar.current
+        var daysBack = 2
+        var testDate = calendar.date(byAdding: .day, value: -daysBack, to: Date())!
+
+        // Skip if that lands on today or yesterday (edge case for start of week)
+        while calendar.isDateInToday(testDate) || calendar.isDateInYesterday(testDate) || !calendar.isDate(testDate, equalTo: Date(), toGranularity: .weekOfYear) {
+            daysBack += 1
+            if daysBack > 6 { return } // Skip test if we can't find a valid date
+            testDate = calendar.date(byAdding: .day, value: -daysBack, to: Date())!
+        }
+
+        let sut = DateDividerView(date: testDate)
+        let texts = try sut.inspect().findAll(ViewType.Text.self)
+        let textStrings = texts.compactMap { try? $0.string() }
+
+        // Should show day name like "Monday", "Tuesday", etc.
+        let dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        let containsDayName = textStrings.contains { dayNames.contains($0) }
+        XCTAssertTrue(containsDayName, "Should show day name for date within same week. Got: \(textStrings)")
+    }
+
+    func testDateDivider_showsMonthAndDayForOlderDate() throws {
+        // Date from 2 months ago (definitely not in current week)
+        let oldDate = Calendar.current.date(byAdding: .month, value: -2, to: Date())!
+        let sut = DateDividerView(date: oldDate)
+
+        let texts = try sut.inspect().findAll(ViewType.Text.self)
+        let textStrings = texts.compactMap { try? $0.string() }
+
+        // Should contain month name
+        let monthNames = ["January", "February", "March", "April", "May", "June",
+                          "July", "August", "September", "October", "November", "December"]
+        let containsMonthName = textStrings.contains { text in
+            monthNames.contains { text.contains($0) }
+        }
+        XCTAssertTrue(containsMonthName, "Should show month name for older date. Got: \(textStrings)")
+    }
+
+    func testDateDivider_showsFullDateForDifferentYear() throws {
+        // Date from last year
+        let lastYearDate = Calendar.current.date(byAdding: .year, value: -1, to: Date())!
+        let sut = DateDividerView(date: lastYearDate)
+
+        let texts = try sut.inspect().findAll(ViewType.Text.self)
+        let textStrings = texts.compactMap { try? $0.string() }
+
+        // Should contain year
+        let lastYear = Calendar.current.component(.year, from: lastYearDate)
+        let containsYear = textStrings.contains { $0.contains(String(lastYear)) }
+        XCTAssertTrue(containsYear, "Should show year for date from different year. Got: \(textStrings)")
+    }
+}
+
+// MARK: - Test Case 14: MessageList date divider logic
+
+final class MessageListDateDividerTests: XCTestCase {
+    func testMessageList_showsDateDividerBetweenDifferentDays() throws {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let today = Date()
+
+        let messages = [
+            DisplayMessage(id: "1", role: .user, content: "Hello", timestamp: yesterday),
+            DisplayMessage(id: "2", role: .assistant, content: "Hi there!", assigneeName: "Avery", timestamp: today),
+        ]
+
+        let sut = MessageList(messages: messages)
+
+        // Find both date dividers
+        let yesterdayDivider = try sut.inspect().find(viewWithAccessibilityIdentifier: "dateDivider-Yesterday")
+        XCTAssertNotNil(yesterdayDivider, "Should show Yesterday divider for first message")
+
+        let todayDivider = try sut.inspect().find(viewWithAccessibilityIdentifier: "dateDivider-Today")
+        XCTAssertNotNil(todayDivider, "Should show Today divider when date changes")
+    }
+
+    func testMessageList_noDividerForSameDay() throws {
+        let today = Date()
+
+        let messages = [
+            DisplayMessage(id: "1", role: .user, content: "Hello", timestamp: today),
+            DisplayMessage(id: "2", role: .assistant, content: "Hi!", assigneeName: "Avery", timestamp: today),
+            DisplayMessage(id: "3", role: .user, content: "How are you?", timestamp: today),
+        ]
+
+        let sut = MessageList(messages: messages)
+
+        // Should only have one Today divider (for the first message)
+        let dividers = try sut.inspect().findAll { view in
+            (try? view.accessibilityIdentifier()) == "dateDivider-Today"
+        }
+        XCTAssertEqual(dividers.count, 1, "Should only show one divider for messages on same day")
+    }
+
+    func testMessageList_firstMessageAlwaysHasDivider() throws {
+        let today = Date()
+
+        let messages = [
+            DisplayMessage(id: "1", role: .user, content: "Hello", timestamp: today),
+        ]
+
+        let sut = MessageList(messages: messages)
+
+        let divider = try sut.inspect().find(viewWithAccessibilityIdentifier: "dateDivider-Today")
+        XCTAssertNotNil(divider, "First message should always have a date divider")
+    }
+
+    func testMessageList_noTimestamp_noDivider() throws {
+        let messages = [
+            DisplayMessage(id: "1", role: .user, content: "Hello"),
+            DisplayMessage(id: "2", role: .assistant, content: "Hi!", assigneeName: "Avery"),
+        ]
+
+        let sut = MessageList(messages: messages)
+
+        // Should not find any date dividers
+        let dividers = try sut.inspect().findAll { view in
+            (try? view.accessibilityIdentifier())?.starts(with: "dateDivider-") == true
+        }
+
+        XCTAssertEqual(dividers.count, 0, "Messages without timestamps should not have date dividers")
+    }
+}
