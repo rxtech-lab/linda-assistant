@@ -128,29 +128,32 @@ export async function buildToolSet(
     filtered[name] = create(perm === "manual-confirm");
   }
 
-  // MCP server configurations - add more MCPs here
-  const mcpConfigs: McpConfig[] = [
-    {
-      prefix: "invoice_",
-      createMcp: createInvoiceMcp,
-    },
-    // Add more MCP configurations here in the future:
-    {
-      prefix: "files_",
-      createMcp: createFilesMcp,
-    },
-  ];
+  // Skip MCP tools in E2E test mode (no valid OAuth tokens for external services)
+  if (!process.env.IS_E2E) {
+    // MCP server configurations - add more MCPs here
+    const mcpConfigs: McpConfig[] = [
+      {
+        prefix: "invoice_",
+        createMcp: createInvoiceMcp,
+      },
+      // Add more MCP configurations here in the future:
+      {
+        prefix: "files_",
+        createMcp: createFilesMcp,
+      },
+    ];
 
-  // Load all MCP tools in parallel
-  const mcpResults = await Promise.allSettled(
-    mcpConfigs.map((mcpConfig) =>
-      loadMcpTools(mcpConfig, accessToken, toolPermissions),
-    ),
-  );
+    // Load all MCP tools in parallel
+    const mcpResults = await Promise.allSettled(
+      mcpConfigs.map((mcpConfig) =>
+        loadMcpTools(mcpConfig, accessToken, toolPermissions),
+      ),
+    );
 
-  for (const result of mcpResults) {
-    if (result.status === "fulfilled") {
-      Object.assign(filtered, result.value);
+    for (const result of mcpResults) {
+      if (result.status === "fulfilled") {
+        Object.assign(filtered, result.value);
+      }
     }
   }
 

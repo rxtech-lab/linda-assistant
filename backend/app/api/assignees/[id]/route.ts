@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { assignees } from "@/lib/db/schema";
-import type { ToolPermission } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import {
@@ -11,7 +10,6 @@ import {
   idParamSchema,
 } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
-import { buildToolSet } from "@/lib/ai/tools";
 /**
  * @openapi
  * @operationId getAssignee
@@ -33,30 +31,7 @@ export async function GET(
 
   if (!item) return errorJson("Assignee not found", 404);
 
-  // Fetch all available tools
-  const { tools } = await buildToolSet(auth.userId, id, auth.accessToken);
-  const allToolNames = Object.keys(tools);
-
-  // Create a map of existing permissions
-  const existingPermissions = new Map<string, ToolPermission["permission"]>();
-  if (item.toolPermissions) {
-    for (const tp of item.toolPermissions) {
-      existingPermissions.set(tp.toolName, tp.permission);
-    }
-  }
-
-  // Build complete toolPermissions array with all available tools
-  const completeToolPermissions: ToolPermission[] = allToolNames.map(
-    (toolName) => ({
-      toolName,
-      permission: existingPermissions.get(toolName) ?? "manual-confirm",
-    }),
-  );
-
-  return successJson({
-    ...item,
-    toolPermissions: completeToolPermissions,
-  });
+  return successJson(item);
 }
 
 /**

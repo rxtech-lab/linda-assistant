@@ -24,7 +24,7 @@ extension DisplayMessage {
         DisplayMessage(
             id: "preview-user",
             role: .user,
-            content: "Can you summarize today's updates?"
+            content: "Can you help me understand how to implement authentication in my iOS app? I'm looking for best practices and security considerations."
         )
     }
 
@@ -32,7 +32,26 @@ extension DisplayMessage {
         DisplayMessage(
             id: "preview-assistant",
             role: .assistant,
-            content: "Sure. Here are the top three changes...",
+            content: """
+                Here's a comprehensive overview of authentication best practices for iOS:
+
+                ## 1. Use Keychain for Secure Storage
+                Always store sensitive data like tokens and credentials in the **Keychain**, not UserDefaults.
+
+                ## 2. Implement Biometric Authentication
+                Use `LocalAuthentication` framework for Face ID/Touch ID:
+                ```swift
+                let context = LAContext()
+                context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)
+                ```
+
+                ## 3. Token Management
+                - Use short-lived access tokens
+                - Implement refresh token rotation
+                - Clear tokens on logout
+
+                Let me know if you'd like more details on any of these topics!
+                """,
             assigneeName: "Avery"
         )
     }

@@ -1,5 +1,5 @@
 {
-  "originHash" : "964d1070693ee11c9f4db658fe902172afba52afeb82a6deaab1d0d7e7b10b33",
+  "originHash" : "0aff7309a81e8d70ff73e77b6a6cb828b23b3919e8139c50e5ba8aa330eaf6dc",
   "pins" : [
     {
       "identity" : "agentkit",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "1d1141a3f04ae41bf5d22b0faafaac327a89d64d",
         "version" : "1.2.2"
+      }
+    },
+    {
+      "identity" : "highlightr",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/raspu/Highlightr",
+      "state" : {
+        "revision" : "05e7fcc63b33925cd0c1faaa205cdd5681e7bbef",
+        "version" : "2.3.0"
       }
     },
     {

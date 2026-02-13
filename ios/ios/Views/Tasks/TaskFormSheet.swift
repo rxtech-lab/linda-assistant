@@ -75,6 +75,7 @@ struct TaskFormSheet: View {
                     }
                 #endif
             }
+            .formStyle(.grouped)
             .navigationTitle(isEdit ? "Edit Task" : "New Task")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

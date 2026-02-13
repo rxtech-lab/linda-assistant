@@ -176,18 +176,20 @@ struct ChatTabView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    #if os(iOS)
                     .buttonStyle(.plain)
+                    #endif
                 }
             }
 
             #if os(iOS)
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        navigationManager.showingTabs = true
-                    } label: {
-                        Image(systemName: "square.grid.2x2")
-                    }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    navigationManager.showingTabs = true
+                } label: {
+                    Image(systemName: "square.grid.2x2")
                 }
+            }
             #endif
         }
         #if os(iOS)

@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		DF0FE3CA2F3DB9EB002CCE53 /* RichText in Frameworks */ = {isa = PBXBuildFile; productRef = DF0FE3C92F3DB9EB002CCE53 /* RichText */; };
+		DF0FE4E92F3F28CE002CCE53 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = DF0FE4E82F3F28CE002CCE53 /* MarkdownUI */; };
+		DF0FE4EC2F3F2F3C002CCE53 /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = DF0FE4EB2F3F2F3C002CCE53 /* Highlightr */; };
 		DF7E2A3E2F385000006A4C0A /* AssistantCore in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E2A202F379000006A4C0A /* AssistantCore */; };
 		DF7E32502F3888A1006A4C0A /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = DF7E324F2F3888A1006A4C0A /* icon.icon */; };
 		DF7E37742F3A66EC006A4C0A /* AgentKit in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E37732F3A66EC006A4C0A /* AgentKit */; };
@@ -83,9 +85,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DF0FE4EC2F3F2F3C002CCE53 /* Highlightr in Frameworks */,
 				DF7E2A3E2F385000006A4C0A /* AssistantCore in Frameworks */,
 				DF0FE3CA2F3DB9EB002CCE53 /* RichText in Frameworks */,
 				DF7E37742F3A66EC006A4C0A /* AgentKit in Frameworks */,
+				DF0FE4E92F3F28CE002CCE53 /* MarkdownUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -174,6 +178,8 @@
 				DF7E2A202F379000006A4C0A /* AssistantCore */,
 				DF7E37732F3A66EC006A4C0A /* AgentKit */,
 				DF0FE3C92F3DB9EB002CCE53 /* RichText */,
+				DF0FE4E82F3F28CE002CCE53 /* MarkdownUI */,
+				DF0FE4EB2F3F2F3C002CCE53 /* Highlightr */,
 			);
 			productName = ios;
 			productReference = DF7E29F12F378F46006A4C0A /* ios.app */;
@@ -263,6 +269,8 @@
 				DF7E37722F3A66EC006A4C0A /* XCRemoteSwiftPackageReference "AgentKit" */,
 				DF7E385B2F3B5EF9006A4C0A /* XCRemoteSwiftPackageReference "ViewInspector" */,
 				DF0FE3C82F3DB9EB002CCE53 /* XCRemoteSwiftPackageReference "RichText" */,
+				DF0FE4E72F3F28CE002CCE53 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+				DF0FE4EA2F3F2F3C002CCE53 /* XCRemoteSwiftPackageReference "Highlightr" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DF7E29F22F378F46006A4C0A /* Products */;
@@ -718,6 +726,22 @@
 				minimumVersion = 3.0.2;
 			};
 		};
+		DF0FE4E72F3F28CE002CCE53 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.1;
+			};
+		};
+		DF0FE4EA2F3F2F3C002CCE53 /* XCRemoteSwiftPackageReference "Highlightr" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/raspu/Highlightr";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.3.0;
+			};
+		};
 		DF7E37722F3A66EC006A4C0A /* XCRemoteSwiftPackageReference "AgentKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/rxtech-lab/AgentKit";
@@ -741,6 +765,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = DF0FE3C82F3DB9EB002CCE53 /* XCRemoteSwiftPackageReference "RichText" */;
 			productName = RichText;
+		};
+		DF0FE4E82F3F28CE002CCE53 /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DF0FE4E72F3F28CE002CCE53 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
+			productName = MarkdownUI;
+		};
+		DF0FE4EB2F3F2F3C002CCE53 /* Highlightr */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DF0FE4EA2F3F2F3C002CCE53 /* XCRemoteSwiftPackageReference "Highlightr" */;
+			productName = Highlightr;
 		};
 		DF7E2A202F379000006A4C0A /* AssistantCore */ = {
 			isa = XCSwiftPackageProductDependency;
