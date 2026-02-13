@@ -51,6 +51,9 @@ struct StreamableChatLayout<Header: View>: View {
                                         ? streamHandler?.streamedText : nil,
                                     streamingToolCalls: streamHandler?.toolCalls ?? [],
                                     showPendingIndicator: showPendingIndicator,
+                                    showStreamComplete: streamHandler?.isStreaming == false
+                                        && !messages.isEmpty
+                                        && messages.last?.role == .assistant,
                                     onConfirmationTap: {
                                         logger
                                             .info(

@@ -9,6 +9,7 @@ import { SEARCH_EMAILS_TOOL_NAME, searchEmailsTool } from "./search-emails";
 import { SEND_EMAIL_TOOL_NAME, sendEmailTool } from "./send-email";
 import { UPDATE_TASK_TOOL_NAME, updateTaskTool } from "./update-task";
 import { createFilesMcp } from "./mcps/files";
+import { createFirecrawlMcp } from "./mcps/firecrawl";
 
 export interface ToolSetResult {
   /** Tools filtered to exclude auto-reject entries, built with correct needsApproval */
@@ -141,6 +142,10 @@ export async function buildToolSet(
       {
         prefix: "files_",
         createMcp: createFilesMcp,
+      },
+      {
+        prefix: "firecrawl_",
+        createMcp: createFirecrawlMcp,
       },
     ];
 

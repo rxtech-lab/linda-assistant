@@ -7,6 +7,7 @@ struct MessageList: View {
     var streamingText: String?
     var streamingToolCalls: [ToolCallInfo] = []
     var showPendingIndicator = false
+    var showStreamComplete = false
     var onConfirmationTap: (() -> Void)?
     var onToolCallTap: ((ToolCallInfo) -> Void)?
 
@@ -61,10 +62,7 @@ struct MessageList: View {
                     }
                 }
             }
-            .transition(.asymmetric(
-                insertion: .opacity.combined(with: .move(edge: .bottom)),
-                removal: .opacity.combined(with: .scale(scale: 0.8))
-            ))
+            .transition(.opacity)
         }
 
         // Streaming group header
@@ -101,6 +99,13 @@ struct MessageList: View {
                     onToolCallTap?(toolCall)
                 }
             }
+        }
+
+        // Stream complete divider
+        if showStreamComplete, let lastMessage = messages.last, lastMessage.role == .assistant {
+            StreamCompleteDivider()
+                .padding(.top, 8)
+                .transition(.opacity)
         }
 
         Spacer()
@@ -295,3 +300,39 @@ struct DateDividerView: View {
         .padding()
     }
 }
+#Preview("MessageList - Stream Complete") {
+    ScrollView {
+        LazyVStack(alignment: .leading, spacing: 12) {
+            MessageList(
+                messages: [
+                    DisplayMessage(id: "1", role: .user, content: "What's on my schedule?"),
+                    DisplayMessage(
+                        id: "2",
+                        role: .assistant,
+                        content: "You have 3 meetings today.",
+                        assigneeName: "Avery"
+                    ),
+                ],
+                assigneeName: "Avery",
+                showStreamComplete: true
+            )
+        }
+        .padding()
+    }
+}
+
+// MARK: - Stream Complete Divider
+
+struct StreamCompleteDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.3))
+            .frame(height: 0.5)
+    }
+}
+
+#Preview("StreamCompleteDivider") {
+    StreamCompleteDivider()
+        .padding()
+}
+
