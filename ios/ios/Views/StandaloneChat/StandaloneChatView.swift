@@ -77,6 +77,7 @@ struct ChatTabView: View {
                                         streamingToolCalls: viewModel.streamHandler?.toolCalls ?? [],
                                         showPendingIndicator: showPendingIndicator,
                                         onConfirmationTap: {
+                                            logger.info("onConfirmationTap: pendingConfirmation=\(viewModel.streamHandler?.pendingConfirmation != nil ? "set" : "nil"), streamHandler=\(viewModel.streamHandler != nil ? "set" : "nil")")
                                             viewModel.showingConfirmation = true
                                         },
                                         onToolCallTap: { toolCall in
@@ -207,6 +208,8 @@ struct ChatTabView: View {
                         viewModel.showingConfirmation = false
                     }
                 )
+            } else {
+                Color.clear.onAppear { viewModel.showingConfirmation = false }
             }
         }
         .sheet(item: $selectedToolCall) { toolCall in

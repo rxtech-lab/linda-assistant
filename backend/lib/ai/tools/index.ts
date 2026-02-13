@@ -141,14 +141,17 @@ export async function buildToolSet(
     },
   ];
 
-  // Load all MCP tools
-  for (const mcpConfig of mcpConfigs) {
-    const mcpTools = await loadMcpTools(
-      mcpConfig,
-      accessToken,
-      toolPermissions,
-    );
-    Object.assign(filtered, mcpTools);
+  // Load all MCP tools in parallel
+  const mcpResults = await Promise.allSettled(
+    mcpConfigs.map((mcpConfig) =>
+      loadMcpTools(mcpConfig, accessToken, toolPermissions),
+    ),
+  );
+
+  for (const result of mcpResults) {
+    if (result.status === "fulfilled") {
+      Object.assign(filtered, result.value);
+    }
   }
 
   return { tools: filtered };

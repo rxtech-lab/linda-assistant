@@ -42,6 +42,7 @@ struct ChatOptionsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
         }
+        .frame(minHeight: 200)
         .presentationDetents([.medium])
     }
 }

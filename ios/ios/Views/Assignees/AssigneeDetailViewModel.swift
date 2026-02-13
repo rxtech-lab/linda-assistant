@@ -27,4 +27,32 @@ final class AssigneeDetailViewModel {
             self.error = error.localizedDescription
         }
     }
+
+    func updateToolPermission(
+        toolName: String,
+        newPermission: String,
+        apiClient: APIClient,
+        eventManager: EventManager
+    ) async {
+        guard let assignee else { return }
+
+        // Build updated permissions array
+        var updatedPermissions = assignee.toolPermissions ?? []
+        if let index = updatedPermissions.firstIndex(where: { $0.toolName == toolName }) {
+            updatedPermissions[index] = ToolPermission(toolName: toolName, permission: newPermission)
+        } else {
+            updatedPermissions.append(ToolPermission(toolName: toolName, permission: newPermission))
+        }
+
+        do {
+            let updated = try await apiClient.updateAssignee(
+                id: assignee.id,
+                UpdateAssignee(toolPermissions: updatedPermissions)
+            )
+            self.assignee = updated
+            eventManager.emit(.assigneeUpdated(updated))
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
 }
