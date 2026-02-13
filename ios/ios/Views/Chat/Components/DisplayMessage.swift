@@ -11,6 +11,7 @@ struct DisplayMessage: Identifiable {
     var isStreaming = false
     var toolCalls: [ToolCallInfo] = []
     var assigneeName: String?
+    var timestamp: Date?
 
     enum MessageRole {
         case user
