@@ -6,10 +6,10 @@ struct AttachmentCardView: View {
 
     private var iconName: String {
         switch attachment.type {
-        case "image": "photo"
-        case "pdf": "doc.richtext"
-        case "audio": "waveform"
-        default: "doc"
+            case "image": "photo"
+            case "pdf": "doc.richtext"
+            case "audio": "waveform"
+            default: "doc"
         }
     }
 

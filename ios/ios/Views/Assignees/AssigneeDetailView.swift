@@ -181,7 +181,7 @@ private struct ToolPermissionRow: View {
     init(permission: ToolPermission, onPermissionChange: ((String) -> Void)? = nil) {
         self.permission = permission
         self.onPermissionChange = onPermissionChange
-        self._selectedPermission = State(initialValue: permission.permission)
+        _selectedPermission = State(initialValue: permission.permission)
     }
 
     var body: some View {
@@ -225,23 +225,23 @@ private struct ToolPermissionRow: View {
 
     private var iconName: String {
         switch permission.toolName.lowercased() {
-        case let name where name.contains("email"): "envelope"
-        case let name where name.contains("search"): "magnifyingglass"
-        case let name where name.contains("calendar"): "calendar"
-        case let name where name.contains("file"): "doc"
-        case let name where name.contains("web"): "globe"
-        case let name where name.contains("message"): "message"
-        default: "gearshape"
+            case let name where name.contains("email"): "envelope"
+            case let name where name.contains("search"): "magnifyingglass"
+            case let name where name.contains("calendar"): "calendar"
+            case let name where name.contains("file"): "doc"
+            case let name where name.contains("web"): "globe"
+            case let name where name.contains("message"): "message"
+            default: "gearshape"
         }
     }
 
     private var iconColor: Color {
         switch permission.toolName.lowercased() {
-        case let name where name.contains("email"): .blue
-        case let name where name.contains("search"): .purple
-        case let name where name.contains("calendar"): .red
-        case let name where name.contains("web"): .green
-        default: .secondary
+            case let name where name.contains("email"): .blue
+            case let name where name.contains("search"): .purple
+            case let name where name.contains("calendar"): .red
+            case let name where name.contains("web"): .green
+            default: .secondary
         }
     }
 }
@@ -263,19 +263,19 @@ private struct PermissionBadge: View {
 
     private var displayText: String {
         switch permission.lowercased() {
-        case "auto-confirm": "Auto"
-        case "manual-confirm": "Confirm"
-        case "auto-reject": "Reject"
-        default: permission.capitalized
+            case "auto-confirm": "Auto"
+            case "manual-confirm": "Confirm"
+            case "auto-reject": "Reject"
+            default: permission.capitalized
         }
     }
 
     private var color: Color {
         switch permission.lowercased() {
-        case "auto-confirm", "auto": .green
-        case "manual-confirm", "confirm": .orange
-        case "auto-reject", "deny", "denied": .red
-        default: .secondary
+            case "auto-confirm", "auto": .green
+            case "manual-confirm", "confirm": .orange
+            case "auto-reject", "deny", "denied": .red
+            default: .secondary
         }
     }
 }

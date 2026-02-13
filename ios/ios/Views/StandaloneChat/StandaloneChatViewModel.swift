@@ -46,9 +46,12 @@ final class ChatTabViewModel {
 
             // Restore last selected assignee from storage, or default to first
             let lastAssigneeId = UserDefaults.standard.string(forKey: lastSelectedAssigneeKey)
-            logger.debug("Attempting to restore assignee. Saved ID: \(lastAssigneeId ?? "nil"), Available IDs: \(self.assignees.map { $0.id })")
+            logger
+                .debug(
+                    "Attempting to restore assignee. Saved ID: \(lastAssigneeId ?? "nil"), Available IDs: \(self.assignees.map(\.id))"
+                )
             if let lastId = lastAssigneeId,
-               let savedAssignee = self.assignees.first(where: { $0.id == lastId })
+               let savedAssignee = assignees.first(where: { $0.id == lastId })
             {
                 logger.debug("Restored saved assignee: \(savedAssignee.name)")
                 selectedAssignee = savedAssignee
@@ -88,9 +91,15 @@ final class ChatTabViewModel {
             hasSession = true
             nextCursor = response.nextCursor
             hasMoreMessages = response.nextCursor != nil
-            displayMessages = convertMessages(response.messages, assigneeName: selectedAssignee?.name)
+            displayMessages = DisplayMessage.convert(from: response.messages, assigneeName: selectedAssignee?.name)
             // Extract pending confirmation from message data (no separate API call)
-            await extractPendingConfirmation(from: response.messages)
+            await MainActor.run {
+                extractPendingConfirmation(
+                    from: response.messages,
+                    streamHandler: streamHandler,
+                    showingConfirmation: &showingConfirmation
+                )
+            }
         } catch let apiError as APIError {
             if case .notFound = apiError {
                 // No session yet — show empty state
@@ -120,7 +129,7 @@ final class ChatTabViewModel {
             )
             nextCursor = response.nextCursor
             hasMoreMessages = response.nextCursor != nil
-            let older = convertMessages(response.messages, assigneeName: assignee.name)
+            let older = DisplayMessage.convert(from: response.messages, assigneeName: assignee.name)
             displayMessages.insert(contentsOf: older, at: 0)
         } catch {
             logger.error("loadOlderMessages error: \(error)")
@@ -143,26 +152,12 @@ final class ChatTabViewModel {
         )
         handler.onAssistantMessage = { [weak self] text, toolCalls in
             guard let self else { return }
-            let name = selectedAssignee?.name
-            if !toolCalls.isEmpty {
-                let toolMsg = DisplayMessage(
-                    id: "assistant-tools-\(displayMessages.count)",
-                    role: .assistant,
-                    content: "",
-                    toolCalls: toolCalls,
-                    assigneeName: name
-                )
-                displayMessages.append(toolMsg)
-            }
-            if !text.isEmpty {
-                let textMsg = DisplayMessage(
-                    id: "assistant-\(displayMessages.count)",
-                    role: .assistant,
-                    content: text,
-                    assigneeName: name
-                )
-                displayMessages.append(textMsg)
-            }
+            appendAssistantMessages(
+                text: text,
+                toolCalls: toolCalls,
+                to: &displayMessages,
+                assigneeName: selectedAssignee?.name
+            )
         }
         streamHandler = handler
     }
@@ -255,52 +250,30 @@ final class ChatTabViewModel {
         }
     }
 
-    // MARK: - Confirmation
-
-    /// Scan messages for a pending confirmation and set it on the stream handler.
-    private func extractPendingConfirmation(from messages: [ChatMessage]) async {
-        for msg in messages {
-            for tc in msg.toolCalls where tc.confirmation?.status == "pending" {
-                let payload = ConfirmationPayload(
-                    confirmationId: tc.confirmation!.id,
-                    toolCallId: tc.toolCallId,
-                    toolName: tc.toolName,
-                    parameters: tc.input
-                )
-                logger.info("extractPendingConfirmation: found pending confirmation id=\(payload.confirmationId), toolName=\(payload.toolName)")
-                await MainActor.run {
-                    self.streamHandler?.setPendingConfirmation(payload)
-                    self.showingConfirmation = true
-                }
-                return
-            }
-        }
-    }
-
     // MARK: - Event Subscription
 
     func subscribeToEvents(eventManager: EventManager) async {
         for await event in eventManager.stream {
             switch event {
-            case .assigneeCreated(let assignee):
-                assignees.append(assignee)
-                if selectedAssignee == nil {
-                    selectedAssignee = assignee
-                }
-            case .assigneeUpdated(let updated):
-                if let idx = assignees.firstIndex(where: { $0.id == updated.id }) {
-                    assignees[idx] = updated
-                }
-                if selectedAssignee?.id == updated.id {
-                    selectedAssignee = updated
-                }
-            case .assigneeDeleted(let id):
-                assignees.removeAll { $0.id == id }
-                if selectedAssignee?.id == id {
-                    selectedAssignee = assignees.first
-                }
-            default:
-                break
+                case let .assigneeCreated(assignee):
+                    assignees.append(assignee)
+                    if selectedAssignee == nil {
+                        selectedAssignee = assignee
+                    }
+                case let .assigneeUpdated(updated):
+                    if let idx = assignees.firstIndex(where: { $0.id == updated.id }) {
+                        assignees[idx] = updated
+                    }
+                    if selectedAssignee?.id == updated.id {
+                        selectedAssignee = updated
+                    }
+                case let .assigneeDeleted(id):
+                    assignees.removeAll { $0.id == id }
+                    if selectedAssignee?.id == id {
+                        selectedAssignee = assignees.first
+                    }
+                default:
+                    break
             }
         }
     }
@@ -309,42 +282,5 @@ final class ChatTabViewModel {
 
     func disconnect() {
         streamHandler?.disconnect()
-    }
-
-    // MARK: - Helpers
-
-    private func convertMessages(_ messages: [ChatMessage], assigneeName: String?) -> [DisplayMessage] {
-        messages.enumerated().compactMap { index, msg in
-            let historicalToolCalls = msg.toolCalls.map { tc in
-                let status: ToolCallStatus
-                let errorMsg: String?
-                if tc.confirmation != nil {
-                    status = ToolCallStatus.from(confirmation: tc.confirmation)
-                    errorMsg = nil
-                } else if tc.error != nil {
-                    status = .failed
-                    errorMsg = tc.error
-                } else {
-                    status = .completed
-                    errorMsg = nil
-                }
-                return ToolCallInfo(
-                    toolCallId: tc.toolCallId,
-                    toolName: tc.toolName,
-                    input: tc.input,
-                    status: status,
-                    errorMessage: errorMsg
-                )
-            }
-            guard (msg.textContent != nil && !msg.textContent!.isEmpty) || !historicalToolCalls.isEmpty
-            else { return nil }
-            return DisplayMessage(
-                id: "history-\(index)-\(msg.role)",
-                role: msg.role == "user" ? .user : .assistant,
-                content: msg.textContent ?? "",
-                toolCalls: historicalToolCalls,
-                assigneeName: msg.role == "user" ? nil : assigneeName
-            )
-        }
     }
 }

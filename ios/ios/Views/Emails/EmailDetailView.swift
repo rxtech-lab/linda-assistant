@@ -49,4 +49,3 @@ struct EmailDetailView: View {
         isLoading = false
     }
 }
-
