@@ -12,5 +12,8 @@ struct iosApp: App {
                 .environment(authManager)
                 .environment(eventManager)
         }
+        #if os(macOS)
+        .windowStyle(.hiddenTitleBar)
+        #endif
     }
 }

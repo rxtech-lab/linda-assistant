@@ -425,3 +425,29 @@ public struct PresignedURLResponse: Codable, Sendable {
     public let url: String
     public let key: String
 }
+
+// MARK: - Preview Helpers
+
+#if DEBUG
+public extension Assignee {
+    static let preview: Assignee = {
+        let json = """
+        {
+            "id": "preview-1",
+            "userId": "user-1",
+            "name": "Preview Assistant",
+            "email": "assistant@example.com",
+            "personality": "A helpful and friendly assistant that responds concisely and accurately.",
+            "model": "gpt-4",
+            "toolPermissions": [
+                {"toolName": "send_email", "permission": "confirm"},
+                {"toolName": "search_web", "permission": "auto"}
+            ],
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-01-01T00:00:00Z"
+        }
+        """
+        return try! JSONDecoder().decode(Assignee.self, from: json.data(using: .utf8)!)
+    }()
+}
+#endif

@@ -1,5 +1,8 @@
 import AssistantCore
+import os
 import SwiftUI
+
+private let logger = Logger(subsystem: "lindaAssistant", category: "ChatDetailView")
 
 struct ChatDetailView: View {
     let sessionId: String
@@ -47,6 +50,7 @@ struct ChatDetailView: View {
                                     streamingToolCalls: viewModel.streamHandler?.toolCalls ?? [],
                                     showPendingIndicator: showPendingIndicator,
                                     onConfirmationTap: {
+                                        logger.info("onConfirmationTap: pendingConfirmation=\(viewModel.streamHandler?.pendingConfirmation != nil ? "set(\(viewModel.streamHandler!.pendingConfirmation!.toolName))" : "nil"), streamHandler=\(viewModel.streamHandler != nil ? "set" : "nil")")
                                         viewModel.showingConfirmation = true
                                     },
                                     onToolCallTap: { toolCall in
@@ -129,6 +133,7 @@ struct ChatDetailView: View {
         #endif
             .sheet(isPresented: $viewModel.showingConfirmation) {
                 if let confirmation = viewModel.streamHandler?.pendingConfirmation {
+                    let _ = logger.info("sheet: rendering ConfirmationSheetView for toolName=\(confirmation.toolName), id=\(confirmation.confirmationId)")
                     ConfirmationSheetView(
                         confirmation: confirmation,
                         onResolve: { action, alwaysAllow in
@@ -142,6 +147,9 @@ struct ChatDetailView: View {
                             viewModel.showingConfirmation = false
                         }
                     )
+                } else {
+                    let _ = logger.warning("sheet: pendingConfirmation is nil! streamHandler=\(viewModel.streamHandler != nil ? "set" : "nil"), dismissing")
+                    Color.clear.onAppear { viewModel.showingConfirmation = false }
                 }
             }
             .sheet(item: $selectedToolCall) { toolCall in

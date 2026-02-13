@@ -16,7 +16,10 @@ import { successJson, errorJson } from "@/lib/utils/response";
  * @pathParams idParamSchema
  * @response selectAssigneeSchema
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -27,6 +30,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .where(and(eq(assignees.id, id), eq(assignees.userId, auth.userId)));
 
   if (!item) return errorJson("Assignee not found", 404);
+
   return successJson(item);
 }
 
@@ -37,7 +41,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
  * @body updateAssigneeSchema
  * @response selectAssigneeSchema
  */
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 

@@ -8,6 +8,7 @@ import { setStreamActive } from "@/lib/streaming/manager";
 import { createConfirmation } from "./confirmation";
 import { getModelProvider } from "./model";
 import { getSessionMessages, insertMessages } from "@/lib/db/messages";
+import { refreshAccessToken } from "@/lib/auth/refresh";
 
 import { DEFAULT_MODEL, availableModelSchema } from "./models";
 
@@ -72,7 +73,9 @@ function isToolResultError(part: Record<string, unknown>): boolean {
 
 /** Extract error string from a tool-result content part */
 function extractToolResultError(part: Record<string, unknown>): string {
-  const output = unwrapToolOutput(part.output) as Record<string, unknown> | undefined;
+  const output = unwrapToolOutput(part.output) as
+    | Record<string, unknown>
+    | undefined;
   if (typeof output === "object" && output !== null && "error" in output) {
     return String(output.error);
   }
@@ -93,11 +96,15 @@ function annotateAutoApproved(messages: ModelMessage[]): void {
 }
 
 /** Ensure each message has an id */
-function sanitizeMessages(messages: ModelMessage[], messageId?: string): ModelMessage[] {
+function sanitizeMessages(
+  messages: ModelMessage[],
+  messageId?: string,
+): ModelMessage[] {
   return messages.map((msg, i) => {
     const record = msg as Record<string, unknown>;
     // Assign provided messageId to the first message (assistant), generate for others (tool)
-    const id = record.id ?? (i === 0 && messageId ? messageId : crypto.randomUUID());
+    const id =
+      record.id ?? (i === 0 && messageId ? messageId : crypto.randomUUID());
     return { ...record, id } as unknown as ModelMessage;
   });
 }
@@ -122,7 +129,10 @@ export async function runAgent(options: AgentRunOptions) {
   const { sessionId, userId, onTextChunk, onEvent, signal } = options;
 
   // Load session with messages
-  const [session] = await db.select().from(chatSessions).where(eq(chatSessions.id, sessionId));
+  const [session] = await db
+    .select()
+    .from(chatSessions)
+    .where(eq(chatSessions.id, sessionId));
 
   if (!session) throw new Error("Session not found");
 
@@ -155,7 +165,31 @@ export async function runAgent(options: AgentRunOptions) {
 
   const systemPrompt = buildSystemPrompt(assignee);
 
-  const { tools } = await buildToolSet(userId, session.assigneeId ?? null);
+  // Ensure we have a valid access token, refresh if needed
+  let accessToken = session.accessToken || "";
+
+  if (!accessToken && session.refreshToken) {
+    // No access token but we have refresh token, try to refresh
+    const refreshed = await refreshAccessToken(session.refreshToken);
+    if (refreshed) {
+      accessToken = refreshed.accessToken;
+      // Update session with new tokens
+      await db
+        .update(chatSessions)
+        .set({
+          accessToken: refreshed.accessToken,
+          refreshToken: refreshed.refreshToken,
+          updatedAt: sql`(datetime('now'))`,
+        })
+        .where(eq(chatSessions.id, sessionId));
+    }
+  }
+
+  const { tools } = await buildToolSet(
+    userId,
+    session.assigneeId ?? null,
+    accessToken,
+  );
   const messages = await getSessionMessages(sessionId);
 
   await setStreamActive(sessionId, true);
@@ -233,10 +267,15 @@ export async function runAgent(options: AgentRunOptions) {
           }
           case "tool-approval-request": {
             pendingApprovals.push({
-              approvalId: (part as unknown as { approvalId: string }).approvalId,
+              approvalId: (part as unknown as { approvalId: string })
+                .approvalId,
               toolCall: (
                 part as unknown as {
-                  toolCall: { toolCallId: string; toolName: string; input: unknown };
+                  toolCall: {
+                    toolCallId: string;
+                    toolName: string;
+                    input: unknown;
+                  };
                 }
               ).toolCall,
             });
@@ -267,7 +306,10 @@ export async function runAgent(options: AgentRunOptions) {
           toolCallId: approval.toolCall.toolCallId,
           toolName: approval.toolCall.toolName,
           approvalId: approval.approvalId,
-          parameters: (approval.toolCall.input ?? {}) as Record<string, unknown>,
+          parameters: (approval.toolCall.input ?? {}) as Record<
+            string,
+            unknown
+          >,
         });
 
         // Annotate the tool-call content part with confirmation info
@@ -302,7 +344,9 @@ export async function runAgent(options: AgentRunOptions) {
 
       if (finishReason === "tool-calls") {
         // All tools auto-executed by SDK — annotate and continue
-        const newMessages = currentMessages.slice(currentMessages.length - responseMessages.length);
+        const newMessages = currentMessages.slice(
+          currentMessages.length - responseMessages.length,
+        );
         annotateAutoApproved(newMessages);
 
         // Annotate tool-call parts with error info from tool-result parts
@@ -311,7 +355,11 @@ export async function runAgent(options: AgentRunOptions) {
           for (const part of msg.content as Record<string, unknown>[]) {
             if (part.type === "tool-result" && isToolResultError(part)) {
               const errorStr = extractToolResultError(part);
-              annotateToolCallError(currentMessages, part.toolCallId as string, errorStr);
+              annotateToolCallError(
+                currentMessages,
+                part.toolCallId as string,
+                errorStr,
+              );
             }
           }
         }

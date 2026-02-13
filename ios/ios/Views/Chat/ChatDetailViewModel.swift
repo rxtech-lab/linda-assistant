@@ -120,34 +120,6 @@ final class ChatDetailViewModel {
         }
     }
 
-    private func loadPendingConfirmation(apiClient: APIClient, sessionId: String) async {
-        do {
-            let confirmations = try await apiClient.listConfirmations()
-            if let pending = confirmations.first(where: { $0.chatSessionId == sessionId && $0.status == "pending" }) {
-                let payload = ConfirmationPayload(
-                    confirmationId: pending.id,
-                    toolCallId: pending.toolCallId,
-                    toolName: pending.toolName,
-                    parameters: pending.parameters
-                )
-                await MainActor.run {
-                    streamHandler?.setPendingConfirmation(payload)
-                    // Mark the matching tool call in displayMessages as pendingConfirmation
-                    for i in displayMessages.indices {
-                        for j in displayMessages[i].toolCalls.indices {
-                            if displayMessages[i].toolCalls[j].toolCallId == pending.toolCallId {
-                                displayMessages[i].toolCalls[j].status = .pendingConfirmation
-                            }
-                        }
-                    }
-                    showingConfirmation = true
-                }
-            }
-        } catch {
-            logger.error("loadPendingConfirmation error: \(error)")
-        }
-    }
-
     private func fetchSession(id: String, apiClient: APIClient) async throws {
         logger.info("Fetching chat session...")
         let session = try await apiClient.getChatSession(id: id)
@@ -190,9 +162,35 @@ final class ChatDetailViewModel {
             )
         }
 
-        // If session is waiting for confirmation, load the pending confirmation
+        // Extract pending confirmation directly from message data (no extra API call)
+        logger.info("fetchSession: session.status=\(session.status ?? "nil"), streamHandler=\(self.streamHandler != nil ? "set" : "nil")")
         if session.status == "waiting_confirmation" {
-            await loadPendingConfirmation(apiClient: apiClient, sessionId: id)
+            var foundPayload: ConfirmationPayload?
+            for msg in session.messages {
+                for tc in msg.toolCalls {
+                    logger.info("fetchSession: toolCall=\(tc.toolCallId), toolName=\(tc.toolName), confirmation=\(tc.confirmation?.status ?? "none"), hasInput=\(tc.input != nil)")
+                    if tc.confirmation?.status == "pending" {
+                        foundPayload = ConfirmationPayload(
+                            confirmationId: tc.confirmation!.id,
+                            toolCallId: tc.toolCallId,
+                            toolName: tc.toolName,
+                            parameters: tc.input
+                        )
+                        break
+                    }
+                }
+                if foundPayload != nil { break }
+            }
+            if let payload = foundPayload {
+                logger.info("fetchSession: found pending confirmation id=\(payload.confirmationId), toolName=\(payload.toolName)")
+                await MainActor.run {
+                    streamHandler?.setPendingConfirmation(payload)
+                    showingConfirmation = true
+                    logger.info("fetchSession: after setPendingConfirmation, pendingConfirmation=\(self.streamHandler?.pendingConfirmation != nil ? "set" : "nil"), showingConfirmation=\(self.showingConfirmation)")
+                }
+            } else {
+                logger.warning("fetchSession: session is waiting_confirmation but no pending tool call found in messages")
+            }
         }
     }
 

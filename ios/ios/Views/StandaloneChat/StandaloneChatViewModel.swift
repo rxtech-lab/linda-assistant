@@ -58,8 +58,8 @@ final class ChatTabViewModel {
             }
 
             if let assignee = selectedAssignee {
-                await loadMessages(assigneeId: assignee.id, apiClient: apiClient)
                 setupStreamHandler(apiClient: apiClient, authManager: authManager, eventManager: eventManager)
+                await loadMessages(assigneeId: assignee.id, apiClient: apiClient)
             }
         } catch {
             logger.error("load error: \(error)")
@@ -89,6 +89,8 @@ final class ChatTabViewModel {
             nextCursor = response.nextCursor
             hasMoreMessages = response.nextCursor != nil
             displayMessages = convertMessages(response.messages, assigneeName: selectedAssignee?.name)
+            // Extract pending confirmation from message data (no separate API call)
+            await extractPendingConfirmation(from: response.messages)
         } catch let apiError as APIError {
             if case .notFound = apiError {
                 // No session yet — show empty state
@@ -220,8 +222,8 @@ final class ChatTabViewModel {
         hasSession = false
         isLoading = true
 
-        await loadMessages(assigneeId: assignee.id, apiClient: apiClient)
         setupStreamHandler(apiClient: apiClient, authManager: authManager, eventManager: eventManager)
+        await loadMessages(assigneeId: assignee.id, apiClient: apiClient)
 
         isLoading = false
 
@@ -255,32 +257,23 @@ final class ChatTabViewModel {
 
     // MARK: - Confirmation
 
-    func loadPendingConfirmation(apiClient: APIClient) async {
-        guard hasSession else { return }
-        do {
-            let confirmations = try await apiClient.listConfirmations()
-            // Find any pending confirmation for an assignee session
-            if let pending = confirmations.first(where: { $0.status == "pending" }) {
+    /// Scan messages for a pending confirmation and set it on the stream handler.
+    private func extractPendingConfirmation(from messages: [ChatMessage]) async {
+        for msg in messages {
+            for tc in msg.toolCalls where tc.confirmation?.status == "pending" {
                 let payload = ConfirmationPayload(
-                    confirmationId: pending.id,
-                    toolCallId: pending.toolCallId,
-                    toolName: pending.toolName,
-                    parameters: pending.parameters
+                    confirmationId: tc.confirmation!.id,
+                    toolCallId: tc.toolCallId,
+                    toolName: tc.toolName,
+                    parameters: tc.input
                 )
+                logger.info("extractPendingConfirmation: found pending confirmation id=\(payload.confirmationId), toolName=\(payload.toolName)")
                 await MainActor.run {
-                    streamHandler?.setPendingConfirmation(payload)
-                    for i in displayMessages.indices {
-                        for j in displayMessages[i].toolCalls.indices {
-                            if displayMessages[i].toolCalls[j].toolCallId == pending.toolCallId {
-                                displayMessages[i].toolCalls[j].status = .pendingConfirmation
-                            }
-                        }
-                    }
-                    showingConfirmation = true
+                    self.streamHandler?.setPendingConfirmation(payload)
+                    self.showingConfirmation = true
                 }
+                return
             }
-        } catch {
-            logger.error("loadPendingConfirmation error: \(error)")
         }
     }
 

@@ -19,3 +19,8 @@ struct SignInView: View {
         )
     }
 }
+#Preview {
+    SignInView()
+        .environment(AuthManager())
+}
+
