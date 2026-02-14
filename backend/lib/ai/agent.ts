@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { streamText, type ModelMessage } from "ai";
 import { db } from "@/lib/db";
-import { chatSessions, assignees } from "@/lib/db/schema";
+import { chatSessions, assignees, confirmations } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { buildToolSet } from "./tools";
 import { setStreamActive } from "@/lib/streaming/manager";
@@ -109,12 +109,280 @@ function sanitizeMessages(
   });
 }
 
+/** Custom annotation keys added to content parts for frontend/persistence (not for the model) */
+const CUSTOM_ANNOTATIONS = ["confirmation", "error", "approveStatus"];
+
+/** Recognized output types in the AI SDK v6 outputSchema discriminated union */
+const VALID_OUTPUT_TYPES = new Set([
+  "text",
+  "json",
+  "execution-denied",
+  "error-text",
+  "content",
+]);
+
+/**
+ * Normalize a tool-result output to match the AI SDK v6 `outputSchema` discriminated union.
+ * SDK auto-executed tools already produce wrapped output (`{ type: "json", value: ... }`),
+ * but manually created tool-results (from resolvePendingToolCalls / resolveConfirmation)
+ * use raw objects. This wraps them appropriately.
+ */
+function normalizeToolResultOutput(
+  output: unknown,
+  hasIsError: boolean,
+): Record<string, unknown> {
+  // Already a valid SDK output format
+  if (
+    typeof output === "object" &&
+    output !== null &&
+    "type" in (output as Record<string, unknown>) &&
+    VALID_OUTPUT_TYPES.has(
+      (output as Record<string, unknown>).type as string,
+    )
+  ) {
+    return output as Record<string, unknown>;
+  }
+
+  // Error output → error-text
+  if (hasIsError) {
+    const errorMsg =
+      typeof output === "object" &&
+      output !== null &&
+      "error" in (output as Record<string, unknown>)
+        ? String((output as Record<string, unknown>).error)
+        : String(output);
+    return { type: "error-text", value: errorMsg };
+  }
+
+  // Normal output → json
+  return { type: "json", value: output };
+}
+
+/**
+ * Clean messages so they conform to the AI SDK's ModelMessage schema for input.
+ * - Strips `tool-approval-request` parts from assistant messages
+ * - Removes custom annotations from content parts
+ * - Drops `tool-approval-response` messages entirely
+ * - Normalizes tool-result output to match SDK `outputSchema`
+ * - Removes `isError` field (not in SDK schema)
+ */
+function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
+  const result: ModelMessage[] = [];
+  for (const msg of messages) {
+    const record = msg as Record<string, unknown>;
+
+    // Drop tool-approval-response messages entirely
+    if (Array.isArray(msg.content)) {
+      const parts = msg.content as Record<string, unknown>[];
+      if (parts.some((p) => p.type === "tool-approval-response")) continue;
+    }
+
+    if (!Array.isArray(msg.content)) {
+      result.push(msg);
+      continue;
+    }
+
+    // Clean content parts
+    const cleanedParts: Record<string, unknown>[] = [];
+    for (const part of msg.content as Record<string, unknown>[]) {
+      // Strip tool-approval-request from assistant messages
+      if (part.type === "tool-approval-request") continue;
+
+      // Clone and remove custom annotations + isError
+      const cleaned = { ...part };
+      for (const key of CUSTOM_ANNOTATIONS) {
+        delete cleaned[key];
+      }
+
+      // Normalize tool-result output for SDK schema
+      if (cleaned.type === "tool-result" && cleaned.output !== undefined) {
+        cleaned.output = normalizeToolResultOutput(
+          cleaned.output,
+          cleaned.isError === true,
+        );
+        delete cleaned.isError;
+      }
+
+      cleanedParts.push(cleaned);
+    }
+
+    // Skip messages with no remaining content parts
+    if (cleanedParts.length === 0) continue;
+
+    result.push({
+      ...record,
+      content: cleanedParts,
+    } as unknown as ModelMessage);
+  }
+  return result;
+}
+
 export function buildSystemPrompt(
   assignee?: { name: string; personality: string | null } | null,
 ): string {
   if (!assignee) return "You are a helpful personal assistant.";
   if (assignee.personality) return assignee.personality;
   return `You are ${assignee.name}, a helpful personal assistant.`;
+}
+
+/**
+ * Resolve any tool-calls that lack matching tool-results before starting the agent loop.
+ * This handles the confirmation resume flow: when the agent paused for approval, the saved
+ * messages contain tool-call parts without tool-results. We execute confirmed tools or
+ * create error results for rejected/orphaned ones so streamText won't throw
+ * AI_MissingToolResultsError.
+ */
+async function resolvePendingToolCalls(
+  sessionId: string,
+  messages: ModelMessage[],
+  tools: Record<string, unknown>,
+  onEvent?: (event: string, data: unknown) => void | Promise<void>,
+): Promise<{ messages: ModelMessage[]; persistCount: number }> {
+  // Collect all tool-call IDs and tool-result IDs
+  const toolCallIds = new Set<string>();
+  const toolResultIds = new Set<string>();
+  const toolCallInfo = new Map<
+    string,
+    { toolName: string; input: unknown }
+  >();
+
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (part.type === "tool-call" && typeof part.toolCallId === "string") {
+        toolCallIds.add(part.toolCallId);
+        toolCallInfo.set(part.toolCallId, {
+          toolName: part.toolName as string,
+          input: part.input ?? part.args,
+        });
+      }
+      if (part.type === "tool-result" && typeof part.toolCallId === "string") {
+        toolResultIds.add(part.toolCallId);
+      }
+    }
+  }
+
+  // Find unresolved: tool-calls without matching tool-results
+  const unresolved = [...toolCallIds].filter((id) => !toolResultIds.has(id));
+  if (unresolved.length === 0) {
+    return { messages, persistCount: 0 };
+  }
+
+  let cleaned = [...messages];
+
+  const newMessages: ModelMessage[] = [];
+
+  for (const toolCallId of unresolved) {
+    const info = toolCallInfo.get(toolCallId);
+    if (!info) continue;
+
+    // Query confirmations table for this tool call
+    const [confirmation] = await db
+      .select()
+      .from(confirmations)
+      .where(eq(confirmations.toolCallId, toolCallId));
+
+    let resultMessage: ModelMessage;
+
+    if (confirmation?.status === "confirmed") {
+      // Execute the tool
+      const toolDef = tools[info.toolName] as
+        | { execute?: (input: unknown) => Promise<unknown> }
+        | undefined;
+
+      let output: unknown;
+      let isError = false;
+      try {
+        if (toolDef?.execute) {
+          output = await toolDef.execute(
+            typeof info.input === "string"
+              ? JSON.parse(info.input)
+              : info.input,
+          );
+        } else {
+          output = { error: "Tool not found or has no execute function" };
+          isError = true;
+        }
+      } catch (err) {
+        output = {
+          error: err instanceof Error ? err.message : String(err),
+        };
+        isError = true;
+      }
+
+      resultMessage = {
+        id: crypto.randomUUID(),
+        role: "tool" as const,
+        content: [
+          {
+            type: "tool-result" as const,
+            toolCallId,
+            toolName: info.toolName,
+            output,
+            ...(isError ? { isError: true } : {}),
+          },
+        ],
+      } as unknown as ModelMessage;
+
+      // Emit tool-result event
+      const eventData: Record<string, unknown> = {
+        toolCallId,
+        toolName: info.toolName,
+        output,
+      };
+      if (isError) {
+        eventData.isError = true;
+        eventData.error =
+          typeof output === "object" &&
+          output !== null &&
+          "error" in (output as Record<string, unknown>)
+            ? String((output as Record<string, unknown>).error)
+            : "Unknown error";
+      }
+      await onEvent?.("tool-result", eventData);
+    } else if (confirmation?.status === "rejected") {
+      // Safety: rejection should already have a tool-result from resolveConfirmation,
+      // but create one if somehow missing
+      resultMessage = {
+        id: crypto.randomUUID(),
+        role: "tool" as const,
+        content: [
+          {
+            type: "tool-result" as const,
+            toolCallId,
+            toolName: info.toolName,
+            output: { error: "User rejected this action" },
+            isError: true,
+          },
+        ],
+      } as unknown as ModelMessage;
+    } else {
+      // No confirmation found (orphaned from multi-tool step) or still pending
+      resultMessage = {
+        id: crypto.randomUUID(),
+        role: "tool" as const,
+        content: [
+          {
+            type: "tool-result" as const,
+            toolCallId,
+            toolName: info.toolName,
+            output: { error: "Tool execution interrupted" },
+            isError: true,
+          },
+        ],
+      } as unknown as ModelMessage;
+    }
+
+    newMessages.push(resultMessage);
+  }
+
+  // Persist new tool-result messages and append to message array
+  if (newMessages.length > 0) {
+    await insertMessages(sessionId, newMessages);
+    cleaned = [...cleaned, ...newMessages];
+  }
+
+  return { messages: cleaned, persistCount: newMessages.length };
 }
 
 interface AgentRunOptions {
@@ -202,9 +470,17 @@ export async function runAgent(options: AgentRunOptions) {
 
   await onEvent?.("status", { status: "in_progress" });
 
+  // Resolve any pending tool-calls from a previous confirmation pause
+  const preprocessed = await resolvePendingToolCalls(
+    sessionId,
+    messages,
+    tools,
+    onEvent,
+  );
+
   let stepCount = 0;
-  let currentMessages: ModelMessage[] = [...messages];
-  let persistedCount = messages.length;
+  let currentMessages: ModelMessage[] = [...preprocessed.messages];
+  let persistedCount = messages.length + preprocessed.persistCount;
 
   try {
     while (stepCount < MAX_STEPS) {
@@ -219,7 +495,7 @@ export async function runAgent(options: AgentRunOptions) {
       const result = streamText({
         model: getModelProvider(modelId),
         system: systemPrompt,
-        messages: currentMessages,
+        messages: cleanMessagesForModel(currentMessages),
         tools: tools as Parameters<typeof streamText>[0]["tools"],
         abortSignal: signal,
       });
