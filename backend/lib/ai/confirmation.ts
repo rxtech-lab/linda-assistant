@@ -3,7 +3,7 @@ import type { ModelMessage } from "ai";
 import { db } from "@/lib/db";
 import { confirmations, chatSessions, assignees } from "@/lib/db/schema";
 import type { ToolPermission } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { sendPushNotification } from "@/lib/push";
 import { syncTaskStatus } from "@/lib/utils/task-status-sync";
 import { publishTask, publishEvent } from "@/lib/queue/producer";
@@ -126,31 +126,74 @@ export async function resolveConfirmation(
       ],
     } as unknown as ModelMessage;
     await insertMessages(confirmation.chatSessionId, [rejectResult]);
+
+    // Emit tool-result event so SSE clients see the rejection immediately.
+    // Since resolvePendingToolCalls skips tools that already have a tool-result in DB,
+    // the rejection event must be emitted here.
+    await publishEvent({
+      sessionId: confirmation.chatSessionId,
+      event: "tool-result",
+      data: {
+        toolCallId: confirmation.toolCallId,
+        toolName: confirmation.toolName,
+        output: { error: "User rejected this action" },
+        isError: true,
+        error: "User rejected this action",
+      },
+      timestamp: Date.now(),
+    });
   }
 
-  await db
-    .update(chatSessions)
-    .set({
-      status: "in_progress",
-      updatedAt: sql`(datetime('now'))`,
-    })
-    .where(eq(chatSessions.id, confirmation.chatSessionId));
-
-  // Emit status event so the SSE stream knows we're resuming
+  // Emit per-confirmation resolved event so client can update UI immediately
   await publishEvent({
     sessionId: confirmation.chatSessionId,
-    event: "status",
-    data: { status: "in_progress" },
+    event: "confirmation_resolved",
+    data: {
+      confirmationId,
+      toolCallId: confirmation.toolCallId,
+      toolName: confirmation.toolName,
+      action: resolvedStatus,
+    },
     timestamp: Date.now(),
   });
 
-  // Signal agent to resume via queue
-  await publishTask({
-    sessionId: confirmation.chatSessionId,
-    userId: confirmation.userId,
-    type: "confirmation_resolved",
-    timestamp: Date.now(),
-  });
+  // Check if there are remaining pending confirmations for this session
+  const [{ count: pendingCount }] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(confirmations)
+    .where(
+      and(
+        eq(confirmations.chatSessionId, confirmation.chatSessionId),
+        eq(confirmations.status, "pending"),
+      ),
+    );
+
+  // Only resume the agent when ALL confirmations have been resolved
+  if (pendingCount === 0) {
+    await db
+      .update(chatSessions)
+      .set({
+        status: "in_progress",
+        updatedAt: sql`(datetime('now'))`,
+      })
+      .where(eq(chatSessions.id, confirmation.chatSessionId));
+
+    // Emit status event so the SSE stream knows we're resuming
+    await publishEvent({
+      sessionId: confirmation.chatSessionId,
+      event: "status",
+      data: { status: "in_progress" },
+      timestamp: Date.now(),
+    });
+
+    // Signal agent to resume via queue
+    await publishTask({
+      sessionId: confirmation.chatSessionId,
+      userId: confirmation.userId,
+      type: "confirmation_resolved",
+      timestamp: Date.now(),
+    });
+  }
 
   // Handle alwaysAllow — update assignee's toolPermissions to auto-confirm this tool
   if (action === "confirm" && options?.alwaysAllow && session.assigneeId) {

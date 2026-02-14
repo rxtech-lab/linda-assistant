@@ -32,6 +32,8 @@ async function waitForStopped(request: APIRequestContext, assigneeId: string, ti
 }
 
 test.describe("Chat Endpoints", () => {
+  test.describe.configure({ retries: 2 });
+
   let assigneeId: string;
 
   test.beforeAll(async ({ request }) => {

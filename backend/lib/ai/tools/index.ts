@@ -48,7 +48,7 @@ async function loadMcpTools(
 
     // Build needsApproval map based on permissions
     for (const toolName of Object.keys(rawTools)) {
-      const perm = resolvePermission(toolName, toolPermissions);
+      const perm = resolvePermission(`${config.prefix}${toolName}`, toolPermissions);
       if (perm === "auto-reject") continue;
       needsApproval[toolName] = perm === "manual-confirm";
     }
@@ -59,7 +59,7 @@ async function loadMcpTools(
     // Prefix tool names and filter out auto-rejected tools
     const prefixed: Record<string, unknown> = {};
     for (const [toolName, tool] of Object.entries(mcpTools)) {
-      const perm = resolvePermission(toolName, toolPermissions);
+      const perm = resolvePermission(`${config.prefix}${toolName}`, toolPermissions);
       if (perm === "auto-reject") continue;
       prefixed[`${config.prefix}${toolName}`] = tool as unknown;
     }

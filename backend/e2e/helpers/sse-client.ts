@@ -8,12 +8,14 @@ export async function consumeSSE(
   options: {
     headers?: Record<string, string>;
     stopOnEvent?: string;
+    stopOnEventCount?: number;
     timeoutMs?: number;
   } = {},
 ): Promise<SSEEvent[]> {
-  const { headers = {}, stopOnEvent = "done", timeoutMs = 15000 } = options;
+  const { headers = {}, stopOnEvent = "done", stopOnEventCount = 1, timeoutMs = 15000 } = options;
 
   const events: SSEEvent[] = [];
+  let stopMatchCount = 0;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -63,8 +65,11 @@ export async function consumeSSE(
             events.push({ event: currentEvent, data: parsed });
 
             if (currentEvent === stopOnEvent) {
-              reader.cancel();
-              return events;
+              stopMatchCount++;
+              if (stopMatchCount >= stopOnEventCount) {
+                reader.cancel();
+                return events;
+              }
             }
           }
           currentEvent = "";

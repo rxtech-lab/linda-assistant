@@ -356,6 +356,14 @@ async function resolvePendingToolCalls(
           },
         ],
       } as unknown as ModelMessage;
+
+      await onEvent?.("tool-result", {
+        toolCallId,
+        toolName: info.toolName,
+        output: { error: "User rejected this action" },
+        isError: true,
+        error: "User rejected this action",
+      });
     } else {
       // No confirmation found (orphaned from multi-tool step) or still pending
       resultMessage = {
@@ -371,6 +379,14 @@ async function resolvePendingToolCalls(
           },
         ],
       } as unknown as ModelMessage;
+
+      await onEvent?.("tool-result", {
+        toolCallId,
+        toolName: info.toolName,
+        output: { error: "Tool execution interrupted" },
+        isError: true,
+        error: "Tool execution interrupted",
+      });
     }
 
     newMessages.push(resultMessage);
@@ -574,27 +590,35 @@ export async function runAgent(options: AgentRunOptions) {
       ];
 
       if (finishReason === "tool-calls" && pendingApprovals.length > 0) {
-        // SDK detected tools needing approval — create confirmation and pause
-        const approval = pendingApprovals[0];
-        const confirmation = await createConfirmation({
-          userId,
-          chatSessionId: sessionId,
-          toolCallId: approval.toolCall.toolCallId,
-          toolName: approval.toolCall.toolName,
-          approvalId: approval.approvalId,
-          parameters: (approval.toolCall.input ?? {}) as Record<
-            string,
-            unknown
-          >,
-        });
+        // SDK detected tools needing approval — create confirmations for ALL and pause
+        for (const approval of pendingApprovals) {
+          const confirmation = await createConfirmation({
+            userId,
+            chatSessionId: sessionId,
+            toolCallId: approval.toolCall.toolCallId,
+            toolName: approval.toolCall.toolName,
+            approvalId: approval.approvalId,
+            parameters: (approval.toolCall.input ?? {}) as Record<
+              string,
+              unknown
+            >,
+          });
 
-        // Annotate the tool-call content part with confirmation info
-        annotateToolCallConfirmation(
-          currentMessages,
-          approval.toolCall.toolCallId,
-          confirmation.id,
-          "pending",
-        );
+          // Annotate the tool-call content part with confirmation info
+          annotateToolCallConfirmation(
+            currentMessages,
+            approval.toolCall.toolCallId,
+            confirmation.id,
+            "pending",
+          );
+
+          await onEvent?.("confirmation_required", {
+            confirmationId: confirmation.id,
+            toolCallId: approval.toolCall.toolCallId,
+            toolName: approval.toolCall.toolName,
+            parameters: approval.toolCall.input,
+          });
+        }
 
         // Persist new messages and update session status
         await insertMessages(sessionId, currentMessages.slice(persistedCount));
@@ -606,13 +630,6 @@ export async function runAgent(options: AgentRunOptions) {
             updatedAt: sql`(datetime('now'))`,
           })
           .where(eq(chatSessions.id, sessionId));
-
-        await onEvent?.("confirmation_required", {
-          confirmationId: confirmation.id,
-          toolCallId: approval.toolCall.toolCallId,
-          toolName: approval.toolCall.toolName,
-          parameters: approval.toolCall.input,
-        });
 
         await setStreamActive(sessionId, false);
         return { paused: true, reason: "confirmation_required" };
