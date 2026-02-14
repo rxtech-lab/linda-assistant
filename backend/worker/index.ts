@@ -1,10 +1,10 @@
 import { createServer } from "node:http";
-import { setupTopology, closeConnection, isConnected } from "@/lib/queue/connection";
+import { runAgent } from "@/lib/ai/agent";
+import { closeConnection, isConnected, setupTopology } from "@/lib/queue/connection";
 import { consumeTasks } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
-import { runAgent } from "@/lib/ai/agent";
-import { isStreamActive } from "@/lib/streaming/manager";
 import type { AgentTask } from "@/lib/queue/types";
+import { isStreamActive } from "@/lib/streaming/manager";
 
 async function handleTask(task: AgentTask): Promise<void> {
   const { sessionId, userId } = task;

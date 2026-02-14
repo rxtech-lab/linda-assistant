@@ -1,5 +1,5 @@
-import amqplib, { type ChannelModel, type Channel } from "amqplib";
-import { AGENT_TASKS_QUEUE, AGENT_EVENTS_EXCHANGE } from "./types";
+import amqplib, { type Channel, type ChannelModel } from "amqplib";
+import { AGENT_EVENTS_EXCHANGE, AGENT_TASKS_QUEUE } from "./types";
 
 let connection: ChannelModel | null = null;
 let channel: Channel | null = null;
