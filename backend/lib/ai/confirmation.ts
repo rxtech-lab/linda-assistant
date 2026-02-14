@@ -107,22 +107,27 @@ export async function resolveConfirmation(
     }
   }
 
-  // Add SDK tool-approval-response so the agent can resume with the SDK's approval flow
-  const approvalResponse: ModelMessage = {
-    id: crypto.randomUUID(),
-    role: "tool" as const,
-    content: [
-      {
-        type: "tool-approval-response" as const,
-        approvalId: confirmation.approvalId,
-        approved: action === "confirm",
-        ...(action === "reject" ? { reason: "User rejected this action" } : {}),
-      },
-    ],
-  } as ModelMessage;
+  // For rejection: insert a proper tool-result with isError so the SDK sees a complete
+  // tool-call → tool-result pair and won't throw AI_MissingToolResultsError on resume.
+  // For approval: don't insert anything — resolvePendingToolCalls in agent.ts will
+  // execute the tool and create the tool-result before the next streamText call.
+  if (action === "reject") {
+    const rejectResult = {
+      id: crypto.randomUUID(),
+      role: "tool" as const,
+      content: [
+        {
+          type: "tool-result" as const,
+          toolCallId: confirmation.toolCallId,
+          toolName: confirmation.toolName,
+          output: { error: "User rejected this action" },
+          isError: true,
+        },
+      ],
+    } as unknown as ModelMessage;
+    await insertMessages(confirmation.chatSessionId, [rejectResult]);
+  }
 
-  // Insert the approval response as a new message row and update session status
-  await insertMessages(confirmation.chatSessionId, [approvalResponse]);
   await db
     .update(chatSessions)
     .set({

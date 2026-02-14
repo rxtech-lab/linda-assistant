@@ -11,15 +11,7 @@ function buildStreamChunks(
   messages: unknown[],
   availableTools?: Set<string>,
 ): LanguageModelV3StreamPart[] {
-  // Check for tool-approval-response in messages (resumed after confirmation)
-  const hasApprovalResponse = messages.some(
-    (m: any) =>
-      m.role === "tool" &&
-      Array.isArray(m.content) &&
-      m.content.some((c: any) => c.type === "tool-approval-response"),
-  );
-
-  // Check for tool-result in prompt (resumed after auto-confirm execution)
+  // Check for tool-result in prompt (resumed after confirmation or auto-confirm execution)
   const hasToolResult = messages.some(
     (m: any) =>
       m.role === "tool" &&
@@ -27,13 +19,20 @@ function buildStreamChunks(
       m.content.some((c: any) => c.type === "tool-result"),
   );
 
-  if (hasApprovalResponse || hasToolResult) {
-    // Check if this is a rejection (approval response with approved: false)
+  if (hasToolResult) {
+    // Check if this is a rejection (tool-result with error output type)
     const isRejection = messages.some(
       (m: any) =>
         m.role === "tool" &&
         Array.isArray(m.content) &&
-        m.content.some((c: any) => c.type === "tool-approval-response" && c.approved === false),
+        m.content.some(
+          (c: any) =>
+            c.type === "tool-result" &&
+            typeof c.output === "object" &&
+            c.output !== null &&
+            (c.output.type === "error-text" ||
+              c.output.type === "execution-denied"),
+        ),
     );
 
     const text = isRejection ? "I understand, I won't do that." : "Email sent successfully.";
