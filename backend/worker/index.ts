@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { setupTopology, closeConnection } from "@/lib/queue/connection";
+import { setupTopology, closeConnection, isConnected } from "@/lib/queue/connection";
 import { consumeTasks } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
 import { runAgent } from "@/lib/ai/agent";
@@ -46,7 +46,7 @@ const HEALTH_PORT = parseInt(process.env.HEALTH_PORT || "3002", 10);
 
 const healthServer = createServer((req, res) => {
   if (req.url === "/healthz") {
-    if (healthy && !shuttingDown) {
+    if (healthy && !shuttingDown && isConnected()) {
       res.writeHead(200).end("ok");
     } else {
       res.writeHead(503).end("not ready");

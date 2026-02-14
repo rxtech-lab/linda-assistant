@@ -65,6 +65,10 @@ export async function setupTopology(): Promise<void> {
   await ch.assertExchange(AGENT_EVENTS_EXCHANGE, "topic", { durable: false });
 }
 
+export function isConnected(): boolean {
+  return connection !== null && channel !== null;
+}
+
 export async function closeConnection(): Promise<void> {
   if (channel) {
     try {
