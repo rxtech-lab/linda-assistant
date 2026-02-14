@@ -124,6 +124,37 @@ function buildStreamChunks(
     ];
   }
 
+  // Scenario: parallel tool calls (send_email + create_task)
+  if (
+    lastText.includes("[TOOL:parallel]") &&
+    (!availableTools || (availableTools.has("send_email") && availableTools.has("create_task")))
+  ) {
+    const emailInput = JSON.stringify({
+      to: "test@example.com",
+      subject: "Parallel Test Email",
+      body: "<p>Parallel test body</p>",
+    });
+    const taskInput = JSON.stringify({
+      title: "Parallel Test Task",
+      description: "A task created in parallel with an email",
+    });
+    return [
+      { type: "tool-input-start", id: "parallel-call-1", toolName: "send_email" },
+      { type: "tool-input-delta", id: "parallel-call-1", delta: emailInput },
+      { type: "tool-input-end", id: "parallel-call-1" },
+      { type: "tool-call", toolCallId: "parallel-call-1", toolName: "send_email", input: emailInput },
+      { type: "tool-input-start", id: "parallel-call-2", toolName: "create_task" },
+      { type: "tool-input-delta", id: "parallel-call-2", delta: taskInput },
+      { type: "tool-input-end", id: "parallel-call-2" },
+      { type: "tool-call", toolCallId: "parallel-call-2", toolName: "create_task", input: taskInput },
+      {
+        type: "finish",
+        finishReason: { unified: "tool-calls", raw: undefined },
+        usage: MOCK_USAGE,
+      },
+    ];
+  }
+
   // Default: stream "Hello, world!"
   return [
     { type: "text-start", id: "text-1" },

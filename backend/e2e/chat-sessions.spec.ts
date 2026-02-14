@@ -18,6 +18,18 @@ test.describe("Chat Sessions CRUD", () => {
     });
     const body = await res.json();
     assigneeId = body.id;
+
+    // Create session up front so all tests can use it reliably
+    const sessionRes = await request.post("/api/chat-sessions", {
+      data: { assigneeId },
+    });
+    expect(sessionRes.status()).toBe(201);
+    const sessionBody = await sessionRes.json();
+    chatSessionResponseSchema.parse(sessionBody);
+    expect(sessionBody.assigneeId).toBe(assigneeId);
+    expect(sessionBody.userId).toBe("e2e-test-user");
+    expect(sessionBody.status).toBe("starting");
+    sessionId = sessionBody.id;
   });
 
   test("POST /api/chat-sessions creates a session", async ({ request }) => {
@@ -31,7 +43,6 @@ test.describe("Chat Sessions CRUD", () => {
     expect(body.userId).toBe("e2e-test-user");
     expect(body.status).toBe("starting");
     expect(body.id).toBeTruthy();
-    sessionId = body.id;
   });
 
   test("POST /api/chat-sessions with title", async ({ request }) => {
@@ -45,7 +56,7 @@ test.describe("Chat Sessions CRUD", () => {
   });
 
   test("GET /api/chat-sessions lists sessions with pagination", async ({ request }) => {
-    const res = await request.get("/api/chat-sessions");
+    const res = await request.get("/api/chat-sessions?limit=100");
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     chatSessionListResponseSchema.parse(body);
