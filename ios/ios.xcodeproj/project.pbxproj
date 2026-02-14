@@ -36,7 +36,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		DF7E29F12F378F46006A4C0A /* ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ios.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DF7E29F12F378F46006A4C0A /* LindaAssistant.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LindaAssistant.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF7E2A002F378F47006A4C0A /* iosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF7E2A0A2F378F47006A4C0A /* iosUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF7E2A1E2F378F82006A4C0A /* AssistantCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = AssistantCore; sourceTree = "<group>"; };
@@ -50,12 +50,12 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		DF7E324E2F385A30006A4C0A /* Exceptions for "ios" folder in "ios" target */ = {
+		DF7E324E2F385A30006A4C0A /* Exceptions for "ios" folder in "LindaAssistant" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = DF7E29F02F378F46006A4C0A /* ios */;
+			target = DF7E29F02F378F46006A4C0A /* LindaAssistant */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -63,7 +63,7 @@
 		DF7E29F32F378F46006A4C0A /* ios */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				DF7E324E2F385A30006A4C0A /* Exceptions for "ios" folder in "ios" target */,
+				DF7E324E2F385A30006A4C0A /* Exceptions for "ios" folder in "LindaAssistant" target */,
 			);
 			path = ios;
 			sourceTree = "<group>";
@@ -129,7 +129,7 @@
 		DF7E29F22F378F46006A4C0A /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				DF7E29F12F378F46006A4C0A /* ios.app */,
+				DF7E29F12F378F46006A4C0A /* LindaAssistant.app */,
 				DF7E2A002F378F47006A4C0A /* iosTests.xctest */,
 				DF7E2A0A2F378F47006A4C0A /* iosUITests.xctest */,
 			);
@@ -158,9 +158,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		DF7E29F02F378F46006A4C0A /* ios */ = {
+		DF7E29F02F378F46006A4C0A /* LindaAssistant */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = DF7E2A142F378F47006A4C0A /* Build configuration list for PBXNativeTarget "ios" */;
+			buildConfigurationList = DF7E2A142F378F47006A4C0A /* Build configuration list for PBXNativeTarget "LindaAssistant" */;
 			buildPhases = (
 				DF7E29ED2F378F46006A4C0A /* Sources */,
 				DF7E29EE2F378F46006A4C0A /* Frameworks */,
@@ -173,7 +173,7 @@
 			fileSystemSynchronizedGroups = (
 				DF7E29F32F378F46006A4C0A /* ios */,
 			);
-			name = ios;
+			name = LindaAssistant;
 			packageProductDependencies = (
 				DF7E2A202F379000006A4C0A /* AssistantCore */,
 				DF7E37732F3A66EC006A4C0A /* AgentKit */,
@@ -181,8 +181,8 @@
 				DF0FE4E82F3F28CE002CCE53 /* MarkdownUI */,
 				DF0FE4EB2F3F2F3C002CCE53 /* Highlightr */,
 			);
-			productName = ios;
-			productReference = DF7E29F12F378F46006A4C0A /* ios.app */;
+			productName = LindaAssistant;
+			productReference = DF7E29F12F378F46006A4C0A /* LindaAssistant.app */;
 			productType = "com.apple.product-type.application";
 		};
 		DF7E29FF2F378F47006A4C0A /* iosTests */ = {
@@ -277,7 +277,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				DF7E29F02F378F46006A4C0A /* ios */,
+				DF7E29F02F378F46006A4C0A /* LindaAssistant */,
 				DF7E29FF2F378F47006A4C0A /* iosTests */,
 				DF7E2A092F378F47006A4C0A /* iosUITests */,
 			);
@@ -338,12 +338,12 @@
 /* Begin PBXTargetDependency section */
 		DF7E2A022F378F47006A4C0A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = DF7E29F02F378F46006A4C0A /* ios */;
+			target = DF7E29F02F378F46006A4C0A /* LindaAssistant */;
 			targetProxy = DF7E2A012F378F47006A4C0A /* PBXContainerItemProxy */;
 		};
 		DF7E2A0C2F378F47006A4C0A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = DF7E29F02F378F46006A4C0A /* ios */;
+			target = DF7E29F02F378F46006A4C0A /* LindaAssistant */;
 			targetProxy = DF7E2A0B2F378F47006A4C0A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -498,8 +498,12 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ios/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = LidaAssistant;
+				INFOPLIST_KEY_CFBundleDisplayName = LindaAssistant;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID is used to confirm sensitive actions like task creation and modifications.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -555,8 +559,12 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ios/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = LidaAssistant;
+				INFOPLIST_KEY_CFBundleDisplayName = LindaAssistant;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID is used to confirm sensitive actions like task creation and modifications.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -601,7 +609,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ios";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LindaAssistant.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LindaAssistant";
 			};
 			name = Debug;
 		};
@@ -623,7 +631,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ios";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LindaAssistant.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LindaAssistant";
 			};
 			name = Release;
 		};
@@ -681,7 +689,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		DF7E2A142F378F47006A4C0A /* Build configuration list for PBXNativeTarget "ios" */ = {
+		DF7E2A142F378F47006A4C0A /* Build configuration list for PBXNativeTarget "LindaAssistant" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				DF7E2A152F378F47006A4C0A /* Debug */,
