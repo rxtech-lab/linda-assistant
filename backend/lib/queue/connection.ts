@@ -1,5 +1,5 @@
-import amqplib, { type ChannelModel, type Channel } from "amqplib";
-import { AGENT_TASKS_QUEUE, AGENT_EVENTS_EXCHANGE } from "./types";
+import amqplib, { type Channel, type ChannelModel } from "amqplib";
+import { AGENT_EVENTS_EXCHANGE, AGENT_TASKS_QUEUE } from "./types";
 
 let connection: ChannelModel | null = null;
 let channel: Channel | null = null;
@@ -63,6 +63,17 @@ export async function setupTopology(): Promise<void> {
 
   // Topic exchange for real-time agent events
   await ch.assertExchange(AGENT_EVENTS_EXCHANGE, "topic", { durable: false });
+}
+
+export async function isConnected(): Promise<boolean> {
+  if (!connection || !channel) return false;
+  try {
+    await channel.checkQueue(AGENT_TASKS_QUEUE);
+    return true;
+  } catch (err) {
+    console.warn("[RabbitMQ] Connection check failed:", (err as Error).message);
+    return false;
+  }
 }
 
 export async function closeConnection(): Promise<void> {

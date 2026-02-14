@@ -1,10 +1,10 @@
 import { createServer } from "node:http";
-import { setupTopology, closeConnection } from "@/lib/queue/connection";
+import { runAgent } from "@/lib/ai/agent";
+import { closeConnection, isConnected, setupTopology } from "@/lib/queue/connection";
 import { consumeTasks } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
-import { runAgent } from "@/lib/ai/agent";
-import { isStreamActive } from "@/lib/streaming/manager";
 import type { AgentTask } from "@/lib/queue/types";
+import { isStreamActive } from "@/lib/streaming/manager";
 
 async function handleTask(task: AgentTask): Promise<void> {
   const { sessionId, userId } = task;
@@ -44,11 +44,15 @@ async function handleTask(task: AgentTask): Promise<void> {
 let healthy = false;
 const HEALTH_PORT = parseInt(process.env.HEALTH_PORT || "3002", 10);
 
-const healthServer = createServer((req, res) => {
+const healthServer = createServer(async (req, res) => {
   if (req.url === "/healthz") {
-    if (healthy && !shuttingDown) {
-      res.writeHead(200).end("ok");
-    } else {
+    try {
+      if (healthy && !shuttingDown && (await isConnected())) {
+        res.writeHead(200).end("ok");
+      } else {
+        res.writeHead(503).end("not ready");
+      }
+    } catch {
       res.writeHead(503).end("not ready");
     }
   } else {
