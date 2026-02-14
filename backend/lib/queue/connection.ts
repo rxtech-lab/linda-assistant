@@ -65,8 +65,15 @@ export async function setupTopology(): Promise<void> {
   await ch.assertExchange(AGENT_EVENTS_EXCHANGE, "topic", { durable: false });
 }
 
-export function isConnected(): boolean {
-  return connection !== null && channel !== null;
+export async function isConnected(): Promise<boolean> {
+  if (!connection || !channel) return false;
+  try {
+    await channel.checkQueue(AGENT_TASKS_QUEUE);
+    return true;
+  } catch (err) {
+    console.warn("[RabbitMQ] Connection check failed:", (err as Error).message);
+    return false;
+  }
 }
 
 export async function closeConnection(): Promise<void> {

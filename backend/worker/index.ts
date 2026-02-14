@@ -44,11 +44,15 @@ async function handleTask(task: AgentTask): Promise<void> {
 let healthy = false;
 const HEALTH_PORT = parseInt(process.env.HEALTH_PORT || "3002", 10);
 
-const healthServer = createServer((req, res) => {
+const healthServer = createServer(async (req, res) => {
   if (req.url === "/healthz") {
-    if (healthy && !shuttingDown && isConnected()) {
-      res.writeHead(200).end("ok");
-    } else {
+    try {
+      if (healthy && !shuttingDown && (await isConnected())) {
+        res.writeHead(200).end("ok");
+      } else {
+        res.writeHead(503).end("not ready");
+      }
+    } catch {
       res.writeHead(503).end("not ready");
     }
   } else {
