@@ -97,6 +97,23 @@ Existing event types: `assigneeCreated/Updated/Deleted`, `taskCreated/Updated/De
 - `scripts/` — build and test scripts for both platforms
 - `mem0/` — FastAPI memory service
 
+## Git Conventions
+
+This project uses **Conventional Commits** format for all commit messages and PR titles:
+
+- `feat:` — new features
+- `fix:` — bug fixes
+- `docs:` — documentation changes
+- `style:` — formatting, missing semicolons, etc. (no code change)
+- `refactor:` — refactoring production code
+- `test:` — adding tests, refactoring tests (no production code change)
+- `chore:` — updating build tasks, package manager configs, etc. (no production code change)
+- `ci:` — CI/CD changes
+- `perf:` — performance improvements
+- `build:` — changes to build system or dependencies
+
+Example: `docs: add API documentation for chat endpoints`
+
 ## Documentation
 
 See `backend/docs/` for detailed backend documentation:
