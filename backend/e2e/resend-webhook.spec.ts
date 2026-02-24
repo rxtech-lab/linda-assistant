@@ -1,0 +1,133 @@
+import { test, expect } from "@playwright/test";
+
+function webhookPayload(emailId: string) {
+  return {
+    type: "email.received",
+    data: {
+      email_id: emailId,
+      from: "sender@example.com",
+      from_name: "Sender",
+      to: ["test@example.com"],
+      subject: `Webhook ${emailId}`,
+      message_id: `msg-${emailId}`,
+    },
+  };
+}
+
+test.describe("Resend webhook inline images", () => {
+  test.beforeAll(async ({ request }) => {
+    // Create an assignee whose email matches the mock's "to" field
+    await request.post("/api/assignees", {
+      data: {
+        name: "Webhook Test Assignee",
+        email: "test@example.com",
+      },
+    });
+  });
+
+  test("1: attachments only, no base64 — stores attachments from CID", async ({
+    request,
+  }) => {
+    const res = await request.post("/api/webhooks/resend", {
+      data: webhookPayload("e2e-attachments-only"),
+    });
+    expect(res.ok()).toBeTruthy();
+
+    // Find the email in the DB via the list endpoint
+    const listRes = await request.get("/api/emails");
+    const list = await listRes.json();
+    const email = list.data.find(
+      (e: { emailId: string }) => e.emailId === "e2e-attachments-only",
+    );
+    expect(email).toBeTruthy();
+
+    // Should have attachments from CID processing
+    expect(email.attachments).toBeTruthy();
+    expect(email.attachments.length).toBeGreaterThanOrEqual(1);
+    expect(email.attachments[0].type).toBe("image");
+    expect(email.attachments[0].url).toContain("http://localhost:9000/e2e-test/");
+
+    // HTML should have CID replaced with S3 URL, no data: URIs
+    expect(email.htmlBody).not.toContain("cid:");
+    expect(email.htmlBody).not.toContain("data:");
+    expect(email.htmlBody).toContain("http://localhost:9000/e2e-test/");
+  });
+
+  test("2: both attachment and base64 — attachments contain body-extracted images", async ({
+    request,
+  }) => {
+    const res = await request.post("/api/webhooks/resend", {
+      data: webhookPayload("e2e-both-attachment-and-base64"),
+    });
+    expect(res.ok()).toBeTruthy();
+
+    const listRes = await request.get("/api/emails");
+    const list = await listRes.json();
+    const email = list.data.find(
+      (e: { emailId: string }) =>
+        e.emailId === "e2e-both-attachment-and-base64",
+    );
+    expect(email).toBeTruthy();
+
+    // Should have attachments (CID-processed + base64-extracted)
+    expect(email.attachments).toBeTruthy();
+    expect(email.attachments.length).toBeGreaterThanOrEqual(1);
+
+    // All attachment URLs should be S3 URLs
+    for (const att of email.attachments) {
+      expect(att.url).toContain("http://localhost:9000/e2e-test/");
+      expect(att.type).toBe("image");
+    }
+
+    // HTML should have no base64 data URIs and no cid: refs
+    expect(email.htmlBody).not.toContain("data:");
+    expect(email.htmlBody).not.toContain("cid:");
+  });
+
+  test("3: base64 only, no attachments — extracts inline image to attachments", async ({
+    request,
+  }) => {
+    const res = await request.post("/api/webhooks/resend", {
+      data: webhookPayload("e2e-base64-only"),
+    });
+    expect(res.ok()).toBeTruthy();
+
+    const listRes = await request.get("/api/emails");
+    const list = await listRes.json();
+    const email = list.data.find(
+      (e: { emailId: string }) => e.emailId === "e2e-base64-only",
+    );
+    expect(email).toBeTruthy();
+
+    // base64 image should be extracted and stored as attachment
+    expect(email.attachments).toBeTruthy();
+    expect(email.attachments).toHaveLength(1);
+    expect(email.attachments[0].type).toBe("image");
+    expect(email.attachments[0].url).toContain("http://localhost:9000/e2e-test/");
+    expect(email.attachments[0].name).toContain("inline.");
+
+    // HTML should have S3 URL instead of base64
+    expect(email.htmlBody).not.toContain("data:");
+    expect(email.htmlBody).toContain("http://localhost:9000/e2e-test/");
+  });
+
+  test("4: no images at all — attachments is null", async ({ request }) => {
+    const res = await request.post("/api/webhooks/resend", {
+      data: webhookPayload("e2e-no-images"),
+    });
+    expect(res.ok()).toBeTruthy();
+
+    const listRes = await request.get("/api/emails");
+    const list = await listRes.json();
+    const email = list.data.find(
+      (e: { emailId: string }) => e.emailId === "e2e-no-images",
+    );
+    expect(email).toBeTruthy();
+
+    // No images means attachments should be null
+    expect(email.attachments).toBeNull();
+
+    // HTML should be unchanged plain text
+    expect(email.htmlBody).toBe("<p>Hello world, plain email</p>");
+  });
+});

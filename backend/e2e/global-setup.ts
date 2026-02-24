@@ -1,4 +1,11 @@
 import { createClient } from "@libsql/client";
+import {
+  S3Client,
+  CreateBucketCommand,
+  HeadBucketCommand,
+  PutBucketPolicyCommand,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3";
 import amqplib from "amqplib";
 import { Redis } from "@upstash/redis";
 import { spawn } from "child_process";
@@ -58,6 +65,54 @@ export default async function globalSetup() {
   await ch.close();
   await conn.close();
 
+  // Create MinIO bucket for S3 tests
+  const s3 = new S3Client({
+    region: "us-east-1",
+    endpoint: "http://localhost:9000",
+    forcePathStyle: true,
+    credentials: {
+      accessKeyId: "minioadmin",
+      secretAccessKey: "minioadmin",
+    },
+  });
+  try {
+    await s3.send(new HeadBucketCommand({ Bucket: "e2e-test" }));
+  } catch {
+    await s3.send(new CreateBucketCommand({ Bucket: "e2e-test" }));
+  }
+
+  // Allow public reads so downloadAndUploadToS3 can fetch test fixtures
+  await s3.send(
+    new PutBucketPolicyCommand({
+      Bucket: "e2e-test",
+      Policy: JSON.stringify({
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Effect: "Allow",
+            Principal: "*",
+            Action: "s3:GetObject",
+            Resource: "arn:aws:s3:::e2e-test/*",
+          },
+        ],
+      }),
+    }),
+  );
+
+  // Upload a tiny 1x1 PNG so the Resend mock attachment download_url works
+  const testPng = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: "e2e-test",
+      Key: "test-fixtures/test-image.png",
+      Body: testPng,
+      ContentType: "image/png",
+    }),
+  );
+
   // Start worker process
   const worker = spawn("bun", ["worker/index.ts"], {
     cwd: path.resolve(__dirname, ".."),
@@ -68,6 +123,12 @@ export default async function globalSetup() {
       RABBITMQ_URL: "amqp://linda:linda@localhost:5672",
       UPSTASH_REDIS_REST_URL: "http://localhost:8079",
       UPSTASH_REDIS_REST_TOKEN: "token",
+      AWS_ACCESS_KEY_ID: "minioadmin",
+      AWS_SECRET_ACCESS_KEY: "minioadmin",
+      AWS_REGION: "us-east-1",
+      S3_API_URL: "http://localhost:9000",
+      S3_BUCKET_NAME: "e2e-test",
+      S3_PUBLIC_URL: "http://localhost:9000/e2e-test",
     },
     stdio: "pipe",
   });
