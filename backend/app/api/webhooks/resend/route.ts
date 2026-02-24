@@ -149,37 +149,44 @@ export async function POST(request: NextRequest) {
   log("start");
 
   const body = await request.text();
-  const svixId = request.headers.get("svix-id");
-  const svixTimestamp = request.headers.get("svix-timestamp");
-  const svixSignature = request.headers.get("svix-signature");
-
-  if (!svixId || !svixTimestamp || !svixSignature) {
-    log("missing svix headers");
-    return NextResponse.json(
-      { error: "Missing Svix headers" },
-      { status: 400 },
-    );
-  }
-
-  const webhookSecret = process.env.RESEND_WEBHOOK_SECRET!;
-  const wh = new Webhook(webhookSecret);
 
   let rawPayload: Record<string, unknown>;
-  try {
-    rawPayload = wh.verify(body, {
-      "svix-id": svixId,
-      "svix-timestamp": svixTimestamp,
-      "svix-signature": svixSignature,
-    }) as Record<string, unknown>;
-  } catch {
-    log("invalid signature");
-    return NextResponse.json(
-      { error: "Invalid webhook signature" },
-      { status: 400 },
-    );
-  }
 
-  log("signature verified");
+  if (process.env.IS_E2E) {
+    rawPayload = JSON.parse(body);
+    log("e2e mode — skipped signature verification");
+  } else {
+    const svixId = request.headers.get("svix-id");
+    const svixTimestamp = request.headers.get("svix-timestamp");
+    const svixSignature = request.headers.get("svix-signature");
+
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      log("missing svix headers");
+      return NextResponse.json(
+        { error: "Missing Svix headers" },
+        { status: 400 },
+      );
+    }
+
+    const webhookSecret = process.env.RESEND_WEBHOOK_SECRET!;
+    const wh = new Webhook(webhookSecret);
+
+    try {
+      rawPayload = wh.verify(body, {
+        "svix-id": svixId,
+        "svix-timestamp": svixTimestamp,
+        "svix-signature": svixSignature,
+      }) as Record<string, unknown>;
+    } catch {
+      log("invalid signature");
+      return NextResponse.json(
+        { error: "Invalid webhook signature" },
+        { status: 400 },
+      );
+    }
+
+    log("signature verified");
+  }
 
   // Validate webhook payload with zod
   const parsed = resendWebhookPayloadSchema.safeParse(rawPayload);
@@ -240,9 +247,18 @@ export async function POST(request: NextRequest) {
   log("attachments done");
 
   // Replace inline images (cid: refs and base64 data URIs) with S3 URLs
-  const htmlBody = emailData.html
-    ? await replaceInlineImages(emailData.html, cidMap)
-    : null;
+  let htmlBody: string | null = null;
+  let allAttachments = processedAttachments;
+
+  if (emailData.html) {
+    const result = await replaceInlineImages(emailData.html, cidMap);
+    htmlBody = result.html;
+
+    // Merge base64-extracted images into attachments list
+    if (result.inlineImages.length > 0) {
+      allAttachments = [...(processedAttachments || []), ...result.inlineImages];
+    }
+  }
   log("html inline images processed");
 
   // Insert email into database with unique emailId constraint
@@ -258,7 +274,7 @@ export async function POST(request: NextRequest) {
       textBody,
       htmlBody,
       receivedAt: new Date().toISOString(),
-      attachments: processedAttachments || null,
+      attachments: allAttachments || null,
       metadata: {
         messageId: data.message_id,
         headers: data.headers,

@@ -31,6 +31,14 @@ jobs:
           SRH_MODE: env
           SRH_TOKEN: token
           SRH_CONNECTION_STRING: redis://redis:6379
+      minio:
+        image: bitnami/minio:latest
+        ports:
+          - "9000:9000"
+          - "9001:9001"
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
     steps:
       - uses: actions/checkout@v6
 

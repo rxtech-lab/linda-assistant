@@ -5,7 +5,7 @@ import { replaceInlineImages, stripBase64DataUris } from "./html";
 mock.module("@/lib/s3", () => ({
   uploadBufferToS3: async (
     _buffer: Buffer,
-    contentType: string,
+    _contentType: string,
     filename: string,
   ) => `https://s3.example.com/email-inline-images/${filename}`,
 }));
@@ -60,9 +60,10 @@ describe("replaceInlineImages", () => {
       ["<inline-image-1.png>", "https://s3.example.com/attachment1.png"],
     ]);
     const result = await replaceInlineImages(html, cidMap);
-    expect(result).toBe(
+    expect(result.html).toBe(
       '<img src="https://s3.example.com/attachment1.png">',
     );
+    expect(result.inlineImages).toHaveLength(0);
   });
 
   test("replaces multiple cid: references", async () => {
@@ -73,17 +74,34 @@ describe("replaceInlineImages", () => {
       ["<img2.jpg>", "https://s3.example.com/2.jpg"],
     ]);
     const result = await replaceInlineImages(html, cidMap);
-    expect(result).toBe(
+    expect(result.html).toBe(
       '<img src="https://s3.example.com/1.png"><p>text</p><img src="https://s3.example.com/2.jpg">',
     );
+    expect(result.inlineImages).toHaveLength(0);
   });
 
-  test("uploads base64 data URIs to S3 and replaces with URLs", async () => {
+  test("uploads base64 data URIs to S3 and returns them as inline images", async () => {
     const html = '<img src="data:image/png;base64,iVBORw0KGgo=">';
     const result = await replaceInlineImages(html, new Map());
-    expect(result).toBe(
+    expect(result.html).toBe(
       '<img src="https://s3.example.com/email-inline-images/inline.png">',
     );
+    expect(result.inlineImages).toEqual([
+      {
+        type: "image",
+        url: "https://s3.example.com/email-inline-images/inline.png",
+        name: "inline.png",
+      },
+    ]);
+  });
+
+  test("returns multiple inline images from base64 extraction", async () => {
+    const html =
+      '<img src="data:image/png;base64,abc"><img src="data:image/jpeg;base64,def">';
+    const result = await replaceInlineImages(html, new Map());
+    expect(result.inlineImages).toHaveLength(2);
+    expect(result.inlineImages[0].name).toBe("inline.png");
+    expect(result.inlineImages[1].name).toBe("inline.jpeg");
   });
 
   test("handles both cid and base64 in same HTML", async () => {
@@ -93,17 +111,21 @@ describe("replaceInlineImages", () => {
       ["<att1.png>", "https://s3.example.com/att1.png"],
     ]);
     const result = await replaceInlineImages(html, cidMap);
-    expect(result).toContain(
+    expect(result.html).toContain(
       '<img src="https://s3.example.com/att1.png">',
     );
-    expect(result).toContain(
+    expect(result.html).toContain(
       '<img src="https://s3.example.com/email-inline-images/inline.jpeg">',
     );
+    // Only base64-extracted images are in inlineImages (cid ones are already in attachments)
+    expect(result.inlineImages).toHaveLength(1);
+    expect(result.inlineImages[0].type).toBe("image");
   });
 
   test("preserves HTML with no inline images", async () => {
     const html = "<div><p>Hello world</p></div>";
     const result = await replaceInlineImages(html, new Map());
-    expect(result).toBe(html);
+    expect(result.html).toBe(html);
+    expect(result.inlineImages).toHaveLength(0);
   });
 });

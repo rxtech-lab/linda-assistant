@@ -35,6 +35,12 @@ export default defineConfig({
       RABBITMQ_URL: "amqp://linda:linda@localhost:5672",
       UPSTASH_REDIS_REST_URL: "http://localhost:8079",
       UPSTASH_REDIS_REST_TOKEN: "token",
+      AWS_ACCESS_KEY_ID: "minioadmin",
+      AWS_SECRET_ACCESS_KEY: "minioadmin",
+      AWS_REGION: "us-east-1",
+      S3_API_URL: "http://localhost:9000",
+      S3_BUCKET_NAME: "e2e-test",
+      S3_PUBLIC_URL: "http://localhost:9000/e2e-test",
     },
   },
 });

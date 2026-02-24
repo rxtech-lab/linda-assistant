@@ -1,13 +1,25 @@
 import { uploadBufferToS3 } from "@/lib/s3";
 
+export interface InlineImageResult {
+  html: string;
+  inlineImages: Array<{
+    type: "image";
+    url: string;
+    name: string;
+  }>;
+}
+
 /**
  * Replace inline base64 data URIs in HTML with S3-hosted URLs.
  * Also replaces cid: references using a contentId → URL map.
+ * Returns the modified HTML and a list of images extracted from base64.
  */
 export async function replaceInlineImages(
   html: string,
   cidMap: Map<string, string>,
-): Promise<string> {
+): Promise<InlineImageResult> {
+  const inlineImages: InlineImageResult["inlineImages"] = [];
+
   // 1. Replace cid: references with S3 URLs from processed attachments
   for (const [cid, url] of cidMap) {
     // CID refs appear as src="cid:xxx" — strip angle brackets from content_id
@@ -28,8 +40,10 @@ export async function replaceInlineImages(
     try {
       const buffer = Buffer.from(base64Data, "base64");
       const ext = contentType.split("/")[1] || "bin";
-      const url = await uploadBufferToS3(buffer, contentType, `inline.${ext}`);
+      const filename = `inline.${ext}`;
+      const url = await uploadBufferToS3(buffer, contentType, filename);
       replacements.push({ original: fullMatch, url });
+      inlineImages.push({ type: "image", url, name: filename });
     } catch (error) {
       console.error("[html] failed to upload inline base64 image to S3:", error);
       // Strip the broken data URI rather than keeping a massive base64 blob
@@ -41,7 +55,7 @@ export async function replaceInlineImages(
     html = html.replace(original, `src="${url}"`);
   }
 
-  return html;
+  return { html, inlineImages };
 }
 
 /**
