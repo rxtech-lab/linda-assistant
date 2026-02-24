@@ -76,7 +76,30 @@ export async function downloadAndUploadToS3(
   });
   log("upload complete");
 
-  // Return the S3 URL (construct based on bucket configuration)
+  return getS3PublicUrl(key);
+}
+
+export async function uploadBufferToS3(
+  buffer: Buffer,
+  contentType: string,
+  filename: string,
+) {
+  const key = `email-inline-images/${nanoid()}-${filename}`;
+
+  const command = new PutObjectCommand({
+    Bucket: process.env.S3_BUCKET_NAME!,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+    ContentLength: buffer.length,
+  });
+
+  await s3Client.send(command, { requestTimeout: 60_000 });
+
+  return getS3PublicUrl(key);
+}
+
+function getS3PublicUrl(key: string): string {
   const bucketUrl =
     process.env.S3_PUBLIC_URL ||
     `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com`;

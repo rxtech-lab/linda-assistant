@@ -3,29 +3,37 @@ import { assignees, emailInbox } from "@/lib/db/schema";
 import { resend } from "@/lib/resend";
 import { downloadAndUploadToS3 } from "@/lib/s3";
 import { resendWebhookPayloadSchema } from "@/lib/schemas";
+import { replaceInlineImages } from "@/lib/utils/html";
 import { errorJson } from "@/lib/utils/response";
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { Webhook } from "svix";
+
+interface AttachmentResult {
+  attachments:
+    | Array<{
+        type: "image" | "pdf" | "file" | "audio";
+        url: string;
+        name: string;
+      }>
+    | undefined;
+  cidMap: Map<string, string>;
+}
 
 async function processEmailAttachments(
   attachments: Array<{
     id: string;
     filename: string | null;
     content_type: string;
+    content_id?: string | null;
     size?: number;
   }>,
   emailId: string,
-): Promise<
-  | Array<{
-      type: "image" | "pdf" | "file" | "audio";
-      url: string;
-      name: string;
-    }>
-  | undefined
-> {
+): Promise<AttachmentResult> {
+  const cidMap = new Map<string, string>();
+
   if (!attachments || attachments.length === 0) {
-    return undefined;
+    return { attachments: undefined, cidMap };
   }
 
   const processedAttachments = [];
@@ -91,6 +99,11 @@ async function processEmailAttachments(
         attachment.filename,
       );
 
+      // Build CID → S3 URL map for inline image replacement
+      if (attachment.content_id) {
+        cidMap.set(attachment.content_id, s3Url);
+      }
+
       // Determine attachment type based on content type
       let type: "image" | "pdf" | "file" | "audio" = "file";
       if (attachment.content_type.startsWith("image/")) {
@@ -115,7 +128,12 @@ async function processEmailAttachments(
     }
   }
 
-  return processedAttachments.length > 0 ? processedAttachments : undefined;
+  return {
+    attachments: processedAttachments.length > 0
+      ? processedAttachments
+      : undefined,
+    cidMap,
+  };
 }
 
 /**
@@ -197,7 +215,6 @@ export async function POST(request: NextRequest) {
   const toEmail = data.to[0] || "";
   const fromEmail = data.from;
   const subject = data.subject || "";
-  const htmlBody = emailData.html || null;
   const textBody = emailData.text || null;
 
   // Find assignee by email to determine user
@@ -218,11 +235,15 @@ export async function POST(request: NextRequest) {
 
   // Process attachments if present
   log(`processing ${emailData.attachments?.length ?? 0} attachments`);
-  const processedAttachments = await processEmailAttachments(
-    emailData.attachments,
-    emailId,
-  );
+  const { attachments: processedAttachments, cidMap } =
+    await processEmailAttachments(emailData.attachments, emailId);
   log("attachments done");
+
+  // Replace inline images (cid: refs and base64 data URIs) with S3 URLs
+  const htmlBody = emailData.html
+    ? await replaceInlineImages(emailData.html, cidMap)
+    : null;
+  log("html inline images processed");
 
   // Insert email into database with unique emailId constraint
   try {
