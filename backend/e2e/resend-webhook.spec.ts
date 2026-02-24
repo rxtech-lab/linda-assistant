@@ -164,7 +164,7 @@ test.describe("Resend webhook auto-dispatch", () => {
     expect(email).toBeTruthy();
 
     // Verify a chat session was auto-created for the email
-    const sessionsRes = await request.get("/api/chat-sessions");
+    const sessionsRes = await request.get("/api/chat-sessions?limit=100");
     const sessions = await sessionsRes.json();
     const session = sessions.data.find(
       (s: { title: string | null }) => s.title === `Email: Webhook ${emailId}`,

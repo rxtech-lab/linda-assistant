@@ -1,15 +1,12 @@
-import type { ModelMessage } from "ai";
-import crypto from "crypto";
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { Webhook } from "svix";
 import { db } from "@/lib/db";
-import { insertMessages } from "@/lib/db/messages";
-import { assignees, chatSessions, emailInbox } from "@/lib/db/schema";
-import { publishTask } from "@/lib/queue/producer";
+import { assignees, emailInbox } from "@/lib/db/schema";
 import { resend } from "@/lib/resend";
 import { downloadAndUploadToS3 } from "@/lib/s3";
 import { resendWebhookPayloadSchema } from "@/lib/schemas";
+import { createAssigneeFollowUp } from "@/lib/utils/chat-session";
 import { replaceInlineImages } from "@/lib/utils/html";
 import { errorJson } from "@/lib/utils/response";
 
@@ -281,16 +278,6 @@ export async function POST(request: NextRequest) {
 
   // Auto-dispatch: create a chat session and queue the agent to process the email
   try {
-    const [session] = await db
-      .insert(chatSessions)
-      .values({
-        userId: assignee.userId,
-        assigneeId: assignee.id,
-        title: `Email: ${subject || "(no subject)"}`,
-        status: "starting",
-      })
-      .returning();
-
     const emailContent = [
       "You received a new email. Please process it and respond appropriately.",
       "",
@@ -302,20 +289,11 @@ export async function POST(request: NextRequest) {
       textBody || "(no text body)",
     ].join("\n");
 
-    const userMessage = {
-      id: crypto.randomUUID(),
-      role: "user" as const,
-      content: [{ type: "text", text: emailContent }],
-    } as ModelMessage;
-
-    await insertMessages(session.id, [userMessage]);
-
-    await publishTask({
-      sessionId: session.id,
-      userId: assignee.userId,
-      type: "message",
-      timestamp: Date.now(),
-    });
+    const session = await createAssigneeFollowUp(
+      emailContent,
+      assignee,
+      `Email: ${subject || "(no subject)"}`,
+    );
 
     log(`auto-dispatched to session ${session.id}`);
   } catch (dispatchError) {

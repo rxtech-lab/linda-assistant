@@ -1,12 +1,9 @@
 import { createServer } from "node:http";
-import { eq } from "drizzle-orm";
 import { runAgent } from "@/lib/ai/agent";
-import { db } from "@/lib/db";
-import { assignees, chatSessions } from "@/lib/db/schema";
-import { sendPushNotification } from "@/lib/push";
 import { closeConnection, isConnected, setupTopology } from "@/lib/queue/connection";
 import { consumeTasks } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
+import { notifySessionResponse } from "@/lib/utils/chat-session";
 import type { AgentTask } from "@/lib/queue/types";
 import { isStreamActive } from "@/lib/streaming/manager";
 
@@ -51,28 +48,7 @@ async function handleTask(task: AgentTask): Promise<void> {
   // Send push notification if the agent generated a text response
   if (responseText.trim()) {
     try {
-      const [session] = await db
-        .select({ assigneeId: chatSessions.assigneeId })
-        .from(chatSessions)
-        .where(eq(chatSessions.id, sessionId));
-
-      let title = "New message";
-      if (session?.assigneeId) {
-        const [assignee] = await db
-          .select({ name: assignees.name })
-          .from(assignees)
-          .where(eq(assignees.id, session.assigneeId));
-        if (assignee) title = assignee.name;
-      }
-
-      const body =
-        responseText.length > 200 ? `${responseText.substring(0, 200)}...` : responseText;
-
-      await sendPushNotification(userId, {
-        title,
-        body,
-        data: { sessionId, type: "assistant_message" },
-      });
+      await notifySessionResponse(sessionId, userId, responseText);
     } catch (pushError) {
       console.error(`[Worker] Push notification failed for session ${sessionId}:`, pushError);
     }
