@@ -124,12 +124,19 @@ async function processEmailAttachments(
  * @response receivedResponseSchema
  */
 export async function POST(request: NextRequest) {
+  const start = Date.now();
+  const log = (step: string) =>
+    console.log(`[webhook:resend] ${step} (+${Date.now() - start}ms)`);
+
+  log("start");
+
   const body = await request.text();
   const svixId = request.headers.get("svix-id");
   const svixTimestamp = request.headers.get("svix-timestamp");
   const svixSignature = request.headers.get("svix-signature");
 
   if (!svixId || !svixTimestamp || !svixSignature) {
+    log("missing svix headers");
     return NextResponse.json(
       { error: "Missing Svix headers" },
       { status: 400 },
@@ -147,31 +154,40 @@ export async function POST(request: NextRequest) {
       "svix-signature": svixSignature,
     }) as Record<string, unknown>;
   } catch {
+    log("invalid signature");
     return NextResponse.json(
       { error: "Invalid webhook signature" },
       { status: 400 },
     );
   }
 
+  log("signature verified");
+
   // Validate webhook payload with zod
   const parsed = resendWebhookPayloadSchema.safeParse(rawPayload);
   if (!parsed.success) {
+    log(`validation failed: ${parsed.error.message}`);
     return errorJson(parsed.error.message, 422);
   }
 
   const { type: eventType, data } = parsed.data;
   if (eventType !== "email.received") {
+    log(`ignoring event type: ${eventType}`);
     return NextResponse.json({ data: { received: true } });
   }
 
   // Retrieve full email content from Resend API using email_id
   const emailId = data.email_id;
+  log(`email.received from=${data.from} to=${data.to[0]} emailId=${emailId}`);
 
   const { data: emailData, error: emailError } =
     await resend.emails.receiving.get(emailId);
 
+  log("resend API get email done");
+
   if (emailError || !emailData) {
     console.error(`Failed to retrieve email ${emailId}:`, emailError);
+    log(`resend API error: ${JSON.stringify(emailError)}`);
     return NextResponse.json(
       { error: "Failed to retrieve full email content" },
       { status: 500 },
@@ -190,6 +206,8 @@ export async function POST(request: NextRequest) {
     .from(assignees)
     .where(eq(assignees.email, toEmail));
 
+  log(`db assignee lookup done (found=${!!assignee})`);
+
   if (!assignee) {
     // No assignee found for this email address, still acknowledge
     return NextResponse.json(
@@ -199,10 +217,12 @@ export async function POST(request: NextRequest) {
   }
 
   // Process attachments if present
+  log(`processing ${emailData.attachments?.length ?? 0} attachments`);
   const processedAttachments = await processEmailAttachments(
     emailData.attachments,
     emailId,
   );
+  log("attachments done");
 
   // Insert email into database with unique emailId constraint
   try {
@@ -223,18 +243,22 @@ export async function POST(request: NextRequest) {
         headers: data.headers,
       },
     });
+    log("db insert done");
   } catch (error: any) {
     // Handle duplicate email_id (unique constraint violation)
     if (error?.message?.includes("UNIQUE constraint failed")) {
       console.log(`Duplicate email detected: ${emailId}, skipping processing`);
+      log("duplicate, skipped");
       return NextResponse.json(
         { data: { received: true, duplicate: true } },
         { status: 200 },
       );
     }
+    log(`db insert error: ${error?.message}`);
     // Re-throw other errors
     throw error;
   }
 
+  log("complete");
   return NextResponse.json({ data: { received: true } });
 }
