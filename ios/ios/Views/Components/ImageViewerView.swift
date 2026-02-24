@@ -21,23 +21,28 @@ struct ImageViewerView: View {
                         .gesture(
                             MagnifyGesture()
                                 .onChanged { value in
-                                    scale = lastScale * value.magnification
+                                    let newScale = lastScale * value.magnification
+                                    scale = min(max(newScale, 1.0), 5.0)
                                 }
                                 .onEnded { _ in
-                                    lastScale = max(scale, 1.0)
-                                    scale = max(scale, 1.0)
+                                    lastScale = scale
                                     if scale <= 1.0 {
-                                        offset = .zero
-                                        lastOffset = .zero
+                                        withAnimation {
+                                            offset = .zero
+                                            lastOffset = .zero
+                                        }
                                     }
                                 }
                                 .simultaneously(
                                     with: DragGesture()
                                         .onChanged { value in
                                             if scale > 1.0 {
+                                                let maxOffset = geometry.size.width * (scale - 1) / 2
+                                                let newWidth = lastOffset.width + value.translation.width
+                                                let newHeight = lastOffset.height + value.translation.height
                                                 offset = CGSize(
-                                                    width: lastOffset.width + value.translation.width,
-                                                    height: lastOffset.height + value.translation.height
+                                                    width: min(max(newWidth, -maxOffset), maxOffset),
+                                                    height: min(max(newHeight, -maxOffset), maxOffset)
                                                 )
                                             }
                                         }

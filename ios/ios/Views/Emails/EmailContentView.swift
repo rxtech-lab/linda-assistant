@@ -94,7 +94,14 @@ struct EmailContentView: View {
                         .colorScheme(.auto)
                         .fontType(.system)
                         .linkOpenType(.Safari)
-                        .customCSS("img { max-width: 100%; height: auto; }")
+                        .customCSS("""
+                        img {
+                            max-width: 100%;
+                            height: auto;
+                            object-fit: fit;
+                            loading: lazy;                  /* Native lazy loading */
+                        }
+                        """)
                         .onMediaClick { media in
                             switch media {
                             case .image(let src):
@@ -189,6 +196,7 @@ struct EmailContentView: View {
                 }
             }
         }
+        #if os(iOS)
         .fullScreenCover(isPresented: Binding(
             get: { selectedImageURL != nil },
             set: { if !$0 { selectedImageURL = nil } }
@@ -205,7 +213,7 @@ struct EmailContentView: View {
                                     Image(systemName: "xmark.circle.fill")
                                         .font(.title2)
                                         .symbolRenderingMode(.palette)
-                                        .foregroundStyle(.white, .white.opacity(0.3))
+                                        .foregroundStyle(.white, .black.opacity(0.6))
                                 }
                             }
                         }
@@ -213,6 +221,26 @@ struct EmailContentView: View {
                 }
             }
         }
+        #else
+        .sheet(isPresented: Binding(
+                    get: { selectedImageURL != nil },
+                    set: { if !$0 { selectedImageURL = nil } }
+                )) {
+                    if let url = selectedImageURL {
+                        NavigationStack {
+                            ImageViewerView(imageURL: url)
+                                .toolbar {
+                                    ToolbarItem(placement: .cancellationAction) {
+                                        Button("Done") {
+                                            selectedImageURL = nil
+                                        }
+                                    }
+                                }
+                        }
+                        .frame(minWidth: 600, minHeight: 500)
+                    }
+                }
+        #endif
     }
 }
 
