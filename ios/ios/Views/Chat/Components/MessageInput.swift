@@ -118,7 +118,12 @@ struct MessageInput: View {
             y: 0
         )
         .padding(.horizontal)
-        .padding(.vertical, 8)
+        #if canImport(UIKit)
+            .padding(.vertical, 8)
+        #else
+            .padding(.top, 8)
+            .padding(.bottom, 16)
+        #endif
         .onChange(of: isStreaming) { _, newValue in
             if newValue {
                 startBorderAnimation()
