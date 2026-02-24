@@ -39,7 +39,7 @@ console.log(`  download_url: ${data.download_url}\n`);
 console.log("Calling downloadAndUploadToS3...\n");
 
 try {
-  const url = await downloadAndUploadToS3(
+  const { url } = await downloadAndUploadToS3(
     data.download_url,
     data.content_type,
     filename,

@@ -4,10 +4,17 @@ import { replaceInlineImages, stripBase64DataUris } from "./html";
 // Mock uploadBufferToS3
 mock.module("@/lib/s3", () => ({
   uploadBufferToS3: async (
-    _buffer: Buffer,
+    buffer: Buffer,
     _contentType: string,
     filename: string,
-  ) => `https://s3.example.com/email-inline-images/${filename}`,
+  ) => {
+    const { createHash } = require("crypto");
+    const contentHash = createHash("sha256").update(buffer).digest("hex");
+    return {
+      url: `https://s3.example.com/email-inline-images/${filename}`,
+      contentHash,
+    };
+  },
 }));
 
 describe("stripBase64DataUris", () => {
@@ -86,13 +93,13 @@ describe("replaceInlineImages", () => {
     expect(result.html).toBe(
       '<img src="https://s3.example.com/email-inline-images/inline.png">',
     );
-    expect(result.inlineImages).toEqual([
-      {
-        type: "image",
-        url: "https://s3.example.com/email-inline-images/inline.png",
-        name: "inline.png",
-      },
-    ]);
+    expect(result.inlineImages).toHaveLength(1);
+    expect(result.inlineImages[0]).toMatchObject({
+      type: "image",
+      url: "https://s3.example.com/email-inline-images/inline.png",
+      name: "inline.png",
+    });
+    expect(result.inlineImages[0].contentHash).toMatch(/^[a-f0-9]{64}$/);
   });
 
   test("returns multiple inline images from base64 extraction", async () => {
