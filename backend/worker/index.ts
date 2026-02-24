@@ -29,7 +29,7 @@ async function handleTask(task: AgentTask): Promise<void> {
       userId,
       onEvent: async (event, data) => {
         // Collect text for push notification
-        if (event === "text-delta") {
+        if (event === "text-delta" && typeof (data as Record<string, unknown>)?.text === "string") {
           responseText += (data as { text: string }).text;
         }
 
