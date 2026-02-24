@@ -3,9 +3,9 @@ import { runAgent } from "@/lib/ai/agent";
 import { closeConnection, isConnected, setupTopology } from "@/lib/queue/connection";
 import { consumeTasks } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
-import { notifySessionResponse } from "@/lib/utils/chat-session";
 import type { AgentTask } from "@/lib/queue/types";
-import { isStreamActive, isStopRequested, clearStopRequested } from "@/lib/streaming/manager";
+import { clearStopRequested, isStopRequested, isStreamActive } from "@/lib/streaming/manager";
+import { notifySessionResponse } from "@/lib/utils/chat-session";
 
 async function handleTask(task: AgentTask): Promise<void> {
   const { sessionId, userId } = task;

@@ -1,12 +1,13 @@
-import { test, expect, type APIRequestContext } from "@playwright/test";
 import { createClient } from "@libsql/client";
+import { type APIRequestContext, expect, test } from "@playwright/test";
 import path from "path";
-import { consumeSSE } from "./helpers/sse-client";
 import {
   assigneeResponseSchema,
-  sendMessageResponseSchema,
   resolveConfirmationResponseSchema,
+  sendMessageResponseSchema,
+  stopStreamResponseSchema,
 } from "./helpers/schemas";
+import { consumeSSE } from "./helpers/sse-client";
 
 const dbPath = path.resolve(__dirname, "..", "e2e-test.db");
 
@@ -354,5 +355,21 @@ test.describe("Chat Endpoints", () => {
     // Try to get messages — should also get 404
     const messagesRes = await request.get(`/api/chat/${testAssigneeId}/messages`);
     expect(messagesRes.status()).toBe(404);
+  });
+
+  test("POST /api/chat/:assigneeId/stop returns stopped", async ({ request }) => {
+    // Stop when no stream is active — should still return stopped: true
+    const res = await request.post(`/api/chat/${assigneeId}/stop`);
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    stopStreamResponseSchema.parse(body);
+    expect(body.stopped).toBe(true);
+  });
+
+  test("POST /api/chat/:assigneeId/stop with non-existing assignee returns 404", async ({
+    request,
+  }) => {
+    const res = await request.post("/api/chat/nonexistent-assignee/stop");
+    expect(res.status()).toBe(404);
   });
 });

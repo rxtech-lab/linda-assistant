@@ -1,9 +1,10 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import {
-  chatSessionResponseSchema,
   chatSessionListResponseSchema,
+  chatSessionResponseSchema,
   deleteResponseSchema,
   errorResponseSchema,
+  stopStreamResponseSchema,
 } from "./helpers/schemas";
 
 const user2Headers = { "x-test-user-id": "e2e-user-2" };
@@ -82,6 +83,14 @@ test.describe("Chat Sessions CRUD", () => {
     expect(body.messages).toEqual([]);
   });
 
+  test("POST /api/chat-sessions/:id/stop returns stopped", async ({ request }) => {
+    const res = await request.post(`/api/chat-sessions/${sessionId}/stop`);
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    stopStreamResponseSchema.parse(body);
+    expect(body.stopped).toBe(true);
+  });
+
   test("DELETE /api/chat-sessions/:id removes the session", async ({ request }) => {
     const res = await request.delete(`/api/chat-sessions/${sessionId}`);
     expect(res.ok()).toBeTruthy();
@@ -145,6 +154,13 @@ test.describe("Chat Sessions cross-user isolation", () => {
     });
     expect(res.status()).toBe(404);
   });
+
+  test("user2 cannot POST stop to user1 session", async ({ request }) => {
+    const res = await request.post(`/api/chat-sessions/${user1SessionId}/stop`, {
+      headers: user2Headers,
+    });
+    expect(res.status()).toBe(404);
+  });
 });
 
 test.describe("Chat Sessions non-existing resource", () => {
@@ -170,6 +186,14 @@ test.describe("Chat Sessions non-existing resource", () => {
     const res = await request.post(`/api/chat-sessions/${fakeId}/messages`, {
       data: { content: "Hello" },
     });
+    expect(res.status()).toBe(404);
+    const body = await res.json();
+    errorResponseSchema.parse(body);
+    expect(body.error).toBe("Chat session not found");
+  });
+
+  test("POST stop to non-existing session returns 404", async ({ request }) => {
+    const res = await request.post(`/api/chat-sessions/${fakeId}/stop`);
     expect(res.status()).toBe(404);
     const body = await res.json();
     errorResponseSchema.parse(body);

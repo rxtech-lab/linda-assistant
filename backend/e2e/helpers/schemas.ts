@@ -1,11 +1,11 @@
 import { z } from "zod";
 import {
   selectAssigneeSchema,
-  selectEmailSchema,
-  selectTaskSchema,
   selectChatSessionSchema,
   selectConfirmationSchema,
   selectDeviceSchema,
+  selectEmailSchema,
+  selectTaskSchema,
 } from "../../lib/schemas";
 
 // Shared pagination schema (matches paginatedJson utility)
@@ -102,3 +102,6 @@ export const resolveConfirmationResponseSchema = z.object({
 
 // Send message
 export const sendMessageResponseSchema = z.object({ queued: z.boolean() });
+
+// Stop stream
+export const stopStreamResponseSchema = z.object({ stopped: z.boolean() });

@@ -1,10 +1,10 @@
+import { and, eq } from "drizzle-orm";
+import { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { chatSessions } from "@/lib/db/schema";
-import { errorJson, successJson } from "@/lib/utils/response";
 import { isStreamActive, setStopRequested } from "@/lib/streaming/manager";
-import { and, eq } from "drizzle-orm";
-import { NextRequest } from "next/server";
+import { errorJson, successJson } from "@/lib/utils/response";
 
 /**
  * Stop an in-progress agent stream for a chat session.
@@ -18,10 +18,7 @@ import { NextRequest } from "next/server";
  * @pathParams idParamSchema
  * @response stoppedResponseSchema
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 

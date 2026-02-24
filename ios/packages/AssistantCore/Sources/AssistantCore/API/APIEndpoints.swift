@@ -119,6 +119,10 @@ public extension APIClient {
         try await request(path: "chat/\(assigneeId)/message", method: "POST", body: body)
     }
 
+    func stopChatStream(assigneeId: String) async throws -> StoppedResponse {
+        try await request(path: "chat/\(assigneeId)/stop", method: "POST")
+    }
+
     func getChatMessages(
         assigneeId: String,
         limit: Int = 100,

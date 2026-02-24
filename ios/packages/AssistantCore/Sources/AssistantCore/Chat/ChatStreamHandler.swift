@@ -172,6 +172,19 @@ public final class ChatStreamHandler: @unchecked Sendable {
         }
     }
 
+    public func stopChatStream(assigneeId: String) async {
+        logger.info("stopChatStream: assigneeId=\(assigneeId)")
+        do {
+            _ = try await apiClient.stopChatStream(assigneeId: assigneeId)
+            logger.info("stopChatStream: API call succeeded")
+        } catch {
+            logger.error("stopChatStream error: \(error)")
+        }
+        await MainActor.run {
+            self.finalizeResponse()
+        }
+    }
+
     @MainActor
     private func handleEvent(_ message: SSEMessage) {
         // Track reconnection transitions
