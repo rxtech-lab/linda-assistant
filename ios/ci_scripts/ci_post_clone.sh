@@ -9,7 +9,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 IOS_PROJECT_DIR="$REPO_ROOT/ios"
 IOS_PROJECT_FILE="$IOS_PROJECT_DIR/ios.xcodeproj/project.pbxproj"
 
