@@ -22,17 +22,23 @@ async function handleTask(task: AgentTask): Promise<void> {
   await clearStopRequested(sessionId);
 
   const controller = new AbortController();
-  const stopPoller = setInterval(async () => {
+  let stopPolling = true;
+
+  // Poll Redis for stop requests using recursive setTimeout to avoid overlapping checks
+  const pollStop = async () => {
+    if (!stopPolling || controller.signal.aborted) return;
     try {
       if (await isStopRequested(sessionId)) {
         console.log(`[Worker] Stop requested for session ${sessionId}`);
         controller.abort();
-        clearInterval(stopPoller);
+        return;
       }
     } catch {
       // Redis errors shouldn't crash the poller
     }
-  }, 1000);
+    if (stopPolling) setTimeout(pollStop, 1000);
+  };
+  setTimeout(pollStop, 1000);
 
   let responseText = "";
 
@@ -64,7 +70,7 @@ async function handleTask(task: AgentTask): Promise<void> {
     }
     // Agent already saves partial state to DB
   } finally {
-    clearInterval(stopPoller);
+    stopPolling = false;
     await clearStopRequested(sessionId);
   }
 
