@@ -48,6 +48,10 @@ export async function downloadAndUploadToS3(
   contentType: string,
   filename: string,
 ) {
+  const start = Date.now();
+  const log = (step: string) =>
+    console.log(`[s3:upload] ${filename} ${step} (+${Date.now() - start}ms)`);
+
   // Create a unique temp directory for this download
   const tempDir = join(tmpdir(), `s3-upload-${nanoid()}`);
   await mkdir(tempDir, { recursive: true });
@@ -56,7 +60,8 @@ export async function downloadAndUploadToS3(
 
   try {
     // Download the file from the URL to temp file
-    const response = await fetch(url);
+    log("downloading from resend");
+    const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
     if (!response.ok) {
       throw new Error(
         `Failed to download file from ${url}: ${response.statusText}`,
@@ -70,11 +75,13 @@ export async function downloadAndUploadToS3(
     // Stream the download to temp file
     const fileStream = createWriteStream(tempFilePath);
     await pipeline(Readable.fromWeb(response.body as any), fileStream);
+    log("download complete");
 
     // Generate a unique key for the file in S3
     const key = `email-attachments/${nanoid()}-${filename}`;
 
     // Upload to S3 from temp file
+    log("uploading to s3");
     const fileReadStream = createReadStream(tempFilePath);
     const command = new PutObjectCommand({
       Bucket: process.env.S3_BUCKET_NAME!,
@@ -83,7 +90,10 @@ export async function downloadAndUploadToS3(
       ContentType: contentType,
     });
 
-    await s3Client.send(command);
+    await s3Client.send(command, {
+      requestTimeout: 30_000,
+    });
+    log("upload complete");
 
     // Return the S3 URL (construct based on bucket configuration)
     const bucketUrl =
