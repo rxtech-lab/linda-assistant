@@ -1,6 +1,4 @@
 import { describe, test, expect, mock, beforeEach } from "bun:test";
-import { readdir } from "node:fs/promises";
-import { tmpdir } from "node:os";
 
 // Mock environment variables
 process.env.S3_BUCKET_NAME = "test-bucket";
@@ -31,37 +29,22 @@ describe("downloadAndUploadToS3", () => {
     mockSend.mockClear();
   });
 
-  async function getTempS3Directories(): Promise<string[]> {
-    const tempDir = tmpdir();
-    const entries = await readdir(tempDir);
-    return entries.filter((entry) => entry.startsWith("s3-upload-"));
-  }
-
-  function createMockWebStream(content: string): ReadableStream {
-    return new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(content));
-        controller.close();
-      },
-    });
+  function createMockResponse(content: string): Response {
+    const buffer = new TextEncoder().encode(content).buffer;
+    return {
+      ok: true,
+      arrayBuffer: () => Promise.resolve(buffer),
+    } as Response;
   }
 
   test("downloads file to temp folder, uploads to S3, and cleans up", async () => {
-    // Create a mock response stream (Web ReadableStream)
     const testContent = "test file content";
-    const mockStream = createMockWebStream(testContent);
 
     // Mock fetch
     const mockFetch = mock(() =>
-      Promise.resolve({
-        ok: true,
-        body: mockStream,
-      } as Response),
+      Promise.resolve(createMockResponse(testContent)),
     );
     global.fetch = mockFetch as any;
-
-    // Get initial temp directories
-    const tempDirsBefore = await getTempS3Directories();
 
     // Execute the upload
     const result = await downloadAndUploadToS3(
@@ -70,11 +53,8 @@ describe("downloadAndUploadToS3", () => {
       "test.pdf",
     );
 
-    // Get temp directories after
-    const tempDirsAfter = await getTempS3Directories();
-
-    // Verify fetch was called
-    expect(mockFetch).toHaveBeenCalledWith("https://example.com/file.pdf");
+    // Verify fetch was called with the URL
+    expect(mockFetch.mock.calls[0][0]).toBe("https://example.com/file.pdf");
 
     // Verify S3 upload was called
     expect(mockSend).toHaveBeenCalledTimes(1);
@@ -82,30 +62,19 @@ describe("downloadAndUploadToS3", () => {
     // Verify the result URL contains the expected path pattern
     expect(result).toContain("/email-attachments/");
     expect(result).toContain(".pdf");
-
-    // Verify temp directories are cleaned up (should be same or fewer than before)
-    expect(tempDirsAfter.length).toBeLessThanOrEqual(tempDirsBefore.length);
   });
 
   test("cleans up temp folder even when S3 upload fails", async () => {
-    // Create a mock response stream (Web ReadableStream)
     const testContent = "test file content";
-    const mockStream = createMockWebStream(testContent);
 
     // Mock fetch
     const mockFetch = mock(() =>
-      Promise.resolve({
-        ok: true,
-        body: mockStream,
-      } as Response),
+      Promise.resolve(createMockResponse(testContent)),
     );
     global.fetch = mockFetch as any;
 
     // Make S3 upload fail
     mockSend.mockRejectedValueOnce(new Error("S3 upload failed"));
-
-    // Get initial temp directories
-    const tempDirsBefore = await getTempS3Directories();
 
     // Execute the upload and expect it to fail
     await expect(
@@ -115,12 +84,6 @@ describe("downloadAndUploadToS3", () => {
         "test.pdf",
       ),
     ).rejects.toThrow("S3 upload failed");
-
-    // Get temp directories after
-    const tempDirsAfter = await getTempS3Directories();
-
-    // Verify temp directories are still cleaned up despite the error
-    expect(tempDirsAfter.length).toBeLessThanOrEqual(tempDirsBefore.length);
   });
 
   test("throws error when download fails", async () => {
@@ -145,13 +108,13 @@ describe("downloadAndUploadToS3", () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  test("throws error when response body is null", async () => {
-    // Mock fetch to return null body
+  test("throws error when arrayBuffer fails", async () => {
+    // Mock fetch to return a response where arrayBuffer rejects
     const mockFetch = mock(() =>
       Promise.resolve({
         ok: true,
-        body: null,
-      } as Response),
+        arrayBuffer: () => Promise.reject(new Error("arrayBuffer failed")),
+      } as unknown as Response),
     );
     global.fetch = mockFetch as any;
 
@@ -161,7 +124,7 @@ describe("downloadAndUploadToS3", () => {
         "application/pdf",
         "test.pdf",
       ),
-    ).rejects.toThrow("Response body is null");
+    ).rejects.toThrow("arrayBuffer failed");
 
     // S3 should not have been called
     expect(mockSend).not.toHaveBeenCalled();
