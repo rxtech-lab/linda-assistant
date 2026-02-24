@@ -1,5 +1,9 @@
 import { createServer } from "node:http";
+import { eq } from "drizzle-orm";
 import { runAgent } from "@/lib/ai/agent";
+import { db } from "@/lib/db";
+import { assignees, chatSessions } from "@/lib/db/schema";
+import { sendPushNotification } from "@/lib/push";
 import { closeConnection, isConnected, setupTopology } from "@/lib/queue/connection";
 import { consumeTasks } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
@@ -17,11 +21,18 @@ async function handleTask(task: AgentTask): Promise<void> {
     return;
   }
 
+  let responseText = "";
+
   try {
     await runAgent({
       sessionId,
       userId,
       onEvent: async (event, data) => {
+        // Collect text for push notification
+        if (event === "text-delta") {
+          responseText += (data as { text: string }).text;
+        }
+
         // Publish to RabbitMQ for live SSE subscribers
         await publishEvent({
           sessionId,
@@ -35,6 +46,36 @@ async function handleTask(task: AgentTask): Promise<void> {
   } catch (error) {
     console.error(`[Worker] Agent error for session ${sessionId}:`, error);
     // Agent already saves partial state to DB
+  }
+
+  // Send push notification if the agent generated a text response
+  if (responseText.trim()) {
+    try {
+      const [session] = await db
+        .select({ assigneeId: chatSessions.assigneeId })
+        .from(chatSessions)
+        .where(eq(chatSessions.id, sessionId));
+
+      let title = "New message";
+      if (session?.assigneeId) {
+        const [assignee] = await db
+          .select({ name: assignees.name })
+          .from(assignees)
+          .where(eq(assignees.id, session.assigneeId));
+        if (assignee) title = assignee.name;
+      }
+
+      const body =
+        responseText.length > 200 ? `${responseText.substring(0, 200)}...` : responseText;
+
+      await sendPushNotification(userId, {
+        title,
+        body,
+        data: { sessionId, type: "assistant_message" },
+      });
+    } catch (pushError) {
+      console.error(`[Worker] Push notification failed for session ${sessionId}:`, pushError);
+    }
   }
 
   console.log(`[Worker] Task complete: session=${sessionId}`);
