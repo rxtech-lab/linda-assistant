@@ -13,8 +13,8 @@ resources:
   - worker-deployment.yaml
   - rabbitmq-deployment.yaml
   - rabbitmq-service.yaml
-  - mem0-deployment.yaml
-  - mem0-service.yaml
+  # - mem0-deployment.yaml
+  # - mem0-service.yaml
   - ingress.yaml
 
 namespace: linda
