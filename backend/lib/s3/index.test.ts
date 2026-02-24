@@ -59,9 +59,10 @@ describe("downloadAndUploadToS3", () => {
     // Verify S3 upload was called
     expect(mockSend).toHaveBeenCalledTimes(1);
 
-    // Verify the result URL contains the expected path pattern
-    expect(result).toContain("/email-attachments/");
-    expect(result).toContain(".pdf");
+    // Verify the result contains URL and contentHash
+    expect(result.url).toContain("/email-attachments/");
+    expect(result.url).toContain(".pdf");
+    expect(result.contentHash).toMatch(/^[a-f0-9]{64}$/);
   });
 
   test("cleans up temp folder even when S3 upload fails", async () => {

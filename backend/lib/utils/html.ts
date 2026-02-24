@@ -1,4 +1,5 @@
 import { uploadBufferToS3 } from "@/lib/s3";
+import { createHash } from "crypto";
 
 export interface InlineImageResult {
   html: string;
@@ -6,6 +7,7 @@ export interface InlineImageResult {
     type: "image";
     url: string;
     name: string;
+    contentHash: string;
   }>;
 }
 
@@ -39,11 +41,12 @@ export async function replaceInlineImages(
 
     try {
       const buffer = Buffer.from(base64Data, "base64");
+      const contentHash = createHash("sha256").update(buffer).digest("hex");
       const ext = contentType.split("/")[1] || "bin";
       const filename = `inline.${ext}`;
-      const url = await uploadBufferToS3(buffer, contentType, filename);
+      const { url } = await uploadBufferToS3(buffer, contentType, filename);
       replacements.push({ original: fullMatch, url });
-      inlineImages.push({ type: "image", url, name: filename });
+      inlineImages.push({ type: "image", url, name: filename, contentHash });
     } catch (error) {
       console.error("[html] failed to upload inline base64 image to S3:", error);
       // Strip the broken data URI rather than keeping a massive base64 blob

@@ -1,5 +1,6 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createHash } from "crypto";
 import { nanoid } from "nanoid";
 
 let _s3Client: S3Client | undefined;
@@ -56,6 +57,7 @@ export async function downloadAndUploadToS3(
   }
 
   const buffer = Buffer.from(await response.arrayBuffer());
+  const contentHash = createHash("sha256").update(buffer).digest("hex");
   log("download complete");
 
   // Generate a unique key for the file in S3
@@ -76,7 +78,7 @@ export async function downloadAndUploadToS3(
   });
   log("upload complete");
 
-  return getS3PublicUrl(key);
+  return { url: getS3PublicUrl(key), contentHash };
 }
 
 export async function uploadBufferToS3(
@@ -84,6 +86,7 @@ export async function uploadBufferToS3(
   contentType: string,
   filename: string,
 ) {
+  const contentHash = createHash("sha256").update(buffer).digest("hex");
   const key = `email-inline-images/${nanoid()}-${filename}`;
 
   const command = new PutObjectCommand({
@@ -96,7 +99,7 @@ export async function uploadBufferToS3(
 
   await s3Client.send(command, { requestTimeout: 60_000 });
 
-  return getS3PublicUrl(key);
+  return { url: getS3PublicUrl(key), contentHash };
 }
 
 function getS3PublicUrl(key: string): string {

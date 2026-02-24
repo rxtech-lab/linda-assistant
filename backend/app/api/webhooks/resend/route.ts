@@ -9,14 +9,15 @@ import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { Webhook } from "svix";
 
+interface ProcessedAttachment {
+  type: "image" | "pdf" | "file" | "audio";
+  url: string;
+  name: string;
+  contentHash: string;
+}
+
 interface AttachmentResult {
-  attachments:
-    | Array<{
-        type: "image" | "pdf" | "file" | "audio";
-        url: string;
-        name: string;
-      }>
-    | undefined;
+  attachments: ProcessedAttachment[] | undefined;
   cidMap: Map<string, string>;
 }
 
@@ -93,7 +94,7 @@ async function processEmailAttachments(
       }
 
       // Download from Resend and re-upload to our S3
-      const s3Url = await downloadAndUploadToS3(
+      const { url: s3Url, contentHash } = await downloadAndUploadToS3(
         downloadUrl,
         attachment.content_type,
         attachment.filename,
@@ -118,6 +119,7 @@ async function processEmailAttachments(
         type,
         url: s3Url,
         name: attachment.filename,
+        contentHash,
       });
     } catch (error) {
       console.error(
@@ -248,15 +250,28 @@ export async function POST(request: NextRequest) {
 
   // Replace inline images (cid: refs and base64 data URIs) with S3 URLs
   let htmlBody: string | null = null;
-  let allAttachments = processedAttachments;
+  let allAttachments: Array<{ type: "image" | "pdf" | "file" | "audio"; url: string; name: string }> | undefined =
+    processedAttachments?.map(({ contentHash: _, ...rest }) => rest);
 
   if (emailData.html) {
     const result = await replaceInlineImages(emailData.html, cidMap);
     htmlBody = result.html;
 
-    // Merge base64-extracted images into attachments list
+    // Merge base64-extracted images, skipping duplicates by content hash
     if (result.inlineImages.length > 0) {
-      allAttachments = [...(processedAttachments || []), ...result.inlineImages];
+      const existingHashes = new Set(
+        (processedAttachments || []).map((a) => a.contentHash),
+      );
+      const uniqueInlineImages = result.inlineImages
+        .filter((img) => !existingHashes.has(img.contentHash))
+        .map(({ contentHash: _, ...rest }) => rest);
+
+      if (uniqueInlineImages.length > 0) {
+        allAttachments = [
+          ...(allAttachments || []),
+          ...uniqueInlineImages,
+        ];
+      }
     }
   }
   log("html inline images processed");

@@ -14,6 +14,18 @@ function webhookPayload(emailId: string) {
   };
 }
 
+/** Fetch the URL directly and assert it returns a valid image. */
+async function assertImageAccessible(url: string) {
+  const res = await fetch(url);
+  expect(res.status, `Expected 200 for ${url}, got ${res.status}`).toBe(200);
+  const ct = res.headers.get("content-type") || "";
+  expect(ct, `Expected image content-type for ${url}, got ${ct}`).toMatch(
+    /^image\//,
+  );
+  const body = await res.arrayBuffer();
+  expect(body.byteLength, `Expected non-empty body for ${url}`).toBeGreaterThan(0);
+}
+
 test.describe("Resend webhook inline images", () => {
   test.beforeAll(async ({ request }) => {
     // Create an assignee whose email matches the mock's "to" field
@@ -33,7 +45,6 @@ test.describe("Resend webhook inline images", () => {
     });
     expect(res.ok()).toBeTruthy();
 
-    // Find the email in the DB via the list endpoint
     const listRes = await request.get("/api/emails");
     const list = await listRes.json();
     const email = list.data.find(
@@ -51,9 +62,14 @@ test.describe("Resend webhook inline images", () => {
     expect(email.htmlBody).not.toContain("cid:");
     expect(email.htmlBody).not.toContain("data:");
     expect(email.htmlBody).toContain("http://localhost:9000/e2e-test/");
+
+    // Verify every attachment URL actually serves an image
+    for (const att of email.attachments) {
+      await assertImageAccessible(att.url);
+    }
   });
 
-  test("2: both attachment and base64 — attachments contain body-extracted images", async ({
+  test("2: both attachment and base64 (same content) — deduplicated to single attachment", async ({
     request,
   }) => {
     const res = await request.post("/api/webhooks/resend", {
@@ -69,15 +85,12 @@ test.describe("Resend webhook inline images", () => {
     );
     expect(email).toBeTruthy();
 
-    // Should have attachments (CID-processed + base64-extracted)
+    // Same image as CID attachment and base64 inline — should be deduplicated to 1
     expect(email.attachments).toBeTruthy();
-    expect(email.attachments.length).toBeGreaterThanOrEqual(1);
-
-    // All attachment URLs should be S3 URLs
-    for (const att of email.attachments) {
-      expect(att.url).toContain("http://localhost:9000/e2e-test/");
-      expect(att.type).toBe("image");
-    }
+    expect(email.attachments).toHaveLength(1);
+    expect(email.attachments[0].type).toBe("image");
+    expect(email.attachments[0].url).toContain("http://localhost:9000/e2e-test/");
+    await assertImageAccessible(email.attachments[0].url);
 
     // HTML should have no base64 data URIs and no cid: refs
     expect(email.htmlBody).not.toContain("data:");
@@ -109,6 +122,9 @@ test.describe("Resend webhook inline images", () => {
     // HTML should have S3 URL instead of base64
     expect(email.htmlBody).not.toContain("data:");
     expect(email.htmlBody).toContain("http://localhost:9000/e2e-test/");
+
+    // Verify the uploaded image is actually accessible
+    await assertImageAccessible(email.attachments[0].url);
   });
 
   test("4: no images at all — attachments is null", async ({ request }) => {
