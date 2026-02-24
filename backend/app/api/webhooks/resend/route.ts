@@ -1,13 +1,14 @@
+import { eq } from "drizzle-orm";
+import { NextRequest, NextResponse } from "next/server";
+import { Webhook } from "svix";
 import { db } from "@/lib/db";
 import { assignees, emailInbox } from "@/lib/db/schema";
 import { resend } from "@/lib/resend";
 import { downloadAndUploadToS3 } from "@/lib/s3";
 import { resendWebhookPayloadSchema } from "@/lib/schemas";
+import { createAssigneeFollowUp } from "@/lib/utils/chat-session";
 import { replaceInlineImages } from "@/lib/utils/html";
 import { errorJson } from "@/lib/utils/response";
-import { eq } from "drizzle-orm";
-import { NextRequest, NextResponse } from "next/server";
-import { Webhook } from "svix";
 
 interface ProcessedAttachment {
   type: "image" | "pdf" | "file" | "audio";
@@ -62,34 +63,22 @@ async function processEmailAttachments(
             });
 
           if (attachmentError || !attachmentData) {
-            console.error(
-              `Failed to retrieve attachment ${attachment.id}:`,
-              attachmentError,
-            );
+            console.error(`Failed to retrieve attachment ${attachment.id}:`, attachmentError);
           } else {
             downloadUrl = attachmentData.download_url;
           }
         } catch (error) {
-          console.error(
-            `Error calling Resend API for attachment ${attachment.id}:`,
-            error,
-          );
+          console.error(`Error calling Resend API for attachment ${attachment.id}:`, error);
         }
       }
 
       // Fallback to webhook URL if API call failed
-      if (
-        !downloadUrl &&
-        "url" in attachment &&
-        typeof attachment.url === "string"
-      ) {
+      if (!downloadUrl && "url" in attachment && typeof attachment.url === "string") {
         downloadUrl = attachment.url;
       }
 
       if (!downloadUrl) {
-        console.error(
-          `No download URL available for attachment ${attachment.filename}`,
-        );
+        console.error(`No download URL available for attachment ${attachment.filename}`);
         continue;
       }
 
@@ -122,18 +111,13 @@ async function processEmailAttachments(
         contentHash,
       });
     } catch (error) {
-      console.error(
-        `Failed to process attachment ${attachment.filename}:`,
-        error,
-      );
+      console.error(`Failed to process attachment ${attachment.filename}:`, error);
       // Continue processing other attachments
     }
   }
 
   return {
-    attachments: processedAttachments.length > 0
-      ? processedAttachments
-      : undefined,
+    attachments: processedAttachments.length > 0 ? processedAttachments : undefined,
     cidMap,
   };
 }
@@ -145,8 +129,7 @@ async function processEmailAttachments(
  */
 export async function POST(request: NextRequest) {
   const start = Date.now();
-  const log = (step: string) =>
-    console.log(`[webhook:resend] ${step} (+${Date.now() - start}ms)`);
+  const log = (step: string) => console.log(`[webhook:resend] ${step} (+${Date.now() - start}ms)`);
 
   log("start");
 
@@ -164,10 +147,7 @@ export async function POST(request: NextRequest) {
 
     if (!svixId || !svixTimestamp || !svixSignature) {
       log("missing svix headers");
-      return NextResponse.json(
-        { error: "Missing Svix headers" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Missing Svix headers" }, { status: 400 });
     }
 
     const webhookSecret = process.env.RESEND_WEBHOOK_SECRET!;
@@ -181,10 +161,7 @@ export async function POST(request: NextRequest) {
       }) as Record<string, unknown>;
     } catch {
       log("invalid signature");
-      return NextResponse.json(
-        { error: "Invalid webhook signature" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
     }
 
     log("signature verified");
@@ -207,18 +184,14 @@ export async function POST(request: NextRequest) {
   const emailId = data.email_id;
   log(`email.received from=${data.from} to=${data.to[0]} emailId=${emailId}`);
 
-  const { data: emailData, error: emailError } =
-    await resend.emails.receiving.get(emailId);
+  const { data: emailData, error: emailError } = await resend.emails.receiving.get(emailId);
 
   log("resend API get email done");
 
   if (emailError || !emailData) {
     console.error(`Failed to retrieve email ${emailId}:`, emailError);
     log(`resend API error: ${JSON.stringify(emailError)}`);
-    return NextResponse.json(
-      { error: "Failed to retrieve full email content" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to retrieve full email content" }, { status: 500 });
   }
 
   const toEmail = data.to[0] || "";
@@ -227,10 +200,7 @@ export async function POST(request: NextRequest) {
   const textBody = emailData.text || null;
 
   // Find assignee by email to determine user
-  const [assignee] = await db
-    .select()
-    .from(assignees)
-    .where(eq(assignees.email, toEmail));
+  const [assignee] = await db.select().from(assignees).where(eq(assignees.email, toEmail));
 
   log(`db assignee lookup done (found=${!!assignee})`);
 
@@ -244,14 +214,17 @@ export async function POST(request: NextRequest) {
 
   // Process attachments if present
   log(`processing ${emailData.attachments?.length ?? 0} attachments`);
-  const { attachments: processedAttachments, cidMap } =
-    await processEmailAttachments(emailData.attachments, emailId);
+  const { attachments: processedAttachments, cidMap } = await processEmailAttachments(
+    emailData.attachments,
+    emailId,
+  );
   log("attachments done");
 
   // Replace inline images (cid: refs and base64 data URIs) with S3 URLs
   let htmlBody: string | null = null;
-  let allAttachments: Array<{ type: "image" | "pdf" | "file" | "audio"; url: string; name: string }> | undefined =
-    processedAttachments?.map(({ contentHash: _, ...rest }) => rest);
+  let allAttachments:
+    | Array<{ type: "image" | "pdf" | "file" | "audio"; url: string; name: string }>
+    | undefined = processedAttachments?.map(({ contentHash: _, ...rest }) => rest);
 
   if (emailData.html) {
     const result = await replaceInlineImages(emailData.html, cidMap);
@@ -259,18 +232,13 @@ export async function POST(request: NextRequest) {
 
     // Merge base64-extracted images, skipping duplicates by content hash
     if (result.inlineImages.length > 0) {
-      const existingHashes = new Set(
-        (processedAttachments || []).map((a) => a.contentHash),
-      );
+      const existingHashes = new Set((processedAttachments || []).map((a) => a.contentHash));
       const uniqueInlineImages = result.inlineImages
         .filter((img) => !existingHashes.has(img.contentHash))
         .map(({ contentHash: _, ...rest }) => rest);
 
       if (uniqueInlineImages.length > 0) {
-        allAttachments = [
-          ...(allAttachments || []),
-          ...uniqueInlineImages,
-        ];
+        allAttachments = [...(allAttachments || []), ...uniqueInlineImages];
       }
     }
   }
@@ -301,14 +269,37 @@ export async function POST(request: NextRequest) {
     if (error?.message?.includes("UNIQUE constraint failed")) {
       console.log(`Duplicate email detected: ${emailId}, skipping processing`);
       log("duplicate, skipped");
-      return NextResponse.json(
-        { data: { received: true, duplicate: true } },
-        { status: 200 },
-      );
+      return NextResponse.json({ data: { received: true, duplicate: true } }, { status: 200 });
     }
     log(`db insert error: ${error?.message}`);
     // Re-throw other errors
     throw error;
+  }
+
+  // Auto-dispatch: create a chat session and queue the agent to process the email
+  try {
+    const emailContent = [
+      "You received a new email. Please process it and respond appropriately.",
+      "",
+      `**From:** ${data.from_name ? `${data.from_name} <${fromEmail}>` : fromEmail}`,
+      `**To:** ${toEmail}`,
+      `**Subject:** ${subject || "(no subject)"}`,
+      "",
+      "**Body:**",
+      textBody || "(no text body)",
+    ].join("\n");
+
+    const session = await createAssigneeFollowUp(
+      emailContent,
+      assignee,
+      `Email: ${subject || "(no subject)"}`,
+    );
+
+    log(`auto-dispatched to session ${session.id}`);
+  } catch (dispatchError) {
+    // Log but don't fail the webhook — the email is already stored
+    console.error("[webhook:resend] Auto-dispatch failed:", dispatchError);
+    log("auto-dispatch failed (email still stored)");
   }
 
   log("complete");

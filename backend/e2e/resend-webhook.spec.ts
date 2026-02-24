@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 function webhookPayload(emailId: string) {
   return {
@@ -19,9 +19,7 @@ async function assertImageAccessible(url: string) {
   const res = await fetch(url);
   expect(res.status, `Expected 200 for ${url}, got ${res.status}`).toBe(200);
   const ct = res.headers.get("content-type") || "";
-  expect(ct, `Expected image content-type for ${url}, got ${ct}`).toMatch(
-    /^image\//,
-  );
+  expect(ct, `Expected image content-type for ${url}, got ${ct}`).toMatch(/^image\//);
   const body = await res.arrayBuffer();
   expect(body.byteLength, `Expected non-empty body for ${url}`).toBeGreaterThan(0);
 }
@@ -37,9 +35,7 @@ test.describe("Resend webhook inline images", () => {
     });
   });
 
-  test("1: attachments only, no base64 — stores attachments from CID", async ({
-    request,
-  }) => {
+  test("1: attachments only, no base64 — stores attachments from CID", async ({ request }) => {
     const res = await request.post("/api/webhooks/resend", {
       data: webhookPayload("e2e-attachments-only"),
     });
@@ -47,9 +43,7 @@ test.describe("Resend webhook inline images", () => {
 
     const listRes = await request.get("/api/emails");
     const list = await listRes.json();
-    const email = list.data.find(
-      (e: { emailId: string }) => e.emailId === "e2e-attachments-only",
-    );
+    const email = list.data.find((e: { emailId: string }) => e.emailId === "e2e-attachments-only");
     expect(email).toBeTruthy();
 
     // Should have attachments from CID processing
@@ -80,8 +74,7 @@ test.describe("Resend webhook inline images", () => {
     const listRes = await request.get("/api/emails");
     const list = await listRes.json();
     const email = list.data.find(
-      (e: { emailId: string }) =>
-        e.emailId === "e2e-both-attachment-and-base64",
+      (e: { emailId: string }) => e.emailId === "e2e-both-attachment-and-base64",
     );
     expect(email).toBeTruthy();
 
@@ -107,9 +100,7 @@ test.describe("Resend webhook inline images", () => {
 
     const listRes = await request.get("/api/emails");
     const list = await listRes.json();
-    const email = list.data.find(
-      (e: { emailId: string }) => e.emailId === "e2e-base64-only",
-    );
+    const email = list.data.find((e: { emailId: string }) => e.emailId === "e2e-base64-only");
     expect(email).toBeTruthy();
 
     // base64 image should be extracted and stored as attachment
@@ -135,9 +126,7 @@ test.describe("Resend webhook inline images", () => {
 
     const listRes = await request.get("/api/emails");
     const list = await listRes.json();
-    const email = list.data.find(
-      (e: { emailId: string }) => e.emailId === "e2e-no-images",
-    );
+    const email = list.data.find((e: { emailId: string }) => e.emailId === "e2e-no-images");
     expect(email).toBeTruthy();
 
     // No images means attachments should be null
@@ -145,5 +134,43 @@ test.describe("Resend webhook inline images", () => {
 
     // HTML should be unchanged plain text
     expect(email.htmlBody).toBe("<p>Hello world, plain email</p>");
+  });
+});
+
+test.describe("Resend webhook auto-dispatch", () => {
+  test.beforeAll(async ({ request }) => {
+    // Ensure assignee exists for the webhook email target
+    await request.post("/api/assignees", {
+      data: {
+        name: "Dispatch Test Assignee",
+        email: "test@example.com",
+      },
+    });
+  });
+
+  test("webhook creates a chat session for the assignee to process the email", async ({
+    request,
+  }) => {
+    const emailId = "e2e-auto-dispatch";
+    const res = await request.post("/api/webhooks/resend", {
+      data: webhookPayload(emailId),
+    });
+    expect(res.ok()).toBeTruthy();
+
+    // Verify email was stored
+    const emailsRes = await request.get("/api/emails");
+    const emails = await emailsRes.json();
+    const email = emails.data.find((e: { emailId: string }) => e.emailId === emailId);
+    expect(email).toBeTruthy();
+
+    // Verify a chat session was auto-created for the email
+    const sessionsRes = await request.get("/api/chat-sessions?limit=100");
+    const sessions = await sessionsRes.json();
+    const session = sessions.data.find(
+      (s: { title: string | null }) => s.title === `Email: Webhook ${emailId}`,
+    );
+    expect(session).toBeTruthy();
+    expect(session.assigneeId).toBeTruthy();
+    expect(session.status).toBeTruthy();
   });
 });

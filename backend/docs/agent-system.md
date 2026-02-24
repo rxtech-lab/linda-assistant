@@ -19,12 +19,33 @@ POST /messages ──> save to DB ──> publish to [agent-tasks] queue
                         │    ├─ tool-call  ──> publish to [agent-events] exchange + cache in Redis
                         │    ├─ done       ──> publish to [agent-events] exchange + cache in Redis
                         │    └─ (all events cached for replay)
-                        └─ release lock
+                        ├─ release lock
+                        └─ send push notification (APNs) with response preview
 
 GET /stream ──> subscribe to [agent-events] exchange (exclusive queue)
             ──> replay cached Redis chunks
             ──> forward live events as SSE
 ```
+
+### Email Auto-Dispatch
+
+When an inbound email arrives via the Resend webhook, the system automatically dispatches it to the assigned AI agent:
+
+```
+POST /webhooks/resend ──> store email in DB
+                      ──> create chat session (linked to assignee)
+                      ──> insert email content as user message
+                      ──> publish to [agent-tasks] queue
+                                    │
+                    ┌───────────────┘
+                    ▼
+           Worker processes the email
+                    │
+                    ├─ Agent reads email content and responds
+                    └─ Push notification sent to user
+```
+
+This enables event-driven processing: emails (and future webhook events) are automatically handled by the appropriate assignee, and the user is notified when processing completes.
 
 ### RabbitMQ Topology
 
@@ -36,7 +57,7 @@ GET /stream ──> subscribe to [agent-events] exchange (exclusive queue)
 
 ### Worker Process
 
-The worker (`worker/index.ts`) is a **separate Bun process** that runs alongside the Next.js API server. It connects to RabbitMQ, consumes tasks from the `agent-tasks` queue (prefetch: 5), and runs the agent to completion. In development:
+The worker (`worker/index.ts`) is a **separate Bun process** that runs alongside the Next.js API server. It connects to RabbitMQ, consumes tasks from the `agent-tasks` queue (prefetch: 5), and runs the agent to completion. After the agent finishes, the worker sends a push notification (via APNs) to all of the user's registered devices with the assignee name and a preview of the response text. In development:
 
 ```bash
 bun run dev          # Next.js API server

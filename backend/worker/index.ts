@@ -3,6 +3,7 @@ import { runAgent } from "@/lib/ai/agent";
 import { closeConnection, isConnected, setupTopology } from "@/lib/queue/connection";
 import { consumeTasks } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
+import { notifySessionResponse } from "@/lib/utils/chat-session";
 import type { AgentTask } from "@/lib/queue/types";
 import { isStreamActive } from "@/lib/streaming/manager";
 
@@ -17,11 +18,18 @@ async function handleTask(task: AgentTask): Promise<void> {
     return;
   }
 
+  let responseText = "";
+
   try {
     await runAgent({
       sessionId,
       userId,
       onEvent: async (event, data) => {
+        // Collect text for push notification
+        if (event === "text-delta" && typeof (data as Record<string, unknown>)?.text === "string") {
+          responseText += (data as { text: string }).text;
+        }
+
         // Publish to RabbitMQ for live SSE subscribers
         await publishEvent({
           sessionId,
@@ -35,6 +43,15 @@ async function handleTask(task: AgentTask): Promise<void> {
   } catch (error) {
     console.error(`[Worker] Agent error for session ${sessionId}:`, error);
     // Agent already saves partial state to DB
+  }
+
+  // Send push notification if the agent generated a text response
+  if (responseText.trim()) {
+    try {
+      await notifySessionResponse(sessionId, userId, responseText);
+    } catch (pushError) {
+      console.error(`[Worker] Push notification failed for session ${sessionId}:`, pushError);
+    }
   }
 
   console.log(`[Worker] Task complete: session=${sessionId}`);
