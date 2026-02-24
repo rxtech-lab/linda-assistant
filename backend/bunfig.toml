@@ -1,0 +1,3 @@
+[test]
+# Only match .test.ts files in lib/ (excludes e2e/*.spec.ts)
+root = "./lib"

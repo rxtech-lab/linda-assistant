@@ -17,6 +17,19 @@ mock.module("./permission", () => ({
   resolvePermission,
 }));
 
+// Mock the database module to avoid real DB connections in unit tests
+const mockSelect = mock(() => ({
+  from: () => ({
+    where: () => Promise.resolve([{ email: "test@example.com" }]),
+  }),
+}));
+
+mock.module("@/lib/db", () => ({
+  db: {
+    select: mockSelect,
+  },
+}));
+
 const { buildToolSet } = await import("./index");
 
 const ALL_TOOL_NAMES = ["send_email", "search_emails", "create_task", "update_task"];
