@@ -123,7 +123,7 @@ export const resendWebhookAttachmentSchema = z.object({
   filename: z.string().describe("Attachment filename"),
   content_type: z.string().describe("MIME type of the attachment"),
   content_id: z.string().optional().describe("Content ID for inline images"),
-  content_disposition: z.string().optional().describe("Content disposition"),
+  content_disposition: z.string().optional().nullable().describe("Content disposition"),
   size: z.number().optional().describe("File size in bytes"),
   url: z
     .string()
