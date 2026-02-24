@@ -29,3 +29,18 @@ export async function isStreamActive(sessionId: string): Promise<boolean> {
   const val = await redis.get(ACTIVE_KEY(sessionId));
   return val === "1";
 }
+
+const STOP_KEY = (sessionId: string) => `stream:stop:${sessionId}`;
+
+export async function setStopRequested(sessionId: string) {
+  await redis.set(STOP_KEY(sessionId), "1", { ex: 300 });
+}
+
+export async function isStopRequested(sessionId: string): Promise<boolean> {
+  const val = await redis.get(STOP_KEY(sessionId));
+  return val === "1";
+}
+
+export async function clearStopRequested(sessionId: string) {
+  await redis.del(STOP_KEY(sessionId));
+}

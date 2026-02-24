@@ -5,7 +5,7 @@ import { consumeTasks } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
 import { notifySessionResponse } from "@/lib/utils/chat-session";
 import type { AgentTask } from "@/lib/queue/types";
-import { isStreamActive } from "@/lib/streaming/manager";
+import { isStreamActive, isStopRequested, clearStopRequested } from "@/lib/streaming/manager";
 
 async function handleTask(task: AgentTask): Promise<void> {
   const { sessionId, userId } = task;
@@ -18,12 +18,29 @@ async function handleTask(task: AgentTask): Promise<void> {
     return;
   }
 
+  // Clear any leftover stop flag from a previous run
+  await clearStopRequested(sessionId);
+
+  const controller = new AbortController();
+  const stopPoller = setInterval(async () => {
+    try {
+      if (await isStopRequested(sessionId)) {
+        console.log(`[Worker] Stop requested for session ${sessionId}`);
+        controller.abort();
+        clearInterval(stopPoller);
+      }
+    } catch {
+      // Redis errors shouldn't crash the poller
+    }
+  }, 1000);
+
   let responseText = "";
 
   try {
     await runAgent({
       sessionId,
       userId,
+      signal: controller.signal,
       onEvent: async (event, data) => {
         // Collect text for push notification
         if (event === "text-delta" && typeof (data as Record<string, unknown>)?.text === "string") {
@@ -38,11 +55,17 @@ async function handleTask(task: AgentTask): Promise<void> {
           timestamp: Date.now(),
         });
       },
-      // No signal — run to completion
     });
   } catch (error) {
-    console.error(`[Worker] Agent error for session ${sessionId}:`, error);
+    if (controller.signal.aborted) {
+      console.log(`[Worker] Agent aborted for session ${sessionId}`);
+    } else {
+      console.error(`[Worker] Agent error for session ${sessionId}:`, error);
+    }
     // Agent already saves partial state to DB
+  } finally {
+    clearInterval(stopPoller);
+    await clearStopRequested(sessionId);
   }
 
   // Send push notification if the agent generated a text response

@@ -143,6 +143,11 @@ final class ChatDetailViewModel {
         logger.info("sendMessage completed, isStreaming=\(streamHandler.isStreaming)")
     }
 
+    func stopStream(sessionId: String) async {
+        guard let streamHandler else { return }
+        await streamHandler.stopStream(sessionId: sessionId)
+    }
+
     func disconnect() {
         streamHandler?.disconnect()
     }
