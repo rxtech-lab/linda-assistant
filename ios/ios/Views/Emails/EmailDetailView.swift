@@ -39,10 +39,6 @@ struct EmailDetailView: View {
         do {
             let fetched = try await apiClient.getEmail(id: emailId)
             email = fetched
-            // Mark as read
-            if fetched.isRead != true {
-                _ = try? await apiClient.updateEmail(id: emailId, UpdateEmail(isRead: true))
-            }
         } catch {
             self.error = error.localizedDescription
         }

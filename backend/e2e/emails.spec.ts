@@ -53,13 +53,15 @@ test.describe("Emails CRUD", () => {
     expect(found).toBeTruthy();
   });
 
-  test("GET /api/emails/:id returns a single email", async ({ request }) => {
+  test("GET /api/emails/:id returns a single email and marks it as read", async ({ request }) => {
     const res = await request.get(`/api/emails/${emailId}`);
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     emailResponseSchema.parse(body);
     expect(body.id).toBe(emailId);
     expect(body.subject).toBe("Test Email");
+    // GET auto-marks email as read
+    expect(body.isRead).toBe(true);
   });
 
   test("PUT /api/emails/:id updates email fields", async ({ request }) => {
@@ -139,7 +141,10 @@ test.describe("Emails cross-user isolation", () => {
 
     const getRes = await request.get(`/api/emails/${user1EmailId}`);
     const body = await getRes.json();
-    expect(body.isRead).toBe(false);
+    // isRead is now true because GET auto-marks as read
+    expect(body.isRead).toBe(true);
+    // Other fields unchanged by user2
+    expect(body.subject).toBe("User1 Email");
   });
 
   test("user2 cannot DELETE user1 email", async ({ request }) => {
