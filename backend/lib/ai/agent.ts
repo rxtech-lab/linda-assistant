@@ -220,9 +220,17 @@ function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
 export function buildSystemPrompt(
   assignee?: { name: string; personality: string | null } | null,
 ): string {
-  if (!assignee) return "You are a helpful personal assistant.";
-  if (assignee.personality) return assignee.personality;
-  return `You are ${assignee.name}, a helpful personal assistant.`;
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const dateLine = `\nToday's date is ${today}.`;
+
+  if (!assignee) return `You are a helpful personal assistant.${dateLine}`;
+  if (assignee.personality) return `${assignee.personality}${dateLine}`;
+  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}`;
 }
 
 /**

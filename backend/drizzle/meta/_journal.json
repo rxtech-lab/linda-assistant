@@ -57,6 +57,13 @@
       "when": 1770921270816,
       "tag": "0007_worried_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1771951786147,
+      "tag": "0008_mute_tempest",
+      "breakpoints": true
     }
   ]
 }

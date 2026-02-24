@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `devices_device_token_unique` ON `devices` (`device_token`);

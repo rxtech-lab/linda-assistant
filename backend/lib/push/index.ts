@@ -1,3 +1,4 @@
+import http2 from "node:http2";
 import { SignJWT, importPKCS8 } from "jose";
 import { db } from "@/lib/db";
 import { devices } from "@/lib/db/schema";
@@ -27,6 +28,52 @@ async function getApnsToken(): Promise<string> {
   return token;
 }
 
+function sendHttp2Request(
+  host: string,
+  path: string,
+  headers: Record<string, string>,
+  body: string,
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const client = http2.connect(host);
+
+    client.on("error", (err) => {
+      client.close();
+      reject(err);
+    });
+
+    const req = client.request({
+      ":method": "POST",
+      ":path": path,
+      ...headers,
+    });
+
+    let responseData = "";
+    let statusCode = 0;
+
+    req.on("response", (hdrs) => {
+      statusCode = hdrs[":status"] ?? 0;
+    });
+
+    req.on("data", (chunk: Buffer) => {
+      responseData += chunk.toString();
+    });
+
+    req.on("end", () => {
+      client.close();
+      resolve({ status: statusCode, body: responseData });
+    });
+
+    req.on("error", (err) => {
+      client.close();
+      reject(err);
+    });
+
+    req.write(body);
+    req.end();
+  });
+}
+
 export async function sendPushNotification(
   userId: string,
   payload: {
@@ -35,48 +82,67 @@ export async function sendPushNotification(
     data?: Record<string, string>;
   },
 ) {
+  const log = (msg: string) => console.log(`[push] ${msg}`);
+
   if (process.env.IS_E2E) {
+    log("skipped (E2E mode)");
     return [];
   }
 
   const userDevices = await db.select().from(devices).where(eq(devices.userId, userId));
 
-  if (userDevices.length === 0) return;
+  log(`userId=${userId} devices=${userDevices.length} title="${payload.title}" type=${payload.data?.type ?? "unknown"}`);
+
+  if (userDevices.length === 0) {
+    log("no registered devices, skipping");
+    return;
+  }
 
   const token = await getApnsToken();
   const bundleId = process.env.APNS_BUNDLE_ID!;
   const isProduction = process.env.APNS_ENVIRONMENT === "production";
   const host = isProduction ? "https://api.push.apple.com" : "https://api.sandbox.push.apple.com";
 
-  const apnsPayload = {
+  log(`env=${isProduction ? "production" : "sandbox"} bundleId=${bundleId}`);
+
+  const apnsPayload = JSON.stringify({
     aps: {
       alert: { title: payload.title, body: payload.body },
       sound: "default",
       "mutable-content": 1,
     },
     ...payload.data,
-  };
+  });
 
   const results = await Promise.allSettled(
     userDevices.map(async (device) => {
-      const response = await fetch(`${host}/3/device/${device.deviceToken}`, {
-        method: "POST",
-        headers: {
-          authorization: `bearer ${token}`,
-          "apns-topic": bundleId,
-          "apns-push-type": "alert",
-          "apns-priority": "10",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(apnsPayload),
-      });
+      const path = `/3/device/${device.deviceToken}`;
+      log(`sending to device=${device.id} token=${device.deviceToken.slice(0, 8)}...`);
 
-      if (!response.ok) {
-        const error = await response.text();
-        console.error(`APNs error for device ${device.id}:`, error);
+      const response = await sendHttp2Request(host, path, {
+        authorization: `bearer ${token}`,
+        "apns-topic": bundleId,
+        "apns-push-type": "alert",
+        "apns-priority": "10",
+        "content-type": "application/json",
+      }, apnsPayload);
+
+      if (response.status === 200) {
+        log(`device=${device.id} status=${response.status} ✓`);
+      } else {
+        console.error(`[push] device=${device.id} status=${response.status} error: ${response.body}`);
       }
     }),
   );
+
+  for (const r of results) {
+    if (r.status === "rejected") {
+      console.error("[push] promise rejected:", r.reason);
+    }
+  }
+  const fulfilled = results.filter((r) => r.status === "fulfilled").length;
+  const rejected = results.filter((r) => r.status === "rejected").length;
+  log(`done: ${fulfilled} sent, ${rejected} failed`);
 
   return results;
 }
