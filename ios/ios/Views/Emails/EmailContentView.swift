@@ -8,6 +8,7 @@ import WebKit
 struct EmailContentView: View {
     let email: Email
     @State private var selectedAttachment: EmailAttachment?
+    @State private var selectedImageURL: URL?
     @State private var webViewError: Error?
 
     private var formattedDate: String {
@@ -93,6 +94,24 @@ struct EmailContentView: View {
                         .colorScheme(.auto)
                         .fontType(.system)
                         .linkOpenType(.Safari)
+                        .customCSS("""
+                        img {
+                            max-width: 100%;
+                            height: auto;
+                            object-fit: fit;
+                            loading: lazy;                  /* Native lazy loading */
+                        }
+                        """)
+                        .onMediaClick { media in
+                            switch media {
+                            case .image(let src):
+                                if let url = URL(string: src) {
+                                    selectedImageURL = url
+                                }
+                            case .video:
+                                break
+                            }
+                        }
                         .placeholder {
                             ProgressView()
                                 .frame(maxWidth: .infinity, minHeight: 100)
@@ -177,6 +196,51 @@ struct EmailContentView: View {
                 }
             }
         }
+        #if os(iOS)
+        .fullScreenCover(isPresented: Binding(
+            get: { selectedImageURL != nil },
+            set: { if !$0 { selectedImageURL = nil } }
+        )) {
+            if let url = selectedImageURL {
+                NavigationStack {
+                    ImageViewerView(imageURL: url)
+                        .navigationBarTitleDisplayModeInlineIfAvailable()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button {
+                                    selectedImageURL = nil
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.title2)
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(.white, .black.opacity(0.6))
+                                }
+                            }
+                        }
+                        .toolbarBackground(.hidden, for: .navigationBar)
+                }
+            }
+        }
+        #else
+        .sheet(isPresented: Binding(
+                    get: { selectedImageURL != nil },
+                    set: { if !$0 { selectedImageURL = nil } }
+                )) {
+                    if let url = selectedImageURL {
+                        NavigationStack {
+                            ImageViewerView(imageURL: url)
+                                .toolbar {
+                                    ToolbarItem(placement: .cancellationAction) {
+                                        Button("Done") {
+                                            selectedImageURL = nil
+                                        }
+                                    }
+                                }
+                        }
+                        .frame(minWidth: 600, minHeight: 500)
+                    }
+                }
+        #endif
     }
 }
 
