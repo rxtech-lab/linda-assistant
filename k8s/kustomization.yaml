@@ -24,5 +24,3 @@ images:
     newTag: latest
   - name: ghcr.io/rxtech-lab/linda-worker
     newTag: latest
-  - name: ghcr.io/rxtech-lab/linda-mem0
-    newTag: latest

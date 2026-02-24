@@ -1,12 +1,6 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { nanoid } from "nanoid";
-import { createWriteStream, createReadStream } from "node:fs";
-import { mkdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { pipeline } from "node:stream/promises";
-import { Readable } from "node:stream";
 
 let _s3Client: S3Client | undefined;
 
@@ -52,56 +46,39 @@ export async function downloadAndUploadToS3(
   const log = (step: string) =>
     console.log(`[s3:upload] ${filename} ${step} (+${Date.now() - start}ms)`);
 
-  // Create a unique temp directory for this download
-  const tempDir = join(tmpdir(), `s3-upload-${nanoid()}`);
-  await mkdir(tempDir, { recursive: true });
-
-  const tempFilePath = join(tempDir, filename);
-
-  try {
-    // Download the file from the URL to temp file
-    log("downloading from resend");
-    const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
-    if (!response.ok) {
-      throw new Error(
-        `Failed to download file from ${url}: ${response.statusText}`,
-      );
-    }
-
-    if (!response.body) {
-      throw new Error("Response body is null");
-    }
-
-    // Stream the download to temp file
-    const fileStream = createWriteStream(tempFilePath);
-    await pipeline(Readable.fromWeb(response.body as any), fileStream);
-    log("download complete");
-
-    // Generate a unique key for the file in S3
-    const key = `email-attachments/${nanoid()}-${filename}`;
-
-    // Upload to S3 from temp file
-    log("uploading to s3");
-    const fileReadStream = createReadStream(tempFilePath);
-    const command = new PutObjectCommand({
-      Bucket: process.env.S3_BUCKET_NAME!,
-      Key: key,
-      Body: fileReadStream,
-      ContentType: contentType,
-    });
-
-    await s3Client.send(command, {
-      requestTimeout: 30_000,
-    });
-    log("upload complete");
-
-    // Return the S3 URL (construct based on bucket configuration)
-    const bucketUrl =
-      process.env.S3_PUBLIC_URL ||
-      `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com`;
-    return `${bucketUrl}/${key}`;
-  } finally {
-    // Clean up: delete temp directory and all its contents
-    await rm(tempDir, { recursive: true, force: true });
+  // Download the file into memory as a Buffer
+  log("downloading from resend");
+  const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  if (!response.ok) {
+    throw new Error(
+      `Failed to download file from ${url}: ${response.statusText}`,
+    );
   }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  log("download complete");
+
+  // Generate a unique key for the file in S3
+  const key = `email-attachments/${nanoid()}-${filename}`;
+
+  // Upload buffer directly to S3
+  log("uploading to s3");
+  const command = new PutObjectCommand({
+    Bucket: process.env.S3_BUCKET_NAME!,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+    ContentLength: buffer.length,
+  });
+
+  await s3Client.send(command, {
+    requestTimeout: 60_000,
+  });
+  log("upload complete");
+
+  // Return the S3 URL (construct based on bucket configuration)
+  const bucketUrl =
+    process.env.S3_PUBLIC_URL ||
+    `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com`;
+  return `${bucketUrl}/${key}`;
 }

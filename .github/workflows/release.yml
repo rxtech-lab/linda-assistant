@@ -27,9 +27,6 @@ jobs:
           - image: linda-worker
             target: worker
             context: backend
-          - image: linda-mem0
-            target: ""
-            context: mem0
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -132,15 +129,11 @@ jobs:
           kubectl set image deployment/linda-worker \
             linda-worker=ghcr.io/${{ github.repository_owner }}/linda-worker:${VERSION} \
             -n linda
-          kubectl set image deployment/mem0 \
-            mem0=ghcr.io/${{ github.repository_owner }}/linda-mem0:${VERSION} \
-            -n linda
 
       - name: Wait for rollouts
         run: |
           kubectl rollout status deployment/linda-frontend -n linda --timeout=300s
           kubectl rollout status deployment/linda-worker -n linda --timeout=300s
-          kubectl rollout status deployment/mem0 -n linda --timeout=300s
 
       - name: Verify deployment
         run: |
