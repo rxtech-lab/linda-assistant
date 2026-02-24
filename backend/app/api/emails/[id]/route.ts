@@ -27,6 +27,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .where(and(eq(emailInbox.id, id), eq(emailInbox.userId, auth.userId)));
 
   if (!item) return errorJson("Email not found", 404);
+
+  // Auto-mark as read on GET
+  if (!item.isRead) {
+    await db
+      .update(emailInbox)
+      .set({ isRead: true })
+      .where(and(eq(emailInbox.id, id), eq(emailInbox.userId, auth.userId)));
+    item.isRead = true;
+  }
+
   return successJson(item);
 }
 
