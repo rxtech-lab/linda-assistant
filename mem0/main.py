@@ -1,12 +1,62 @@
 """Mem0 REST API server with environment-driven configuration."""
 
+import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from mem0 import Memory
+from mem0.vector_stores.upstash_vector import UpstashVector
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger("mem0-server")
+
+# Monkey-patch: mem0 passes a flat embedding list to search() but the Upstash
+# implementation iterates it expecting List[list], yielding individual floats.
+# Also works around query_many passing duplicate namespace kwargs.
+from mem0.vector_stores.upstash_vector import OutputData
+
+
+def _patched_search(self, query, vectors, limit=5, filters=None):
+    if vectors and not isinstance(vectors[0], list):
+        vectors = [vectors]
+
+    filters_str = (
+        " AND ".join([f"{k} = {self._stringify(v)}" for k, v in filters.items()])
+        if filters
+        else None
+    )
+
+    if self.enable_embeddings:
+        response = self.client.query(
+            data=query,
+            top_k=limit,
+            filter=filters_str or "",
+            include_metadata=True,
+            namespace=self.collection_name,
+        )
+    else:
+        response = []
+        for v in vectors:
+            results = self.client.query(
+                vector=v,
+                top_k=limit,
+                filter=filters_str or "",
+                include_metadata=True,
+                namespace=self.collection_name,
+            )
+            response.extend(results)
+
+    return [
+        OutputData(id=res.id, score=res.score, payload=res.metadata)
+        for res in response
+    ]
+
+
+UpstashVector.search = _patched_search
 
 
 def build_config() -> dict:
@@ -20,10 +70,11 @@ def build_config() -> dict:
     # Vector store
     if provider == "upstash_vector":
         config["vector_store"] = {
-            "provider": "upstash",
+            "provider": "upstash_vector",
             "config": {
                 "url": os.environ["UPSTASH_VECTOR_REST_URL"],
                 "token": os.environ["UPSTASH_VECTOR_REST_TOKEN"],
+                "enable_embeddings": False,
             },
         }
     else:
@@ -71,11 +122,22 @@ memory: Optional[Memory] = None
 async def lifespan(app: FastAPI):
     global memory
     config = build_config()
+    logger.info("Initializing mem0 with config: %s", {k: v for k, v in config.items() if k != "llm" and k != "embedder"})
     memory = Memory.from_config(config)
+    logger.info("Mem0 initialized successfully")
     yield
 
 
 app = FastAPI(title="Mem0 Server", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    duration_ms = (time.time() - start) * 1000
+    logger.info("%s %s %d %.0fms", request.method, request.url.path, response.status_code, duration_ms)
+    return response
 
 
 class AddMemoryRequest(BaseModel):
@@ -104,7 +166,7 @@ async def root():
 
 
 @app.post("/memories")
-async def add_memory(req: AddMemoryRequest):
+def add_memory(req: AddMemoryRequest):
     params = {"messages": req.messages}
     if req.user_id:
         params["user_id"] = req.user_id
@@ -118,7 +180,7 @@ async def add_memory(req: AddMemoryRequest):
 
 
 @app.get("/memories")
-async def get_memories(
+def get_memories(
     user_id: Optional[str] = None,
     agent_id: Optional[str] = None,
     run_id: Optional[str] = None,
@@ -134,7 +196,7 @@ async def get_memories(
 
 
 @app.get("/memories/{memory_id}")
-async def get_memory(memory_id: str):
+def get_memory(memory_id: str):
     try:
         return memory.get(memory_id)
     except Exception as e:
@@ -142,7 +204,7 @@ async def get_memory(memory_id: str):
 
 
 @app.put("/memories/{memory_id}")
-async def update_memory(memory_id: str, req: UpdateMemoryRequest):
+def update_memory(memory_id: str, req: UpdateMemoryRequest):
     try:
         return memory.update(memory_id, data=req.data)
     except Exception as e:
@@ -150,7 +212,7 @@ async def update_memory(memory_id: str, req: UpdateMemoryRequest):
 
 
 @app.delete("/memories/{memory_id}")
-async def delete_memory(memory_id: str):
+def delete_memory(memory_id: str):
     try:
         memory.delete(memory_id)
         return {"message": "Memory deleted"}
@@ -159,7 +221,7 @@ async def delete_memory(memory_id: str):
 
 
 @app.post("/search")
-async def search_memories(req: SearchRequest):
+def search_memories(req: SearchRequest):
     params = {"query": req.query, "limit": req.limit}
     if req.user_id:
         params["user_id"] = req.user_id
@@ -171,7 +233,7 @@ async def search_memories(req: SearchRequest):
 
 
 @app.delete("/memories")
-async def delete_all_memories(
+def delete_all_memories(
     user_id: Optional[str] = None,
     agent_id: Optional[str] = None,
     run_id: Optional[str] = None,
@@ -188,6 +250,6 @@ async def delete_all_memories(
 
 
 @app.post("/reset")
-async def reset():
+def reset():
     memory.reset()
     return {"message": "All memories reset"}

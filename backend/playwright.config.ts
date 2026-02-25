@@ -22,6 +22,12 @@ export default defineConfig({
     {
       name: "api",
       testMatch: "**/*.spec.ts",
+      testIgnore: "**/mem0.spec.ts",
+    },
+    {
+      name: "mem0",
+      testMatch: "**/mem0.spec.ts",
+      use: { baseURL: "http://localhost:8000" },
     },
   ],
   webServer: {

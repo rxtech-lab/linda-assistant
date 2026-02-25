@@ -1,7 +1,7 @@
 import type { ModelMessage } from "ai";
 import { db } from "@/lib/db";
 import { messages } from "@/lib/db/schema";
-import { eq, and, lt, sql, asc, desc } from "drizzle-orm";
+import { eq, and, lt, gte, sql, asc, desc } from "drizzle-orm";
 
 /** Load all messages for a session, ordered by seq */
 export async function getSessionMessages(chatSessionId: string): Promise<ModelMessage[]> {
@@ -87,6 +87,62 @@ export async function getPagedMessages(
     messages: pageRows.map(rowToModelMessage),
     nextCursor,
   };
+}
+
+/**
+ * Compact messages: replace old messages (seq < keepFromSeq) with a summary,
+ * then renumber the kept messages so sequences are contiguous starting at 1.
+ *
+ * The summary message is inserted at seq = 0.
+ */
+export async function compactMessages(
+  chatSessionId: string,
+  summaryMessage: ModelMessage,
+  keepFromSeq: number,
+): Promise<void> {
+  const record = summaryMessage as Record<string, unknown>;
+
+  // 1. Delete old messages (everything before the keep boundary)
+  await db
+    .delete(messages)
+    .where(
+      and(
+        eq(messages.chatSessionId, chatSessionId),
+        lt(messages.seq, keepFromSeq),
+      ),
+    );
+
+  // 2. Insert summary message at seq = 0
+  await db.insert(messages).values({
+    id: (record.id as string) || undefined,
+    chatSessionId,
+    seq: 0,
+    role: summaryMessage.role,
+    content: summaryMessage.content as unknown,
+  });
+
+  // 3. Renumber remaining messages: shift seq so they start at 1
+  // (keepFromSeq becomes 1, keepFromSeq+1 becomes 2, etc.)
+  await db
+    .update(messages)
+    .set({
+      seq: sql`${messages.seq} - ${keepFromSeq} + 1`,
+    })
+    .where(
+      and(
+        eq(messages.chatSessionId, chatSessionId),
+        gte(messages.seq, keepFromSeq),
+      ),
+    );
+}
+
+/** Get the count of messages in a session */
+export async function getMessageCount(chatSessionId: string): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(messages)
+    .where(eq(messages.chatSessionId, chatSessionId));
+  return row?.count ?? 0;
 }
 
 /** Delete all messages for a session */

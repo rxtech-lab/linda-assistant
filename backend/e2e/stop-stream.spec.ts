@@ -216,13 +216,21 @@ test.describe("Stop Stream — session-scoped", () => {
     // Wait until we receive at least the first SSE event (status)
     await sseStarted;
 
-    // Wait for a few text-delta events to arrive (give ~800ms for ~4 chunks)
-    await new Promise((r) => setTimeout(r, 800));
+    // Poll until at least one text-delta arrives (worker needs to dequeue + start streaming)
+    const deadline = Date.now() + 10000;
+    while (
+      collectedEvents.filter((e) => e.event === "text-delta").length === 0 &&
+      Date.now() < deadline
+    ) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    // Wait a bit more for additional chunks to accumulate
+    await new Promise((r) => setTimeout(r, 400));
 
     const eventsBeforeStop = collectedEvents.length;
     const textDeltasBeforeStop = collectedEvents.filter((e) => e.event === "text-delta").length;
     expect(textDeltasBeforeStop).toBeGreaterThan(0);
-    expect(textDeltasBeforeStop).toBeLessThan(16); // Should not have all 16 words yet
+    expect(textDeltasBeforeStop).toBeLessThan(15); // Should not have all 15 words yet
 
     // Stop the stream
     const stopRes = await request.post(`/api/chat-sessions/${sessionId}/stop`);

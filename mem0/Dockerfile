@@ -10,7 +10,7 @@ COPY main.py .
 EXPOSE 8000
 
 RUN addgroup --system --gid 1001 appgroup && \
-    adduser --system --uid 1001 --ingroup appgroup appuser
+    adduser --system --uid 1001 --ingroup appgroup --home /home/appuser appuser
 USER appuser
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -8,6 +8,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     public private(set) var isStreaming = false
     public private(set) var isConnected = false
     public private(set) var isReconnecting = false
+    public private(set) var isCompacting = false
     public private(set) var streamedText = ""
     public private(set) var pendingConfirmation: ConfirmationPayload?
     public private(set) var toolCalls: [ToolCallInfo] = []
@@ -210,6 +211,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 logger.info("handleEvent: reconnecting...")
 
             case let .textDelta(payload):
+                isCompacting = false
                 if !isStreaming { isStreaming = true }
                 streamedText += payload.text
                 logger.debug("textDelta: accumulated length=\(self.streamedText.count), isStreaming=\(self.isStreaming)")
@@ -239,6 +241,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
             case let .confirmationRequired(payload):
                 logger.info("confirmationRequired: \(payload.toolName) id=\(payload.confirmationId)")
                 pendingConfirmation = payload
+
+            case let .compacting(payload):
+                logger.info("compacting: messageCount=\(payload.messageCount ?? 0)")
+                isCompacting = true
 
             case let .error(payload):
                 logger.error("SSE error event: \(payload.error)")
@@ -278,6 +284,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
         streamedText = ""
         toolCalls = []
         // Don't clear pendingConfirmation — it must persist until resolved
+        isCompacting = false
         isStreaming = false
     }
 }
