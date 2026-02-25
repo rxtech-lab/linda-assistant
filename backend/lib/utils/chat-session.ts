@@ -6,6 +6,7 @@ import { insertMessages } from "@/lib/db/messages";
 import { assignees, chatSessions } from "@/lib/db/schema";
 import { sendPushNotification } from "@/lib/push";
 import { publishTask } from "@/lib/queue/producer";
+import { stripMarkdown } from "@/lib/utils/markdown";
 
 type Assignee = { userId: string; id: string };
 
@@ -63,10 +64,11 @@ export async function notifySessionResponse(
     if (assignee) title = assignee.name;
   }
 
+  const plainText = stripMarkdown(responseText);
   const body =
-    responseText.length > 200
-      ? `${responseText.substring(0, 200)}...`
-      : responseText;
+    plainText.length > 200
+      ? `${plainText.substring(0, 200)}...`
+      : plainText || `Agent responded to your message`;
 
   await sendPushNotification(userId, {
     title,
