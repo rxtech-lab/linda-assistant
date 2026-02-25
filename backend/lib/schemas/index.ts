@@ -522,6 +522,10 @@ export const queuedResponseSchema = z.object({
   queued: z.boolean().describe("Whether the message was queued for processing"),
 });
 
+export const stoppedResponseSchema = z.object({
+  stopped: z.boolean().describe("Whether the stream was stopped"),
+});
+
 export const receivedResponseSchema = z.object({
   received: z.boolean().describe("Whether the webhook was received"),
 });

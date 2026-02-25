@@ -38,6 +38,7 @@ final class ChatTabViewModel {
         eventManager: EventManager
     ) async {
         isLoading = true
+        error = nil
         let loadingStartTime = ContinuousClock.now
 
         do {
@@ -64,6 +65,10 @@ final class ChatTabViewModel {
                 setupStreamHandler(apiClient: apiClient, authManager: authManager, eventManager: eventManager)
                 await loadMessages(assigneeId: assignee.id, apiClient: apiClient)
             }
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             logger.error("load error: \(error)")
             self.error = error.localizedDescription
@@ -100,6 +105,10 @@ final class ChatTabViewModel {
                     showingConfirmation: &showingConfirmation
                 )
             }
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch let apiError as APIError {
             if case .notFound = apiError {
                 // No session yet — show empty state
@@ -279,6 +288,11 @@ final class ChatTabViewModel {
     }
 
     // MARK: - Cleanup
+
+    func stopStream() async {
+        guard let assignee = selectedAssignee, let streamHandler else { return }
+        await streamHandler.stopChatStream(assigneeId: assignee.id)
+    }
 
     func disconnect() {
         streamHandler?.disconnect()

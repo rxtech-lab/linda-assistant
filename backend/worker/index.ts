@@ -1,11 +1,11 @@
 import { createServer } from "node:http";
 import { runAgent } from "@/lib/ai/agent";
 import { closeConnection, isConnected, setupTopology } from "@/lib/queue/connection";
-import { consumeTasks } from "@/lib/queue/consumer";
+import { consumeTasks, subscribeToCommands, type CommandSubscription } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
-import { notifySessionResponse } from "@/lib/utils/chat-session";
 import type { AgentTask } from "@/lib/queue/types";
 import { isStreamActive } from "@/lib/streaming/manager";
+import { notifySessionResponse } from "@/lib/utils/chat-session";
 
 async function handleTask(task: AgentTask): Promise<void> {
   const { sessionId, userId } = task;
@@ -18,13 +18,28 @@ async function handleTask(task: AgentTask): Promise<void> {
     return;
   }
 
-  let responseText = "";
+  const controller = new AbortController();
+  let commandSub: CommandSubscription | null = null;
 
   try {
+    // Subscribe to stop commands BEFORE starting agent to avoid race conditions
+    commandSub = await subscribeToCommands(sessionId, (command) => {
+      if (command.type === "stop") {
+        console.log(`[Worker] Stop command received for session ${sessionId}`);
+        controller.abort();
+      }
+    });
+
+    let responseText = "";
+
     await runAgent({
       sessionId,
       userId,
+      signal: controller.signal,
       onEvent: async (event, data) => {
+        // Stop emitting events immediately after abort
+        if (controller.signal.aborted) return;
+
         // Collect text for push notification
         if (event === "text-delta" && typeof (data as Record<string, unknown>)?.text === "string") {
           responseText += (data as { text: string }).text;
@@ -38,23 +53,28 @@ async function handleTask(task: AgentTask): Promise<void> {
           timestamp: Date.now(),
         });
       },
-      // No signal — run to completion
     });
-  } catch (error) {
-    console.error(`[Worker] Agent error for session ${sessionId}:`, error);
-    // Agent already saves partial state to DB
-  }
 
-  // Send push notification if the agent generated a text response
-  if (responseText.trim()) {
-    console.log(`[Worker] Sending push for session=${sessionId} responseText=${responseText.length} chars`);
-    try {
-      await notifySessionResponse(sessionId, userId, responseText);
-    } catch (pushError) {
-      console.error(`[Worker] Push notification failed for session ${sessionId}:`, pushError);
+    // Skip push notification if the stream was aborted
+    if (!controller.signal.aborted && responseText.trim()) {
+      console.log(`[Worker] Sending push for session=${sessionId} responseText=${responseText.length} chars`);
+      try {
+        await notifySessionResponse(sessionId, userId, responseText);
+      } catch (pushError) {
+        console.error(`[Worker] Push notification failed for session ${sessionId}:`, pushError);
+      }
+    } else if (!controller.signal.aborted) {
+      console.log(`[Worker] No text response for session=${sessionId}, skipping push notification`);
     }
-  } else {
-    console.log(`[Worker] No text response for session=${sessionId}, skipping push notification`);
+  } catch (error) {
+    if (controller.signal.aborted) {
+      console.log(`[Worker] Agent aborted for session ${sessionId}`);
+    } else {
+      console.error(`[Worker] Agent error for session ${sessionId}:`, error);
+    }
+    // Agent already saves partial state to DB
+  } finally {
+    await commandSub?.close();
   }
 
   console.log(`[Worker] Task complete: session=${sessionId}`);

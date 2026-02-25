@@ -13,6 +13,7 @@ struct StreamableChatLayout<Header: View>: View {
     let displayError: String?
     let onClearError: () -> Void
     let onSend: (String) async -> Void
+    let onStop: () async -> Void
     @ViewBuilder let header: () -> Header
 
     @State private var messageText = ""
@@ -134,7 +135,7 @@ struct StreamableChatLayout<Header: View>: View {
                     await onSend(text)
                 }
             } onStop: {
-                // Intentionally disabled for now.
+                Task { await onStop() }
             }
         }
         .sheet(isPresented: $showingConfirmation) {
@@ -173,7 +174,8 @@ extension StreamableChatLayout where Header == EmptyView {
         showingConfirmation: Binding<Bool>,
         displayError: String?,
         onClearError: @escaping () -> Void,
-        onSend: @escaping (String) async -> Void
+        onSend: @escaping (String) async -> Void,
+        onStop: @escaping () async -> Void
     ) {
         self.messages = messages
         self.assigneeName = assigneeName
@@ -183,6 +185,7 @@ extension StreamableChatLayout where Header == EmptyView {
         self.displayError = displayError
         self.onClearError = onClearError
         self.onSend = onSend
+        self.onStop = onStop
         header = { EmptyView() }
     }
 }

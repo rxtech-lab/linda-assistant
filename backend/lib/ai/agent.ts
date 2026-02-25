@@ -530,13 +530,15 @@ export async function runAgent(options: AgentRunOptions) {
         toolCall: { toolCallId: string; toolName: string; input: unknown };
       }> = [];
 
-      for await (const part of result.fullStream) {
-        if (signal?.aborted) break;
+      // eslint-disable-next-line no-labels -- labeled break needed to exit from inside switch
+      streamLoop: for await (const part of result.fullStream) {
+        if (signal?.aborted) break streamLoop;
 
         switch (part.type) {
           case "text-delta": {
             onTextChunk?.(part.text);
             await onEvent?.("text-delta", { id, text: part.text });
+            if (signal?.aborted) break streamLoop;
             break;
           }
           case "tool-call": {
@@ -546,6 +548,7 @@ export async function runAgent(options: AgentRunOptions) {
               toolName: part.toolName,
               input: "input" in part ? part.input : undefined,
             });
+            if (signal?.aborted) break streamLoop;
             break;
           }
           case "tool-result": {
@@ -563,6 +566,7 @@ export async function runAgent(options: AgentRunOptions) {
               eventData.error = extractToolResultError(partRecord);
             }
             await onEvent?.("tool-result", eventData);
+            if (signal?.aborted) break streamLoop;
             break;
           }
           case "tool-approval-request": {

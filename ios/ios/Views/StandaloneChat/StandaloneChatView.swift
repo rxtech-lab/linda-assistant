@@ -34,7 +34,8 @@ struct ChatTabView: View {
                             authManager: authManager,
                             eventManager: eventManager
                         )
-                    }
+                    },
+                    onStop: { await viewModel.stopStream() }
                 ) {
                     // Load more indicator
                     if viewModel.hasMoreMessages {

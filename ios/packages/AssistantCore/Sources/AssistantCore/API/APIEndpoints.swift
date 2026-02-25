@@ -109,10 +109,18 @@ public extension APIClient {
         try await request(path: "chat-sessions/\(sessionId)/messages", method: "POST", body: body)
     }
 
+    func stopStream(sessionId: String) async throws -> StoppedResponse {
+        try await request(path: "chat-sessions/\(sessionId)/stop", method: "POST")
+    }
+
     // MARK: - Chat (assignee-scoped)
 
     func sendChatMessage(assigneeId: String, _ body: SendMessage) async throws -> QueuedResponse {
         try await request(path: "chat/\(assigneeId)/message", method: "POST", body: body)
+    }
+
+    func stopChatStream(assigneeId: String) async throws -> StoppedResponse {
+        try await request(path: "chat/\(assigneeId)/stop", method: "POST")
     }
 
     func getChatMessages(

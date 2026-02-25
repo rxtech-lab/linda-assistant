@@ -62,6 +62,7 @@ export default async function globalSetup() {
   const ch = await conn.createChannel();
   await ch.assertQueue("agent-tasks", { durable: true });
   await ch.purgeQueue("agent-tasks");
+  await ch.assertExchange("agent-commands", "topic", { durable: true });
   await ch.close();
   await conn.close();
 

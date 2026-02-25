@@ -84,6 +84,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                         await handleEvent(message)
                     }
                     logger.info("SSE stream ended normally")
+                } catch is CancellationError {
+                    // Task cancelled (e.g. disconnect) — not a real error
+                } catch let urlError as URLError where urlError.code == .cancelled {
+                    // URLSession cancelled — not a real error
                 } catch {
                     if !Task.isCancelled {
                         logger.error("SSE stream error: \(error)")
@@ -98,6 +102,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                     self?.isStreaming = false
                 }
             }
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             logger.error("connect error: \(error)")
             await MainActor.run { self.error = error.localizedDescription }
@@ -157,6 +165,32 @@ public final class ChatStreamHandler: @unchecked Sendable {
         Task { await sseClient.disconnect() }
         isConnected = false
         isStreaming = false
+    }
+
+    public func stopStream(sessionId: String) async {
+        logger.info("stopStream: sessionId=\(sessionId)")
+        do {
+            _ = try await apiClient.stopStream(sessionId: sessionId)
+            logger.info("stopStream: API call succeeded")
+        } catch {
+            logger.error("stopStream error: \(error)")
+        }
+        await MainActor.run {
+            self.finalizeResponse()
+        }
+    }
+
+    public func stopChatStream(assigneeId: String) async {
+        logger.info("stopChatStream: assigneeId=\(assigneeId)")
+        do {
+            _ = try await apiClient.stopChatStream(assigneeId: assigneeId)
+            logger.info("stopChatStream: API call succeeded")
+        } catch {
+            logger.error("stopChatStream error: \(error)")
+        }
+        await MainActor.run {
+            self.finalizeResponse()
+        }
     }
 
     @MainActor

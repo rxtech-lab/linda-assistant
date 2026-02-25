@@ -23,7 +23,8 @@ struct ChatDetailView: View {
             showingConfirmation: $viewModel.showingConfirmation,
             displayError: viewModel.displayError,
             onClearError: { viewModel.clearError() },
-            onSend: { text in await viewModel.sendMessage(text, sessionId: sessionId) }
+            onSend: { text in await viewModel.sendMessage(text, sessionId: sessionId) },
+            onStop: { await viewModel.stopStream(sessionId: sessionId) }
         )
         .navigationTitle(viewModel.session?.title ?? "Chat")
         #if os(iOS)

@@ -36,6 +36,10 @@ public struct DeletedResponse: Codable, Sendable {
     public let deleted: Bool
 }
 
+public struct StoppedResponse: Codable, Sendable {
+    public let stopped: Bool
+}
+
 // MARK: - Task Status Enum
 
 public enum TaskStatus: String, CaseIterable, Sendable {
