@@ -84,6 +84,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                         await handleEvent(message)
                     }
                     logger.info("SSE stream ended normally")
+                } catch is CancellationError {
+                    // Task cancelled (e.g. disconnect) — not a real error
+                } catch let urlError as URLError where urlError.code == .cancelled {
+                    // URLSession cancelled — not a real error
                 } catch {
                     if !Task.isCancelled {
                         logger.error("SSE stream error: \(error)")
@@ -98,6 +102,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                     self?.isStreaming = false
                 }
             }
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             logger.error("connect error: \(error)")
             await MainActor.run { self.error = error.localizedDescription }

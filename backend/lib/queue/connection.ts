@@ -1,5 +1,5 @@
 import amqplib, { type Channel, type ChannelModel } from "amqplib";
-import { AGENT_EVENTS_EXCHANGE, AGENT_TASKS_QUEUE } from "./types";
+import { AGENT_COMMANDS_EXCHANGE, AGENT_EVENTS_EXCHANGE, AGENT_TASKS_QUEUE } from "./types";
 
 let connection: ChannelModel | null = null;
 let channel: Channel | null = null;
@@ -49,6 +49,7 @@ export async function createChannel(): Promise<Channel> {
   if (!topologyReady) {
     await channel.assertQueue(AGENT_TASKS_QUEUE, { durable: true });
     await channel.assertExchange(AGENT_EVENTS_EXCHANGE, "topic", { durable: false });
+    await channel.assertExchange(AGENT_COMMANDS_EXCHANGE, "topic", { durable: true });
     topologyReady = true;
   }
 
@@ -63,6 +64,9 @@ export async function setupTopology(): Promise<void> {
 
   // Topic exchange for real-time agent events
   await ch.assertExchange(AGENT_EVENTS_EXCHANGE, "topic", { durable: false });
+
+  // Topic exchange for API→worker control commands (e.g. stop)
+  await ch.assertExchange(AGENT_COMMANDS_EXCHANGE, "topic", { durable: true });
 }
 
 export async function isConnected(): Promise<boolean> {

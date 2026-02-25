@@ -1,10 +1,10 @@
 import { createServer } from "node:http";
 import { runAgent } from "@/lib/ai/agent";
 import { closeConnection, isConnected, setupTopology } from "@/lib/queue/connection";
-import { consumeTasks } from "@/lib/queue/consumer";
+import { consumeTasks, subscribeToCommands, type CommandSubscription } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
 import type { AgentTask } from "@/lib/queue/types";
-import { clearStopRequested, isStopRequested, isStreamActive } from "@/lib/streaming/manager";
+import { isStreamActive } from "@/lib/streaming/manager";
 import { notifySessionResponse } from "@/lib/utils/chat-session";
 
 async function handleTask(task: AgentTask): Promise<void> {
@@ -18,36 +18,28 @@ async function handleTask(task: AgentTask): Promise<void> {
     return;
   }
 
-  // Clear any leftover stop flag from a previous run
-  await clearStopRequested(sessionId);
-
   const controller = new AbortController();
-  let stopPolling = true;
-
-  // Poll Redis for stop requests using recursive setTimeout to avoid overlapping checks
-  const pollStop = async () => {
-    if (!stopPolling || controller.signal.aborted) return;
-    try {
-      if (await isStopRequested(sessionId)) {
-        console.log(`[Worker] Stop requested for session ${sessionId}`);
-        controller.abort();
-        return;
-      }
-    } catch {
-      // Redis errors shouldn't crash the poller
-    }
-    if (stopPolling) setTimeout(pollStop, 1000);
-  };
-  setTimeout(pollStop, 1000);
-
-  let responseText = "";
+  let commandSub: CommandSubscription | null = null;
 
   try {
+    // Subscribe to stop commands BEFORE starting agent to avoid race conditions
+    commandSub = await subscribeToCommands(sessionId, (command) => {
+      if (command.type === "stop") {
+        console.log(`[Worker] Stop command received for session ${sessionId}`);
+        controller.abort();
+      }
+    });
+
+    let responseText = "";
+
     await runAgent({
       sessionId,
       userId,
       signal: controller.signal,
       onEvent: async (event, data) => {
+        // Stop emitting events immediately after abort
+        if (controller.signal.aborted) return;
+
         // Collect text for push notification
         if (event === "text-delta" && typeof (data as Record<string, unknown>)?.text === "string") {
           responseText += (data as { text: string }).text;
@@ -62,6 +54,18 @@ async function handleTask(task: AgentTask): Promise<void> {
         });
       },
     });
+
+    // Skip push notification if the stream was aborted
+    if (!controller.signal.aborted && responseText.trim()) {
+      console.log(`[Worker] Sending push for session=${sessionId} responseText=${responseText.length} chars`);
+      try {
+        await notifySessionResponse(sessionId, userId, responseText);
+      } catch (pushError) {
+        console.error(`[Worker] Push notification failed for session ${sessionId}:`, pushError);
+      }
+    } else if (!controller.signal.aborted) {
+      console.log(`[Worker] No text response for session=${sessionId}, skipping push notification`);
+    }
   } catch (error) {
     if (controller.signal.aborted) {
       console.log(`[Worker] Agent aborted for session ${sessionId}`);
@@ -70,20 +74,7 @@ async function handleTask(task: AgentTask): Promise<void> {
     }
     // Agent already saves partial state to DB
   } finally {
-    stopPolling = false;
-    await clearStopRequested(sessionId);
-  }
-
-  // Send push notification if the agent generated a text response
-  if (responseText.trim()) {
-    console.log(`[Worker] Sending push for session=${sessionId} responseText=${responseText.length} chars`);
-    try {
-      await notifySessionResponse(sessionId, userId, responseText);
-    } catch (pushError) {
-      console.error(`[Worker] Push notification failed for session ${sessionId}:`, pushError);
-    }
-  } else {
-    console.log(`[Worker] No text response for session=${sessionId}, skipping push notification`);
+    await commandSub?.close();
   }
 
   console.log(`[Worker] Task complete: session=${sessionId}`);

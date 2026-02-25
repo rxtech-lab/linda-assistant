@@ -1,5 +1,12 @@
 import { createChannel, getConnection } from "./connection";
-import { AGENT_TASKS_QUEUE, AGENT_EVENTS_EXCHANGE, type AgentTask, type AgentEvent } from "./types";
+import {
+  AGENT_COMMANDS_EXCHANGE,
+  AGENT_EVENTS_EXCHANGE,
+  AGENT_TASKS_QUEUE,
+  type AgentCommand,
+  type AgentEvent,
+  type AgentTask,
+} from "./types";
 
 export async function consumeTasks(
   handler: (task: AgentTask) => Promise<void>,
@@ -60,6 +67,53 @@ export async function subscribeToEvents(
         handler(event);
       } catch (error) {
         console.error("[Consumer] Failed to parse event:", error);
+      }
+    },
+    { noAck: true },
+  );
+
+  return {
+    close: async () => {
+      try {
+        await ch.cancel(consumerTag);
+        await ch.close();
+      } catch {
+        // Channel may already be closed
+      }
+    },
+  };
+}
+
+export interface CommandSubscription {
+  close: () => Promise<void>;
+}
+
+export async function subscribeToCommands(
+  sessionId: string,
+  handler: (command: AgentCommand) => void,
+): Promise<CommandSubscription> {
+  const conn = await getConnection();
+  const ch = await conn.createChannel();
+  const routingKey = `session.${sessionId}`;
+
+  await ch.assertExchange(AGENT_COMMANDS_EXCHANGE, "topic", { durable: true });
+
+  const { queue } = await ch.assertQueue("", {
+    exclusive: true,
+    autoDelete: true,
+  });
+
+  await ch.bindQueue(queue, AGENT_COMMANDS_EXCHANGE, routingKey);
+
+  const { consumerTag } = await ch.consume(
+    queue,
+    (msg) => {
+      if (!msg) return;
+      try {
+        const command: AgentCommand = JSON.parse(msg.content.toString());
+        handler(command);
+      } catch (error) {
+        console.error("[Consumer] Failed to parse command:", error);
       }
     },
     { noAck: true },

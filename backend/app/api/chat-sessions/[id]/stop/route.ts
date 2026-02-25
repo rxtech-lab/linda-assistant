@@ -3,15 +3,18 @@ import { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { chatSessions } from "@/lib/db/schema";
-import { isStreamActive, setStopRequested } from "@/lib/streaming/manager";
+import { publishStopCommand } from "@/lib/queue/producer";
 import { errorJson, successJson } from "@/lib/utils/response";
 
 /**
  * Stop an in-progress agent stream for a chat session.
  *
- * Sets a Redis flag that the worker polls; when detected the worker
- * aborts the running agent via its AbortController. Returns immediately
- * with `{ stopped: true }`.
+ * Publishes a stop command to the RabbitMQ agent-commands exchange;
+ * the worker receives it and aborts the running agent via its
+ * AbortController. Returns immediately with `{ stopped: true }`.
+ *
+ * If no worker is actively processing the session, the command is
+ * harmlessly discarded by RabbitMQ (no subscriber on the exclusive queue).
  *
  * @openapi
  * @operationId stopStream
@@ -32,9 +35,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (!session) return errorJson("Chat session not found", 404);
 
-  const active = await isStreamActive(id);
-  if (!active) return successJson({ stopped: true });
-
-  await setStopRequested(id);
+  await publishStopCommand(id);
   return successJson({ stopped: true });
 }

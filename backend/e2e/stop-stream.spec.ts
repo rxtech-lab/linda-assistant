@@ -141,6 +141,112 @@ test.describe("Stop Stream — session-scoped", () => {
     await waitForStopped(sessionId);
   });
 
+  test("stop mid-stream stops text-delta events immediately", async ({ request, baseURL }) => {
+    // Create session
+    const sessionRes = await request.post("/api/chat-sessions", {
+      data: { assigneeId },
+    });
+    const session = await sessionRes.json();
+    const sessionId = session.id;
+
+    // Subscribe to SSE to collect live events
+    const collectedEvents: Array<{ event: string; data: any; time: number }> = [];
+    const sseController = new AbortController();
+    const sseStarted = new Promise<void>((resolve) => {
+      (async () => {
+        const response = await fetch(`${baseURL}/api/chat-sessions/${sessionId}/stream`, {
+          headers: { accept: "text/event-stream", authorization: "Bearer e2e-test-token" },
+          signal: sseController.signal,
+        });
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let currentEvent = "";
+        let currentData = "";
+        let resolved = false;
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) {
+              if (line.startsWith("event: ")) {
+                currentEvent = line.slice(7).trim();
+              } else if (line.startsWith("data: ")) {
+                currentData = line.slice(6);
+              } else if (line === "") {
+                if (currentEvent && currentData) {
+                  try {
+                    collectedEvents.push({
+                      event: currentEvent,
+                      data: JSON.parse(currentData),
+                      time: Date.now(),
+                    });
+                  } catch {
+                    /* ignore parse errors */
+                  }
+                  if (!resolved) {
+                    resolved = true;
+                    resolve();
+                  }
+                }
+                currentEvent = "";
+                currentData = "";
+              }
+            }
+          }
+        } catch {
+          /* aborted */
+        }
+      })();
+    });
+
+    // Wait for SSE subscription to be established
+    await new Promise((r) => setTimeout(r, SUB_DELAY));
+
+    // Send slow stream message (16 words × 200ms = ~3.2s total)
+    const msgRes = await request.post(`/api/chat-sessions/${sessionId}/messages`, {
+      data: { content: "[SLOW_STREAM]" },
+    });
+    expect(msgRes.ok()).toBeTruthy();
+
+    // Wait until we receive at least the first SSE event (status)
+    await sseStarted;
+
+    // Wait for a few text-delta events to arrive (give ~800ms for ~4 chunks)
+    await new Promise((r) => setTimeout(r, 800));
+
+    const eventsBeforeStop = collectedEvents.length;
+    const textDeltasBeforeStop = collectedEvents.filter((e) => e.event === "text-delta").length;
+    expect(textDeltasBeforeStop).toBeGreaterThan(0);
+    expect(textDeltasBeforeStop).toBeLessThan(16); // Should not have all 16 words yet
+
+    // Stop the stream
+    const stopRes = await request.post(`/api/chat-sessions/${sessionId}/stop`);
+    expect(stopRes.ok()).toBeTruthy();
+
+    // Wait for stop to propagate and any leaked events to arrive
+    await new Promise((r) => setTimeout(r, 1000));
+
+    const textDeltasAfterStop = collectedEvents.filter((e) => e.event === "text-delta").length;
+
+    // A few extra text-deltas may leak due to stop command round-trip latency
+    // (HTTP POST + RabbitMQ delivery + abort propagation ≈ 100-200ms ≈ 1-2 chunks)
+    expect(textDeltasAfterStop - textDeltasBeforeStop).toBeLessThanOrEqual(3);
+
+    // Verify we got far fewer than all 15 words — stop actually cut the stream short
+    expect(textDeltasAfterStop).toBeLessThan(15);
+
+    // Clean up SSE connection
+    sseController.abort();
+
+    // Verify session reached stopped status
+    await waitForStopped(sessionId);
+  });
+
   test("stop returns 404 for non-existing session", async ({ request }) => {
     const res = await request.post("/api/chat-sessions/nonexistent-session-id/stop");
     expect(res.status()).toBe(404);

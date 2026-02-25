@@ -42,9 +42,7 @@ struct MessageBubble: View {
                     Markdown(message.content)
                         .markdownTheme(.chat)
                         .textSelection(.enabled)
-                        .containerRelativeFrame(.horizontal, alignment: .leading) { length, _ in
-                            length * 0.9
-                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .contextMenu {

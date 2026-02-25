@@ -7,10 +7,15 @@ const MOCK_USAGE = {
   outputTokens: { total: 20, text: 20, reasoning: undefined },
 } as const;
 
+interface MockStreamConfig {
+  chunks: LanguageModelV3StreamPart[];
+  chunkDelayInMs: number | null;
+}
+
 function buildStreamChunks(
   messages: unknown[],
   availableTools?: Set<string>,
-): LanguageModelV3StreamPart[] {
+): MockStreamConfig {
   // Check for tool-result in prompt (resumed after confirmation or auto-confirm execution)
   const hasToolResult = messages.some(
     (m: any) =>
@@ -37,12 +42,15 @@ function buildStreamChunks(
 
     const text = isRejection ? "I understand, I won't do that." : "Email sent successfully.";
 
-    return [
-      { type: "text-start", id: "text-1" },
-      { type: "text-delta", id: "text-1", delta: text },
-      { type: "text-end", id: "text-1" },
-      { type: "finish", finishReason: { unified: "stop", raw: undefined }, usage: MOCK_USAGE },
-    ];
+    return {
+      chunks: [
+        { type: "text-start", id: "text-1" },
+        { type: "text-delta", id: "text-1", delta: text },
+        { type: "text-end", id: "text-1" },
+        { type: "finish", finishReason: { unified: "stop", raw: undefined }, usage: MOCK_USAGE },
+      ],
+      chunkDelayInMs: null,
+    };
   }
 
   // Get last user message text
@@ -57,6 +65,18 @@ function buildStreamChunks(
         ? (lastUserMsg as any).content
         : "";
 
+  // Scenario: slow stream with many chunks (for stop-stream e2e testing)
+  if (lastText.includes("[SLOW_STREAM]")) {
+    const words = "The quick brown fox jumps over the lazy dog and keeps running across the field".split(" ");
+    const chunks: LanguageModelV3StreamPart[] = [{ type: "text-start", id: "text-1" }];
+    for (const word of words) {
+      chunks.push({ type: "text-delta", id: "text-1", delta: `${word} ` });
+    }
+    chunks.push({ type: "text-end", id: "text-1" });
+    chunks.push({ type: "finish", finishReason: { unified: "stop", raw: undefined }, usage: MOCK_USAGE });
+    return { chunks, chunkDelayInMs: 200 };
+  }
+
   // Scenario: send_email tool call (only if tool is available)
   if (
     lastText.includes("[TOOL:send_email]") &&
@@ -67,17 +87,20 @@ function buildStreamChunks(
       subject: "Test Email",
       body: "<p>Test body</p>",
     });
-    return [
-      { type: "tool-input-start", id: "call-1", toolName: "send_email" },
-      { type: "tool-input-delta", id: "call-1", delta: input },
-      { type: "tool-input-end", id: "call-1" },
-      { type: "tool-call", toolCallId: "call-1", toolName: "send_email", input },
-      {
-        type: "finish",
-        finishReason: { unified: "tool-calls", raw: undefined },
-        usage: MOCK_USAGE,
-      },
-    ];
+    return {
+      chunks: [
+        { type: "tool-input-start", id: "call-1", toolName: "send_email" },
+        { type: "tool-input-delta", id: "call-1", delta: input },
+        { type: "tool-input-end", id: "call-1" },
+        { type: "tool-call", toolCallId: "call-1", toolName: "send_email", input },
+        {
+          type: "finish",
+          finishReason: { unified: "tool-calls", raw: undefined },
+          usage: MOCK_USAGE,
+        },
+      ],
+      chunkDelayInMs: null,
+    };
   }
 
   // Scenario: create_task tool call (only if tool is available)
@@ -89,17 +112,20 @@ function buildStreamChunks(
       title: "Test Task",
       description: "A test task created by the agent",
     });
-    return [
-      { type: "tool-input-start", id: "call-2", toolName: "create_task" },
-      { type: "tool-input-delta", id: "call-2", delta: input },
-      { type: "tool-input-end", id: "call-2" },
-      { type: "tool-call", toolCallId: "call-2", toolName: "create_task", input },
-      {
-        type: "finish",
-        finishReason: { unified: "tool-calls", raw: undefined },
-        usage: MOCK_USAGE,
-      },
-    ];
+    return {
+      chunks: [
+        { type: "tool-input-start", id: "call-2", toolName: "create_task" },
+        { type: "tool-input-delta", id: "call-2", delta: input },
+        { type: "tool-input-end", id: "call-2" },
+        { type: "tool-call", toolCallId: "call-2", toolName: "create_task", input },
+        {
+          type: "finish",
+          finishReason: { unified: "tool-calls", raw: undefined },
+          usage: MOCK_USAGE,
+        },
+      ],
+      chunkDelayInMs: null,
+    };
   }
 
   // Scenario: update_task tool call (with non-existent id to trigger error)
@@ -111,17 +137,20 @@ function buildStreamChunks(
       taskId: "non-existent-id-12345",
       status: "finished",
     });
-    return [
-      { type: "tool-input-start", id: "call-3", toolName: "update_task" },
-      { type: "tool-input-delta", id: "call-3", delta: input },
-      { type: "tool-input-end", id: "call-3" },
-      { type: "tool-call", toolCallId: "call-3", toolName: "update_task", input },
-      {
-        type: "finish",
-        finishReason: { unified: "tool-calls", raw: undefined },
-        usage: MOCK_USAGE,
-      },
-    ];
+    return {
+      chunks: [
+        { type: "tool-input-start", id: "call-3", toolName: "update_task" },
+        { type: "tool-input-delta", id: "call-3", delta: input },
+        { type: "tool-input-end", id: "call-3" },
+        { type: "tool-call", toolCallId: "call-3", toolName: "update_task", input },
+        {
+          type: "finish",
+          finishReason: { unified: "tool-calls", raw: undefined },
+          usage: MOCK_USAGE,
+        },
+      ],
+      chunkDelayInMs: null,
+    };
   }
 
   // Scenario: parallel tool calls (send_email + create_task)
@@ -138,30 +167,36 @@ function buildStreamChunks(
       title: "Parallel Test Task",
       description: "A task created in parallel with an email",
     });
-    return [
-      { type: "tool-input-start", id: "parallel-call-1", toolName: "send_email" },
-      { type: "tool-input-delta", id: "parallel-call-1", delta: emailInput },
-      { type: "tool-input-end", id: "parallel-call-1" },
-      { type: "tool-call", toolCallId: "parallel-call-1", toolName: "send_email", input: emailInput },
-      { type: "tool-input-start", id: "parallel-call-2", toolName: "create_task" },
-      { type: "tool-input-delta", id: "parallel-call-2", delta: taskInput },
-      { type: "tool-input-end", id: "parallel-call-2" },
-      { type: "tool-call", toolCallId: "parallel-call-2", toolName: "create_task", input: taskInput },
-      {
-        type: "finish",
-        finishReason: { unified: "tool-calls", raw: undefined },
-        usage: MOCK_USAGE,
-      },
-    ];
+    return {
+      chunks: [
+        { type: "tool-input-start", id: "parallel-call-1", toolName: "send_email" },
+        { type: "tool-input-delta", id: "parallel-call-1", delta: emailInput },
+        { type: "tool-input-end", id: "parallel-call-1" },
+        { type: "tool-call", toolCallId: "parallel-call-1", toolName: "send_email", input: emailInput },
+        { type: "tool-input-start", id: "parallel-call-2", toolName: "create_task" },
+        { type: "tool-input-delta", id: "parallel-call-2", delta: taskInput },
+        { type: "tool-input-end", id: "parallel-call-2" },
+        { type: "tool-call", toolCallId: "parallel-call-2", toolName: "create_task", input: taskInput },
+        {
+          type: "finish",
+          finishReason: { unified: "tool-calls", raw: undefined },
+          usage: MOCK_USAGE,
+        },
+      ],
+      chunkDelayInMs: null,
+    };
   }
 
   // Default: stream "Hello, world!"
-  return [
-    { type: "text-start", id: "text-1" },
-    { type: "text-delta", id: "text-1", delta: "Hello, world!" },
-    { type: "text-end", id: "text-1" },
-    { type: "finish", finishReason: { unified: "stop", raw: undefined }, usage: MOCK_USAGE },
-  ];
+  return {
+    chunks: [
+      { type: "text-start", id: "text-1" },
+      { type: "text-delta", id: "text-1", delta: "Hello, world!" },
+      { type: "text-end", id: "text-1" },
+      { type: "finish", finishReason: { unified: "stop", raw: undefined }, usage: MOCK_USAGE },
+    ],
+    chunkDelayInMs: null,
+  };
 }
 
 /**
@@ -178,18 +213,21 @@ export function getModelProvider(modelId: string) {
         usage: MOCK_USAGE,
         warnings: [],
       }),
-      doStream: async ({ prompt, tools: modelTools }) => ({
-        stream: simulateReadableStream({
-          chunks: buildStreamChunks(
-            prompt as unknown[],
-            modelTools
-              ? new Set((modelTools as Array<{ name: string }>).map((t) => t.name))
-              : undefined,
-          ),
-          chunkDelayInMs: null,
-          initialDelayInMs: null,
-        }),
-      }),
+      doStream: async ({ prompt, tools: modelTools }) => {
+        const config = buildStreamChunks(
+          prompt as unknown[],
+          modelTools
+            ? new Set((modelTools as Array<{ name: string }>).map((t) => t.name))
+            : undefined,
+        );
+        return {
+          stream: simulateReadableStream({
+            chunks: config.chunks,
+            chunkDelayInMs: config.chunkDelayInMs,
+            initialDelayInMs: null,
+          }),
+        };
+      },
     });
   }
   return modelId;

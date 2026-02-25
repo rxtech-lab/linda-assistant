@@ -26,6 +26,7 @@ final class ChatDetailViewModel {
     func loadSession(id: String, apiClient: APIClient, authManager: AuthManager, eventManager: EventManager) async {
         logger.info("loadSession started for id=\(id)")
         isLoading = true
+        error = nil
         let loadingStartTime = ContinuousClock.now
 
         let handler = ChatStreamHandler(
@@ -52,6 +53,10 @@ final class ChatDetailViewModel {
 
         do {
             try await fetchSession(id: id, apiClient: apiClient)
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             logger.error("loadSession error: \(error)")
             self.error = error.localizedDescription

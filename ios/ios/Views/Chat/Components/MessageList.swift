@@ -300,6 +300,7 @@ struct DateDividerView: View {
         .padding()
     }
 }
+
 #Preview("MessageList - Stream Complete") {
     ScrollView {
         LazyVStack(alignment: .leading, spacing: 12) {
@@ -335,4 +336,3 @@ struct StreamCompleteDivider: View {
     StreamCompleteDivider()
         .padding()
 }
-
