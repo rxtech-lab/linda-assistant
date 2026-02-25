@@ -102,6 +102,7 @@ const healthServer = createServer(async (req, res) => {
 
 async function main() {
   console.log("[Worker] Starting...");
+  console.log("[Worker] MEM0_API_URL:", process.env.MEM0_API_URL || "(not set, default: http://mem0:8000)");
 
   await setupTopology();
   console.log("[Worker] Connected to RabbitMQ, topology ready");

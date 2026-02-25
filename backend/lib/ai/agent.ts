@@ -9,6 +9,11 @@ import { createConfirmation } from "./confirmation";
 import { getModelProvider } from "./model";
 import { getSessionMessages, insertMessages } from "@/lib/db/messages";
 import { refreshAccessToken } from "@/lib/auth/refresh";
+import {
+	prepareMessages,
+	extractTextFromMessage,
+} from "./compaction";
+import { createMem0Client } from "@/lib/mem0/client";
 
 import { DEFAULT_MODEL, availableModelSchema } from "./models";
 
@@ -455,7 +460,7 @@ export async function runAgent(options: AgentRunOptions) {
     }
   }
 
-  const systemPrompt = buildSystemPrompt(assignee);
+  let systemPrompt = buildSystemPrompt(assignee);
 
   // Ensure we have a valid access token, refresh if needed
   let accessToken = session.accessToken || "";
@@ -484,6 +489,22 @@ export async function runAgent(options: AgentRunOptions) {
   );
   const messages = await getSessionMessages(sessionId);
 
+  // Search mem0 for relevant long-term memories
+  const mem0 = createMem0Client();
+  const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+  if (lastUserMsg) {
+    const userText = extractTextFromMessage(lastUserMsg);
+    if (userText) {
+      const memories = await mem0.searchMemories(userText, userId, {
+        agentId: session.assigneeId ?? undefined,
+        limit: 10,
+      });
+      if (memories.length > 0) {
+        systemPrompt += `\n\n<long_term_memory>\n${memories.map((m) => `- ${m}`).join("\n")}\n</long_term_memory>`;
+      }
+    }
+  }
+
   await setStreamActive(sessionId, true);
 
   // Update session status
@@ -511,6 +532,22 @@ export async function runAgent(options: AgentRunOptions) {
       if (signal?.aborted) break;
 
       stepCount++;
+
+      // Compact history if approaching context limits (prepareStep equivalent)
+      const compactionResult = await prepareMessages({
+        sessionId,
+        userId,
+        messages: currentMessages,
+        modelId,
+        systemPrompt,
+        assigneeId: session.assigneeId,
+        onEvent,
+      });
+      if (compactionResult.compacted) {
+        currentMessages = compactionResult.messages;
+        // DB was updated by compaction; recalculate persisted count
+        persistedCount = currentMessages.length;
+      }
 
       // Stable id for this step — all stream events share it,
       // and the stored assistant message gets the same id for deduplication
@@ -686,6 +723,23 @@ export async function runAgent(options: AgentRunOptions) {
         updatedAt: sql`(datetime('now'))`,
       })
       .where(eq(chatSessions.id, sessionId));
+
+    // Fire-and-forget: send new turn messages to mem0 for long-term memory
+    const newTurnMessages = currentMessages.slice(messages.length);
+    if (newTurnMessages.length > 0) {
+      mem0
+        .addMemories(
+          newTurnMessages.map((m) => ({
+            role: m.role,
+            content: extractTextFromMessage(m),
+          })),
+          userId,
+          { agentId: session.assigneeId ?? undefined, runId: sessionId },
+        )
+        .catch((err) =>
+          console.warn("[agent] mem0 addMemories failed:", err),
+        );
+    }
 
     await onEvent?.("status", { status: "stopped" });
     await onEvent?.("done", {});

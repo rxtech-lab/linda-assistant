@@ -27,6 +27,8 @@ jobs:
           - image: linda-worker
             target: worker
             context: backend
+          - image: linda-mem0
+            context: mem0
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -60,10 +62,36 @@ jobs:
           context: ${{ matrix.context }}
           target: ${{ matrix.target || '' }}
           push: false
-          tags: ${{ steps.meta.outputs.tags }}
+          load: true
+          tags: ${{ matrix.image }}:test
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Health check
+        if: github.event_name != 'release' && matrix.image == 'linda-mem0'
+        run: |
+          docker network create mem0-net
+          docker run -d --name qdrant --network mem0-net qdrant/qdrant:latest
+          docker run -d --name mem0-test --network mem0-net -p 8000:8000 \
+            -e OPENAI_API_KEY=sk-dummy \
+            -e QDRANT_HOST=qdrant \
+            ${{ matrix.image }}:test
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/ > /dev/null 2>&1; then
+              echo "Health check passed"
+              docker rm -f mem0-test qdrant
+              docker network rm mem0-net
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Health check failed"
+          docker logs mem0-test
+          docker logs qdrant
+          docker rm -f mem0-test qdrant
+          docker network rm mem0-net
+          exit 1
 
       - name: Build and push Docker image
         if: github.event_name == 'release'
@@ -129,11 +157,15 @@ jobs:
           kubectl set image deployment/linda-worker \
             linda-worker=ghcr.io/${{ github.repository_owner }}/linda-worker:${VERSION} \
             -n linda
+          kubectl set image deployment/linda-mem0 \
+            linda-mem0=ghcr.io/${{ github.repository_owner }}/linda-mem0:${VERSION} \
+            -n linda
 
       - name: Wait for rollouts
         run: |
           kubectl rollout status deployment/linda-frontend -n linda --timeout=300s
           kubectl rollout status deployment/linda-worker -n linda --timeout=300s
+          kubectl rollout status deployment/linda-mem0 -n linda --timeout=300s
 
       - name: Verify deployment
         run: |

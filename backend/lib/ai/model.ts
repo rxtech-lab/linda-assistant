@@ -207,12 +207,28 @@ function buildStreamChunks(
 export function getModelProvider(modelId: string) {
   if (process.env.IS_E2E) {
     return new MockLanguageModelV3({
-      doGenerate: async () => ({
-        content: [{ type: "text", text: `Hello, world!` }],
-        finishReason: { unified: "stop", raw: undefined },
-        usage: MOCK_USAGE,
-        warnings: [],
-      }),
+      doGenerate: async ({ prompt }) => {
+        // Check if this is a compaction summary request
+        const promptText = JSON.stringify(prompt);
+        if (
+          promptText.includes("Summarize") ||
+          promptText.includes("CONVERSATION SUMMARY") ||
+          promptText.includes("running summary")
+        ) {
+          return {
+            content: [{ type: "text", text: "Summary: The user discussed tasks and emails. Key facts preserved." }],
+            finishReason: { unified: "stop", raw: undefined },
+            usage: MOCK_USAGE,
+            warnings: [],
+          };
+        }
+        return {
+          content: [{ type: "text", text: `Hello, world!` }],
+          finishReason: { unified: "stop", raw: undefined },
+          usage: MOCK_USAGE,
+          warnings: [],
+        };
+      },
       doStream: async ({ prompt, tools: modelTools }) => {
         const config = buildStreamChunks(
           prompt as unknown[],

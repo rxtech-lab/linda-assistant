@@ -401,7 +401,7 @@ export const selectDeviceSchema = z.object({
 
 export const insertDeviceSchema = z.object({
   deviceToken: z.string().min(1).describe("APNs device token"),
-  platform: z.enum(["ios", "macos"]).describe("Device platform"),
+  platform: z.literal("ios").describe("Device platform (iOS only)"),
 });
 
 // ---- Send message ----
@@ -520,10 +520,6 @@ export const deletedResponseSchema = z.object({
 
 export const queuedResponseSchema = z.object({
   queued: z.boolean().describe("Whether the message was queued for processing"),
-});
-
-export const stoppedResponseSchema = z.object({
-  stopped: z.boolean().describe("Whether the stream was stopped"),
 });
 
 export const receivedResponseSchema = z.object({
