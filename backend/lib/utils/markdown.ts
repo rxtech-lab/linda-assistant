@@ -11,8 +11,8 @@ export function stripMarkdown(text: string): string {
       .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
       // Remove headings (## heading → heading)
       .replace(/^#{1,6}\s+/gm, "")
-      // Remove fenced code block markers (``` or ~~~, with optional language)
-      .replace(/^(`{3,}|~{3,})\w*$/gm, "")
+      // Remove fenced code block markers (``` or ~~~, with optional language/info string)
+      .replace(/^[ \t]*(`{3,}|~{3,})[^\r\n]*$/gm, "")
       // Remove bold/italic markers (*** / ** / * / ___ / __ / _)
       .replace(/(\*{1,3}|_{1,3})(.+?)\1/g, "$2")
       // Remove strikethrough ~~text~~

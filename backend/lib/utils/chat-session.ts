@@ -68,7 +68,7 @@ export async function notifySessionResponse(
   const body =
     plainText.length > 200
       ? `${plainText.substring(0, 200)}...`
-      : plainText;
+      : plainText || `Agent responded to your message`;
 
   await sendPushNotification(userId, {
     title,

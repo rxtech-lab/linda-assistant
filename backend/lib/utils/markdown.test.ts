@@ -35,6 +35,11 @@ describe("stripMarkdown", () => {
     expect(stripMarkdown(input)).toBe("const x = 1;");
   });
 
+  test("removes indented and non-word language fenced code blocks", () => {
+    expect(stripMarkdown("  ```objective-c\ncode\n  ```")).toBe("code");
+    expect(stripMarkdown("```c++ \ncode\n``` ")).toBe("code");
+  });
+
   test("converts links to plain text", () => {
     expect(stripMarkdown("[click here](https://example.com)")).toBe(
       "click here",
