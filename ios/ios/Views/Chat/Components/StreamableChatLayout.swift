@@ -123,7 +123,9 @@ struct StreamableChatLayout<Header: View>: View {
                 }
             }
 
-            Divider()
+            #if canImport(UIKit)
+                Divider()
+            #endif
 
             MessageInput(
                 text: $messageText,

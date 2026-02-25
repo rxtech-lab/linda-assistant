@@ -130,7 +130,7 @@ export const devices = sqliteTable("devices", {
     .primaryKey()
     .$defaultFn(() => nanoid()),
   userId: text("user_id").notNull(),
-  deviceToken: text("device_token").notNull(),
+  deviceToken: text("device_token").notNull().unique(),
   platform: text("platform").notNull(),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
 });

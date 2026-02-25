@@ -48,6 +48,7 @@ struct SidebarNavigationView: View {
                     .listItemTint(selectedItem == item ? .accentColor : .primary)
                 }
             }
+            .frame(minWidth: 200)
             .navigationTitle("Linda")
             .listStyle(.sidebar)
         } detail: {

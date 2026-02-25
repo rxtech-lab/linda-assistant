@@ -76,11 +76,14 @@ async function handleTask(task: AgentTask): Promise<void> {
 
   // Send push notification if the agent generated a text response
   if (responseText.trim()) {
+    console.log(`[Worker] Sending push for session=${sessionId} responseText=${responseText.length} chars`);
     try {
       await notifySessionResponse(sessionId, userId, responseText);
     } catch (pushError) {
       console.error(`[Worker] Push notification failed for session ${sessionId}:`, pushError);
     }
+  } else {
+    console.log(`[Worker] No text response for session=${sessionId}, skipping push notification`);
   }
 
   console.log(`[Worker] Task complete: session=${sessionId}`);

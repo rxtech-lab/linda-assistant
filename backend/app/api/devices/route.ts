@@ -20,10 +20,14 @@ export async function POST(request: NextRequest) {
   const parsed = insertDeviceSchema.safeParse(body);
   if (!parsed.success) return errorJson(parsed.error.message, 422);
 
-  const [created] = await db
+  const [upserted] = await db
     .insert(devices)
     .values({ ...parsed.data, userId: auth.userId })
+    .onConflictDoUpdate({
+      target: devices.deviceToken,
+      set: { userId: auth.userId, platform: parsed.data.platform },
+    })
     .returning();
 
-  return successJson(created, 201);
+  return successJson(upserted, 201);
 }

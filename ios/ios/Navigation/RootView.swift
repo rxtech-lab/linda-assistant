@@ -51,6 +51,7 @@ private struct OnboardingGate: View {
     let onReady: () -> Void
     @Environment(AuthManager.self) private var authManager
     @Environment(EventManager.self) private var eventManager
+    @Environment(PushNotificationManager.self) private var pushManager
     @State private var isOnboarded: Bool?
     @State private var isLoading = true
 
@@ -73,6 +74,8 @@ private struct OnboardingGate: View {
             .task {
                 await checkOnboardStatus()
                 onReady()
+                pushManager.requestPermission()
+                await pushManager.registerWithBackend(apiClient: apiClient)
             }
     }
 

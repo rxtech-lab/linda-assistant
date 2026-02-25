@@ -393,10 +393,17 @@ public struct RegisterDevice: Codable, Sendable {
     public let deviceToken: String
     public let platform: String
 
-    public init(deviceToken: String, platform: String = "ios") {
-        self.deviceToken = deviceToken
-        self.platform = platform
-    }
+    #if os(macOS)
+        public init(deviceToken: String, platform: String = "macos") {
+            self.deviceToken = deviceToken
+            self.platform = platform
+        }
+    #else
+        public init(deviceToken: String, platform: String = "ios") {
+            self.deviceToken = deviceToken
+            self.platform = platform
+        }
+    #endif
 }
 
 // MARK: - Tool
