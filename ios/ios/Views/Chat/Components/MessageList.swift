@@ -29,6 +29,22 @@ struct MessageList: View {
         return !calendar.isDate(currentTimestamp, inSameDayAs: previousTimestamp)
     }
 
+    /// Compute the sequential item index for a given message index and sub-item offset.
+    /// Each message contributes: 1 for content (if non-empty) + toolCalls.count items.
+    private func itemIndex(forMessage msgIndex: Int, offset: Int = 0) -> Int {
+        var count = 0
+        for i in 0 ..< msgIndex {
+            if !messages[i].content.isEmpty { count += 1 }
+            count += messages[i].toolCalls.count
+        }
+        return count + offset
+    }
+
+    /// The total number of items from historical messages.
+    private var historicalItemCount: Int {
+        itemIndex(forMessage: messages.count)
+    }
+
     var body: some View {
         // Historical messages
         ForEach(Array(messages.enumerated()), id: \.element.id) { index, msg in
@@ -50,9 +66,11 @@ struct MessageList: View {
 
                 if !msg.content.isEmpty {
                     MessageBubble(message: msg, disableAnimation: !animationEnabled)
+                        .accessibilityIdentifier("messageListItem-\(itemIndex(forMessage: index))")
                 }
 
-                ForEach(msg.toolCalls) { toolCall in
+                ForEach(Array(msg.toolCalls.enumerated()), id: \.element.id) { tcIndex, toolCall in
+                    let offset = msg.content.isEmpty ? tcIndex : tcIndex + 1
                     ToolCallBadge(toolCall: toolCall) {
                         if toolCall.status == .pendingConfirmation {
                             onConfirmationTap?()
@@ -60,6 +78,7 @@ struct MessageList: View {
                             onToolCallTap?(toolCall)
                         }
                     }
+                    .accessibilityIdentifier("messageListItem-\(itemIndex(forMessage: index, offset: offset))")
                 }
             }
             .transition(.opacity)
@@ -90,10 +109,12 @@ struct MessageList: View {
                 assigneeName: assigneeName
             ))
             .id("streaming")
+            .accessibilityIdentifier("messageListItem-\(historicalItemCount)")
         }
 
         // Streaming tool calls
-        ForEach(streamingToolCalls) { toolCall in
+        ForEach(Array(streamingToolCalls.enumerated()), id: \.element.id) { tcIndex, toolCall in
+            let streamTextOffset = (streamingText != nil && !streamingText!.isEmpty) ? 1 : 0
             ToolCallBadge(toolCall: toolCall) {
                 if toolCall.status == .pendingConfirmation {
                     onConfirmationTap?()
@@ -101,6 +122,7 @@ struct MessageList: View {
                     onToolCallTap?(toolCall)
                 }
             }
+            .accessibilityIdentifier("messageListItem-\(historicalItemCount + streamTextOffset + tcIndex)")
         }
 
         // Stream complete divider

@@ -16,6 +16,11 @@ public final class ChatStreamHandler: @unchecked Sendable {
     public private(set) var toolCalls: [ToolCallInfo] = []
     public private(set) var error: String?
 
+    // Text buffering: accumulate deltas and flush periodically to reduce @Observable mutations
+    @ObservationIgnored private var _textBuffer = ""
+    @ObservationIgnored private var _flushTask: Task<Void, Never>?
+    @ObservationIgnored private let flushInterval: Duration = .milliseconds(100)
+
     public var onAssistantMessage: (@MainActor (String, [ToolCallInfo]) -> Void)?
     public var onReconnected: (@MainActor () async -> Void)?
     public var onConfirmationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
@@ -42,6 +47,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
     public func sendChatMessage(assigneeId: String, content: String) async {
         logger.info("sendChatMessage: assigneeId=\(assigneeId), isConnected=\(self.isConnected)")
         await MainActor.run {
+            self._flushTask?.cancel()
+            self._flushTask = nil
+            self._textBuffer = ""
             self.streamedText = ""
             self.pendingConfirmations = []
             self.toolCalls = []
@@ -121,6 +129,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
         logger.info("sendMessage: sessionId=\(sessionId), isConnected=\(self.isConnected)")
         // Reset per-run state on MainActor so @Observable triggers SwiftUI updates
         await MainActor.run {
+            self._flushTask?.cancel()
+            self._flushTask = nil
+            self._textBuffer = ""
             self.streamedText = ""
             self.pendingConfirmations = []
             self.toolCalls = []
@@ -225,8 +236,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
             case let .textDelta(payload):
                 isCompacting = false
                 if !isStreaming { isStreaming = true }
-                streamedText += payload.text
-                logger.debug("textDelta: accumulated length=\(self.streamedText.count), isStreaming=\(self.isStreaming)")
+                _textBuffer += payload.text
+                scheduleFlush()
+                logger.debug("textDelta: buffer length=\(self._textBuffer.count), isStreaming=\(self.isStreaming)")
 
             case let .toolCall(payload):
                 logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
@@ -296,7 +308,30 @@ public final class ChatStreamHandler: @unchecked Sendable {
     }
 
     @MainActor
+    private func scheduleFlush() {
+        guard _flushTask == nil else { return }
+        _flushTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: self?.flushInterval ?? .milliseconds(100))
+            guard let self, !Task.isCancelled else { return }
+            self.flushBuffer()
+        }
+    }
+
+    @MainActor
+    private func flushBuffer() {
+        _flushTask = nil
+        if !_textBuffer.isEmpty {
+            streamedText += _textBuffer
+            _textBuffer = ""
+        }
+    }
+
+    @MainActor
     private func finalizeResponse() {
+        // Flush any remaining buffered text immediately
+        _flushTask?.cancel()
+        flushBuffer()
+
         logger
             .info(
                 "finalizeResponse: streamedText.count=\(self.streamedText.count), toolCalls.count=\(self.toolCalls.count), hasCallback=\(self.onAssistantMessage != nil)"

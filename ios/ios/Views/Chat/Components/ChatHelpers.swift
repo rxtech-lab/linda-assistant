@@ -12,6 +12,17 @@ func appendAssistantMessages(
     to messages: inout [DisplayMessage],
     assigneeName: String?
 ) {
+    // Text first, then tool calls — matches the rendering order in MessageList
+    // (historical messages render content above tool call badges)
+    if !text.isEmpty {
+        let textMsg = DisplayMessage(
+            id: "assistant-\(messages.count)",
+            role: .assistant,
+            content: text,
+            assigneeName: assigneeName
+        )
+        messages.append(textMsg)
+    }
     if !toolCalls.isEmpty {
         let toolMsg = DisplayMessage(
             id: "assistant-tools-\(messages.count)",
@@ -21,15 +32,6 @@ func appendAssistantMessages(
             assigneeName: assigneeName
         )
         messages.append(toolMsg)
-    }
-    if !text.isEmpty {
-        let textMsg = DisplayMessage(
-            id: "assistant-\(messages.count)",
-            role: .assistant,
-            content: text,
-            assigneeName: assigneeName
-        )
-        messages.append(textMsg)
     }
 }
 
