@@ -10,12 +10,15 @@ public final class ChatStreamHandler: @unchecked Sendable {
     public private(set) var isReconnecting = false
     public private(set) var isCompacting = false
     public private(set) var streamedText = ""
-    public private(set) var pendingConfirmation: ConfirmationPayload?
+    public private(set) var pendingConfirmations: [ConfirmationPayload] = []
+    /// The first unresolved confirmation in the queue (what the UI should show).
+    public var pendingConfirmation: ConfirmationPayload? { pendingConfirmations.first }
     public private(set) var toolCalls: [ToolCallInfo] = []
     public private(set) var error: String?
 
     public var onAssistantMessage: (@MainActor (String, [ToolCallInfo]) -> Void)?
     public var onReconnected: (@MainActor () async -> Void)?
+    public var onConfirmationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
 
     private let apiClient: APIClient
     private let sseClient: SSEClient
@@ -40,7 +43,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
         logger.info("sendChatMessage: assigneeId=\(assigneeId), isConnected=\(self.isConnected)")
         await MainActor.run {
             self.streamedText = ""
-            self.pendingConfirmation = nil
+            self.pendingConfirmations = []
             self.toolCalls = []
             self.error = nil
             self.isStreaming = true
@@ -119,7 +122,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
         // Reset per-run state on MainActor so @Observable triggers SwiftUI updates
         await MainActor.run {
             self.streamedText = ""
-            self.pendingConfirmation = nil
+            self.pendingConfirmations = []
             self.toolCalls = []
             self.error = nil
             self.isStreaming = true
@@ -142,7 +145,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
         do {
             let body = ResolveConfirmation(action: action, alwaysAllow: alwaysAllow ? true : nil)
             let response = try await apiClient.resolveConfirmation(id: confirmationId, body)
-            pendingConfirmation = nil
+            await MainActor.run {
+                pendingConfirmations.removeAll { $0.confirmationId == confirmationId }
+            }
             eventManager.emit(.confirmationResolved(response.confirmationId, response.action))
         } catch {
             self.error = error.localizedDescription
@@ -151,7 +156,14 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
     @MainActor
     public func setPendingConfirmation(_ payload: ConfirmationPayload) {
-        pendingConfirmation = payload
+        if !pendingConfirmations.contains(where: { $0.confirmationId == payload.confirmationId }) {
+            pendingConfirmations.append(payload)
+        }
+    }
+
+    @MainActor
+    public func setPendingConfirmations(_ payloads: [ConfirmationPayload]) {
+        pendingConfirmations = payloads
     }
 
     @MainActor
@@ -240,7 +252,22 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
             case let .confirmationRequired(payload):
                 logger.info("confirmationRequired: \(payload.toolName) id=\(payload.confirmationId)")
-                pendingConfirmation = payload
+                // Update the corresponding tool call status so streaming badges show "Needs Confirmation"
+                if let index = toolCalls.firstIndex(where: { $0.toolCallId == payload.toolCallId }) {
+                    toolCalls[index].status = .pendingConfirmation
+                }
+                // Avoid duplicates from SSE replay
+                if !pendingConfirmations.contains(where: { $0.confirmationId == payload.confirmationId }) {
+                    pendingConfirmations.append(payload)
+                }
+
+            case let .confirmationResolved(payload):
+                logger
+                    .info(
+                        "confirmationResolved: \(payload.toolName) id=\(payload.confirmationId) action=\(payload.action)"
+                    )
+                pendingConfirmations.removeAll { $0.confirmationId == payload.confirmationId }
+                onConfirmationResolved?(payload.toolCallId, payload.action)
 
             case let .compacting(payload):
                 logger.info("compacting: messageCount=\(payload.messageCount ?? 0)")
@@ -283,7 +310,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
         }
         streamedText = ""
         toolCalls = []
-        // Don't clear pendingConfirmation — it must persist until resolved
+        // Don't clear pendingConfirmations — they must persist until resolved
         isCompacting = false
         isStreaming = false
     }

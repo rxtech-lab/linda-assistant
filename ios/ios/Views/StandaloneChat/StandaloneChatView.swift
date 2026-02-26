@@ -24,7 +24,6 @@ struct ChatTabView: View {
                     assigneeName: viewModel.selectedAssignee?.name,
                     isLoading: viewModel.isLoading,
                     streamHandler: viewModel.streamHandler,
-                    showingConfirmation: $viewModel.showingConfirmation,
                     displayError: viewModel.displayError,
                     onClearError: { viewModel.clearError() },
                     onSend: { text in
@@ -130,6 +129,13 @@ struct ChatTabView: View {
         }
         .task {
             await viewModel.subscribeToEvents(eventManager: eventManager)
+        }
+        .onAppear {
+            if viewModel.streamHandler != nil, viewModel.streamHandler?.isConnected == false {
+                Task {
+                    await viewModel.reconnectIfNeeded(apiClient: apiClient)
+                }
+            }
         }
         .onDisappear {
             viewModel.disconnect()

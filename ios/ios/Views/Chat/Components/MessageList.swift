@@ -95,7 +95,9 @@ struct MessageList: View {
         // Streaming tool calls
         ForEach(streamingToolCalls) { toolCall in
             ToolCallBadge(toolCall: toolCall) {
-                if toolCall.status != .running {
+                if toolCall.status == .pendingConfirmation {
+                    onConfirmationTap?()
+                } else if toolCall.status != .running {
                     onToolCallTap?(toolCall)
                 }
             }

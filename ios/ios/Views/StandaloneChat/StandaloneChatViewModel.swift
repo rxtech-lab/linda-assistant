@@ -15,7 +15,6 @@ final class ChatTabViewModel {
     var hasMoreMessages = false
     var error: String?
     var streamHandler: ChatStreamHandler?
-    var showingConfirmation = false
     var showingAssigneeSheet = false
     var hasSession = false
 
@@ -99,10 +98,9 @@ final class ChatTabViewModel {
             displayMessages = DisplayMessage.convert(from: response.messages, assigneeName: selectedAssignee?.name)
             // Extract pending confirmation from message data (no separate API call)
             await MainActor.run {
-                extractPendingConfirmation(
+                extractPendingConfirmations(
                     from: response.messages,
-                    streamHandler: streamHandler,
-                    showingConfirmation: &showingConfirmation
+                    streamHandler: streamHandler
                 )
             }
         } catch is CancellationError {
@@ -167,6 +165,10 @@ final class ChatTabViewModel {
                 to: &displayMessages,
                 assigneeName: selectedAssignee?.name
             )
+        }
+        handler.onConfirmationResolved = { [weak self] toolCallId, action in
+            guard let self else { return }
+            updateToolCallStatus(toolCallId: toolCallId, action: action, in: &displayMessages)
         }
         streamHandler = handler
     }
@@ -285,6 +287,17 @@ final class ChatTabViewModel {
                     break
             }
         }
+    }
+
+    // MARK: - Reconnection
+
+    func reconnectIfNeeded(apiClient: APIClient) async {
+        guard let streamHandler, !streamHandler.isConnected, hasSession,
+              let assignee = selectedAssignee
+        else { return }
+        logger.info("reconnectIfNeeded: reloading messages and reconnecting SSE")
+        await loadMessages(assigneeId: assignee.id, apiClient: apiClient)
+        await streamHandler.connectByAssignee(assigneeId: assignee.id)
     }
 
     // MARK: - Cleanup

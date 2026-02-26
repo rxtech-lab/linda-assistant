@@ -172,6 +172,7 @@ final class ConfirmationSheetTests: XCTestCase {
         )
         let sut = ConfirmationSheetView(
             confirmation: payload,
+            remainingCount: 0,
             onResolve: { _, _ in }
         )
 
@@ -191,6 +192,7 @@ final class ConfirmationSheetTests: XCTestCase {
         )
         let sut = ConfirmationSheetView(
             confirmation: payload,
+            remainingCount: 0,
             onResolve: { _, _ in }
         )
 
@@ -605,5 +607,69 @@ final class MessageListDateDividerTests: XCTestCase {
         }
 
         XCTAssertEqual(dividers.count, 0, "Messages without timestamps should not have date dividers")
+    }
+}
+
+// MARK: - Test Case 15: ConfirmationPayload Identifiable conformance
+
+final class ConfirmationPayloadIdentifiableTests: XCTestCase {
+    func testId_returnsConfirmationId() {
+        let payload = ConfirmationPayload(
+            confirmationId: "abc-123",
+            toolCallId: "tc-1",
+            toolName: "send_email",
+            parameters: nil
+        )
+        XCTAssertEqual(payload.id, "abc-123")
+    }
+
+    func testDifferentPayloads_haveDifferentIds() {
+        let a = ConfirmationPayload(confirmationId: "a", toolCallId: "tc-1", toolName: "send_email", parameters: nil)
+        let b = ConfirmationPayload(confirmationId: "b", toolCallId: "tc-2", toolName: "create_task", parameters: nil)
+        XCTAssertNotEqual(a.id, b.id)
+    }
+}
+
+// MARK: - Test Case 16: ConfirmationSheet remaining count indicator
+
+final class ConfirmationSheetRemainingCountTests: XCTestCase {
+    func testRemainingCount_zero_doesNotShowMorePendingText() throws {
+        let payload = ConfirmationPayload(
+            confirmationId: "conf-1",
+            toolCallId: "tc-1",
+            toolName: "send_email",
+            parameters: nil
+        )
+        let sut = ConfirmationSheetView(
+            confirmation: payload,
+            remainingCount: 0,
+            onResolve: { _, _ in }
+        )
+
+        let texts = try sut.inspect().findAll(ViewType.Text.self).compactMap { try? $0.string() }
+        XCTAssertFalse(
+            texts.contains(where: { $0.contains("more pending") }),
+            "Should not show 'more pending' when remainingCount is 0"
+        )
+    }
+
+    func testRemainingCount_positive_showsMorePendingText() throws {
+        let payload = ConfirmationPayload(
+            confirmationId: "conf-1",
+            toolCallId: "tc-1",
+            toolName: "send_email",
+            parameters: nil
+        )
+        let sut = ConfirmationSheetView(
+            confirmation: payload,
+            remainingCount: 2,
+            onResolve: { _, _ in }
+        )
+
+        let texts = try sut.inspect().findAll(ViewType.Text.self).compactMap { try? $0.string() }
+        XCTAssertTrue(
+            texts.contains("+2 more pending"),
+            "Should show '+2 more pending' when remainingCount is 2. Got: \(texts)"
+        )
     }
 }

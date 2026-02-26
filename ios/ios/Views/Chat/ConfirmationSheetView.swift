@@ -4,51 +4,73 @@ import SwiftUI
 
 struct ConfirmationSheetView: View {
     let confirmation: ConfirmationPayload
+    let remainingCount: Int
     let onResolve: (String, Bool) -> Void
 
+    @Environment(\.dismiss) private var dismiss
     @State private var alwaysAllow = false
     @State private var isLoading = false
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    headerSection
+            ZStack {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        headerSection
 
-                    if let params = confirmation.parameters, !params.isEmpty {
-                        detailsSection(params: params)
-                    } else {
-                        emptyDetailsSection
+                        if let params = confirmation.parameters, !params.isEmpty {
+                            detailsSection(params: params)
+                        } else {
+                            emptyDetailsSection
+                        }
+
+                        alwaysAllowSection
+
+                        actionSection
                     }
-
-                    alwaysAllowSection
-
-                    actionSection
+                    .padding(.top, 20)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
                 }
-                .padding(.top, 20)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
-            }
-            .background(
-                LinearGradient(
-                    colors: [
-                        Color.orange.opacity(0.12),
-                        Color.clear,
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
+                .background(
+                    LinearGradient(
+                        colors: [
+                            Color.orange.opacity(0.12),
+                            Color.clear,
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .ignoresSafeArea()
                 )
-                .ignoresSafeArea()
-            )
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+#if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+#endif
+                VStack {
+                    HStack {
+                        Spacer()
+
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .symbolRenderingMode(.hierarchical)
+                                .padding(5)
+                        }
+                        .buttonBorderShape(.circle)
+                        .buttonStyle(.glass)
+                        .disabled(isLoading)
+                    }
+                    Spacer()
+                }
+                .padding()
+            }
         }
         .presentationDetents([.height(200), .large])
     }
 }
 
-#Preview {
+#Preview("Single Confirmation") {
     ConfirmationSheetView(
         confirmation: ConfirmationPayload(
             confirmationId: "preview-confirmation",
@@ -62,6 +84,23 @@ struct ConfirmationSheetView: View {
                 "notify": .bool(true),
             ]
         ),
+        remainingCount: 0,
+        onResolve: { _, _ in }
+    )
+}
+
+#Preview("Queue - 3 pending") {
+    ConfirmationSheetView(
+        confirmation: ConfirmationPayload(
+            confirmationId: "conf-1",
+            toolCallId: "tc-1",
+            toolName: "send_email",
+            parameters: [
+                "to": .string("alice@example.com"),
+                "subject": .string("Weekly Report"),
+            ]
+        ),
+        remainingCount: 2,
         onResolve: { _, _ in }
     )
 }
@@ -87,6 +126,11 @@ private extension ConfirmationSheetView {
                 Text(confirmation.toolName.replacingOccurrences(of: "_", with: " ").capitalized)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
+                if remainingCount > 0 {
+                    Text("+\(remainingCount) more pending")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -166,6 +210,28 @@ private extension ConfirmationSheetView {
         .disabled(isLoading)
     }
 
+    var biometryLabel: (String, String) {
+        let context = LAContext()
+        var error: NSError?
+
+        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+            switch context.biometryType {
+            case .faceID:
+                return ("Confirm with Face ID", "faceid")
+            case .touchID:
+                return ("Confirm with Touch ID", "touchid")
+            case .opticID:
+                return ("Confirm with Optic ID", "opticid")
+            case .none:
+                return ("Confirm with Passcode", "lock")
+            @unknown default:
+                return ("Confirm", "checkmark.shield")
+            }
+        } else {
+            return ("Confirm with Passcode", "lock")
+        }
+    }
+
     var actionSection: some View {
         VStack(spacing: 12) {
             Button {
@@ -176,7 +242,7 @@ private extension ConfirmationSheetView {
                         ProgressView()
                             .tint(.white)
                     }
-                    Label("Confirm with Face ID", systemImage: "faceid")
+                    Label(biometryLabel.0, systemImage: biometryLabel.1)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -243,20 +309,17 @@ private extension ConfirmationSheetView {
     }
 }
 
-#Preview {
+#Preview("Queue - last in queue") {
     ConfirmationSheetView(
         confirmation: ConfirmationPayload(
-            confirmationId: "preview-confirmation",
-            toolCallId: "preview-tool-call",
-            toolName: "create_task",
+            confirmationId: "conf-3",
+            toolCallId: "tc-3",
+            toolName: "firecrawl_firecrawl_search",
             parameters: [
-                "title": .string("Prepare weekly report"),
-                "priority": .string("high"),
-                "dueDate": .string("2026-02-14"),
-                "estimateHours": .double(3.5),
-                "notify": .bool(true),
+                "query": .string("Circle Internet Group earnings 2026"),
             ]
         ),
+        remainingCount: 0,
         onResolve: { _, _ in }
     )
 }

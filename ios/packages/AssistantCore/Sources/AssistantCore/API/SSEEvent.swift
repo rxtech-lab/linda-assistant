@@ -8,6 +8,7 @@ public enum SSEEventType: String, Sendable {
     case toolCall = "tool-call"
     case toolResult = "tool-result"
     case confirmationRequired = "confirmation_required"
+    case confirmationResolved = "confirmation_resolved"
     case compacting
     case error
     case done
@@ -60,6 +61,10 @@ public struct SSEEvent: Sendable {
                 if let payload = try? decoder.decode(ConfirmationPayload.self, from: jsonData) {
                     return .confirmationRequired(payload)
                 }
+            case .confirmationResolved:
+                if let payload = try? decoder.decode(ConfirmationResolvedPayload.self, from: jsonData) {
+                    return .confirmationResolved(payload)
+                }
             case .compacting:
                 if let payload = try? decoder.decode(CompactingPayload.self, from: jsonData) {
                     logger.info("parse: compacting messageCount=\(payload.messageCount ?? 0)")
@@ -90,6 +95,7 @@ public enum SSEMessage: Sendable {
     case toolCall(ToolCallPayload)
     case toolResult(ToolResultPayload)
     case confirmationRequired(ConfirmationPayload)
+    case confirmationResolved(ConfirmationResolvedPayload)
     case compacting(CompactingPayload)
     case error(SSEErrorPayload)
     case done
@@ -117,7 +123,8 @@ public struct ToolResultPayload: Codable, Sendable {
     public let error: String?
 }
 
-public struct ConfirmationPayload: Codable, Sendable {
+public struct ConfirmationPayload: Codable, Sendable, Identifiable {
+    public var id: String { confirmationId }
     public let confirmationId: String
     public let toolCallId: String
     public let toolName: String
@@ -129,6 +136,13 @@ public struct ConfirmationPayload: Codable, Sendable {
         self.toolName = toolName
         self.parameters = parameters
     }
+}
+
+public struct ConfirmationResolvedPayload: Codable, Sendable {
+    public let confirmationId: String
+    public let toolCallId: String
+    public let toolName: String
+    public let action: String
 }
 
 public struct CompactingPayload: Codable, Sendable {
