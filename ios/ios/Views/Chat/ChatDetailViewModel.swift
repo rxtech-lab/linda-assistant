@@ -33,10 +33,10 @@ final class ChatDetailViewModel {
             sseClient: SSEClient(authManager: authManager),
             eventManager: eventManager
         )
-        handler.onAssistantMessage = { [weak self] text, toolCalls in
+        handler.onAssistantMessage = { [weak self] text, toolCalls, order in
             guard let self else { return }
-            logger.info("onAssistantMessage received, textLength=\(text.count), toolCalls=\(toolCalls.count)")
-            appendAssistantMessages(text: text, toolCalls: toolCalls, to: &displayMessages, assigneeName: assigneeName)
+            logger.info("onAssistantMessage received, textLength=\(text.count), toolCalls=\(toolCalls.count), order=\(order)")
+            appendAssistantMessages(text: text, toolCalls: toolCalls, to: &displayMessages, assigneeName: assigneeName, order: order)
         }
         handler.onReconnected = { [weak self] in
             guard let self else { return }

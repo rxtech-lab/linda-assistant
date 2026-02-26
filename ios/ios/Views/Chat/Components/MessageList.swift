@@ -6,6 +6,7 @@ struct MessageList: View {
     var assigneeName: String?
     var streamingText: String?
     var streamingToolCalls: [ToolCallInfo] = []
+    var streamOrder: [StreamItemKind] = []
     var showPendingIndicator = false
     var showStreamComplete = false
     var onConfirmationTap: (() -> Void)?
@@ -30,12 +31,12 @@ struct MessageList: View {
     }
 
     /// Compute the sequential item index for a given message index and sub-item offset.
-    /// Each message contributes: 1 for content (if non-empty) + toolCalls.count items.
+    /// Each message contributes: toolCalls.count + 1 for content (if non-empty).
     private func itemIndex(forMessage msgIndex: Int, offset: Int = 0) -> Int {
         var count = 0
         for i in 0 ..< msgIndex {
-            if !messages[i].content.isEmpty { count += 1 }
             count += messages[i].toolCalls.count
+            if !messages[i].content.isEmpty { count += 1 }
         }
         return count + offset
     }
@@ -64,13 +65,7 @@ struct MessageList: View {
                     }
                 }
 
-                if !msg.content.isEmpty {
-                    MessageBubble(message: msg, disableAnimation: !animationEnabled)
-                        .accessibilityIdentifier("messageListItem-\(itemIndex(forMessage: index))")
-                }
-
                 ForEach(Array(msg.toolCalls.enumerated()), id: \.element.id) { tcIndex, toolCall in
-                    let offset = msg.content.isEmpty ? tcIndex : tcIndex + 1
                     ToolCallBadge(toolCall: toolCall) {
                         if toolCall.status == .pendingConfirmation {
                             onConfirmationTap?()
@@ -78,7 +73,13 @@ struct MessageList: View {
                             onToolCallTap?(toolCall)
                         }
                     }
-                    .accessibilityIdentifier("messageListItem-\(itemIndex(forMessage: index, offset: offset))")
+                    .accessibilityIdentifier("messageListItem-\(itemIndex(forMessage: index, offset: tcIndex))")
+                }
+
+                if !msg.content.isEmpty {
+                    let textOffset = msg.toolCalls.count
+                    MessageBubble(message: msg, disableAnimation: !animationEnabled)
+                        .accessibilityIdentifier("messageListItem-\(itemIndex(forMessage: index, offset: textOffset))")
                 }
             }
             .transition(.opacity)
@@ -99,30 +100,33 @@ struct MessageList: View {
                 .id("pendingIndicator")
         }
 
-        // Streaming text
-        if let streamingText, !streamingText.isEmpty {
-            MessageBubble(message: DisplayMessage(
-                id: "streaming",
-                role: .assistant,
-                content: streamingText,
-                isStreaming: true,
-                assigneeName: assigneeName
-            ))
-            .id("streaming")
-            .accessibilityIdentifier("messageListItem-\(historicalItemCount)")
-        }
-
-        // Streaming tool calls
-        ForEach(Array(streamingToolCalls.enumerated()), id: \.element.id) { tcIndex, toolCall in
-            let streamTextOffset = (streamingText != nil && !streamingText!.isEmpty) ? 1 : 0
-            ToolCallBadge(toolCall: toolCall) {
-                if toolCall.status == .pendingConfirmation {
-                    onConfirmationTap?()
-                } else if toolCall.status != .running {
-                    onToolCallTap?(toolCall)
-                }
+        // Streaming items — rendered in arrival order
+        ForEach(Array(streamOrder.enumerated()), id: \.offset) { itemIndex, item in
+            switch item {
+                case .text:
+                    if let streamingText, !streamingText.isEmpty {
+                        MessageBubble(message: DisplayMessage(
+                            id: "streaming",
+                            role: .assistant,
+                            content: streamingText,
+                            isStreaming: true,
+                            assigneeName: assigneeName
+                        ))
+                        .id("streaming")
+                        .accessibilityIdentifier("messageListItem-\(historicalItemCount + itemIndex)")
+                    }
+                case let .toolCall(toolCallId):
+                    if let toolCall = streamingToolCalls.first(where: { $0.toolCallId == toolCallId }) {
+                        ToolCallBadge(toolCall: toolCall) {
+                            if toolCall.status == .pendingConfirmation {
+                                onConfirmationTap?()
+                            } else if toolCall.status != .running {
+                                onToolCallTap?(toolCall)
+                            }
+                        }
+                        .accessibilityIdentifier("messageListItem-\(historicalItemCount + itemIndex)")
+                    }
             }
-            .accessibilityIdentifier("messageListItem-\(historicalItemCount + streamTextOffset + tcIndex)")
         }
 
         // Stream complete divider

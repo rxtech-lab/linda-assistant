@@ -16,12 +16,18 @@ public final class ChatStreamHandler: @unchecked Sendable {
     public private(set) var toolCalls: [ToolCallInfo] = []
     public private(set) var error: String?
 
-    // Text buffering: accumulate deltas and flush periodically to reduce @Observable mutations
-    @ObservationIgnored private var _textBuffer = ""
-    @ObservationIgnored private var _flushTask: Task<Void, Never>?
-    @ObservationIgnored private let flushInterval: Duration = .milliseconds(100)
+    /// Tracks the arrival order of stream items. `.text` appears once (for the accumulated text blob),
+    /// `.toolCall(id)` appears per tool call. The UI renders streaming items in this order.
+    public private(set) var streamOrder: [StreamItemKind] = []
 
-    public var onAssistantMessage: (@MainActor (String, [ToolCallInfo]) -> Void)?
+    // Text buffering: accumulate chunks and flush when 12 chunks filled or 1s idle
+    @ObservationIgnored private var _textBuffer = ""
+    @ObservationIgnored private var _chunkCount = 0
+    @ObservationIgnored private var _flushTask: Task<Void, Never>?
+    @ObservationIgnored private let maxChunks = 12
+    @ObservationIgnored private let idleFlushDelay: Duration = .seconds(1)
+
+    public var onAssistantMessage: (@MainActor (_ text: String, _ toolCalls: [ToolCallInfo], _ order: [StreamItemKind]) -> Void)?
     public var onReconnected: (@MainActor () async -> Void)?
     public var onConfirmationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
 
@@ -50,7 +56,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
             self._flushTask?.cancel()
             self._flushTask = nil
             self._textBuffer = ""
+            self._chunkCount = 0
             self.streamedText = ""
+            self.streamOrder = []
             self.pendingConfirmations = []
             self.toolCalls = []
             self.error = nil
@@ -132,7 +140,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
             self._flushTask?.cancel()
             self._flushTask = nil
             self._textBuffer = ""
+            self._chunkCount = 0
             self.streamedText = ""
+            self.streamOrder = []
             self.pendingConfirmations = []
             self.toolCalls = []
             self.error = nil
@@ -236,12 +246,21 @@ public final class ChatStreamHandler: @unchecked Sendable {
             case let .textDelta(payload):
                 isCompacting = false
                 if !isStreaming { isStreaming = true }
+                if !streamOrder.contains(.text) {
+                    streamOrder.append(.text)
+                }
                 _textBuffer += payload.text
-                scheduleFlush()
-                logger.debug("textDelta: buffer length=\(self._textBuffer.count), isStreaming=\(self.isStreaming)")
+                _chunkCount += 1
+                if _chunkCount >= maxChunks {
+                    flushBuffer()
+                } else {
+                    scheduleFlush()
+                }
+                logger.debug("textDelta: chunks=\(self._chunkCount), buffer=\(self._textBuffer.count), isStreaming=\(self.isStreaming)")
 
             case let .toolCall(payload):
                 logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
+                streamOrder.append(.toolCall(payload.toolCallId))
                 let info = ToolCallInfo(
                     toolCallId: payload.toolCallId,
                     toolName: payload.toolName,
@@ -309,9 +328,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
     @MainActor
     private func scheduleFlush() {
-        guard _flushTask == nil else { return }
+        // Cancel previous idle timer and restart — flush after 1s of silence
+        _flushTask?.cancel()
         _flushTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: self?.flushInterval ?? .milliseconds(100))
+            try? await Task.sleep(for: self?.idleFlushDelay ?? .seconds(1))
             guard let self, !Task.isCancelled else { return }
             self.flushBuffer()
         }
@@ -319,11 +339,13 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
     @MainActor
     private func flushBuffer() {
+        _flushTask?.cancel()
         _flushTask = nil
         if !_textBuffer.isEmpty {
             streamedText += _textBuffer
             _textBuffer = ""
         }
+        _chunkCount = 0
     }
 
     @MainActor
@@ -341,14 +363,22 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 .info(
                     "finalizeResponse: calling onAssistantMessage with text=\(self.streamedText.prefix(100)), toolCalls=\(self.toolCalls.count)"
                 )
-            onAssistantMessage?(streamedText, toolCalls)
+            onAssistantMessage?(streamedText, toolCalls, streamOrder)
         }
         streamedText = ""
         toolCalls = []
+        streamOrder = []
         // Don't clear pendingConfirmations — they must persist until resolved
         isCompacting = false
         isStreaming = false
     }
+}
+
+// MARK: - Stream Item Kind
+
+public enum StreamItemKind: Equatable, Sendable {
+    case text
+    case toolCall(String) // toolCallId
 }
 
 // MARK: - Tool Call Info

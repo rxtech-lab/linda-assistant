@@ -43,6 +43,8 @@ struct MessageBubble: View {
                         .markdownTheme(.chat)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentTransition(.opacity)
+                        .animation(.easeIn(duration: 0.3), value: message.content)
                 }
             }
             .contextMenu {

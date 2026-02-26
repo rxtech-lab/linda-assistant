@@ -19,7 +19,6 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var selectedToolCall: ToolCallInfo?
     @State private var errorDismissTask: Task<Void, Never>?
     @State private var presentedConfirmation: ConfirmationPayload?
-    @State private var contentReady = false
     @State private var scrollDebounceTask: Task<Void, Never>?
 
     private var pendingConfirmationCount: Int {
@@ -66,6 +65,7 @@ struct StreamableChatLayout<Header: View>: View {
                                     streamingText: streamHandler?.isStreaming == true
                                         ? streamHandler?.streamedText : nil,
                                     streamingToolCalls: streamHandler?.toolCalls ?? [],
+                                    streamOrder: streamHandler?.streamOrder ?? [],
                                     showPendingIndicator: showPendingIndicator,
                                     showStreamComplete: streamHandler?.isStreaming == false
                                         && !messages.isEmpty
@@ -85,15 +85,15 @@ struct StreamableChatLayout<Header: View>: View {
                                 )
                             }
                             .padding()
-                            .opacity(contentReady ? 1 : 0)
                         }
+                        .defaultScrollAnchor(.bottom)
                         .onChange(of: messages.count) {
                             scheduleScrollToBottom(proxy: proxy)
                         }
                         .onChange(of: streamHandler?.streamedText) {
                             scheduleScrollToBottom(proxy: proxy)
                         }
-                        .onChange(of: streamHandler?.toolCalls.count) {
+                        .onChange(of: streamHandler?.streamOrder) {
                             scheduleScrollToBottom(proxy: proxy)
                         }
                         .onChange(of: streamHandler?.isStreaming) {
@@ -109,15 +109,6 @@ struct StreamableChatLayout<Header: View>: View {
                             }
                         }
                         .onAppear {
-                            // Wait for LazyVStack to finish layout, then scroll to bottom and reveal
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                    withAnimation(.easeOut(duration: 0.3)) {
-                                        contentReady = true
-                                    }
-                                }
-                            }
                             // Present confirmation sheet if already loaded (e.g. app reopen)
                             if presentedConfirmation == nil,
                                let confirmation = streamHandler?.pendingConfirmation
