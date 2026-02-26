@@ -25,14 +25,26 @@ test.describe("Devices CRUD", () => {
     deviceId = body.id;
   });
 
-  test("POST /api/devices rejects invalid platform", async ({ request }) => {
+  test("POST /api/devices rejects empty platform", async ({ request }) => {
     const res = await request.post("/api/devices", {
       data: {
         deviceToken: "token",
-        platform: "android",
+        platform: "",
       },
     });
     expect(res.status()).toBe(422);
+  });
+
+  test("POST /api/devices accepts any platform string", async ({ request }) => {
+    const res = await request.post("/api/devices", {
+      data: {
+        deviceToken: "test-apns-token-macos",
+        platform: "macos",
+      },
+    });
+    expect(res.status()).toBe(201);
+    const body = await res.json();
+    expect(body.platform).toBe("macos");
   });
 
   test("DELETE /api/devices/:id removes the device", async ({ request }) => {

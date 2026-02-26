@@ -5,8 +5,12 @@ import Foundation
 public extension APIClient {
     // MARK: - Onboard
 
-    func getOnboardStatus() async throws -> OnboardStatus {
-        try await request(path: "onboard")
+    func getOnboardStatus(deviceToken: String? = nil) async throws -> OnboardStatus {
+        var queryItems: [URLQueryItem]?
+        if let deviceToken {
+            queryItems = [URLQueryItem(name: "deviceToken", value: deviceToken)]
+        }
+        return try await request(path: "onboard", queryItems: queryItems)
     }
 
     // MARK: - Models
