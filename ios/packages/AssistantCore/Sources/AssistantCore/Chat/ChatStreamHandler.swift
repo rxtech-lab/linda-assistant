@@ -24,7 +24,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     @ObservationIgnored private var _textBuffer = ""
     @ObservationIgnored private var _chunkCount = 0
     @ObservationIgnored private var _flushTask: Task<Void, Never>?
-    @ObservationIgnored private let maxChunks = 12
+    @ObservationIgnored private let maxChunks = 4
     @ObservationIgnored private let idleFlushDelay: Duration = .seconds(1)
 
     public var onAssistantMessage: (@MainActor (_ text: String, _ toolCalls: [ToolCallInfo], _ order: [StreamItemKind]) -> Void)?
