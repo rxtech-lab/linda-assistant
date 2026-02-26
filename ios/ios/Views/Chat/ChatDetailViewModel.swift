@@ -11,7 +11,6 @@ final class ChatDetailViewModel {
     var isLoading = false
     var error: String?
     var streamHandler: ChatStreamHandler?
-    var showingConfirmation = false
     var assigneeName: String?
 
     var displayError: String? {
@@ -48,6 +47,10 @@ final class ChatDetailViewModel {
                 logger.error("onReconnected: fetch error: \(error)")
                 self.error = error.localizedDescription
             }
+        }
+        handler.onConfirmationResolved = { [weak self] toolCallId, action in
+            guard let self else { return }
+            updateToolCallStatus(toolCallId: toolCallId, action: action, in: &displayMessages)
         }
         streamHandler = handler
 
@@ -113,19 +116,16 @@ final class ChatDetailViewModel {
         assigneeName = session.assignee?.name
         displayMessages = DisplayMessage.convert(from: session.messages, assigneeName: assigneeName)
 
-        // Extract pending confirmation directly from message data (no extra API call)
+        // Extract pending confirmations from message data (no extra API call)
         logger
             .info(
                 "fetchSession: session.status=\(session.status ?? "nil"), streamHandler=\(self.streamHandler != nil ? "set" : "nil")"
             )
-        if session.status == "waiting_confirmation" {
-            await MainActor.run {
-                extractPendingConfirmation(
-                    from: session.messages,
-                    streamHandler: streamHandler,
-                    showingConfirmation: &showingConfirmation
-                )
-            }
+        await MainActor.run {
+            extractPendingConfirmations(
+                from: session.messages,
+                streamHandler: streamHandler
+            )
         }
     }
 
@@ -151,6 +151,18 @@ final class ChatDetailViewModel {
     func stopStream(sessionId: String) async {
         guard let streamHandler else { return }
         await streamHandler.stopStream(sessionId: sessionId)
+    }
+
+    func reconnectIfNeeded(sessionId: String, apiClient: APIClient) async {
+        guard let streamHandler, !streamHandler.isConnected else { return }
+        logger.info("reconnectIfNeeded: refetching session and reconnecting SSE")
+        do {
+            try await fetchSession(id: sessionId, apiClient: apiClient)
+        } catch {
+            logger.error("reconnectIfNeeded: fetch error: \(error)")
+            self.error = error.localizedDescription
+        }
+        await streamHandler.connect(sessionId: sessionId)
     }
 
     func disconnect() {

@@ -20,7 +20,6 @@ struct ChatDetailView: View {
             assigneeName: viewModel.assigneeName,
             isLoading: viewModel.isLoading,
             streamHandler: viewModel.streamHandler,
-            showingConfirmation: $viewModel.showingConfirmation,
             displayError: viewModel.displayError,
             onClearError: { viewModel.clearError() },
             onSend: { text in await viewModel.sendMessage(text, sessionId: sessionId) },
@@ -40,6 +39,16 @@ struct ChatDetailView: View {
                 authManager: authManager,
                 eventManager: eventManager
             )
+        }
+        .onAppear {
+            if viewModel.streamHandler != nil, viewModel.streamHandler?.isConnected == false {
+                Task {
+                    await viewModel.reconnectIfNeeded(
+                        sessionId: sessionId,
+                        apiClient: apiClient
+                    )
+                }
+            }
         }
         .onDisappear {
             viewModel.disconnect()

@@ -33,13 +33,29 @@ func appendAssistantMessages(
     }
 }
 
-/// Scan messages for a pending confirmation and set it on the stream handler.
+/// Update a tool call's status in display messages when a confirmation is resolved via SSE.
 @MainActor
-func extractPendingConfirmation(
-    from messages: [ChatMessage],
-    streamHandler: ChatStreamHandler?,
-    showingConfirmation: inout Bool
+func updateToolCallStatus(
+    toolCallId: String,
+    action: String,
+    in messages: inout [DisplayMessage]
 ) {
+    for i in messages.indices {
+        if let j = messages[i].toolCalls.firstIndex(where: { $0.toolCallId == toolCallId }) {
+            messages[i].toolCalls[j].status = action == "rejected" ? .rejected : .completed
+            logger.info("updateToolCallStatus: toolCallId=\(toolCallId) -> \(action)")
+            return
+        }
+    }
+}
+
+/// Scan messages for ALL pending confirmations and set them on the stream handler.
+@MainActor
+func extractPendingConfirmations(
+    from messages: [ChatMessage],
+    streamHandler: ChatStreamHandler?
+) {
+    var payloads: [ConfirmationPayload] = []
     for msg in messages {
         for tc in msg.toolCalls where tc.confirmation?.status == "pending" {
             let payload = ConfirmationPayload(
@@ -50,11 +66,12 @@ func extractPendingConfirmation(
             )
             logger
                 .info(
-                    "extractPendingConfirmation: found pending id=\(payload.confirmationId), toolName=\(payload.toolName)"
+                    "extractPendingConfirmations: found pending id=\(payload.confirmationId), toolName=\(payload.toolName)"
                 )
-            streamHandler?.setPendingConfirmation(payload)
-            showingConfirmation = true
-            return
+            payloads.append(payload)
         }
+    }
+    if !payloads.isEmpty {
+        streamHandler?.setPendingConfirmations(payloads)
     }
 }

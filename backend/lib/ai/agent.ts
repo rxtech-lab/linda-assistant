@@ -5,7 +5,7 @@ import { chatSessions, assignees, confirmations } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { buildToolSet } from "./tools";
 import { setStreamActive } from "@/lib/streaming/manager";
-import { createConfirmation } from "./confirmation";
+import { createConfirmation, sendConfirmationGroupNotification } from "./confirmation";
 import { getModelProvider } from "./model";
 import { getSessionMessages, insertMessages } from "@/lib/db/messages";
 import { refreshAccessToken } from "@/lib/auth/refresh";
@@ -640,6 +640,8 @@ export async function runAgent(options: AgentRunOptions) {
 
       if (finishReason === "tool-calls" && pendingApprovals.length > 0) {
         // SDK detected tools needing approval — create confirmations for ALL and pause
+        const createdConfirmations: Array<{ confirmationId: string; toolName: string }> = [];
+
         for (const approval of pendingApprovals) {
           const confirmation = await createConfirmation({
             userId,
@@ -651,6 +653,12 @@ export async function runAgent(options: AgentRunOptions) {
               string,
               unknown
             >,
+            skipNotification: true,
+          });
+
+          createdConfirmations.push({
+            confirmationId: confirmation.id,
+            toolName: approval.toolCall.toolName,
           });
 
           // Annotate the tool-call content part with confirmation info
@@ -668,6 +676,9 @@ export async function runAgent(options: AgentRunOptions) {
             parameters: approval.toolCall.input,
           });
         }
+
+        // Send a single grouped push notification for all confirmations
+        await sendConfirmationGroupNotification(userId, sessionId, createdConfirmations);
 
         // Persist new messages and update session status
         await insertMessages(sessionId, currentMessages.slice(persistedCount));

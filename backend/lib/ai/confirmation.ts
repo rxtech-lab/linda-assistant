@@ -21,6 +21,7 @@ interface CreateConfirmationParams {
   toolName: string;
   approvalId: string;
   parameters: Record<string, unknown>;
+  skipNotification?: boolean;
 }
 
 export async function createConfirmation(params: CreateConfirmationParams) {
@@ -29,20 +30,58 @@ export async function createConfirmation(params: CreateConfirmationParams) {
     .values(params)
     .returning();
 
-  // Send push notification
-  await sendPushNotification(params.userId, {
-    title: "Action Requires Confirmation",
-    body: `Linda wants to ${formatToolName(params.toolName)}. Please review.`,
-    data: {
-      type: "confirmation",
-      confirmationId: confirmation.id,
-      chatSessionId: params.chatSessionId,
-    },
-  }).catch((err) => {
-    console.error("Failed to send push notification:", err);
-  });
+  if (!params.skipNotification) {
+    // Send push notification (single confirmation path)
+    await sendPushNotification(params.userId, {
+      title: "Action Requires Confirmation",
+      body: `Linda wants to ${formatToolName(params.toolName)}. Please review.`,
+      data: {
+        type: "confirmation",
+        confirmationId: confirmation.id,
+        chatSessionId: params.chatSessionId,
+      },
+    }).catch((err) => {
+      console.error("Failed to send push notification:", err);
+    });
+  }
 
   return confirmation;
+}
+
+export async function sendConfirmationGroupNotification(
+  userId: string,
+  chatSessionId: string,
+  items: Array<{ confirmationId: string; toolName: string }>,
+) {
+  if (items.length === 0) return;
+
+  const isSingle = items.length === 1;
+  const title = isSingle
+    ? "Action Requires Confirmation"
+    : "Actions Require Confirmation";
+
+  const toolNames = items.map((i) => formatToolName(i.toolName));
+  let body: string;
+  if (toolNames.length === 1) {
+    body = `Linda wants to ${toolNames[0]}. Please review.`;
+  } else if (toolNames.length === 2) {
+    body = `Linda wants to ${toolNames[0]} and ${toolNames[1]}. Please review.`;
+  } else {
+    const last = toolNames.pop()!;
+    body = `Linda wants to ${toolNames.join(", ")}, and ${last}. Please review.`;
+  }
+
+  await sendPushNotification(userId, {
+    title,
+    body,
+    data: {
+      type: "confirmation",
+      chatSessionId,
+      ...(isSingle ? { confirmationId: items[0].confirmationId } : {}),
+    },
+  }).catch((err) => {
+    console.error("Failed to send grouped push notification:", err);
+  });
 }
 
 export async function resolveConfirmation(
