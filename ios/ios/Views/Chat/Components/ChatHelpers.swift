@@ -10,26 +10,55 @@ func appendAssistantMessages(
     text: String,
     toolCalls: [ToolCallInfo],
     to messages: inout [DisplayMessage],
-    assigneeName: String?
+    assigneeName: String?,
+    order: [StreamItemKind] = []
 ) {
-    if !toolCalls.isEmpty {
-        let toolMsg = DisplayMessage(
+    // Follow the recorded arrival order from the stream
+    var textAppended = false
+    var toolCallsAppended = false
+
+    for item in order {
+        switch item {
+            case .text where !textAppended && !text.isEmpty:
+                messages.append(DisplayMessage(
+                    id: "assistant-\(messages.count)",
+                    role: .assistant,
+                    content: text,
+                    assigneeName: assigneeName
+                ))
+                textAppended = true
+            case let .toolCall(id) where !toolCallsAppended:
+                // Append all tool calls as one message on the first toolCall entry
+                messages.append(DisplayMessage(
+                    id: "assistant-tools-\(messages.count)",
+                    role: .assistant,
+                    content: "",
+                    toolCalls: toolCalls,
+                    assigneeName: assigneeName
+                ))
+                toolCallsAppended = true
+            default:
+                break
+        }
+    }
+
+    // Fallback: if order is empty (e.g. historical messages), append whatever exists
+    if !textAppended && !text.isEmpty {
+        messages.append(DisplayMessage(
+            id: "assistant-\(messages.count)",
+            role: .assistant,
+            content: text,
+            assigneeName: assigneeName
+        ))
+    }
+    if !toolCallsAppended && !toolCalls.isEmpty {
+        messages.append(DisplayMessage(
             id: "assistant-tools-\(messages.count)",
             role: .assistant,
             content: "",
             toolCalls: toolCalls,
             assigneeName: assigneeName
-        )
-        messages.append(toolMsg)
-    }
-    if !text.isEmpty {
-        let textMsg = DisplayMessage(
-            id: "assistant-\(messages.count)",
-            role: .assistant,
-            content: text,
-            assigneeName: assigneeName
-        )
-        messages.append(textMsg)
+        ))
     }
 }
 

@@ -304,58 +304,60 @@ final class PendingIndicatorNameTests: XCTestCase {
 
 // MARK: - Test Case 8: Streaming callback persists tool calls
 
+@MainActor
 final class StreamingCallbackTests: XCTestCase {
-    /// Simulates the onAssistantMessage callback logic from ChatDetailViewModel
-    private func simulateCallback(text: String, toolCalls: [ToolCallInfo]) -> [DisplayMessage] {
-        var displayMessages: [DisplayMessage] = []
-        if !toolCalls.isEmpty {
-            let toolMsg = DisplayMessage(
-                id: "assistant-tools-\(displayMessages.count)",
-                role: .assistant,
-                content: "",
-                toolCalls: toolCalls
-            )
-            displayMessages.append(toolMsg)
-        }
-        if !text.isEmpty {
-            let textMsg = DisplayMessage(
-                id: "assistant-\(displayMessages.count)",
-                role: .assistant,
-                content: text
-            )
-            displayMessages.append(textMsg)
-        }
-        return displayMessages
-    }
-
     func testToolCallsOnly_createsOneMessageWithToolCalls() {
+        var messages: [DisplayMessage] = []
         let toolCalls = [ToolCallInfo(toolCallId: "tc-1", toolName: "send_email", input: nil, status: .completed)]
-        let messages = simulateCallback(text: "", toolCalls: toolCalls)
+        let order: [StreamItemKind] = [.toolCall("tc-1")]
+
+        appendAssistantMessages(text: "", toolCalls: toolCalls, to: &messages, assigneeName: nil, order: order)
 
         XCTAssertEqual(messages.count, 1)
         XCTAssertEqual(messages[0].toolCalls.count, 1)
         XCTAssertTrue(messages[0].content.isEmpty)
     }
 
-    func testTextAndToolCalls_createsTwoMessages_toolsFirst() {
+    func testToolCallsThenText_preservesOrder() {
+        var messages: [DisplayMessage] = []
         let toolCalls = [ToolCallInfo(toolCallId: "tc-1", toolName: "send_email", input: nil, status: .completed)]
-        let messages = simulateCallback(text: "Email sent.", toolCalls: toolCalls)
+        let order: [StreamItemKind] = [.toolCall("tc-1"), .text]
+
+        appendAssistantMessages(text: "Email sent.", toolCalls: toolCalls, to: &messages, assigneeName: nil, order: order)
 
         XCTAssertEqual(messages.count, 2)
-        // First: tool calls only
+        // First: tool calls (arrived first)
         XCTAssertEqual(messages[0].toolCalls.count, 1)
         XCTAssertTrue(messages[0].content.isEmpty)
-        // Second: text only
+        // Second: text (arrived after)
         XCTAssertTrue(messages[1].toolCalls.isEmpty)
         XCTAssertEqual(messages[1].content, "Email sent.")
     }
 
+    func testTextThenToolCalls_preservesOrder() {
+        var messages: [DisplayMessage] = []
+        let toolCalls = [ToolCallInfo(toolCallId: "tc-1", toolName: "send_email", input: nil, status: .completed)]
+        let order: [StreamItemKind] = [.text, .toolCall("tc-1")]
+
+        appendAssistantMessages(text: "Let me send that.", toolCalls: toolCalls, to: &messages, assigneeName: nil, order: order)
+
+        XCTAssertEqual(messages.count, 2)
+        // First: text (arrived first)
+        XCTAssertEqual(messages[0].content, "Let me send that.")
+        XCTAssertTrue(messages[0].toolCalls.isEmpty)
+        // Second: tool calls (arrived after)
+        XCTAssertEqual(messages[1].toolCalls.count, 1)
+        XCTAssertTrue(messages[1].content.isEmpty)
+    }
+
     func testEmptyTextAndToolCalls_createsNoMessages() {
-        let messages = simulateCallback(text: "", toolCalls: [])
+        var messages: [DisplayMessage] = []
+        appendAssistantMessages(text: "", toolCalls: [], to: &messages, assigneeName: nil, order: [])
         XCTAssertEqual(messages.count, 0)
     }
 
     func testFailedToolCall_preservesErrorMessage() {
+        var messages: [DisplayMessage] = []
         let toolCalls = [ToolCallInfo(
             toolCallId: "tc-err",
             toolName: "update_task",
@@ -363,12 +365,15 @@ final class StreamingCallbackTests: XCTestCase {
             status: .failed,
             errorMessage: "Task not found"
         )]
-        let messages = simulateCallback(text: "Sorry, that failed.", toolCalls: toolCalls)
+        let order: [StreamItemKind] = [.toolCall("tc-err"), .text]
+
+        appendAssistantMessages(text: "Sorry, that failed.", toolCalls: toolCalls, to: &messages, assigneeName: nil, order: order)
 
         XCTAssertEqual(messages.count, 2)
         XCTAssertEqual(messages[0].toolCalls.count, 1)
         XCTAssertEqual(messages[0].toolCalls[0].status, .failed)
         XCTAssertEqual(messages[0].toolCalls[0].errorMessage, "Task not found")
+        XCTAssertEqual(messages[1].content, "Sorry, that failed.")
     }
 }
 
@@ -671,5 +676,148 @@ final class ConfirmationSheetRemainingCountTests: XCTestCase {
             texts.contains("+2 more pending"),
             "Should show '+2 more pending' when remainingCount is 2. Got: \(texts)"
         )
+    }
+}
+
+// MARK: - Test Case 17: MessageList rendering order
+
+final class MessageListRenderingOrderTests: XCTestCase {
+
+    /// Helper: extract all messageListItem accessibility identifiers in order
+    private func extractItemIndices(from view: MessageList) throws -> [(id: String, index: Int)] {
+        let allViews = try view.inspect().findAll { view in
+            guard let aid = try? view.accessibilityIdentifier() else { return false }
+            return aid.starts(with: "messageListItem-")
+        }
+        return allViews.compactMap { view in
+            guard let aid = try? view.accessibilityIdentifier(),
+                  let suffix = aid.split(separator: "-").last,
+                  let index = Int(suffix)
+            else { return nil }
+            return (id: aid, index: index)
+        }
+    }
+
+    func testHistoricalMessage_toolCallsRenderBeforeText() throws {
+        let messages = [
+            DisplayMessage(
+                id: "msg-1",
+                role: .assistant,
+                content: "I found your tasks.",
+                toolCalls: [
+                    ToolCallInfo(toolCallId: "tc-1", toolName: "fetch_tasks", input: nil, status: .completed),
+                ],
+                assigneeName: "Avery"
+            ),
+        ]
+
+        let sut = MessageList(messages: messages)
+        let items = try extractItemIndices(from: sut)
+
+        XCTAssertEqual(items.count, 2, "Should have 2 items: tool call badge + text bubble")
+        // Tool call badge renders first (index 0), text bubble renders second (index 1)
+        XCTAssertEqual(items[0].index, 0, "Tool call should have index 0")
+        XCTAssertEqual(items[1].index, 1, "Text bubble should have index 1")
+    }
+
+    func testStreamingContent_toolCallsFirstOrder() throws {
+        let sut = MessageList(
+            messages: [],
+            assigneeName: "Avery",
+            streamingText: "Let me check...",
+            streamingToolCalls: [
+                ToolCallInfo(toolCallId: "tc-1", toolName: "fetch_tasks", input: nil, status: .running),
+            ],
+            streamOrder: [.toolCall("tc-1"), .text]
+        )
+        let items = try extractItemIndices(from: sut)
+
+        XCTAssertEqual(items.count, 2, "Should have 2 items: streaming tool call + streaming text")
+        // Tool call arrived first per streamOrder
+        XCTAssertEqual(items[0].index, 0, "Tool call should render first (index 0)")
+        XCTAssertEqual(items[1].index, 1, "Text should render second (index 1)")
+    }
+
+    func testStreamingContent_textFirstOrder() throws {
+        let sut = MessageList(
+            messages: [],
+            assigneeName: "Avery",
+            streamingText: "Let me check...",
+            streamingToolCalls: [
+                ToolCallInfo(toolCallId: "tc-1", toolName: "fetch_tasks", input: nil, status: .running),
+            ],
+            streamOrder: [.text, .toolCall("tc-1")]
+        )
+        let items = try extractItemIndices(from: sut)
+
+        XCTAssertEqual(items.count, 2, "Should have 2 items: streaming text + streaming tool call")
+        // Text arrived first per streamOrder
+        XCTAssertEqual(items[0].index, 0, "Text should render first (index 0)")
+        XCTAssertEqual(items[1].index, 1, "Tool call should render second (index 1)")
+    }
+
+    @MainActor
+    func testAppendAssistantMessages_toolCallsFirstOrder() {
+        var displayMessages: [DisplayMessage] = []
+        let toolCalls = [
+            ToolCallInfo(toolCallId: "tc-1", toolName: "send_email", input: nil, status: .completed),
+        ]
+        let order: [StreamItemKind] = [.toolCall("tc-1"), .text]
+
+        appendAssistantMessages(text: "Email sent.", toolCalls: toolCalls, to: &displayMessages, assigneeName: "Avery", order: order)
+
+        XCTAssertEqual(displayMessages.count, 2)
+        // Tool calls first (arrived first per order)
+        XCTAssertTrue(displayMessages[0].content.isEmpty, "First message should be tool-calls-only")
+        XCTAssertEqual(displayMessages[0].toolCalls.count, 1)
+        // Text second
+        XCTAssertEqual(displayMessages[1].content, "Email sent.")
+        XCTAssertTrue(displayMessages[1].toolCalls.isEmpty)
+    }
+
+    @MainActor
+    func testAppendAssistantMessages_fallbackOrder() {
+        var displayMessages: [DisplayMessage] = []
+        let toolCalls = [
+            ToolCallInfo(toolCallId: "tc-1", toolName: "send_email", input: nil, status: .completed),
+        ]
+
+        // Empty order = fallback behavior (text first, then tool calls)
+        appendAssistantMessages(text: "Email sent.", toolCalls: toolCalls, to: &displayMessages, assigneeName: "Avery")
+
+        XCTAssertEqual(displayMessages.count, 2)
+        // Fallback appends text first
+        XCTAssertEqual(displayMessages[0].content, "Email sent.")
+        // Then tool calls
+        XCTAssertEqual(displayMessages[1].toolCalls.count, 1)
+    }
+
+    func testMultipleMessages_orderIsConsistent() throws {
+        let messages = [
+            DisplayMessage(id: "msg-1", role: .user, content: "Check tasks"),
+            DisplayMessage(
+                id: "msg-2",
+                role: .assistant,
+                content: "Here are your tasks.",
+                toolCalls: [
+                    ToolCallInfo(toolCallId: "tc-1", toolName: "fetch_tasks", input: nil, status: .completed),
+                ],
+                assigneeName: "Avery"
+            ),
+            DisplayMessage(id: "msg-3", role: .user, content: "Thanks!"),
+        ]
+
+        let sut = MessageList(messages: messages)
+        let items = try extractItemIndices(from: sut)
+
+        // msg-1 (user text) = index 0
+        // msg-2 (tool call) = index 1, msg-2 (assistant text) = index 2
+        // msg-3 (user text) = index 3
+        XCTAssertEqual(items.count, 4, "Should have 4 items: 3 text bubbles + 1 tool call badge")
+
+        // Verify all indices are sequential
+        for i in 0 ..< items.count {
+            XCTAssertEqual(items[i].index, i, "Item at position \(i) should have index \(i), got \(items[i].index)")
+        }
     }
 }

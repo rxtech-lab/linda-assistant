@@ -19,6 +19,7 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var selectedToolCall: ToolCallInfo?
     @State private var errorDismissTask: Task<Void, Never>?
     @State private var presentedConfirmation: ConfirmationPayload?
+    @State private var scrollDebounceTask: Task<Void, Never>?
 
     private var pendingConfirmationCount: Int {
         streamHandler?.pendingConfirmations.count ?? 0
@@ -33,6 +34,15 @@ struct StreamableChatLayout<Header: View>: View {
               handler.error == nil
         else { return false }
         return true
+    }
+
+    private func scheduleScrollToBottom(proxy: ScrollViewProxy) {
+        scrollDebounceTask?.cancel()
+        scrollDebounceTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            proxy.scrollTo("bottomAnchor", anchor: .bottom)
+        }
     }
 
     var body: some View {
@@ -55,6 +65,7 @@ struct StreamableChatLayout<Header: View>: View {
                                     streamingText: streamHandler?.isStreaming == true
                                         ? streamHandler?.streamedText : nil,
                                     streamingToolCalls: streamHandler?.toolCalls ?? [],
+                                    streamOrder: streamHandler?.streamOrder ?? [],
                                     showPendingIndicator: showPendingIndicator,
                                     showStreamComplete: streamHandler?.isStreaming == false
                                         && !messages.isEmpty
@@ -75,16 +86,19 @@ struct StreamableChatLayout<Header: View>: View {
                             }
                             .padding()
                         }
+                        .defaultScrollAnchor(.bottom)
                         .onChange(of: messages.count) {
-                            proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                            scheduleScrollToBottom(proxy: proxy)
                         }
                         .onChange(of: streamHandler?.streamedText) {
-                            proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                            scheduleScrollToBottom(proxy: proxy)
                         }
-                        .onChange(of: streamHandler?.toolCalls.count) {
-                            proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                        .onChange(of: streamHandler?.streamOrder) {
+                            scheduleScrollToBottom(proxy: proxy)
                         }
                         .onChange(of: streamHandler?.isStreaming) {
+                            // Immediate scroll on stream start/stop
+                            scrollDebounceTask?.cancel()
                             proxy.scrollTo("bottomAnchor", anchor: .bottom)
                         }
                         .onChange(of: pendingConfirmationCount) {
@@ -95,13 +109,6 @@ struct StreamableChatLayout<Header: View>: View {
                             }
                         }
                         .onAppear {
-                            if !messages.isEmpty {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                    withAnimation(.easeOut(duration: 0.5)) {
-                                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                                    }
-                                }
-                            }
                             // Present confirmation sheet if already loaded (e.g. app reopen)
                             if presentedConfirmation == nil,
                                let confirmation = streamHandler?.pendingConfirmation
