@@ -109,11 +109,13 @@ struct StreamableChatLayout<Header: View>: View {
                             }
                         }
                         .onAppear {
-                            // Scroll to bottom immediately (hidden), then reveal
-                            proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                withAnimation(.easeOut(duration: 0.3)) {
-                                    contentReady = true
+                            // Wait for LazyVStack to finish layout, then scroll to bottom and reveal
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                    withAnimation(.easeOut(duration: 0.3)) {
+                                        contentReady = true
+                                    }
                                 }
                             }
                             // Present confirmation sheet if already loaded (e.g. app reopen)
