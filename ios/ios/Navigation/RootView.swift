@@ -54,39 +54,79 @@ private struct OnboardingGate: View {
     @Environment(PushNotificationManager.self) private var pushManager
     @State private var isOnboarded: Bool?
     @State private var isLoading = true
+    @State private var loadError: String?
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
     }
 
     private var showOnboarding: Bool {
-        !isLoading && isOnboarded == false
+        !isLoading && isOnboarded == false && loadError == nil
     }
 
     var body: some View {
-        AdaptiveRootView()
-            .sheet(isPresented: .constant(showOnboarding)) {
-                OnboardingSheetView(onComplete: {
-                    isOnboarded = true
-                })
-                .interactiveDismissDisabled()
+        if let loadError {
+            OnboardErrorView(message: loadError) {
+                self.loadError = nil
+                Task { await load() }
             }
-            .task {
-                await checkOnboardStatus()
-                onReady()
-                pushManager.requestPermission()
-                await pushManager.registerWithBackend(apiClient: apiClient)
-            }
+        } else {
+            AdaptiveRootView()
+                .sheet(isPresented: .constant(showOnboarding)) {
+                    OnboardingSheetView(onComplete: {
+                        isOnboarded = true
+                    })
+                    .interactiveDismissDisabled()
+                }
+                .task { await load() }
+        }
     }
 
-    private func checkOnboardStatus() async {
+    private func load() async {
+        // Request push permission and register first so deviceToken is available for onboard check
+        pushManager.requestPermission()
+        await pushManager.registerWithBackend(apiClient: apiClient)
+        let status = await checkOnboardStatus()
+        onReady()
+        if let status, status.device.check == false {
+            pushManager.forceReRegister()
+        }
+    }
+
+    private func checkOnboardStatus() async -> OnboardStatus? {
         isLoading = true
+        var result: OnboardStatus?
         do {
-            let status = try await apiClient.getOnboardStatus()
+            let status = try await apiClient.getOnboardStatus(deviceToken: pushManager.deviceToken)
             isOnboarded = status.overall
+            result = status
+        } catch let error as APIError {
+            if case .badRequest = error {
+                // 400 = no assignee, show onboarding
+                isOnboarded = false
+            } else {
+                loadError = error.localizedDescription
+            }
         } catch {
-            isOnboarded = false
+            loadError = error.localizedDescription
         }
         isLoading = false
+        return result
+    }
+}
+
+private struct OnboardErrorView: View {
+    let message: String
+    let onRetry: () -> Void
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("Connection Error", systemImage: "wifi.exclamationmark")
+        } description: {
+            Text(message)
+        } actions: {
+            Button("Retry", action: onRetry)
+                .buttonStyle(.borderedProminent)
+        }
     }
 }

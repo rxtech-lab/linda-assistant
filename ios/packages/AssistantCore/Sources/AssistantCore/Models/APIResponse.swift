@@ -18,12 +18,17 @@ public struct Pagination: Codable, Sendable {
 
 public struct OnboardStatus: Codable, Sendable {
     public let assignee: AssigneeCheck
+    public let device: DeviceCheck
     public let overall: Bool
 }
 
 public struct AssigneeCheck: Codable, Sendable {
     public let check: Bool
     public let required: [String]?
+}
+
+public struct DeviceCheck: Codable, Sendable {
+    public let check: Bool
 }
 
 // MARK: - Simple Wrappers

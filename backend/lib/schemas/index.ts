@@ -401,7 +401,7 @@ export const selectDeviceSchema = z.object({
 
 export const insertDeviceSchema = z.object({
   deviceToken: z.string().min(1).describe("APNs device token"),
-  platform: z.literal("ios").describe("Device platform (iOS only)"),
+  platform: z.string().min(1).describe("Device platform"),
 });
 
 // ---- Send message ----
@@ -431,6 +431,15 @@ export const onboardResponseSchema = z.object({
       required: z.array(z.string()).optional().describe("Missing setup steps"),
     })
     .describe("Assignee onboarding status"),
+  device: z
+    .object({
+      check: z
+        .boolean()
+        .describe(
+          "Whether the specified device token is registered (false if deviceToken query param not provided)",
+        ),
+    })
+    .describe("Device registration status"),
   overall: z.boolean().describe("Whether onboarding is complete"),
 });
 

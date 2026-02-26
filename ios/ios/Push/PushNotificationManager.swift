@@ -34,7 +34,16 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
 
     func registerWithBackend(apiClient: APIClient) async {
         self.apiClient = apiClient
+        // Wait briefly for APNs to deliver the device token (typically <500ms on real devices)
+        for _ in 0..<20 where deviceToken == nil {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
         await sendRegistrationIfReady()
+    }
+
+    func forceReRegister() {
+        didRegister = false
+        Task { await sendRegistrationIfReady() }
     }
 
     private func sendRegistrationIfReady() async {
