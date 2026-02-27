@@ -52,6 +52,10 @@ final class ChatDetailViewModel {
             guard let self else { return }
             updateToolCallStatus(toolCallId: toolCallId, action: action, in: &displayMessages)
         }
+        handler.onToolResult = { [weak self] toolCallId, isError, errorMessage in
+            guard let self else { return }
+            updateToolCallResult(toolCallId: toolCallId, isError: isError, errorMessage: errorMessage, in: &displayMessages)
+        }
         streamHandler = handler
 
         do {

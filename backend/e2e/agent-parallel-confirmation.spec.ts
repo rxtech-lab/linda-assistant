@@ -261,7 +261,7 @@ test.describe("Agent Parallel Confirmation", () => {
     client.close();
   });
 
-  test("no duplicate tool-call events across connections", async ({ request, baseURL }) => {
+  test("tool-call events re-emitted on resume connection for execution", async ({ request, baseURL }) => {
     // Create session
     const sessionRes = await request.post("/api/chat-sessions", {
       data: { assigneeId },
@@ -312,14 +312,19 @@ test.describe("Agent Parallel Confirmation", () => {
     const resumeEvents = await resumeEventsPromise;
     client.close();
 
-    // Collect ALL tool-call events across both connections
-    const allEvents = [...initialEvents, ...resumeEvents];
-    const allToolCalls = allEvents.filter((e) => e.event === "tool-call");
-    const toolCallIds = allToolCalls.map((e) => e.data.toolCallId);
+    // Initial connection should have 2 tool-call events (from streaming)
+    const initialToolCalls = initialEvents.filter((e) => e.event === "tool-call");
+    expect(initialToolCalls).toHaveLength(2);
 
-    // Each toolCallId should appear exactly once
-    const uniqueIds = new Set(toolCallIds);
-    expect(uniqueIds.size).toBe(toolCallIds.length);
-    expect(toolCallIds).toHaveLength(2);
+    // Resume connection should also have 2 tool-call events (re-emitted before execution)
+    const resumeToolCalls = resumeEvents.filter((e) => e.event === "tool-call");
+    expect(resumeToolCalls).toHaveLength(2);
+
+    // Both connections should reference the same 2 unique toolCallIds
+    const initialIds = new Set(initialToolCalls.map((e) => e.data.toolCallId));
+    const resumeIds = new Set(resumeToolCalls.map((e) => e.data.toolCallId));
+    expect(initialIds.size).toBe(2);
+    expect(resumeIds.size).toBe(2);
+    expect([...resumeIds].every((id) => initialIds.has(id))).toBe(true);
   });
 });

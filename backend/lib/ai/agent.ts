@@ -298,6 +298,13 @@ async function resolvePendingToolCalls(
     let resultMessage: ModelMessage;
 
     if (confirmation?.status === "confirmed") {
+      // Signal tool is now running before execution
+      await onEvent?.("tool-call", {
+        toolCallId,
+        toolName: info.toolName,
+        input: info.input,
+      });
+
       // Execute the tool
       const toolDef = tools[info.toolName] as
         | { execute?: (input: unknown) => Promise<unknown> }

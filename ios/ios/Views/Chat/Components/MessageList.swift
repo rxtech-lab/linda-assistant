@@ -82,6 +82,7 @@ struct MessageList: View {
                         .accessibilityIdentifier("messageListItem-\(itemIndex(forMessage: index, offset: textOffset))")
                 }
             }
+            .id(msg.id)
             .transition(.opacity)
         }
 
@@ -138,7 +139,6 @@ struct MessageList: View {
 
         Spacer()
             .frame(height: 30)
-            .id("bottomAnchor")
             .onAppear {
                 // Enable animation after initial load
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

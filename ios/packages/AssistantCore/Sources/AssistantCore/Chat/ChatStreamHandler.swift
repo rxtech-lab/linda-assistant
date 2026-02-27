@@ -24,12 +24,13 @@ public final class ChatStreamHandler: @unchecked Sendable {
     @ObservationIgnored private var _textBuffer = ""
     @ObservationIgnored private var _chunkCount = 0
     @ObservationIgnored private var _flushTask: Task<Void, Never>?
-    @ObservationIgnored private let maxChunks = 4
+    @ObservationIgnored private let maxChunks = 2
     @ObservationIgnored private let idleFlushDelay: Duration = .seconds(1)
 
     public var onAssistantMessage: (@MainActor (_ text: String, _ toolCalls: [ToolCallInfo], _ order: [StreamItemKind]) -> Void)?
     public var onReconnected: (@MainActor () async -> Void)?
     public var onConfirmationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
+    public var onToolResult: (@MainActor (_ toolCallId: String, _ isError: Bool, _ errorMessage: String?) -> Void)?
 
     private let apiClient: APIClient
     private let sseClient: SSEClient
@@ -260,14 +261,19 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
             case let .toolCall(payload):
                 logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
-                streamOrder.append(.toolCall(payload.toolCallId))
-                let info = ToolCallInfo(
-                    toolCallId: payload.toolCallId,
-                    toolName: payload.toolName,
-                    input: payload.input,
-                    status: .running
-                )
-                toolCalls.append(info)
+                if let index = toolCalls.firstIndex(where: { $0.toolCallId == payload.toolCallId }) {
+                    // Re-emitted after confirmation — update status back to running
+                    toolCalls[index].status = .running
+                } else {
+                    streamOrder.append(.toolCall(payload.toolCallId))
+                    let info = ToolCallInfo(
+                        toolCallId: payload.toolCallId,
+                        toolName: payload.toolName,
+                        input: payload.input,
+                        status: .running
+                    )
+                    toolCalls.append(info)
+                }
 
             case let .toolResult(payload):
                 logger.info("toolResult: toolCallId=\(payload.toolCallId), isError=\(payload.isError ?? false)")
@@ -279,6 +285,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
                         toolCalls[index].status = .completed
                     }
                     toolCalls[index].result = payload.output
+                } else {
+                    // Reloaded session: tool call is in displayMessages, not streaming list
+                    onToolResult?(payload.toolCallId, payload.isError == true, payload.error)
                 }
 
             case let .confirmationRequired(payload):
@@ -298,6 +307,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                         "confirmationResolved: \(payload.toolName) id=\(payload.confirmationId) action=\(payload.action)"
                     )
                 pendingConfirmations.removeAll { $0.confirmationId == payload.confirmationId }
+                // Immediate feedback: update streaming tool call status
+                if let index = toolCalls.firstIndex(where: { $0.toolCallId == payload.toolCallId }) {
+                    toolCalls[index].status = payload.action == "rejected" ? .rejected : .running
+                }
                 onConfirmationResolved?(payload.toolCallId, payload.action)
 
             case let .compacting(payload):
