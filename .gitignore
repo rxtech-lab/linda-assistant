@@ -15,3 +15,4 @@ k8s/secrets.yaml
 test-results/.last-run.json
 *.log
 ios/.DS_Store
+package-lock.json
