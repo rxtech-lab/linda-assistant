@@ -9,16 +9,16 @@ public final class ChatStreamHandler: @unchecked Sendable {
     public private(set) var isConnected = false
     public private(set) var isReconnecting = false
     public private(set) var isCompacting = false
-    public private(set) var streamedText = ""
+    public private(set) var streamingParts: [MessagePart] = []
     public private(set) var pendingConfirmations: [ConfirmationPayload] = []
     /// The first unresolved confirmation in the queue (what the UI should show).
     public var pendingConfirmation: ConfirmationPayload? { pendingConfirmations.first }
-    public private(set) var toolCalls: [ToolCallInfo] = []
     public private(set) var error: String?
 
-    /// Tracks the arrival order of stream items. `.text` appears once (for the accumulated text blob),
-    /// `.toolCall(id)` appears per tool call. The UI renders streaming items in this order.
-    public private(set) var streamOrder: [StreamItemKind] = []
+    /// Computed: extract tool calls from streaming parts (for confirmation lookup).
+    public var streamingToolCalls: [ToolCallInfo] {
+        streamingParts.compactMap { if case .tool(let info) = $0 { return info } else { return nil } }
+    }
 
     // Text buffering: accumulate chunks and flush when 12 chunks filled or 1s idle
     @ObservationIgnored private var _textBuffer = ""
@@ -27,7 +27,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     @ObservationIgnored private let maxChunks = 2
     @ObservationIgnored private let idleFlushDelay: Duration = .seconds(1)
 
-    public var onAssistantMessage: (@MainActor (_ text: String, _ toolCalls: [ToolCallInfo], _ order: [StreamItemKind]) -> Void)?
+    public var onAssistantMessage: (@MainActor (_ parts: [MessagePart]) -> Void)?
     public var onReconnected: (@MainActor () async -> Void)?
     public var onConfirmationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
     public var onToolResult: (@MainActor (_ toolCallId: String, _ isError: Bool, _ errorMessage: String?) -> Void)?
@@ -58,10 +58,8 @@ public final class ChatStreamHandler: @unchecked Sendable {
             self._flushTask = nil
             self._textBuffer = ""
             self._chunkCount = 0
-            self.streamedText = ""
-            self.streamOrder = []
+            self.streamingParts = []
             self.pendingConfirmations = []
-            self.toolCalls = []
             self.error = nil
             self.isStreaming = true
         }
@@ -142,10 +140,8 @@ public final class ChatStreamHandler: @unchecked Sendable {
             self._flushTask = nil
             self._textBuffer = ""
             self._chunkCount = 0
-            self.streamedText = ""
-            self.streamOrder = []
+            self.streamingParts = []
             self.pendingConfirmations = []
-            self.toolCalls = []
             self.error = nil
             self.isStreaming = true
         }
@@ -247,9 +243,6 @@ public final class ChatStreamHandler: @unchecked Sendable {
             case let .textDelta(payload):
                 isCompacting = false
                 if !isStreaming { isStreaming = true }
-                if !streamOrder.contains(.text) {
-                    streamOrder.append(.text)
-                }
                 _textBuffer += payload.text
                 _chunkCount += 1
                 if _chunkCount >= maxChunks {
@@ -261,30 +254,41 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
             case let .toolCall(payload):
                 logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
-                if let index = toolCalls.firstIndex(where: { $0.toolCallId == payload.toolCallId }) {
+                if let index = streamingParts.firstIndex(where: {
+                    if case .tool(let info) = $0 { return info.toolCallId == payload.toolCallId }
+                    return false
+                }) {
                     // Re-emitted after confirmation — update status back to running
-                    toolCalls[index].status = .running
+                    if case .tool(var info) = streamingParts[index] {
+                        info.status = .running
+                        streamingParts[index] = .tool(info)
+                    }
                 } else {
-                    streamOrder.append(.toolCall(payload.toolCallId))
                     let info = ToolCallInfo(
                         toolCallId: payload.toolCallId,
                         toolName: payload.toolName,
                         input: payload.input,
                         status: .running
                     )
-                    toolCalls.append(info)
+                    streamingParts.append(.tool(info))
                 }
 
             case let .toolResult(payload):
                 logger.info("toolResult: toolCallId=\(payload.toolCallId), isError=\(payload.isError ?? false)")
-                if let index = toolCalls.firstIndex(where: { $0.toolCallId == payload.toolCallId }) {
-                    if payload.isError == true {
-                        toolCalls[index].status = .failed
-                        toolCalls[index].errorMessage = payload.error
-                    } else {
-                        toolCalls[index].status = .completed
+                if let index = streamingParts.firstIndex(where: {
+                    if case .tool(let info) = $0 { return info.toolCallId == payload.toolCallId }
+                    return false
+                }) {
+                    if case .tool(var info) = streamingParts[index] {
+                        if payload.isError == true {
+                            info.status = .failed
+                            info.errorMessage = payload.error
+                        } else {
+                            info.status = .completed
+                        }
+                        info.result = payload.output
+                        streamingParts[index] = .tool(info)
                     }
-                    toolCalls[index].result = payload.output
                 } else {
                     // Reloaded session: tool call is in displayMessages, not streaming list
                     onToolResult?(payload.toolCallId, payload.isError == true, payload.error)
@@ -293,8 +297,14 @@ public final class ChatStreamHandler: @unchecked Sendable {
             case let .confirmationRequired(payload):
                 logger.info("confirmationRequired: \(payload.toolName) id=\(payload.confirmationId)")
                 // Update the corresponding tool call status so streaming badges show "Needs Confirmation"
-                if let index = toolCalls.firstIndex(where: { $0.toolCallId == payload.toolCallId }) {
-                    toolCalls[index].status = .pendingConfirmation
+                if let index = streamingParts.firstIndex(where: {
+                    if case .tool(let info) = $0 { return info.toolCallId == payload.toolCallId }
+                    return false
+                }) {
+                    if case .tool(var info) = streamingParts[index] {
+                        info.status = .pendingConfirmation
+                        streamingParts[index] = .tool(info)
+                    }
                 }
                 // Avoid duplicates from SSE replay
                 if !pendingConfirmations.contains(where: { $0.confirmationId == payload.confirmationId }) {
@@ -308,8 +318,14 @@ public final class ChatStreamHandler: @unchecked Sendable {
                     )
                 pendingConfirmations.removeAll { $0.confirmationId == payload.confirmationId }
                 // Immediate feedback: update streaming tool call status
-                if let index = toolCalls.firstIndex(where: { $0.toolCallId == payload.toolCallId }) {
-                    toolCalls[index].status = payload.action == "rejected" ? .rejected : .running
+                if let index = streamingParts.firstIndex(where: {
+                    if case .tool(let info) = $0 { return info.toolCallId == payload.toolCallId }
+                    return false
+                }) {
+                    if case .tool(var info) = streamingParts[index] {
+                        info.status = payload.action == "rejected" ? .rejected : .running
+                        streamingParts[index] = .tool(info)
+                    }
                 }
                 onConfirmationResolved?(payload.toolCallId, payload.action)
 
@@ -323,7 +339,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 finalizeResponse()
 
             case .done:
-                logger.info("done: streamedText length=\(self.streamedText.count)")
+                logger.info("done: streamingParts count=\(self.streamingParts.count)")
                 finalizeResponse()
 
             case let .status(payload):
@@ -355,8 +371,17 @@ public final class ChatStreamHandler: @unchecked Sendable {
         _flushTask?.cancel()
         _flushTask = nil
         if !_textBuffer.isEmpty {
-            streamedText += _textBuffer
+            let buffer = _textBuffer
             _textBuffer = ""
+            // Append to last text part if it's streaming, otherwise create a new one
+            if let lastIndex = streamingParts.indices.last,
+               case .text(.streaming(var chunks)) = streamingParts[lastIndex]
+            {
+                chunks.append(buffer)
+                streamingParts[lastIndex] = .text(.streaming(chunks))
+            } else {
+                streamingParts.append(.text(.streaming([buffer])))
+            }
         }
         _chunkCount = 0
     }
@@ -369,29 +394,46 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
         logger
             .info(
-                "finalizeResponse: streamedText.count=\(self.streamedText.count), toolCalls.count=\(self.toolCalls.count), hasCallback=\(self.onAssistantMessage != nil)"
+                "finalizeResponse: streamingParts.count=\(self.streamingParts.count), hasCallback=\(self.onAssistantMessage != nil)"
             )
-        if !streamedText.isEmpty || !toolCalls.isEmpty {
+        if !streamingParts.isEmpty {
+            // Convert streaming text parts to finalized plain text
+            let finalizedParts = streamingParts.map { part -> MessagePart in
+                if case .text(let content) = part {
+                    return .text(.plain(content.displayText))
+                }
+                return part
+            }
             logger
                 .info(
-                    "finalizeResponse: calling onAssistantMessage with text=\(self.streamedText.prefix(100)), toolCalls=\(self.toolCalls.count)"
+                    "finalizeResponse: calling onAssistantMessage with \(finalizedParts.count) parts"
                 )
-            onAssistantMessage?(streamedText, toolCalls, streamOrder)
+            onAssistantMessage?(finalizedParts)
         }
-        streamedText = ""
-        toolCalls = []
-        streamOrder = []
+        streamingParts = []
         // Don't clear pendingConfirmations — they must persist until resolved
         isCompacting = false
         isStreaming = false
     }
 }
 
-// MARK: - Stream Item Kind
+// MARK: - Message Part
 
-public enum StreamItemKind: Equatable, Sendable {
-    case text
-    case toolCall(String) // toolCallId
+public enum TextPartContent: Sendable {
+    case plain(String)
+    case streaming([String])
+
+    public var displayText: String {
+        switch self {
+        case .plain(let s): return s
+        case .streaming(let chunks): return chunks.joined()
+        }
+    }
+}
+
+public enum MessagePart: Sendable {
+    case text(TextPartContent)
+    case tool(ToolCallInfo)
 }
 
 // MARK: - Tool Call Info

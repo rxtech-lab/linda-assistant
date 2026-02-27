@@ -1,3 +1,4 @@
+import AssistantCore
 import MarkdownUI
 import SwiftUI
 #if canImport(UIKit)
@@ -28,7 +29,7 @@ struct MessageBubble: View {
 
                 if message.role == .user {
                     // User messages: keep bubble style with MarkdownUI
-                    Markdown(message.content)
+                    Markdown(message.textContent)
                         .markdownTheme(.chat)
                         .markdownTextStyle {
                             ForegroundColor(.primary)
@@ -39,22 +40,22 @@ struct MessageBubble: View {
                         .textSelection(.enabled)
                 } else {
                     // Assistant messages: no bubble, 90% width
-                    Markdown(message.content)
+                    Markdown(message.textContent)
                         .markdownTheme(.chat)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentTransition(.opacity)
-                        .animation(.easeIn(duration: 0.3), value: message.content)
+                        .animation(.easeIn(duration: 0.3), value: message.textContent)
                 }
             }
             .contextMenu {
                 Button {
-                    copyToPasteboard(message.content)
+                    copyToPasteboard(message.textContent)
                 } label: {
                     Label("Copy", systemImage: "doc.on.doc")
                 }
 
-                ShareLink(item: message.content) {
+                ShareLink(item: message.textContent) {
                     Label("Share", systemImage: "square.and.arrow.up")
                 }
             }
@@ -95,7 +96,7 @@ private func copyToPasteboard(_ text: String) {
                 message: DisplayMessage(
                     id: "1",
                     role: .user,
-                    content: "Hello! Can you help me with Swift?"
+                    parts: [.text(.plain("Hello! Can you help me with Swift?"))]
                 ),
                 disableAnimation: true
             )
@@ -103,7 +104,7 @@ private func copyToPasteboard(_ text: String) {
                 message: DisplayMessage(
                     id: "2",
                     role: .user,
-                    content: "What about **bold** and *italic* text?"
+                    parts: [.text(.plain("What about **bold** and *italic* text?"))]
                 ),
                 disableAnimation: true
             )
@@ -119,7 +120,7 @@ private func copyToPasteboard(_ text: String) {
                 message: DisplayMessage(
                     id: "1",
                     role: .assistant,
-                    content: """
+                    parts: [.text(.plain("""
                     Of course! I'd be happy to help you with Swift.
 
                     Here are some key features:
@@ -128,7 +129,7 @@ private func copyToPasteboard(_ text: String) {
                     - **Closures**: First-class support for closures
 
                     What would you like to know more about?
-                    """
+                    """))]
                 ),
                 disableAnimation: true
             )

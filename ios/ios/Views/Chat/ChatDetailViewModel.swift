@@ -33,10 +33,10 @@ final class ChatDetailViewModel {
             sseClient: SSEClient(authManager: authManager),
             eventManager: eventManager
         )
-        handler.onAssistantMessage = { [weak self] text, toolCalls, order in
+        handler.onAssistantMessage = { [weak self] parts in
             guard let self else { return }
-            logger.info("onAssistantMessage received, textLength=\(text.count), toolCalls=\(toolCalls.count), order=\(order)")
-            appendAssistantMessages(text: text, toolCalls: toolCalls, to: &displayMessages, assigneeName: assigneeName, order: order)
+            logger.info("onAssistantMessage received, parts=\(parts.count)")
+            appendAssistantMessages(parts: parts, to: &displayMessages, assigneeName: assigneeName)
         }
         handler.onReconnected = { [weak self] in
             guard let self else { return }
@@ -142,9 +142,9 @@ final class ChatDetailViewModel {
         logger.info("sendMessage: \(content.prefix(50)), isConnected=\(streamHandler.isConnected)")
 
         let userMsg = DisplayMessage(
-            id: "user-\(displayMessages.count)",
+            id: "user-\(UUID().uuidString)",
             role: .user,
-            content: content
+            parts: [.text(.plain(content))]
         )
         displayMessages.append(userMsg)
 

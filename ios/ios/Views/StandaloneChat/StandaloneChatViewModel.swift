@@ -157,14 +157,12 @@ final class ChatTabViewModel {
             sseClient: SSEClient(authManager: authManager),
             eventManager: eventManager
         )
-        handler.onAssistantMessage = { [weak self] text, toolCalls, order in
+        handler.onAssistantMessage = { [weak self] parts in
             guard let self else { return }
             appendAssistantMessages(
-                text: text,
-                toolCalls: toolCalls,
+                parts: parts,
                 to: &displayMessages,
-                assigneeName: selectedAssignee?.name,
-                order: order
+                assigneeName: selectedAssignee?.name
             )
         }
         handler.onConfirmationResolved = { [weak self] toolCallId, action in
@@ -189,9 +187,9 @@ final class ChatTabViewModel {
         guard let assignee = selectedAssignee else { return }
 
         let userMsg = DisplayMessage(
-            id: "user-\(displayMessages.count)",
+            id: "user-\(UUID().uuidString)",
             role: .user,
-            content: content
+            parts: [.text(.plain(content))]
         )
         displayMessages.append(userMsg)
 
