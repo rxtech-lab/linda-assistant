@@ -1,21 +1,17 @@
+import { type ModelMessage, streamText } from "ai";
 import crypto from "crypto";
-import { streamText, type ModelMessage } from "ai";
-import { db } from "@/lib/db";
-import { chatSessions, assignees, confirmations } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { buildToolSet } from "./tools";
+import { refreshAccessToken } from "@/lib/auth/refresh";
+import { db } from "@/lib/db";
+import { getSessionMessages, insertMessages } from "@/lib/db/messages";
+import { assignees, chatSessions, confirmations } from "@/lib/db/schema";
+import { createMem0Client } from "@/lib/mem0/client";
 import { setStreamActive } from "@/lib/streaming/manager";
+import { extractTextFromMessage, prepareMessages } from "./compaction";
 import { createConfirmation, sendConfirmationGroupNotification } from "./confirmation";
 import { getModelProvider } from "./model";
-import { getSessionMessages, insertMessages } from "@/lib/db/messages";
-import { refreshAccessToken } from "@/lib/auth/refresh";
-import {
-	prepareMessages,
-	extractTextFromMessage,
-} from "./compaction";
-import { createMem0Client } from "@/lib/mem0/client";
-
-import { DEFAULT_MODEL, availableModelSchema } from "./models";
+import { availableModelSchema, DEFAULT_MODEL } from "./models";
+import { buildToolSet } from "./tools";
 
 const MAX_STEPS = 10;
 
@@ -78,9 +74,7 @@ function isToolResultError(part: Record<string, unknown>): boolean {
 
 /** Extract error string from a tool-result content part */
 function extractToolResultError(part: Record<string, unknown>): string {
-  const output = unwrapToolOutput(part.output) as
-    | Record<string, unknown>
-    | undefined;
+  const output = unwrapToolOutput(part.output) as Record<string, unknown> | undefined;
   if (typeof output === "object" && output !== null && "error" in output) {
     return String(output.error);
   }
@@ -101,15 +95,11 @@ function annotateAutoApproved(messages: ModelMessage[]): void {
 }
 
 /** Ensure each message has an id */
-function sanitizeMessages(
-  messages: ModelMessage[],
-  messageId?: string,
-): ModelMessage[] {
+function sanitizeMessages(messages: ModelMessage[], messageId?: string): ModelMessage[] {
   return messages.map((msg, i) => {
     const record = msg as Record<string, unknown>;
     // Assign provided messageId to the first message (assistant), generate for others (tool)
-    const id =
-      record.id ?? (i === 0 && messageId ? messageId : crypto.randomUUID());
+    const id = record.id ?? (i === 0 && messageId ? messageId : crypto.randomUUID());
     return { ...record, id } as unknown as ModelMessage;
   });
 }
@@ -118,13 +108,7 @@ function sanitizeMessages(
 const CUSTOM_ANNOTATIONS = ["confirmation", "error", "approveStatus"];
 
 /** Recognized output types in the AI SDK v6 outputSchema discriminated union */
-const VALID_OUTPUT_TYPES = new Set([
-  "text",
-  "json",
-  "execution-denied",
-  "error-text",
-  "content",
-]);
+const VALID_OUTPUT_TYPES = new Set(["text", "json", "execution-denied", "error-text", "content"]);
 
 /**
  * Normalize a tool-result output to match the AI SDK v6 `outputSchema` discriminated union.
@@ -132,18 +116,13 @@ const VALID_OUTPUT_TYPES = new Set([
  * but manually created tool-results (from resolvePendingToolCalls / resolveConfirmation)
  * use raw objects. This wraps them appropriately.
  */
-function normalizeToolResultOutput(
-  output: unknown,
-  hasIsError: boolean,
-): Record<string, unknown> {
+function normalizeToolResultOutput(output: unknown, hasIsError: boolean): Record<string, unknown> {
   // Already a valid SDK output format
   if (
     typeof output === "object" &&
     output !== null &&
     "type" in (output as Record<string, unknown>) &&
-    VALID_OUTPUT_TYPES.has(
-      (output as Record<string, unknown>).type as string,
-    )
+    VALID_OUTPUT_TYPES.has((output as Record<string, unknown>).type as string)
   ) {
     return output as Record<string, unknown>;
   }
@@ -201,10 +180,7 @@ function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
 
       // Normalize tool-result output for SDK schema
       if (cleaned.type === "tool-result" && cleaned.output !== undefined) {
-        cleaned.output = normalizeToolResultOutput(
-          cleaned.output,
-          cleaned.isError === true,
-        );
+        cleaned.output = normalizeToolResultOutput(cleaned.output, cleaned.isError === true);
         delete cleaned.isError;
       }
 
@@ -235,10 +211,8 @@ export function buildSystemPrompt(
 
   const documentGuidance = `\nWhen your response would be very long (e.g., reports, analyses, comprehensive guides), or when the user explicitly asks for a document/report, use the create_document tool instead of writing it inline. Always prefer markdown format unless the user specifically requests HTML. Do NOT include the title as a heading in the document content — the title is displayed separately by the viewer. After creating a document, do NOT repeat the document content in your response — just confirm you created it and provide a brief summary of what it contains.`;
 
-  if (!assignee)
-    return `You are a helpful personal assistant.${dateLine}${documentGuidance}`;
-  if (assignee.personality)
-    return `${assignee.personality}${dateLine}${documentGuidance}`;
+  if (!assignee) return `You are a helpful personal assistant.${dateLine}${documentGuidance}`;
+  if (assignee.personality) return `${assignee.personality}${dateLine}${documentGuidance}`;
   return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}`;
 }
 
@@ -258,10 +232,7 @@ async function resolvePendingToolCalls(
   // Collect all tool-call IDs and tool-result IDs
   const toolCallIds = new Set<string>();
   const toolResultIds = new Set<string>();
-  const toolCallInfo = new Map<
-    string,
-    { toolName: string; input: unknown }
-  >();
+  const toolCallInfo = new Map<string, { toolName: string; input: unknown }>();
 
   for (const msg of messages) {
     if (!Array.isArray(msg.content)) continue;
@@ -319,9 +290,7 @@ async function resolvePendingToolCalls(
       try {
         if (toolDef?.execute) {
           output = await toolDef.execute(
-            typeof info.input === "string"
-              ? JSON.parse(info.input)
-              : info.input,
+            typeof info.input === "string" ? JSON.parse(info.input) : info.input,
           );
         } else {
           output = { error: "Tool not found or has no execute function" };
@@ -437,10 +406,7 @@ export async function runAgent(options: AgentRunOptions) {
   const { sessionId, userId, onTextChunk, onEvent, signal } = options;
 
   // Load session with messages
-  const [session] = await db
-    .select()
-    .from(chatSessions)
-    .where(eq(chatSessions.id, sessionId));
+  const [session] = await db.select().from(chatSessions).where(eq(chatSessions.id, sessionId));
 
   if (!session) throw new Error("Session not found");
 
@@ -493,12 +459,7 @@ export async function runAgent(options: AgentRunOptions) {
     }
   }
 
-  const { tools } = await buildToolSet(
-    userId,
-    session.assigneeId ?? null,
-    accessToken,
-    sessionId,
-  );
+  const { tools } = await buildToolSet(userId, session.assigneeId ?? null, accessToken, sessionId);
   const messages = await getSessionMessages(sessionId);
 
   // Search mem0 for relevant long-term memories
@@ -528,12 +489,7 @@ export async function runAgent(options: AgentRunOptions) {
   await onEvent?.("status", { status: "in_progress" });
 
   // Resolve any pending tool-calls from a previous confirmation pause
-  const preprocessed = await resolvePendingToolCalls(
-    sessionId,
-    messages,
-    tools,
-    onEvent,
-  );
+  const preprocessed = await resolvePendingToolCalls(sessionId, messages, tools, onEvent);
 
   let stepCount = 0;
   let currentMessages: ModelMessage[] = [...preprocessed.messages];
@@ -620,8 +576,7 @@ export async function runAgent(options: AgentRunOptions) {
           }
           case "tool-approval-request": {
             pendingApprovals.push({
-              approvalId: (part as unknown as { approvalId: string })
-                .approvalId,
+              approvalId: (part as unknown as { approvalId: string }).approvalId,
               toolCall: (
                 part as unknown as {
                   toolCall: {
@@ -632,6 +587,25 @@ export async function runAgent(options: AgentRunOptions) {
                 }
               ).toolCall,
             });
+            break;
+          }
+          case "tool-error": {
+            const errorPart = part as unknown as {
+              toolCallId: string;
+              toolName: string;
+              error: unknown;
+            };
+            const errorStr =
+              errorPart.error instanceof Error ? errorPart.error.message : String(errorPart.error);
+            await onEvent?.("tool-result", {
+              id,
+              toolCallId: errorPart.toolCallId,
+              toolName: errorPart.toolName,
+              output: { error: errorStr },
+              isError: true,
+              error: errorStr,
+            });
+            if (signal?.aborted) break streamLoop;
             break;
           }
           case "error": {
@@ -661,10 +635,7 @@ export async function runAgent(options: AgentRunOptions) {
             toolCallId: approval.toolCall.toolCallId,
             toolName: approval.toolCall.toolName,
             approvalId: approval.approvalId,
-            parameters: (approval.toolCall.input ?? {}) as Record<
-              string,
-              unknown
-            >,
+            parameters: (approval.toolCall.input ?? {}) as Record<string, unknown>,
             skipNotification: true,
           });
 
@@ -709,9 +680,7 @@ export async function runAgent(options: AgentRunOptions) {
 
       if (finishReason === "tool-calls") {
         // All tools auto-executed by SDK — annotate and continue
-        const newMessages = currentMessages.slice(
-          currentMessages.length - responseMessages.length,
-        );
+        const newMessages = currentMessages.slice(currentMessages.length - responseMessages.length);
         annotateAutoApproved(newMessages);
 
         // Annotate tool-call parts with error info from tool-result parts
@@ -720,14 +689,14 @@ export async function runAgent(options: AgentRunOptions) {
           for (const part of msg.content as Record<string, unknown>[]) {
             if (part.type === "tool-result" && isToolResultError(part)) {
               const errorStr = extractToolResultError(part);
-              annotateToolCallError(
-                currentMessages,
-                part.toolCallId as string,
-                errorStr,
-              );
+              annotateToolCallError(currentMessages, part.toolCallId as string, errorStr);
             }
           }
         }
+
+        // Persist intermediate messages so they survive crashes and compaction
+        await insertMessages(sessionId, currentMessages.slice(persistedCount));
+        persistedCount = currentMessages.length;
 
         continue;
       }
@@ -759,9 +728,7 @@ export async function runAgent(options: AgentRunOptions) {
           userId,
           { agentId: session.assigneeId ?? undefined, runId: sessionId },
         )
-        .catch((err) =>
-          console.warn("[agent] mem0 addMemories failed:", err),
-        );
+        .catch((err) => console.warn("[agent] mem0 addMemories failed:", err));
     }
 
     await onEvent?.("status", { status: "stopped" });
