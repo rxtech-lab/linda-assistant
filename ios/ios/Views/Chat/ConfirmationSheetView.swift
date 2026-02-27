@@ -142,24 +142,26 @@ private extension ConfirmationSheetView {
             Text("Details")
                 .font(.headline)
 
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(Array(params.keys.sorted()), id: \.self) { key in
-                    HStack(alignment: .top, spacing: 12) {
-                        Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 110, alignment: .leading)
-                        Spacer()
-                        Text(params[key]?.description ?? "")
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.trailing)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(params.keys.sorted()), id: \.self) { key in
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 110, alignment: .leading)
+                            Spacer()
+                            Text(params[key]?.description ?? "")
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .multilineTextAlignment(.trailing)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
                     }
                 }
+                .padding(16)
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: 400, alignment: .leading)
             .background(.background)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)

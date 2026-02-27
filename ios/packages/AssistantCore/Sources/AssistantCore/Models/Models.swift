@@ -140,6 +140,43 @@ public struct UpdateTask: Codable, Sendable {
     }
 }
 
+// MARK: - Document
+
+public struct Document: Codable, Identifiable, Sendable {
+    public let id: String
+    public let userId: String
+    public let chatSessionId: String
+    public let title: String
+    public let format: String // "markdown" | "html"
+    public let content: String
+    public let createdAt: String?
+    public let updatedAt: String?
+
+    public init(
+        id: String,
+        userId: String = "",
+        chatSessionId: String = "",
+        title: String,
+        format: String,
+        content: String,
+        createdAt: String? = nil,
+        updatedAt: String? = nil
+    ) {
+        self.id = id
+        self.userId = userId
+        self.chatSessionId = chatSessionId
+        self.title = title
+        self.format = format
+        self.content = content
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+public struct DocumentListResponse: Codable, Sendable {
+    public let data: [Document]
+}
+
 // MARK: - Chat Session
 
 public struct AssigneeRef: Codable, Sendable {
@@ -218,6 +255,8 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
     public let toolCalls: [ChatToolCall]
     /// Maps toolCallId → approveStatus ("auto-approved", "confirmed", "rejected")
     public let toolResultStatuses: [String: String]
+    /// Maps toolCallId → tool result output (from tool-result content parts)
+    public let toolResultOutputs: [String: AnyCodable]
 
     /// Backwards-compatible: returns textContent
     public var content: String? {
@@ -238,6 +277,7 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
             textContent = stringValue
             toolCalls = []
             toolResultStatuses = [:]
+            toolResultOutputs = [:]
         } else if let parts = try? container.decode([ContentPart].self, forKey: .content) {
             let textParts = parts.compactMap { $0.type != "tool-call" ? $0.text : nil }
             textContent = textParts.isEmpty ? nil : textParts.joined(separator: "\n")
@@ -252,19 +292,24 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
                 )
             }
             var statuses: [String: String] = [:]
+            var outputs: [String: AnyCodable] = [:]
             for part in parts {
-                if part.type == "tool-result",
-                   let callId = part.toolCallId,
-                   let status = part.approveStatus
-                {
-                    statuses[callId] = status
+                if part.type == "tool-result", let callId = part.toolCallId {
+                    if let status = part.approveStatus {
+                        statuses[callId] = status
+                    }
+                    if let output = part.output {
+                        outputs[callId] = output
+                    }
                 }
             }
             toolResultStatuses = statuses
+            toolResultOutputs = outputs
         } else {
             textContent = nil
             toolCalls = []
             toolResultStatuses = [:]
+            toolResultOutputs = [:]
         }
     }
 
@@ -299,6 +344,7 @@ private struct ContentPart: Codable {
     let toolCallId: String?
     let toolName: String?
     let input: [String: AnyCodable]?
+    let output: AnyCodable?
     let confirmation: ToolCallConfirmation?
     let approveStatus: String?
     let error: String?

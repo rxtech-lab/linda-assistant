@@ -17,6 +17,7 @@ struct StreamableChatLayout<Header: View>: View {
 
     @State private var messageText = ""
     @State private var selectedToolCall: ToolCallInfo?
+    @State private var selectedDocumentItem: DocumentSheetItem?
     @State private var errorDismissTask: Task<Void, Never>?
     @State private var presentedConfirmation: ConfirmationPayload?
     @State private var scrollPosition = ScrollPosition(idType: String.self)
@@ -79,6 +80,9 @@ struct StreamableChatLayout<Header: View>: View {
                             },
                             onToolCallTap: { toolCall in
                                 selectedToolCall = toolCall
+                            },
+                            onDocumentTap: { item in
+                                selectedDocumentItem = item
                             }
                         )
 
@@ -191,6 +195,9 @@ struct StreamableChatLayout<Header: View>: View {
         }
         .sheet(item: $selectedToolCall) { toolCall in
             ToolCallDetailSheet(toolCall: toolCall)
+        }
+        .sheet(item: $selectedDocumentItem) { item in
+            DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
         }
     }
 }

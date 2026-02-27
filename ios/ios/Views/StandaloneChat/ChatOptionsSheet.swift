@@ -5,7 +5,10 @@ struct ChatOptionsSheet: View {
     @Environment(\.dismiss) private var dismiss
     let assignees: [Assignee]
     let selectedAssigneeId: String?
+    let documents: [Document]
     var onSelectAssignee: (Assignee) -> Void
+    var onSelectDocument: (Document) -> Void
+    var onDeleteDocument: (Document) -> Void
     var onClearMessages: () -> Void
 
     var body: some View {
@@ -58,6 +61,32 @@ struct ChatOptionsSheet: View {
                         }
                     }
 
+                    if !documents.isEmpty {
+                        Section("Documents") {
+                            ForEach(documents) { doc in
+                                Button {
+                                    onSelectDocument(doc)
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "doc.text")
+                                            .foregroundStyle(.secondary)
+                                        Text(doc.title)
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        Spacer()
+                                        Text(doc.format)
+                                            .font(.caption2)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(.quaternary)
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
                     Section {
                         Button {
                             onClearMessages()
@@ -70,7 +99,7 @@ struct ChatOptionsSheet: View {
                 }
                 .formStyle(.grouped)
             }
-            .frame(width: 400, height: 300)
+            .frame(width: 400, height: 400)
         }
     #endif
 
@@ -96,6 +125,38 @@ struct ChatOptionsSheet: View {
                         }
                     }
 
+                    if !documents.isEmpty {
+                        Section("Documents") {
+                            ForEach(documents) { doc in
+                                Button {
+                                    onSelectDocument(doc)
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "doc.text")
+                                            .foregroundStyle(.secondary)
+                                        Text(doc.title)
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        Spacer()
+                                        Text(doc.format)
+                                            .font(.caption2)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(.quaternary)
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        onDeleteDocument(doc)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Section {
                         Button {
                             onClearMessages()
@@ -109,7 +170,7 @@ struct ChatOptionsSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
             }
             .frame(minHeight: 200)
-            .presentationDetents([.medium])
+            .presentationDetents([.medium, .large])
         }
     #endif
 }
@@ -130,7 +191,10 @@ private func previewAssignee(id: String, name: String, email: String) -> Assigne
             previewAssignee(id: "2", name: "Bob", email: "bob@example.com"),
         ],
         selectedAssigneeId: "1",
+        documents: [],
         onSelectAssignee: { _ in },
+        onSelectDocument: { _ in },
+        onDeleteDocument: { _ in },
         onClearMessages: {}
     )
 }
@@ -141,7 +205,10 @@ private func previewAssignee(id: String, name: String, email: String) -> Assigne
             previewAssignee(id: "1", name: "Linda", email: "linda@example.com"),
         ],
         selectedAssigneeId: nil,
+        documents: [],
         onSelectAssignee: { _ in },
+        onSelectDocument: { _ in },
+        onDeleteDocument: { _ in },
         onClearMessages: {}
     )
 }

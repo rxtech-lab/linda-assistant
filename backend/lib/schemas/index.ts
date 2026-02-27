@@ -389,6 +389,35 @@ export const resolveConfirmationSchema = z.object({
     ),
 });
 
+// ---- Documents ----
+
+export const selectDocumentSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  chatSessionId: z.string().describe("Associated chat session ID"),
+  title: z.string().describe("Document title"),
+  format: z
+    .enum(["markdown", "html"])
+    .describe("Content format: markdown or html"),
+  content: z.string().describe("Document content"),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
+});
+
+export const insertDocumentSchema = z.object({
+  chatSessionId: z.string().describe("Associated chat session ID"),
+  title: z.string().max(500).describe("Document title"),
+  format: z
+    .enum(["markdown", "html"])
+    .describe("Content format: markdown or html"),
+  content: z.string().describe("Document content"),
+});
+
+export const updateDocumentSchema = z.object({
+  title: z.string().max(500).optional().describe("Updated document title"),
+  content: z.string().optional().describe("Updated document content"),
+});
+
 // ---- Devices ----
 
 export const selectDeviceSchema = z.object({

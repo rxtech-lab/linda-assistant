@@ -143,6 +143,31 @@ public extension APIClient {
         try await requestNoContent(path: "chat/\(assigneeId)/messages")
     }
 
+    // MARK: - Documents
+
+    func listDocuments(chatSessionId: String) async throws -> DocumentListResponse {
+        try await request(
+            path: "documents",
+            queryItems: [URLQueryItem(name: "chatSessionId", value: chatSessionId)]
+        )
+    }
+
+    func listChatDocuments(assigneeId: String) async throws -> DocumentListResponse {
+        try await request(path: "chat/\(assigneeId)/documents")
+    }
+
+    func getDocument(id: String) async throws -> Document {
+        try await request(path: "documents/\(id)")
+    }
+
+    func deleteDocument(id: String) async throws {
+        try await requestNoContent(path: "documents/\(id)")
+    }
+
+    func downloadDocumentPDF(id: String) async throws -> Data {
+        try await requestData(path: "documents/\(id)/pdf")
+    }
+
     // MARK: - Emails
 
     func listEmails(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Email> {

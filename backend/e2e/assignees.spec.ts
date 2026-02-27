@@ -293,7 +293,7 @@ test.describe("Partial update", () => {
 test.describe("Tool permissions", () => {
   let assigneeId: string;
 
-  const toolSet = ["send_email", "search_emails", "create_task", "update_task"];
+  const toolSet = ["send_email", "search_emails", "create_task", "update_task", "update_document"];
   const buildExpectedPermissions = (
     overrides: Array<{
       toolName: string;

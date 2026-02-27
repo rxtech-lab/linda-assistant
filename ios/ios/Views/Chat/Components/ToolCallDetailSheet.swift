@@ -2,6 +2,7 @@ import AssistantCore
 import SwiftUI
 
 struct ToolCallDetailSheet: View {
+    @Environment(\.dismiss) private var dismiss
     let toolCall: ToolCallInfo
 
     private var statusIcon: String {
@@ -35,47 +36,66 @@ struct ToolCallDetailSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    headerSection
+            ZStack {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        headerSection
 
-                    if toolCall.status == .failed, let errorMsg = toolCall.errorMessage {
-                        errorSection(message: errorMsg)
-                    }
+                        if toolCall.status == .failed, let errorMsg = toolCall.errorMessage {
+                            errorSection(message: errorMsg)
+                        }
 
-                    if let params = toolCall.input, !params.isEmpty {
-                        detailsSection(title: "Parameters", params: params)
-                    }
+                        if let params = toolCall.input, !params.isEmpty {
+                            detailsSection(title: "Parameters", params: params)
+                        }
 
-                    if let result = toolCall.result {
-                        resultSection(result: result)
-                    }
+                        if let result = toolCall.result {
+                            resultSection(result: result)
+                        }
 
-                    if toolCall.input == nil || toolCall.input?.isEmpty == true,
-                       toolCall.result == nil,
-                       toolCall.errorMessage == nil
-                    {
-                        emptyDetailsSection
+                        if toolCall.input == nil || toolCall.input?.isEmpty == true,
+                           toolCall.result == nil,
+                           toolCall.errorMessage == nil
+                        {
+                            emptyDetailsSection
+                        }
                     }
+                    .padding(.top, 20)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
                 }
-                .padding(.top, 20)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
-            }
-            .background(
-                LinearGradient(
-                    colors: [
-                        statusColor.opacity(0.12),
-                        Color.clear,
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
+                .background(
+                    LinearGradient(
+                        colors: [
+                            statusColor.opacity(0.12),
+                            Color.clear,
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .ignoresSafeArea()
                 )
-                .ignoresSafeArea()
-            )
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .symbolRenderingMode(.hierarchical)
+                                .padding(5)
+                        }
+                        .buttonBorderShape(.circle)
+                        .buttonStyle(.glass)
+                    }
+                    Spacer()
+                }
+                .padding()
+            }
         }
         .presentationDetents([.height(200), .large])
     }
@@ -113,17 +133,20 @@ private extension ToolCallDetailSheet {
             Text("Error")
                 .font(.headline)
 
-            Text(message)
-                .font(.body)
-                .foregroundStyle(.red)
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.red.opacity(0.08))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(Color.red.opacity(0.2))
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+            ScrollView {
+                Text(message)
+                    .font(.body)
+                    .foregroundStyle(.red)
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, maxHeight: 400, alignment: .leading)
+            .background(Color.red.opacity(0.08))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(Color.red.opacity(0.2))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
         .accessibilityIdentifier("toolCallErrorSection")
     }
@@ -133,24 +156,26 @@ private extension ToolCallDetailSheet {
             Text(title)
                 .font(.headline)
 
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(Array(params.keys.sorted()), id: \.self) { key in
-                    HStack(alignment: .top, spacing: 12) {
-                        Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 110, alignment: .leading)
-                        Spacer()
-                        Text(params[key]?.description ?? "")
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.trailing)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(params.keys.sorted()), id: \.self) { key in
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 110, alignment: .leading)
+                            Spacer()
+                            Text(params[key]?.description ?? "")
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .multilineTextAlignment(.trailing)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
                     }
                 }
+                .padding(16)
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: 400, alignment: .leading)
             .background(.background)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
@@ -165,17 +190,20 @@ private extension ToolCallDetailSheet {
             Text("Result")
                 .font(.headline)
 
-            Text(result.description)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.background)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(Color.primary.opacity(0.08))
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+            ScrollView {
+                Text(result.description)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, maxHeight: 400, alignment: .leading)
+            .background(.background)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(Color.primary.opacity(0.08))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
     }
 

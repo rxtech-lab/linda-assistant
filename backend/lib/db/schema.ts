@@ -125,6 +125,21 @@ export const confirmations = sqliteTable("confirmations", {
   resolvedAt: text("resolved_at"),
 });
 
+export const documents = sqliteTable("documents", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull(),
+  chatSessionId: text("chat_session_id")
+    .notNull()
+    .references(() => chatSessions.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  format: text("format").notNull(), // "markdown" | "html"
+  content: text("content").notNull(),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
 export const devices = sqliteTable("devices", {
   id: text("id")
     .primaryKey()

@@ -233,9 +233,13 @@ export function buildSystemPrompt(
   });
   const dateLine = `\nToday's date is ${today}.`;
 
-  if (!assignee) return `You are a helpful personal assistant.${dateLine}`;
-  if (assignee.personality) return `${assignee.personality}${dateLine}`;
-  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}`;
+  const documentGuidance = `\nWhen your response would be very long (e.g., reports, analyses, comprehensive guides), or when the user explicitly asks for a document/report, use the create_document tool instead of writing it inline. Always prefer markdown format unless the user specifically requests HTML. Do NOT include the title as a heading in the document content — the title is displayed separately by the viewer. After creating a document, do NOT repeat the document content in your response — just confirm you created it and provide a brief summary of what it contains.`;
+
+  if (!assignee)
+    return `You are a helpful personal assistant.${dateLine}${documentGuidance}`;
+  if (assignee.personality)
+    return `${assignee.personality}${dateLine}${documentGuidance}`;
+  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}`;
 }
 
 /**
@@ -493,6 +497,7 @@ export async function runAgent(options: AgentRunOptions) {
     userId,
     session.assigneeId ?? null,
     accessToken,
+    sessionId,
   );
   const messages = await getSessionMessages(sessionId);
 
