@@ -115,7 +115,7 @@ export async function buildToolSet(
   const toolDefs: Array<{ name: string; create: (na: boolean) => unknown }> = [
     {
       name: SEND_EMAIL_TOOL_NAME,
-      create: (na: boolean) => sendEmailTool(fromAddress, na),
+      create: (na: boolean) => sendEmailTool(fromAddress, userId, na),
     },
     {
       name: SEARCH_EMAILS_TOOL_NAME,

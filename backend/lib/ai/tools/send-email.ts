@@ -1,24 +1,60 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { db } from "@/lib/db";
+import { documents } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 import { resend } from "@/lib/resend";
+import { generateDocumentPdf } from "@/lib/documents/pdf";
 
-export const sendEmailTool = (fromAddress: string, needsApproval: boolean) =>
+export const sendEmailTool = (
+  fromAddress: string,
+  userId: string,
+  needsApproval: boolean,
+) =>
   tool({
     description:
-      "Send an email on behalf of the assignee. This action may require user confirmation before execution.",
+      "Send an email on behalf of the assignee. This action may require user confirmation before execution. Can optionally attach a document as a PDF.",
     inputSchema: z.object({
       to: z.string().email().describe("Recipient email address"),
       subject: z.string().describe("Email subject line"),
       body: z.string().describe("Email body in HTML format"),
-      replyToEmailId: z.string().optional().describe("ID of the email being replied to"),
+      replyToEmailId: z
+        .string()
+        .optional()
+        .describe("ID of the email being replied to"),
+      documentId: z
+        .string()
+        .optional()
+        .describe("ID of a document to attach as PDF"),
     }),
     needsApproval,
-    execute: async ({ to, subject, body }) => {
+    execute: async ({ to, subject, body, documentId }) => {
+      let attachments: Array<{ filename: string; content: Buffer }> | undefined;
+
+      if (documentId) {
+        // Verify document ownership
+        const [doc] = await db
+          .select({ id: documents.id })
+          .from(documents)
+          .where(
+            and(eq(documents.id, documentId), eq(documents.userId, userId)),
+          );
+
+        if (!doc) {
+          return { error: "Document not found" };
+        }
+
+        const { buffer, title } = await generateDocumentPdf(documentId);
+        const filename = `${title.replace(/[^a-zA-Z0-9-_ ]/g, "").trim() || "document"}.pdf`;
+        attachments = [{ filename, content: buffer }];
+      }
+
       const result = await resend.emails.send({
         from: fromAddress,
         to: [to],
         subject,
         html: body,
+        ...(attachments ? { attachments } : {}),
       });
 
       return { sent: true, emailId: result.data?.id };
