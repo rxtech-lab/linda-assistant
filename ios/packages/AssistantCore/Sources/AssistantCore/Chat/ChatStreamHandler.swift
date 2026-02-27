@@ -31,6 +31,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     public var onReconnected: (@MainActor () async -> Void)?
     public var onConfirmationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
     public var onToolResult: (@MainActor (_ toolCallId: String, _ isError: Bool, _ errorMessage: String?) -> Void)?
+    public var onUserMessage: (@MainActor (_ id: String, _ content: String) -> Void)?
 
     private let apiClient: APIClient
     private let sseClient: SSEClient
@@ -51,7 +52,8 @@ public final class ChatStreamHandler: @unchecked Sendable {
         await connectToPath("chat-sessions/\(sessionId)/stream")
     }
 
-    public func sendChatMessage(assigneeId: String, content: String) async {
+    @discardableResult
+    public func sendChatMessage(assigneeId: String, content: String) async -> String? {
         logger.info("sendChatMessage: assigneeId=\(assigneeId), isConnected=\(self.isConnected)")
         await MainActor.run {
             self._flushTask?.cancel()
@@ -65,8 +67,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
         }
 
         do {
-            _ = try await apiClient.sendChatMessage(assigneeId: assigneeId, SendMessage(content: content))
+            let response = try await apiClient.sendChatMessage(assigneeId: assigneeId, SendMessage(content: content))
             logger.info("sendChatMessage: API call succeeded")
+            return response.messageId
         } catch {
             logger.error("sendChatMessage error: \(error)")
             await MainActor.run {
@@ -74,6 +77,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 self.isStreaming = false
             }
             eventManager.emit(.error(message: error.localizedDescription))
+            return nil
         }
     }
 
@@ -132,7 +136,8 @@ public final class ChatStreamHandler: @unchecked Sendable {
         }
     }
 
-    public func sendMessage(sessionId: String, content: String) async {
+    @discardableResult
+    public func sendMessage(sessionId: String, content: String) async -> String? {
         logger.info("sendMessage: sessionId=\(sessionId), isConnected=\(self.isConnected)")
         // Reset per-run state on MainActor so @Observable triggers SwiftUI updates
         await MainActor.run {
@@ -147,8 +152,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
         }
 
         do {
-            _ = try await apiClient.sendMessage(sessionId: sessionId, SendMessage(content: content))
+            let response = try await apiClient.sendMessage(sessionId: sessionId, SendMessage(content: content))
             logger.info("sendMessage: API call succeeded")
+            return response.messageId
         } catch {
             logger.error("sendMessage error: \(error)")
             await MainActor.run {
@@ -156,6 +162,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 self.isStreaming = false
             }
             eventManager.emit(.error(message: error.localizedDescription))
+            return nil
         }
     }
 
@@ -328,6 +335,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                     }
                 }
                 onConfirmationResolved?(payload.toolCallId, payload.action)
+
+            case let .userMessage(payload):
+                logger.info("userMessage: id=\(payload.id), content=\(payload.content.prefix(50))")
+                onUserMessage?(payload.id, payload.content)
 
             case let .compacting(payload):
                 logger.info("compacting: messageCount=\(payload.messageCount ?? 0)")

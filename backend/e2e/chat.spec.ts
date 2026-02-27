@@ -322,6 +322,69 @@ test.describe("Chat Endpoints", () => {
     expect(afterBody.nextCursor).toBeNull();
   });
 
+  test("send_email with document attachment auto-confirms and sends", async ({ request, baseURL }) => {
+    // Create assignee with auto-confirm for send_email
+    const assigneeRes = await request.post("/api/assignees", {
+      data: {
+        name: "Doc Attach Assistant",
+        email: "doc-attach@example.com",
+        toolPermissions: [{ toolName: "send_email", permission: "auto-confirm" }],
+      },
+    });
+    expect(assigneeRes.ok()).toBeTruthy();
+    const testAssigneeId = (await assigneeRes.json()).id;
+
+    // Send first message to auto-create session, then wait for it to finish
+    await request.post(`/api/chat/${testAssigneeId}/message`, {
+      data: { content: "Hello" },
+    });
+    await waitForStopped(request, testAssigneeId);
+
+    // Get the session ID from DB
+    const client = createClient({ url: `file:${dbPath}` });
+    const sessionResult = await client.execute({
+      sql: "SELECT id FROM chat_sessions WHERE assignee_id = ? ORDER BY created_at DESC LIMIT 1",
+      args: [testAssigneeId],
+    });
+    const sessionId = sessionResult.rows[0].id as string;
+
+    // Insert a test document with the known ID that the mock model will reference
+    await client.execute({
+      sql: "INSERT OR REPLACE INTO documents (id, user_id, chat_session_id, title, format, content) VALUES (?, ?, ?, ?, ?, ?)",
+      args: ["e2e-test-doc", "e2e-test-user", sessionId, "Test Report", "markdown", "# Test Report\n\nThis is a test document."],
+    });
+    client.close();
+
+    // Subscribe to SSE BEFORE sending the tool-triggering message
+    const eventsPromise = consumeSSE(`${baseURL}/api/chat/${testAssigneeId}/stream`, {
+      headers: { authorization: "Bearer e2e-test-token" },
+    });
+    await new Promise((r) => setTimeout(r, SUB_DELAY));
+
+    // Send message that triggers send_email with documentId
+    const msgRes = await request.post(`/api/chat/${testAssigneeId}/message`, {
+      data: { content: "[TOOL:send_email_with_doc] Send the report as attachment" },
+    });
+    expect(msgRes.ok()).toBeTruthy();
+
+    const events = await eventsPromise;
+    const eventTypes = events.map((e) => e.event);
+
+    expect(eventTypes).toContain("tool-call");
+    expect(eventTypes).toContain("tool-result");
+    expect(eventTypes).toContain("done");
+
+    // Verify tool-call is send_email with documentId
+    const toolCallEvent = events.find((e) => e.event === "tool-call");
+    expect(toolCallEvent?.data.toolName).toBe("send_email");
+    expect(toolCallEvent?.data.input.documentId).toBe("e2e-test-doc");
+
+    // Verify tool-result indicates success
+    const toolResultEvent = events.find((e) => e.event === "tool-result");
+    expect(toolResultEvent?.data.toolName).toBe("send_email");
+    expect(toolResultEvent?.data.output).toHaveProperty("sent", true);
+  });
+
   test("clear messages on non-existent session returns 404", async ({ request }) => {
     // Create assignee with no session
     const assigneeRes = await request.post("/api/assignees", {

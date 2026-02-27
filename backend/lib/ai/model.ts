@@ -77,6 +77,33 @@ function buildStreamChunks(
     return { chunks, chunkDelayInMs: 200 };
   }
 
+  // Scenario: send_email with document attachment (only if tool is available)
+  if (
+    lastText.includes("[TOOL:send_email_with_doc]") &&
+    (!availableTools || availableTools.has("send_email"))
+  ) {
+    const input = JSON.stringify({
+      to: "test@example.com",
+      subject: "Test Email With Attachment",
+      body: "<p>Please find the document attached.</p>",
+      documentId: "e2e-test-doc",
+    });
+    return {
+      chunks: [
+        { type: "tool-input-start", id: "call-doc-1", toolName: "send_email" },
+        { type: "tool-input-delta", id: "call-doc-1", delta: input },
+        { type: "tool-input-end", id: "call-doc-1" },
+        { type: "tool-call", toolCallId: "call-doc-1", toolName: "send_email", input },
+        {
+          type: "finish",
+          finishReason: { unified: "tool-calls", raw: undefined },
+          usage: MOCK_USAGE,
+        },
+      ],
+      chunkDelayInMs: null,
+    };
+  }
+
   // Scenario: send_email tool call (only if tool is available)
   if (
     lastText.includes("[TOOL:send_email]") &&

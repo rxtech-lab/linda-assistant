@@ -9,6 +9,7 @@ public enum SSEEventType: String, Sendable {
     case toolResult = "tool-result"
     case confirmationRequired = "confirmation_required"
     case confirmationResolved = "confirmation_resolved"
+    case userMessage = "user-message"
     case compacting
     case error
     case done
@@ -65,6 +66,10 @@ public struct SSEEvent: Sendable {
                 if let payload = try? decoder.decode(ConfirmationResolvedPayload.self, from: jsonData) {
                     return .confirmationResolved(payload)
                 }
+            case .userMessage:
+                if let payload = try? decoder.decode(UserMessagePayload.self, from: jsonData) {
+                    return .userMessage(payload)
+                }
             case .compacting:
                 if let payload = try? decoder.decode(CompactingPayload.self, from: jsonData) {
                     logger.info("parse: compacting messageCount=\(payload.messageCount ?? 0)")
@@ -96,6 +101,7 @@ public enum SSEMessage: Sendable {
     case toolResult(ToolResultPayload)
     case confirmationRequired(ConfirmationPayload)
     case confirmationResolved(ConfirmationResolvedPayload)
+    case userMessage(UserMessagePayload)
     case compacting(CompactingPayload)
     case error(SSEErrorPayload)
     case done
@@ -143,6 +149,11 @@ public struct ConfirmationResolvedPayload: Codable, Sendable {
     public let toolCallId: String
     public let toolName: String
     public let action: String
+}
+
+public struct UserMessagePayload: Codable, Sendable {
+    public let id: String
+    public let content: String
 }
 
 public struct CompactingPayload: Codable, Sendable {

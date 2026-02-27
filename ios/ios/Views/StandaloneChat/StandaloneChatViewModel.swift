@@ -200,6 +200,17 @@ final class ChatTabViewModel {
             guard let self else { return }
             updateToolCallResult(toolCallId: toolCallId, isError: isError, errorMessage: errorMessage, in: &displayMessages)
         }
+        handler.onUserMessage = { [weak self] id, content in
+            guard let self else { return }
+            // Dedup: skip if a message with this ID already exists (sent from this device)
+            guard !displayMessages.contains(where: { $0.id == id }) else { return }
+            let userMsg = DisplayMessage(
+                id: id,
+                role: .user,
+                parts: [.text(.plain(content))]
+            )
+            displayMessages.append(userMsg)
+        }
         streamHandler = handler
     }
 
@@ -213,8 +224,9 @@ final class ChatTabViewModel {
     ) async {
         guard let assignee = selectedAssignee else { return }
 
+        let tempId = "user-\(UUID().uuidString)"
         let userMsg = DisplayMessage(
-            id: "user-\(UUID().uuidString)",
+            id: tempId,
             role: .user,
             parts: [.text(.plain(content))]
         )
@@ -226,7 +238,15 @@ final class ChatTabViewModel {
             setupStreamHandler(apiClient: apiClient, authManager: authManager, eventManager: eventManager)
         }
 
-        await streamHandler?.sendChatMessage(assigneeId: assignee.id, content: content)
+        let messageId = await streamHandler?.sendChatMessage(assigneeId: assignee.id, content: content)
+        // Update local message ID to backend ID for dedup when SSE event arrives
+        if let messageId, let idx = displayMessages.firstIndex(where: { $0.id == tempId }) {
+            displayMessages[idx] = DisplayMessage(
+                id: messageId,
+                role: displayMessages[idx].role,
+                parts: displayMessages[idx].parts
+            )
+        }
 
         if needsConnect {
             hasSession = true
