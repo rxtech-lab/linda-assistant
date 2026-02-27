@@ -57,20 +57,15 @@ struct DocumentViewerSheet: View {
                     }
                     .overlay {
                         if isDownloading {
-                            ZStack {
-                                Color.black.opacity(0.3)
-                                    .ignoresSafeArea()
-                                VStack(spacing: 12) {
-                                    ProgressView()
-                                        .controlSize(.large)
-                                    Text("Generating PDF...")
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundStyle(.white)
-                                }
-                                .padding(24)
-                                .background(.ultraThinMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                    .controlSize(.large)
+                                Text("Generating PDF...")
+                                    .font(.subheadline.weight(.medium))
                             }
+                            .padding(24)
+                            .background(.ultraThinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
                         }
                     }
                 }
@@ -294,19 +289,42 @@ struct DocumentViewerSheet: View {
 
 private struct DocumentViewerPreview: View {
     let document: Document
+    var isLoading: Bool = false
+    var isDownloading: Bool = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    if document.format == "markdown" {
-                        Markdown(document.content)
-                            .markdownTheme(.chat)
-                            .padding()
-                    } else {
-                        HTMLContentView(htmlString: document.content)
-                            .frame(minHeight: 400)
+            Group {
+                if isLoading {
+                    ProgressView("Loading document...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            if document.format == "markdown" {
+                                Markdown(document.content)
+                                    .markdownTheme(.chat)
+                                    .padding()
+                            } else {
+                                HTMLContentView(htmlString: document.content)
+                                    .frame(minHeight: 400)
+                            }
+                        }
+                    }
+                    .overlay {
+                        if isDownloading {
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                    .controlSize(.large)
+                                Text("Generating PDF...")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(24)
+                            .background(.ultraThinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                        }
                     }
                 }
             }
@@ -327,8 +345,14 @@ private struct DocumentViewerPreview: View {
                                 Label("Download PDF", systemImage: "doc.richtext")
                             }
                         } label: {
-                            Image(systemName: "square.and.arrow.down")
+                            if isDownloading {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "square.and.arrow.down")
+                            }
                         }
+                        .disabled(isDownloading)
                     }
                 }
         }
@@ -401,11 +425,36 @@ private struct DocumentViewerPreview: View {
 }
 
 #Preview("Loading State") {
-    DocumentViewerSheet(
-        documentId: "preview-loading",
-        initialTitle: "Loading Document"
+    DocumentViewerPreview(
+        document: Document(
+            id: "preview-loading",
+            title: "Loading Document",
+            format: "markdown",
+            content: ""
+        ),
+        isLoading: true
     )
-    .environment(AuthManager())
+}
+
+#Preview("Downloading PDF") {
+    DocumentViewerPreview(
+        document: Document(
+            id: "preview-download",
+            title: "Meeting Notes",
+            format: "markdown",
+            content: """
+            # Meeting Notes
+
+            ## Attendees
+            - Alice
+            - Bob
+
+            ## Notes
+            The team discussed progress on the project.
+            """
+        ),
+        isDownloading: true
+    )
 }
 
 #if os(iOS)
