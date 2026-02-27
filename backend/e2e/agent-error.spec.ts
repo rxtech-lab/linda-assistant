@@ -175,17 +175,21 @@ test.describe("Agent Tool Error Handling", () => {
     expect(toolResultPart.toolCallId).toBeTruthy();
     expect(toolResultPart.toolName).toBe("update_task");
 
-    // The tool-result output should contain the error
+    // The tool-result should indicate an error via isError flag, error output, or error-text type
     const output = toolResultPart.output;
+    const hasIsError = toolResultPart.isError === true;
+    let hasErrorInOutput = false;
     if (typeof output === "object" && output !== null) {
       // Output could be wrapped in { type: "json", value: ... } or { type: "error-text", value: ... }
       const value = output.value ?? output;
-      const hasError =
-        toolResultPart.isError === true ||
-        (typeof value === "object" && value !== null && "error" in value) ||
-        output.type === "error-text";
-      expect(hasError).toBe(true);
+      hasErrorInOutput =
+        output.type === "error-text" ||
+        (typeof value === "object" && value !== null && "error" in value);
+    } else if (typeof output === "string") {
+      // Raw error string
+      hasErrorInOutput = output.length > 0;
     }
+    expect(hasIsError || hasErrorInOutput).toBe(true);
 
     // Verify the tool-call and tool-result reference the same toolCallId
     const toolCallPart = assistantWithToolCall.content.find(
