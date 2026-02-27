@@ -198,9 +198,11 @@ private extension ConfirmationSheetView {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .tint(.orange)
         .padding(16)
+        .frame(maxWidth: .infinity)
         .background(.background)
         .overlay(
             RoundedRectangle(cornerRadius: 16)

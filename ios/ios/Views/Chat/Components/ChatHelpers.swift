@@ -3,74 +3,41 @@ import os
 
 private let logger = Logger(subsystem: "lindaAssistant", category: "ChatHelpers")
 
-/// Append finalized assistant messages (tool calls and/or text) to the display messages array.
+/// Append finalized assistant message parts to the display messages array.
 /// Used as the `onAssistantMessage` callback in both ViewModels.
 @MainActor
 func appendAssistantMessages(
-    text: String,
-    toolCalls: [ToolCallInfo],
+    parts: [MessagePart],
     to messages: inout [DisplayMessage],
-    assigneeName: String?,
-    order: [StreamItemKind] = []
+    assigneeName: String?
 ) {
+    guard !parts.isEmpty else { return }
+
     // Deduplicate: update existing display messages for tool calls re-emitted after confirmation
-    var deduplicatedToolCalls = toolCalls
+    var deduplicatedParts = parts
     for i in messages.indices {
-        for j in messages[i].toolCalls.indices {
-            let existingId = messages[i].toolCalls[j].toolCallId
-            if let newIndex = deduplicatedToolCalls.firstIndex(where: { $0.toolCallId == existingId }) {
-                messages[i].toolCalls[j] = deduplicatedToolCalls[newIndex]
-                deduplicatedToolCalls.remove(at: newIndex)
+        for j in messages[i].parts.indices {
+            if case .tool(let existingInfo) = messages[i].parts[j] {
+                if let newIndex = deduplicatedParts.firstIndex(where: {
+                    if case .tool(let info) = $0 { return info.toolCallId == existingInfo.toolCallId }
+                    return false
+                }) {
+                    // Update the existing message's tool part with the new info
+                    messages[i].parts[j] = deduplicatedParts[newIndex]
+                    deduplicatedParts.remove(at: newIndex)
+                }
             }
         }
     }
 
-    // Follow the recorded arrival order from the stream
-    var textAppended = false
-    var toolCallsAppended = false
+    guard !deduplicatedParts.isEmpty else { return }
 
-    for item in order {
-        switch item {
-            case .text where !textAppended && !text.isEmpty:
-                messages.append(DisplayMessage(
-                    id: "assistant-\(messages.count)",
-                    role: .assistant,
-                    content: text,
-                    assigneeName: assigneeName
-                ))
-                textAppended = true
-            case .toolCall where !toolCallsAppended && !deduplicatedToolCalls.isEmpty:
-                messages.append(DisplayMessage(
-                    id: "assistant-tools-\(messages.count)",
-                    role: .assistant,
-                    content: "",
-                    toolCalls: deduplicatedToolCalls,
-                    assigneeName: assigneeName
-                ))
-                toolCallsAppended = true
-            default:
-                break
-        }
-    }
-
-    // Fallback: if order is empty (e.g. historical messages), append whatever exists
-    if !textAppended && !text.isEmpty {
-        messages.append(DisplayMessage(
-            id: "assistant-\(messages.count)",
-            role: .assistant,
-            content: text,
-            assigneeName: assigneeName
-        ))
-    }
-    if !toolCallsAppended && !deduplicatedToolCalls.isEmpty {
-        messages.append(DisplayMessage(
-            id: "assistant-tools-\(messages.count)",
-            role: .assistant,
-            content: "",
-            toolCalls: deduplicatedToolCalls,
-            assigneeName: assigneeName
-        ))
-    }
+    messages.append(DisplayMessage(
+        id: "assistant-\(UUID().uuidString)",
+        role: .assistant,
+        parts: deduplicatedParts,
+        assigneeName: assigneeName
+    ))
 }
 
 /// Update a tool call's status in display messages when a confirmation is resolved via SSE.
@@ -81,10 +48,13 @@ func updateToolCallStatus(
     in messages: inout [DisplayMessage]
 ) {
     for i in messages.indices {
-        if let j = messages[i].toolCalls.firstIndex(where: { $0.toolCallId == toolCallId }) {
-            messages[i].toolCalls[j].status = action == "rejected" ? .rejected : .running
-            logger.info("updateToolCallStatus: toolCallId=\(toolCallId) -> \(action)")
-            return
+        for j in messages[i].parts.indices {
+            if case .tool(var info) = messages[i].parts[j], info.toolCallId == toolCallId {
+                info.status = action == "rejected" ? .rejected : .running
+                messages[i].parts[j] = .tool(info)
+                logger.info("updateToolCallStatus: toolCallId=\(toolCallId) -> \(action)")
+                return
+            }
         }
     }
 }
@@ -99,11 +69,14 @@ func updateToolCallResult(
     in messages: inout [DisplayMessage]
 ) {
     for i in messages.indices {
-        if let j = messages[i].toolCalls.firstIndex(where: { $0.toolCallId == toolCallId }) {
-            messages[i].toolCalls[j].status = isError ? .failed : .completed
-            if isError { messages[i].toolCalls[j].errorMessage = errorMessage }
-            logger.info("updateToolCallResult: toolCallId=\(toolCallId) -> \(isError ? "failed" : "completed")")
-            return
+        for j in messages[i].parts.indices {
+            if case .tool(var info) = messages[i].parts[j], info.toolCallId == toolCallId {
+                info.status = isError ? .failed : .completed
+                if isError { info.errorMessage = errorMessage }
+                messages[i].parts[j] = .tool(info)
+                logger.info("updateToolCallResult: toolCallId=\(toolCallId) -> \(isError ? "failed" : "completed")")
+                return
+            }
         }
     }
 }

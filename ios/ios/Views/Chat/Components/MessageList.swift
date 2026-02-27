@@ -4,9 +4,6 @@ import SwiftUI
 struct MessageList: View {
     let messages: [DisplayMessage]
     var assigneeName: String?
-    var streamingText: String?
-    var streamingToolCalls: [ToolCallInfo] = []
-    var streamOrder: [StreamItemKind] = []
     var showPendingIndicator = false
     var showStreamComplete = false
     var onConfirmationTap: (() -> Void)?
@@ -30,24 +27,8 @@ struct MessageList: View {
         return !calendar.isDate(currentTimestamp, inSameDayAs: previousTimestamp)
     }
 
-    /// Compute the sequential item index for a given message index and sub-item offset.
-    /// Each message contributes: toolCalls.count + 1 for content (if non-empty).
-    private func itemIndex(forMessage msgIndex: Int, offset: Int = 0) -> Int {
-        var count = 0
-        for i in 0 ..< msgIndex {
-            count += messages[i].toolCalls.count
-            if !messages[i].content.isEmpty { count += 1 }
-        }
-        return count + offset
-    }
-
-    /// The total number of items from historical messages.
-    private var historicalItemCount: Int {
-        itemIndex(forMessage: messages.count)
-    }
-
     var body: some View {
-        // Historical messages
+        // Messages — each message's parts rendered in order
         ForEach(Array(messages.enumerated()), id: \.element.id) { index, msg in
             Group {
                 // Date divider if date changed
@@ -65,21 +46,23 @@ struct MessageList: View {
                     }
                 }
 
-                ForEach(Array(msg.toolCalls.enumerated()), id: \.element.id) { tcIndex, toolCall in
-                    ToolCallBadge(toolCall: toolCall) {
-                        if toolCall.status == .pendingConfirmation {
-                            onConfirmationTap?()
-                        } else if toolCall.status != .running {
-                            onToolCallTap?(toolCall)
+                ForEach(Array(msg.parts.enumerated()), id: \.offset) { partIndex, part in
+                    switch part {
+                    case .text(let content):
+                        if !content.displayText.isEmpty {
+                            MessageBubble(message: msg, disableAnimation: !animationEnabled)
+                                .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                         }
+                    case .tool(let toolCall):
+                        ToolCallBadge(toolCall: toolCall) {
+                            if toolCall.status == .pendingConfirmation {
+                                onConfirmationTap?()
+                            } else if toolCall.status != .running {
+                                onToolCallTap?(toolCall)
+                            }
+                        }
+                        .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                     }
-                    .accessibilityIdentifier("messageListItem-\(itemIndex(forMessage: index, offset: tcIndex))")
-                }
-
-                if !msg.content.isEmpty {
-                    let textOffset = msg.toolCalls.count
-                    MessageBubble(message: msg, disableAnimation: !animationEnabled)
-                        .accessibilityIdentifier("messageListItem-\(itemIndex(forMessage: index, offset: textOffset))")
                 }
             }
             .id(msg.id)
@@ -87,7 +70,7 @@ struct MessageList: View {
         }
 
         // Streaming group header
-        if streamingText != nil || !streamingToolCalls.isEmpty || showPendingIndicator,
+        if showPendingIndicator,
            messages.last?.role != .assistant
         {
             Text(assigneeName ?? "Assistant")
@@ -99,35 +82,6 @@ struct MessageList: View {
         if showPendingIndicator {
             AssistantPendingIndicator()
                 .id("pendingIndicator")
-        }
-
-        // Streaming items — rendered in arrival order
-        ForEach(Array(streamOrder.enumerated()), id: \.offset) { itemIndex, item in
-            switch item {
-                case .text:
-                    if let streamingText, !streamingText.isEmpty {
-                        MessageBubble(message: DisplayMessage(
-                            id: "streaming",
-                            role: .assistant,
-                            content: streamingText,
-                            isStreaming: true,
-                            assigneeName: assigneeName
-                        ))
-                        .id("streaming")
-                        .accessibilityIdentifier("messageListItem-\(historicalItemCount + itemIndex)")
-                    }
-                case let .toolCall(toolCallId):
-                    if let toolCall = streamingToolCalls.first(where: { $0.toolCallId == toolCallId }) {
-                        ToolCallBadge(toolCall: toolCall) {
-                            if toolCall.status == .pendingConfirmation {
-                                onConfirmationTap?()
-                            } else if toolCall.status != .running {
-                                onToolCallTap?(toolCall)
-                            }
-                        }
-                        .accessibilityIdentifier("messageListItem-\(historicalItemCount + itemIndex)")
-                    }
-            }
         }
 
         // Stream complete divider
@@ -221,47 +175,47 @@ struct DateDividerView: View {
             MessageList(messages: [
                 DisplayMessage(
                     id: "1", role: .user,
-                    content: "Can you check my tasks and send a summary email?",
+                    parts: [.text(.plain("Can you check my tasks and send a summary email?"))],
                     timestamp: yesterday
                 ),
                 DisplayMessage(
-                    id: "2", role: .assistant, content: "",
-                    toolCalls: [ToolCallInfo(
+                    id: "2", role: .assistant,
+                    parts: [.tool(ToolCallInfo(
                         toolCallId: "tc-1",
                         toolName: "FetchTasks",
                         input: nil,
                         status: .completed
-                    )],
+                    ))],
                     assigneeName: "Avery",
                     timestamp: yesterday
                 ),
                 DisplayMessage(
                     id: "3",
                     role: .assistant,
-                    content: "I found 3 tasks. Let me send that summary.",
+                    parts: [.text(.plain("I found 3 tasks. Let me send that summary."))],
                     assigneeName: "Avery",
                     timestamp: yesterday
                 ),
                 DisplayMessage(
-                    id: "4", role: .assistant, content: "",
-                    toolCalls: [ToolCallInfo(
+                    id: "4", role: .assistant,
+                    parts: [.tool(ToolCallInfo(
                         toolCallId: "tc-2",
                         toolName: "SendEmail",
                         input: nil,
                         status: .pendingConfirmation
-                    )],
+                    ))],
                     assigneeName: "Avery",
                     timestamp: yesterday
                 ),
                 DisplayMessage(
                     id: "5", role: .user,
-                    content: "Thanks! What about tomorrow's schedule?",
+                    parts: [.text(.plain("Thanks! What about tomorrow's schedule?"))],
                     timestamp: today
                 ),
                 DisplayMessage(
                     id: "6",
                     role: .assistant,
-                    content: "Let me look that up for you.",
+                    parts: [.text(.plain("Let me look that up for you."))],
                     assigneeName: "Avery",
                     timestamp: today
                 ),
@@ -276,10 +230,15 @@ struct DateDividerView: View {
         LazyVStack(alignment: .leading, spacing: 12) {
             MessageList(
                 messages: [
-                    DisplayMessage(id: "1", role: .user, content: "What's on my schedule today?"),
+                    DisplayMessage(id: "1", role: .user, parts: [.text(.plain("What's on my schedule today?"))]),
+                    DisplayMessage(
+                        id: "streaming",
+                        role: .assistant,
+                        parts: [.text(.streaming(["Let me check your calendar..."]))],
+                        assigneeName: "Avery"
+                    ),
                 ],
-                assigneeName: "Avery",
-                streamingText: "Let me check your calendar..."
+                assigneeName: "Avery"
             )
         }
         .padding()
@@ -290,22 +249,22 @@ struct DateDividerView: View {
     ScrollView {
         LazyVStack(alignment: .leading, spacing: 12) {
             MessageList(messages: [
-                DisplayMessage(id: "1", role: .user, content: "Update task xyz to finished"),
+                DisplayMessage(id: "1", role: .user, parts: [.text(.plain("Update task xyz to finished"))]),
                 DisplayMessage(
-                    id: "2", role: .assistant, content: "",
-                    toolCalls: [ToolCallInfo(
+                    id: "2", role: .assistant,
+                    parts: [.tool(ToolCallInfo(
                         toolCallId: "tc-err",
                         toolName: "update_task",
                         input: ["taskId": .string("xyz"), "status": .string("finished")],
                         status: .failed,
                         errorMessage: "Task not found"
-                    )],
+                    ))],
                     assigneeName: "Avery"
                 ),
                 DisplayMessage(
                     id: "3",
                     role: .assistant,
-                    content: "Sorry, I couldn't find that task.",
+                    parts: [.text(.plain("Sorry, I couldn't find that task."))],
                     assigneeName: "Avery"
                 ),
             ])
@@ -319,7 +278,7 @@ struct DateDividerView: View {
         LazyVStack(alignment: .leading, spacing: 12) {
             MessageList(
                 messages: [
-                    DisplayMessage(id: "1", role: .user, content: "Send an email to the team"),
+                    DisplayMessage(id: "1", role: .user, parts: [.text(.plain("Send an email to the team"))]),
                 ],
                 assigneeName: "Avery",
                 showPendingIndicator: true
@@ -334,11 +293,11 @@ struct DateDividerView: View {
         LazyVStack(alignment: .leading, spacing: 12) {
             MessageList(
                 messages: [
-                    DisplayMessage(id: "1", role: .user, content: "What's on my schedule?"),
+                    DisplayMessage(id: "1", role: .user, parts: [.text(.plain("What's on my schedule?"))]),
                     DisplayMessage(
                         id: "2",
                         role: .assistant,
-                        content: "You have 3 meetings today.",
+                        parts: [.text(.plain("You have 3 meetings today."))],
                         assigneeName: "Avery"
                     ),
                 ],

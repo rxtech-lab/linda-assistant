@@ -212,10 +212,7 @@ public struct SendMessage: Codable, Sendable {
 // MARK: - Chat Message (from backend JSON messages array)
 
 public struct ChatMessage: Codable, Sendable, Identifiable {
-    public var id: String {
-        "\(role)-\(textContent?.prefix(20) ?? "empty")-\(UUID().uuidString.prefix(8))"
-    }
-
+    public let id: String
     public let role: String
     public let textContent: String?
     public let toolCalls: [ChatToolCall]
@@ -228,11 +225,12 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case role, content
+        case id, role, content
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? container.decode(String.self, forKey: .id)) ?? UUID().uuidString
         role = try container.decode(String.self, forKey: .role)
 
         // Content can be a plain string or an array of content parts
@@ -272,6 +270,7 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
         try container.encode(role, forKey: .role)
         try container.encodeIfPresent(textContent, forKey: .content)
     }

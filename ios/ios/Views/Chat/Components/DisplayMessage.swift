@@ -7,9 +7,7 @@ import SwiftUI
 struct DisplayMessage: Identifiable {
     let id: String
     let role: MessageRole
-    let content: String
-    var isStreaming = false
-    var toolCalls: [ToolCallInfo] = []
+    var parts: [MessagePart]
     var assigneeName: String?
     var timestamp: Date?
 
@@ -18,13 +16,66 @@ struct DisplayMessage: Identifiable {
         case assistant
         case system
     }
+
+    /// Computed: joined text from all text parts.
+    var textContent: String {
+        parts.compactMap {
+            if case .text(let content) = $0 { return content.displayText }
+            return nil
+        }.joined()
+    }
+
+    /// Computed: extract all tool call parts.
+    var toolCalls: [ToolCallInfo] {
+        get {
+            parts.compactMap {
+                if case .tool(let info) = $0 { return info }
+                return nil
+            }
+        }
+        set {
+            // Rebuild parts: replace all .tool parts with new values, keeping text parts in place
+            var newParts: [MessagePart] = []
+            var toolIndex = 0
+            for part in parts {
+                if case .tool = part {
+                    if toolIndex < newValue.count {
+                        newParts.append(.tool(newValue[toolIndex]))
+                        toolIndex += 1
+                    }
+                    // else: skip removed tool calls
+                } else {
+                    newParts.append(part)
+                }
+            }
+            // Append any remaining new tool calls
+            while toolIndex < newValue.count {
+                newParts.append(.tool(newValue[toolIndex]))
+                toolIndex += 1
+            }
+            parts = newParts
+        }
+    }
+
+    /// Computed: whether any text part is still streaming.
+    var isStreaming: Bool {
+        parts.contains {
+            if case .text(.streaming) = $0 { return true }
+            return false
+        }
+    }
 }
 
 extension DisplayMessage {
     /// Convert historical ChatMessage array to DisplayMessage array.
     static func convert(from messages: [ChatMessage], assigneeName: String?) -> [DisplayMessage] {
-        messages.enumerated().compactMap { index, msg in
-            let historicalToolCalls = msg.toolCalls.map { tc in
+        messages.compactMap { msg in
+            var parts: [MessagePart] = []
+
+            // Build parts from content parts, preserving order
+            // ChatMessage already flattens text content and extracts tool calls
+            // We reconstruct ordered parts: tool calls + text (matching original behavior)
+            let historicalToolCalls = msg.toolCalls.map { tc -> ToolCallInfo in
                 let status: ToolCallStatus
                 let errorMsg: String?
                 if tc.confirmation != nil {
@@ -45,13 +96,21 @@ extension DisplayMessage {
                     errorMessage: errorMsg
                 )
             }
-            guard (msg.textContent != nil && !msg.textContent!.isEmpty) || !historicalToolCalls.isEmpty
-            else { return nil }
+
+            for tc in historicalToolCalls {
+                parts.append(.tool(tc))
+            }
+
+            if let text = msg.textContent, !text.isEmpty {
+                parts.append(.text(.plain(text)))
+            }
+
+            guard !parts.isEmpty else { return nil }
+
             return DisplayMessage(
-                id: "history-\(index)-\(msg.role)",
+                id: msg.id,
                 role: msg.role == "user" ? .user : .assistant,
-                content: msg.textContent ?? "",
-                toolCalls: historicalToolCalls,
+                parts: parts,
                 assigneeName: msg.role == "user" ? nil : assigneeName
             )
         }
@@ -61,7 +120,7 @@ extension DisplayMessage {
         DisplayMessage(
             id: "preview-user",
             role: .user,
-            content: "Can you help me understand how to implement authentication in my iOS app? I'm looking for best practices and security considerations."
+            parts: [.text(.plain("Can you help me understand how to implement authentication in my iOS app? I'm looking for best practices and security considerations."))]
         )
     }
 
@@ -69,7 +128,7 @@ extension DisplayMessage {
         DisplayMessage(
             id: "preview-assistant",
             role: .assistant,
-            content: """
+            parts: [.text(.plain("""
             Here's a comprehensive overview of authentication best practices for iOS:
 
             ## 1. Use Keychain for Secure Storage
@@ -88,7 +147,7 @@ extension DisplayMessage {
             - Clear tokens on logout
 
             Let me know if you'd like more details on any of these topics!
-            """,
+            """))],
             assigneeName: "Avery"
         )
     }
@@ -103,7 +162,7 @@ private struct DisplayMessagePreview: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
 
-            Text(message.content)
+            Text(message.textContent)
                 .font(.body)
         }
         .padding()

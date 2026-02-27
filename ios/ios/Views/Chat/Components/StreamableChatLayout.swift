@@ -27,12 +27,25 @@ struct StreamableChatLayout<Header: View>: View {
     private var showPendingIndicator: Bool {
         guard let handler = streamHandler,
               handler.isStreaming,
-              handler.streamedText.isEmpty,
-              handler.toolCalls.isEmpty,
+              handler.streamingParts.isEmpty,
               handler.pendingConfirmations.isEmpty,
               handler.error == nil
         else { return false }
         return true
+    }
+
+    /// Combine historical messages with current streaming message.
+    private var allMessages: [DisplayMessage] {
+        var msgs = messages
+        if let handler = streamHandler, handler.isStreaming, !handler.streamingParts.isEmpty {
+            msgs.append(DisplayMessage(
+                id: "streaming",
+                role: .assistant,
+                parts: handler.streamingParts,
+                assigneeName: assigneeName
+            ))
+        }
+        return msgs
     }
 
     var body: some View {
@@ -49,12 +62,8 @@ struct StreamableChatLayout<Header: View>: View {
                             .id("header")
 
                         MessageList(
-                            messages: messages,
+                            messages: allMessages,
                             assigneeName: assigneeName,
-                            streamingText: streamHandler?.isStreaming == true
-                                ? streamHandler?.streamedText : nil,
-                            streamingToolCalls: streamHandler?.toolCalls ?? [],
-                            streamOrder: streamHandler?.streamOrder ?? [],
                             showPendingIndicator: showPendingIndicator,
                             showStreamComplete: streamHandler?.isStreaming == false
                                 && !messages.isEmpty
