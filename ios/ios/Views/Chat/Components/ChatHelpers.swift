@@ -13,6 +13,18 @@ func appendAssistantMessages(
     assigneeName: String?,
     order: [StreamItemKind] = []
 ) {
+    // Deduplicate: update existing display messages for tool calls re-emitted after confirmation
+    var deduplicatedToolCalls = toolCalls
+    for i in messages.indices {
+        for j in messages[i].toolCalls.indices {
+            let existingId = messages[i].toolCalls[j].toolCallId
+            if let newIndex = deduplicatedToolCalls.firstIndex(where: { $0.toolCallId == existingId }) {
+                messages[i].toolCalls[j] = deduplicatedToolCalls[newIndex]
+                deduplicatedToolCalls.remove(at: newIndex)
+            }
+        }
+    }
+
     // Follow the recorded arrival order from the stream
     var textAppended = false
     var toolCallsAppended = false
@@ -27,13 +39,12 @@ func appendAssistantMessages(
                     assigneeName: assigneeName
                 ))
                 textAppended = true
-            case let .toolCall(id) where !toolCallsAppended:
-                // Append all tool calls as one message on the first toolCall entry
+            case .toolCall where !toolCallsAppended && !deduplicatedToolCalls.isEmpty:
                 messages.append(DisplayMessage(
                     id: "assistant-tools-\(messages.count)",
                     role: .assistant,
                     content: "",
-                    toolCalls: toolCalls,
+                    toolCalls: deduplicatedToolCalls,
                     assigneeName: assigneeName
                 ))
                 toolCallsAppended = true
@@ -51,12 +62,12 @@ func appendAssistantMessages(
             assigneeName: assigneeName
         ))
     }
-    if !toolCallsAppended && !toolCalls.isEmpty {
+    if !toolCallsAppended && !deduplicatedToolCalls.isEmpty {
         messages.append(DisplayMessage(
             id: "assistant-tools-\(messages.count)",
             role: .assistant,
             content: "",
-            toolCalls: toolCalls,
+            toolCalls: deduplicatedToolCalls,
             assigneeName: assigneeName
         ))
     }
@@ -71,8 +82,27 @@ func updateToolCallStatus(
 ) {
     for i in messages.indices {
         if let j = messages[i].toolCalls.firstIndex(where: { $0.toolCallId == toolCallId }) {
-            messages[i].toolCalls[j].status = action == "rejected" ? .rejected : .completed
+            messages[i].toolCalls[j].status = action == "rejected" ? .rejected : .running
             logger.info("updateToolCallStatus: toolCallId=\(toolCallId) -> \(action)")
+            return
+        }
+    }
+}
+
+/// Update a tool call's status in display messages when a tool result arrives via SSE
+/// for a tool call not in the streaming list (reloaded session case).
+@MainActor
+func updateToolCallResult(
+    toolCallId: String,
+    isError: Bool,
+    errorMessage: String?,
+    in messages: inout [DisplayMessage]
+) {
+    for i in messages.indices {
+        if let j = messages[i].toolCalls.firstIndex(where: { $0.toolCallId == toolCallId }) {
+            messages[i].toolCalls[j].status = isError ? .failed : .completed
+            if isError { messages[i].toolCalls[j].errorMessage = errorMessage }
+            logger.info("updateToolCallResult: toolCallId=\(toolCallId) -> \(isError ? "failed" : "completed")")
             return
         }
     }

@@ -19,8 +19,7 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var selectedToolCall: ToolCallInfo?
     @State private var errorDismissTask: Task<Void, Never>?
     @State private var presentedConfirmation: ConfirmationPayload?
-    @State private var scrollDebounceTask: Task<Void, Never>?
-
+    @State private var scrollPosition = ScrollPosition(idType: String.self)
     private var pendingConfirmationCount: Int {
         streamHandler?.pendingConfirmations.count ?? 0
     }
@@ -36,15 +35,6 @@ struct StreamableChatLayout<Header: View>: View {
         return true
     }
 
-    private func scheduleScrollToBottom(proxy: ScrollViewProxy) {
-        scrollDebounceTask?.cancel()
-        scrollDebounceTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(150))
-            guard !Task.isCancelled else { return }
-            proxy.scrollTo("bottomAnchor", anchor: .bottom)
-        }
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
@@ -53,71 +43,65 @@ struct StreamableChatLayout<Header: View>: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 }
 
-                if !isLoading {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 12) {
-                                header()
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        header()
+                            .id("header")
 
-                                MessageList(
-                                    messages: messages,
-                                    assigneeName: assigneeName,
-                                    streamingText: streamHandler?.isStreaming == true
-                                        ? streamHandler?.streamedText : nil,
-                                    streamingToolCalls: streamHandler?.toolCalls ?? [],
-                                    streamOrder: streamHandler?.streamOrder ?? [],
-                                    showPendingIndicator: showPendingIndicator,
-                                    showStreamComplete: streamHandler?.isStreaming == false
-                                        && !messages.isEmpty
-                                        && messages.last?.role == .assistant,
-                                    onConfirmationTap: {
-                                        logger
-                                            .info(
-                                                "onConfirmationTap: pendingConfirmation=\(streamHandler?.pendingConfirmation != nil ? "set" : "nil")"
-                                            )
-                                        if let confirmation = streamHandler?.pendingConfirmation {
-                                            presentedConfirmation = confirmation
-                                        }
-                                    },
-                                    onToolCallTap: { toolCall in
-                                        selectedToolCall = toolCall
-                                    }
-                                )
+                        MessageList(
+                            messages: messages,
+                            assigneeName: assigneeName,
+                            streamingText: streamHandler?.isStreaming == true
+                                ? streamHandler?.streamedText : nil,
+                            streamingToolCalls: streamHandler?.toolCalls ?? [],
+                            streamOrder: streamHandler?.streamOrder ?? [],
+                            showPendingIndicator: showPendingIndicator,
+                            showStreamComplete: streamHandler?.isStreaming == false
+                                && !messages.isEmpty
+                                && messages.last?.role == .assistant,
+                            onConfirmationTap: {
+                                logger
+                                    .info(
+                                        "onConfirmationTap: pendingConfirmation=\(streamHandler?.pendingConfirmation != nil ? "set" : "nil")"
+                                    )
+                                if let confirmation = streamHandler?.pendingConfirmation {
+                                    presentedConfirmation = confirmation
+                                }
+                            },
+                            onToolCallTap: { toolCall in
+                                selectedToolCall = toolCall
                             }
-                            .padding()
-                        }
-                        .defaultScrollAnchor(.bottom)
-                        .onChange(of: messages.count) {
-                            scheduleScrollToBottom(proxy: proxy)
-                        }
-                        .onChange(of: streamHandler?.streamedText) {
-                            scheduleScrollToBottom(proxy: proxy)
-                        }
-                        .onChange(of: streamHandler?.streamOrder) {
-                            scheduleScrollToBottom(proxy: proxy)
-                        }
-                        .onChange(of: streamHandler?.isStreaming) {
-                            // Immediate scroll on stream start/stop
-                            scrollDebounceTask?.cancel()
-                            proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                        }
-                        .onChange(of: pendingConfirmationCount) {
-                            if presentedConfirmation == nil,
-                               let confirmation = streamHandler?.pendingConfirmation
-                            {
-                                presentedConfirmation = confirmation
-                            }
-                        }
-                        .onAppear {
-                            // Present confirmation sheet if already loaded (e.g. app reopen)
-                            if presentedConfirmation == nil,
-                               let confirmation = streamHandler?.pendingConfirmation
-                            {
-                                presentedConfirmation = confirmation
-                            }
-                        }
+                        )
+
+                        Color.clear
+                            .frame(height: 1)
+                            .id("bottom")
                     }
+                    .padding()
+                    .scrollTargetLayout()
+//                    .opacity(messageListOpacity)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
+            // use scroll position to automatically scroll to bottom when new messages arrive
+            .defaultScrollAnchor(.bottom, for: .alignment)
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
+            .defaultScrollAnchor(.bottom, for: .sizeChanges)
+            .scrollPosition($scrollPosition, anchor: .bottom)
+            // but this solution not works on initial mount. So we use scrollPosition to scroll to bottom onAppear as well
+            .onChange(of: pendingConfirmationCount) {
+                if presentedConfirmation == nil,
+                   let confirmation = streamHandler?.pendingConfirmation
+                {
+                    presentedConfirmation = confirmation
+                }
+            }
+            .onAppear {
+                // Present confirmation sheet if already loaded (e.g. app reopen)
+                if presentedConfirmation == nil,
+                   let confirmation = streamHandler?.pendingConfirmation
+                {
+                    presentedConfirmation = confirmation
                 }
             }
             .animation(.easeInOut(duration: 0.5), value: isLoading)
