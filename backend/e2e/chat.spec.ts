@@ -350,7 +350,7 @@ test.describe("Chat Endpoints", () => {
 
     // Insert a test document with the known ID that the mock model will reference
     await client.execute({
-      sql: "INSERT INTO documents (id, user_id, chat_session_id, title, format, content) VALUES (?, ?, ?, ?, ?, ?)",
+      sql: "INSERT OR REPLACE INTO documents (id, user_id, chat_session_id, title, format, content) VALUES (?, ?, ?, ?, ?, ?)",
       args: ["e2e-test-doc", "e2e-test-user", sessionId, "Test Report", "markdown", "# Test Report\n\nThis is a test document."],
     });
     client.close();

@@ -24,6 +24,11 @@ export async function generateDocumentPdf(
 
   if (!doc) throw new Error("Document not found");
 
+  // In E2E mode, return a minimal PDF buffer to avoid puppeteer dependency
+  if (process.env.IS_E2E) {
+    return { buffer: Buffer.from("%PDF-1.0 mock"), title: doc.title };
+  }
+
   // Convert content to HTML
   let htmlContent: string;
   if (doc.format === "markdown") {
