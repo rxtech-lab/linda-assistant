@@ -39,6 +39,14 @@ import SwiftUI
     }
 #endif
 
+/// Creates AuthManager, clearing keychain first if --reset-auth flag is present
+private func createAuthManager() -> AuthManager {
+    if CommandLine.arguments.contains("--reset-auth") {
+        KeychainHelper.deleteAll()
+    }
+    return AuthManager()
+}
+
 @main
 struct iosApp: App {
     #if canImport(UIKit)
@@ -46,7 +54,7 @@ struct iosApp: App {
     #elseif os(macOS)
         @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     #endif
-    @State private var authManager = AuthManager()
+    @State private var authManager = createAuthManager()
     @State private var eventManager = EventManager()
     @State private var pushManager = PushNotificationManager()
 

@@ -75,6 +75,7 @@ struct MessageList: View {
                     }
                 }
             }
+            .accessibilityIdentifier("messageListItem")
             .id(msg.id)
             .transition(.opacity)
         }

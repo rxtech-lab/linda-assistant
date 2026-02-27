@@ -44,7 +44,12 @@ export async function GET(request: NextRequest) {
   const hasAssignee = assigneeResult[0].count > 0;
   const hasDevice = deviceResult[0].count > 0;
 
+  // assignees
   if (!hasAssignee) {
+    console.log("User is missing assignee. Onboard status:", {
+      assignee: { check: false, required: ["assignee:create"] },
+      device: { check: hasDevice },
+    });
     return NextResponse.json(
       {
         assignee: { check: false, required: ["assignee:create"] },

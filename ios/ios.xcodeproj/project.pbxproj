@@ -10,12 +10,12 @@
 		DF0FE3CA2F3DB9EB002CCE53 /* RichText in Frameworks */ = {isa = PBXBuildFile; productRef = DF0FE3C92F3DB9EB002CCE53 /* RichText */; };
 		DF0FE4E92F3F28CE002CCE53 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = DF0FE4E82F3F28CE002CCE53 /* MarkdownUI */; };
 		DF0FE4EC2F3F2F3C002CCE53 /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = DF0FE4EB2F3F2F3C002CCE53 /* Highlightr */; };
+		DF3C5E312F51E9CE00A5898B /* TestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = DF3C5E302F51E9CE00A5898B /* TestPlan.xctestplan */; };
 		DF7E2A3E2F385000006A4C0A /* AssistantCore in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E2A202F379000006A4C0A /* AssistantCore */; };
 		DF7E32502F3888A1006A4C0A /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = DF7E324F2F3888A1006A4C0A /* icon.icon */; };
 		DF7E37742F3A66EC006A4C0A /* AgentKit in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E37732F3A66EC006A4C0A /* AgentKit */; };
 		DF7E37762F3B1D21006A4C0A /* Launch Screen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */; platformFilter = ios; };
 		DF7E385D2F3B5EF9006A4C0A /* ViewInspector in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E385C2F3B5EF9006A4C0A /* ViewInspector */; };
-		DF7E386C2F3B64E5006A4C0A /* TestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = DF7E386B2F3B64E5006A4C0A /* TestPlan.xctestplan */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,6 +36,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DF3C5E302F51E9CE00A5898B /* TestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = TestPlan.xctestplan; sourceTree = "<group>"; };
 		DF7E29F12F378F46006A4C0A /* LindaAssistant.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LindaAssistant.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF7E2A002F378F47006A4C0A /* iosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF7E2A0A2F378F47006A4C0A /* iosUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -46,7 +47,6 @@
 		DF7E2EA22F385474006A4C0A /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		DF7E324F2F3888A1006A4C0A /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon.icon; sourceTree = "<group>"; };
 		DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = "Launch Screen.storyboard"; sourceTree = "<group>"; };
-		DF7E386B2F3B64E5006A4C0A /* TestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = TestPlan.xctestplan; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -114,7 +114,7 @@
 		DF7E29E82F378F46006A4C0A = {
 			isa = PBXGroup;
 			children = (
-				DF7E386B2F3B64E5006A4C0A /* TestPlan.xctestplan */,
+				DF3C5E302F51E9CE00A5898B /* TestPlan.xctestplan */,
 				DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */,
 				DF7E324F2F3888A1006A4C0A /* icon.icon */,
 				DF7E2A402F385100006A4C0A /* Config */,
@@ -290,7 +290,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DF7E37762F3B1D21006A4C0A /* Launch Screen.storyboard in Resources */,
-				DF7E386C2F3B64E5006A4C0A /* TestPlan.xctestplan in Resources */,
+				DF3C5E312F51E9CE00A5898B /* TestPlan.xctestplan in Resources */,
 				DF7E32502F3888A1006A4C0A /* icon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -656,7 +656,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = ios;
+				TEST_TARGET_NAME = LindaAssistant;
 			};
 			name = Debug;
 		};
@@ -677,7 +677,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = ios;
+				TEST_TARGET_NAME = LindaAssistant;
 			};
 			name = Release;
 		};

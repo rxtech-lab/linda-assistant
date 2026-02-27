@@ -79,6 +79,7 @@ struct ChatTabView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .accessibilityIdentifier("assignee-button")
                     #if os(iOS)
                     .buttonStyle(.plain)
                     #endif

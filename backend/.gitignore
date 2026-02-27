@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.e2e
 
 # vercel
 .vercel
@@ -50,6 +51,7 @@ node_modules/
 
 # E2E test database
 e2e-test.db
+e2e-dev.db*
 e2e-worker.pid
 
 # Worker logs
