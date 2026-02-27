@@ -10,6 +10,7 @@ final class ChatTabViewModel {
     var assignees: [Assignee] = []
     var selectedAssignee: Assignee?
     var displayMessages: [DisplayMessage] = []
+    var documents: [Document] = []
     var isLoading = false
     var isLoadingMore = false
     var hasMoreMessages = false
@@ -103,6 +104,8 @@ final class ChatTabViewModel {
                     streamHandler: streamHandler
                 )
             }
+            // Load documents for this assignee's chat session
+            await loadDocuments(assigneeId: assigneeId, apiClient: apiClient)
         } catch is CancellationError {
             return
         } catch let urlError as URLError where urlError.code == .cancelled {
@@ -112,6 +115,7 @@ final class ChatTabViewModel {
                 // No session yet — show empty state
                 hasSession = false
                 displayMessages = []
+                documents = []
                 nextCursor = nil
                 hasMoreMessages = false
             } else {
@@ -120,6 +124,29 @@ final class ChatTabViewModel {
             }
         } catch {
             logger.error("loadMessages error: \(error)")
+            self.error = error.localizedDescription
+        }
+    }
+
+    // MARK: - Document Loading
+
+    private func loadDocuments(assigneeId: String, apiClient: APIClient) async {
+        do {
+            let response = try await apiClient.listChatDocuments(assigneeId: assigneeId)
+            documents = response.data
+        } catch {
+            logger.error("loadDocuments error: \(error)")
+            // Non-fatal — don't show error for documents failing to load
+        }
+    }
+
+    func deleteDocument(id: String, apiClient: APIClient, eventManager: EventManager) async {
+        do {
+            try await apiClient.deleteDocument(id: id)
+            documents.removeAll { $0.id == id }
+            eventManager.emit(.documentDeleted(id))
+        } catch {
+            logger.error("deleteDocument error: \(error)")
             self.error = error.localizedDescription
         }
     }
@@ -226,6 +253,7 @@ final class ChatTabViewModel {
         UserDefaults.standard.set(assignee.id, forKey: lastSelectedAssigneeKey)
         UserDefaults.standard.synchronize()
         displayMessages = []
+        documents = []
         nextCursor = nil
         hasMoreMessages = false
         hasSession = false
@@ -251,6 +279,7 @@ final class ChatTabViewModel {
             await MainActor.run {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     displayMessages = []
+                    documents = []
                 }
             }
             nextCursor = nil

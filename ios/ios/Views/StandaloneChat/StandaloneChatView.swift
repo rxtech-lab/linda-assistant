@@ -9,6 +9,7 @@ struct ChatTabView: View {
     @Environment(EventManager.self) private var eventManager
     @Environment(NavigationManager.self) private var navigationManager
     @State private var viewModel = ChatTabViewModel()
+    @State private var selectedDocumentItem: DocumentSheetItem?
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -101,6 +102,7 @@ struct ChatTabView: View {
             ChatOptionsSheet(
                 assignees: viewModel.assignees,
                 selectedAssigneeId: viewModel.selectedAssignee?.id,
+                documents: viewModel.documents,
                 onSelectAssignee: { assignee in
                     viewModel.showingAssigneeSheet = false
                     Task {
@@ -112,6 +114,19 @@ struct ChatTabView: View {
                         )
                     }
                 },
+                onSelectDocument: { doc in
+                    viewModel.showingAssigneeSheet = false
+                    selectedDocumentItem = DocumentSheetItem(id: doc.id, title: doc.title)
+                },
+                onDeleteDocument: { doc in
+                    Task {
+                        await viewModel.deleteDocument(
+                            id: doc.id,
+                            apiClient: apiClient,
+                            eventManager: eventManager
+                        )
+                    }
+                },
                 onClearMessages: {
                     viewModel.showingAssigneeSheet = false
                     Task {
@@ -119,6 +134,9 @@ struct ChatTabView: View {
                     }
                 }
             )
+        }
+        .sheet(item: $selectedDocumentItem) { item in
+            DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
         }
         .task {
             await viewModel.load(

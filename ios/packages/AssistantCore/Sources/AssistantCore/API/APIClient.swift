@@ -86,6 +86,27 @@ public actor APIClient {
         try validateResponse(response, data: data, allowNoContent: true)
     }
 
+    public func requestData(
+        path: String,
+        method: String = "GET",
+        queryItems: [URLQueryItem]? = nil
+    ) async throws -> Data {
+        var req = try await buildRequest(path: path, method: method, queryItems: queryItems)
+
+        let (data, response) = try await session.data(for: req)
+
+        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 401 {
+            try await authManager.refreshAccessToken()
+            req = try await buildRequest(path: path, method: method, queryItems: queryItems)
+            let (retryData, retryResponse) = try await session.data(for: req)
+            try validateResponse(retryResponse, data: retryData)
+            return retryData
+        }
+
+        try validateResponse(response, data: data)
+        return data
+    }
+
     // MARK: - SSE Stream
 
     public func sseStreamURL(path: String) async -> URL? {

@@ -4,10 +4,18 @@ import { assignees } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { createInvoiceMcp } from "./mcps/invoice";
 import { CREATE_TASK_TOOL_NAME, createTaskTool } from "./create-task";
+import {
+  CREATE_DOCUMENT_TOOL_NAME,
+  createDocumentTool,
+} from "./create-document";
 import { loadAssigneePermissions, resolvePermission } from "./permission";
 import { SEARCH_EMAILS_TOOL_NAME, searchEmailsTool } from "./search-emails";
 import { SEND_EMAIL_TOOL_NAME, sendEmailTool } from "./send-email";
 import { UPDATE_TASK_TOOL_NAME, updateTaskTool } from "./update-task";
+import {
+  UPDATE_DOCUMENT_TOOL_NAME,
+  updateDocumentTool,
+} from "./update-document";
 import { createFilesMcp } from "./mcps/files";
 import { createFirecrawlMcp } from "./mcps/firecrawl";
 
@@ -86,6 +94,7 @@ export async function buildToolSet(
   userId: string,
   assigneeId: string | null,
   accessToken: string,
+  chatSessionId?: string,
 ): Promise<ToolSetResult> {
   const isE2E = process.env.IS_E2E?.toLowerCase() === "true";
   const toolPermissions = assigneeId
@@ -102,7 +111,7 @@ export async function buildToolSet(
     if (a?.email) fromAddress = a.email;
   }
 
-  // Static tool definitions
+  // Static tool definitions (permission-aware)
   const toolDefs = [
     {
       name: SEND_EMAIL_TOOL_NAME,
@@ -122,13 +131,22 @@ export async function buildToolSet(
     },
   ];
 
-  // Build static tools
+  // Build permission-aware tools
   const filtered: Record<string, unknown> = {};
   for (const { name, create } of toolDefs) {
     const perm = resolvePermission(name, toolPermissions);
     if (perm === "auto-reject") continue;
     filtered[name] = create(perm === "manual-confirm");
   }
+
+  // Document tools — never require confirmation
+  if (chatSessionId) {
+    filtered[CREATE_DOCUMENT_TOOL_NAME] = createDocumentTool(
+      userId,
+      chatSessionId,
+    );
+  }
+  filtered[UPDATE_DOCUMENT_TOOL_NAME] = updateDocumentTool(userId);
 
   // Skip MCP tools in E2E test mode (no valid OAuth tokens for external services)
   if (!isE2E) {
@@ -167,8 +185,10 @@ export async function buildToolSet(
 }
 
 export {
+  CREATE_DOCUMENT_TOOL_NAME,
   CREATE_TASK_TOOL_NAME,
   SEARCH_EMAILS_TOOL_NAME,
   SEND_EMAIL_TOOL_NAME,
+  UPDATE_DOCUMENT_TOOL_NAME,
   UPDATE_TASK_TOOL_NAME,
 };

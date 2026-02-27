@@ -8,6 +8,9 @@ struct MessageList: View {
     var showStreamComplete = false
     var onConfirmationTap: (() -> Void)?
     var onToolCallTap: ((ToolCallInfo) -> Void)?
+    var onDocumentTap: ((DocumentSheetItem) -> Void)?
+
+    private static let documentToolNames: Set<String> = ["create_document", "update_document"]
 
     /// Disable animation initially, enable after view has loaded
     @State private var animationEnabled = false
@@ -54,14 +57,21 @@ struct MessageList: View {
                                 .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                         }
                     case .tool(let toolCall):
-                        ToolCallBadge(toolCall: toolCall) {
-                            if toolCall.status == .pendingConfirmation {
-                                onConfirmationTap?()
-                            } else if toolCall.status != .running {
-                                onToolCallTap?(toolCall)
+                        if Self.documentToolNames.contains(toolCall.toolName) {
+                            DocumentToolCard(toolCall: toolCall) { doc in
+                                onDocumentTap?(doc)
                             }
+                            .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
+                        } else {
+                            ToolCallBadge(toolCall: toolCall) {
+                                if toolCall.status == .pendingConfirmation {
+                                    onConfirmationTap?()
+                                } else if toolCall.status != .running {
+                                    onToolCallTap?(toolCall)
+                                }
+                            }
+                            .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                         }
-                        .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                     }
                 }
             }

@@ -69,7 +69,16 @@ struct DisplayMessage: Identifiable {
 extension DisplayMessage {
     /// Convert historical ChatMessage array to DisplayMessage array.
     static func convert(from messages: [ChatMessage], assigneeName: String?) -> [DisplayMessage] {
-        messages.compactMap { msg in
+        // Build a cross-message lookup of toolCallId → result output
+        // Tool results live in separate "tool" role messages from their tool calls
+        var resultOutputs: [String: AnyCodable] = [:]
+        for msg in messages {
+            for (callId, output) in msg.toolResultOutputs {
+                resultOutputs[callId] = output
+            }
+        }
+
+        return messages.compactMap { msg in
             var parts: [MessagePart] = []
 
             // Build parts from content parts, preserving order
@@ -93,6 +102,7 @@ extension DisplayMessage {
                     toolName: tc.toolName,
                     input: tc.input,
                     status: status,
+                    result: resultOutputs[tc.toolCallId],
                     errorMessage: errorMsg
                 )
             }
