@@ -32,13 +32,21 @@ mock.module("@/lib/db", () => ({
 
 const { buildToolSet } = await import("./index");
 
-const ALL_TOOL_NAMES = ["send_email", "search_emails", "create_task", "update_task"];
+// Document tools (update_document, create_document) are always included — not permission-gated
+const ALL_TOOL_NAMES = ["send_email", "search_emails", "create_task", "update_task", "update_document"];
+const ALL_TOOL_NAMES_WITH_SESSION = [...ALL_TOOL_NAMES, "create_document"];
 
 describe("buildToolSet", () => {
   test("returns all tools when assigneeId is null", async () => {
     const { tools } = await buildToolSet("user-1", null, "test-token");
 
     expect(Object.keys(tools).sort()).toEqual(ALL_TOOL_NAMES.sort());
+  });
+
+  test("includes create_document when chatSessionId is provided", async () => {
+    const { tools } = await buildToolSet("user-1", null, "test-token", "session-1");
+
+    expect(Object.keys(tools).sort()).toEqual(ALL_TOOL_NAMES_WITH_SESSION.sort());
   });
 
   test("returns all tools when assignee has no permissions configured", async () => {
@@ -91,7 +99,7 @@ describe("buildToolSet", () => {
 
     const { tools } = await buildToolSet("user-1", "assignee-1", "test-token");
 
-    expect(Object.keys(tools).sort()).toEqual(["search_emails", "update_task"].sort());
+    expect(Object.keys(tools).sort()).toEqual(["search_emails", "update_task", "update_document"].sort());
   });
 
   test("tools not in permission array are included (default manual-confirm)", async () => {

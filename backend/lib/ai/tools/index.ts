@@ -112,7 +112,7 @@ export async function buildToolSet(
   }
 
   // Static tool definitions (permission-aware)
-  const toolDefs = [
+  const toolDefs: Array<{ name: string; create: (na: boolean) => unknown }> = [
     {
       name: SEND_EMAIL_TOOL_NAME,
       create: (na: boolean) => sendEmailTool(fromAddress, na),
@@ -140,13 +140,10 @@ export async function buildToolSet(
   }
 
   // Document tools — never require confirmation
-  if (chatSessionId) {
-    filtered[CREATE_DOCUMENT_TOOL_NAME] = createDocumentTool(
-      userId,
-      chatSessionId,
-    );
-  }
   filtered[UPDATE_DOCUMENT_TOOL_NAME] = updateDocumentTool(userId);
+  if (chatSessionId) {
+    filtered[CREATE_DOCUMENT_TOOL_NAME] = createDocumentTool(userId, chatSessionId);
+  }
 
   // Skip MCP tools in E2E test mode (no valid OAuth tokens for external services)
   if (!isE2E) {

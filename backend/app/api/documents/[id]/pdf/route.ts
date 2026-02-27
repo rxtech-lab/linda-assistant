@@ -4,6 +4,7 @@ import { documents } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { errorJson } from "@/lib/utils/response";
+import escapeHtml from "escape-html";
 import { marked } from "marked";
 import puppeteer from "puppeteer";
 
@@ -40,7 +41,7 @@ export async function GET(
 <html>
 <head>
   <meta charset="utf-8">
-  <title>${doc.title}</title>
+  <title>${escapeHtml(doc.title)}</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -64,7 +65,7 @@ export async function GET(
   </style>
 </head>
 <body>
-  <h1>${doc.title}</h1>
+  <h1>${escapeHtml(doc.title)}</h1>
   ${htmlContent}
 </body>
 </html>`;
@@ -90,7 +91,7 @@ export async function GET(
     return new NextResponse(Buffer.from(pdfBuffer), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${doc.title.replace(/[^a-zA-Z0-9-_ ]/g, "")}.pdf"`,
+        "Content-Disposition": `attachment; filename="${doc.title.replace(/[^a-zA-Z0-9-_ ]/g, "").trim() || "document"}.pdf"`,
       },
     });
   } finally {
