@@ -4,7 +4,10 @@ import { db } from "@/lib/db";
 import { documents } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { resend } from "@/lib/resend";
-import { generateDocumentPdf } from "@/lib/documents/pdf";
+import {
+  generateDocumentPdf,
+  sanitizeDocumentFilename,
+} from "@/lib/documents/pdf";
 
 export const sendEmailTool = (
   fromAddress: string,
@@ -45,7 +48,7 @@ export const sendEmailTool = (
         }
 
         const { buffer, title } = await generateDocumentPdf(documentId);
-        const filename = `${title.replace(/[^a-zA-Z0-9-_ ]/g, "").trim() || "document"}.pdf`;
+        const filename = sanitizeDocumentFilename(title);
         attachments = [{ filename, content: buffer }];
       }
 

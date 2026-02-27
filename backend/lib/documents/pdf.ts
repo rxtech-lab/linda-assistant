@@ -5,6 +5,11 @@ import escapeHtml from "escape-html";
 import { marked } from "marked";
 import puppeteer from "puppeteer";
 
+/** Sanitize a document title into a safe PDF filename. */
+export function sanitizeDocumentFilename(title: string): string {
+  return `${title.replace(/[^a-zA-Z0-9-_ ]/g, "").trim() || "document"}.pdf`;
+}
+
 /**
  * Generate a PDF from a document stored in the database.
  * Caller is responsible for authorization checks before calling this function.

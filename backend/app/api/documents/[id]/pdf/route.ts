@@ -4,7 +4,10 @@ import { documents } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { errorJson } from "@/lib/utils/response";
-import { generateDocumentPdf } from "@/lib/documents/pdf";
+import {
+  generateDocumentPdf,
+  sanitizeDocumentFilename,
+} from "@/lib/documents/pdf";
 
 /**
  * @openapi
@@ -33,7 +36,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${title.replace(/[^a-zA-Z0-9-_ ]/g, "").trim() || "document"}.pdf"`,
+      "Content-Disposition": `attachment; filename="${sanitizeDocumentFilename(title)}"`,
     },
   });
 }

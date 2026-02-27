@@ -62,17 +62,17 @@ struct MessageBubble: View {
 
             if message.role == .assistant { Spacer() }
         }
-//        .opacity(hasAppeared ? 1 : 0)
-//        .offset(x: hasAppeared ? 0 : (message.role == .user ? 80 : -80))
-//        .onAppear {
-//            if disableAnimation || message.role == .assistant {
-//                hasAppeared = true
-//            } else {
-//                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-//                    hasAppeared = true
-//                }
-//            }
-//        }
+       .opacity(hasAppeared ? 1 : 0)
+       .offset(x: hasAppeared ? 0 : (message.role == .user ? 80 : -80))
+       .onAppear {
+           if disableAnimation || message.role == .assistant {
+               hasAppeared = true
+           } else {
+               withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                   hasAppeared = true
+               }
+           }
+       }
         .accessibilityIdentifier("messageBubble-\(message.id)")
     }
 }
