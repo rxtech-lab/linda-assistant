@@ -12,7 +12,7 @@ import {
   idParamSchema,
 } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
-import { publishTask } from "@/lib/queue/producer";
+import { publishTask, publishEvent } from "@/lib/queue/producer";
 import { insertMessages, getPagedMessages } from "@/lib/db/messages";
 
 /**
@@ -109,8 +109,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
 
+  const messageId = crypto.randomUUID();
   const userMessage = {
-    id: crypto.randomUUID(),
+    id: messageId,
     role: "user" as const,
     content: contentParts,
   } as ModelMessage;
@@ -125,6 +126,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
     .where(eq(chatSessions.id, id));
 
+  // Broadcast user message to all SSE subscribers (multi-device sync)
+  await publishEvent({
+    sessionId: id,
+    event: "user-message",
+    data: { id: messageId, content: parsed.data.content },
+    timestamp: Date.now(),
+  });
+
   // Publish task to queue for worker processing
   await publishTask({
     sessionId: id,
@@ -133,7 +142,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     timestamp: Date.now(),
   });
 
-  return successJson({ queued: true });
+  return successJson({ queued: true, messageId });
 }
 
 function getMimeType(type: string): string {

@@ -499,6 +499,7 @@ export const streamEventSchema = z.object({
       "tool-call",
       "tool-result",
       "confirmation_required",
+      "user-message",
       "error",
       "done",
     ])
@@ -558,6 +559,7 @@ export const deletedResponseSchema = z.object({
 
 export const queuedResponseSchema = z.object({
   queued: z.boolean().describe("Whether the message was queued for processing"),
+  messageId: z.string().describe("The ID of the stored user message"),
 });
 
 export const receivedResponseSchema = z.object({

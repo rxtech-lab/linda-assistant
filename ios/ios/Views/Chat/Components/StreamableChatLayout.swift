@@ -92,7 +92,6 @@ struct StreamableChatLayout<Header: View>: View {
                     }
                     .padding()
                     .scrollTargetLayout()
-//                    .opacity(messageListOpacity)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
@@ -103,6 +102,13 @@ struct StreamableChatLayout<Header: View>: View {
             .scrollPosition($scrollPosition, anchor: .bottom)
             // but this solution not works on initial mount. So we use scrollPosition to scroll to bottom onAppear as well
             .onChange(of: pendingConfirmationCount) {
+                // Dismiss sheet if the presented confirmation was resolved (e.g. from another device)
+                if let presented = presentedConfirmation,
+                   !(streamHandler?.pendingConfirmations.contains(where: { $0.confirmationId == presented.confirmationId }) ?? false)
+                {
+                    presentedConfirmation = nil
+                }
+                // Present next confirmation if none is showing
                 if presentedConfirmation == nil,
                    let confirmation = streamHandler?.pendingConfirmation
                 {

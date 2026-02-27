@@ -11,7 +11,7 @@ import {
   assigneeIdParamSchema,
 } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
-import { publishTask } from "@/lib/queue/producer";
+import { publishTask, publishEvent } from "@/lib/queue/producer";
 import { insertMessages } from "@/lib/db/messages";
 
 /**
@@ -107,8 +107,9 @@ export async function POST(
     }
   }
 
+  const messageId = crypto.randomUUID();
   const userMessage = {
-    id: crypto.randomUUID(),
+    id: messageId,
     role: "user" as const,
     content: contentParts,
   } as ModelMessage;
@@ -125,6 +126,14 @@ export async function POST(
     })
     .where(eq(chatSessions.id, session.id));
 
+  // Broadcast user message to all SSE subscribers (multi-device sync)
+  await publishEvent({
+    sessionId: session.id,
+    event: "user-message",
+    data: { id: messageId, content: parsed.data.content },
+    timestamp: Date.now(),
+  });
+
   // Publish task to queue for worker processing
   await publishTask({
     sessionId: session.id,
@@ -133,7 +142,7 @@ export async function POST(
     timestamp: Date.now(),
   });
 
-  return successJson({ queued: true });
+  return successJson({ queued: true, messageId });
 }
 
 function getMimeType(type: string): string {

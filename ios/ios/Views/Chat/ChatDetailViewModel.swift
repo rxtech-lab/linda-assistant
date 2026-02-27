@@ -56,6 +56,17 @@ final class ChatDetailViewModel {
             guard let self else { return }
             updateToolCallResult(toolCallId: toolCallId, isError: isError, errorMessage: errorMessage, in: &displayMessages)
         }
+        handler.onUserMessage = { [weak self] id, content in
+            guard let self else { return }
+            // Dedup: skip if a message with this ID already exists (sent from this device)
+            guard !displayMessages.contains(where: { $0.id == id }) else { return }
+            let userMsg = DisplayMessage(
+                id: id,
+                role: .user,
+                parts: [.text(.plain(content))]
+            )
+            displayMessages.append(userMsg)
+        }
         streamHandler = handler
 
         do {
@@ -141,14 +152,23 @@ final class ChatDetailViewModel {
 
         logger.info("sendMessage: \(content.prefix(50)), isConnected=\(streamHandler.isConnected)")
 
+        let tempId = "user-\(UUID().uuidString)"
         let userMsg = DisplayMessage(
-            id: "user-\(UUID().uuidString)",
+            id: tempId,
             role: .user,
             parts: [.text(.plain(content))]
         )
         displayMessages.append(userMsg)
 
-        await streamHandler.sendMessage(sessionId: sessionId, content: content)
+        let messageId = await streamHandler.sendMessage(sessionId: sessionId, content: content)
+        // Update local message ID to backend ID for dedup when SSE event arrives
+        if let messageId, let idx = displayMessages.firstIndex(where: { $0.id == tempId }) {
+            displayMessages[idx] = DisplayMessage(
+                id: messageId,
+                role: displayMessages[idx].role,
+                parts: displayMessages[idx].parts
+            )
+        }
         logger.info("sendMessage completed, isStreaming=\(streamHandler.isStreaming)")
     }
 

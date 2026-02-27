@@ -35,6 +35,7 @@ public struct DeviceCheck: Codable, Sendable {
 
 public struct QueuedResponse: Codable, Sendable {
     public let queued: Bool
+    public let messageId: String?
 }
 
 public struct DeletedResponse: Codable, Sendable {
