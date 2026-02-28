@@ -3,8 +3,19 @@ import { db } from "@/lib/db";
 import { messages } from "@/lib/db/schema";
 import { eq, and, lt, gte, sql, asc, desc } from "drizzle-orm";
 
-/** Load non-compacted messages for a session (for AI agent use), ordered by seq */
+/** Load all messages for a session (including compacted), ordered by seq */
 export async function getSessionMessages(chatSessionId: string): Promise<ModelMessage[]> {
+  const rows = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.chatSessionId, chatSessionId))
+    .orderBy(asc(messages.seq));
+
+  return rows.map(rowToModelMessage);
+}
+
+/** Load only non-compacted messages for a session (for AI agent use), ordered by seq */
+export async function getActiveSessionMessages(chatSessionId: string): Promise<ModelMessage[]> {
   const rows = await db
     .select()
     .from(messages)

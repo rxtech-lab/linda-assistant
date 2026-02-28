@@ -9,7 +9,7 @@ import { syncTaskStatus } from "@/lib/utils/task-status-sync";
 import { publishTask, publishEvent } from "@/lib/queue/producer";
 import { annotateToolCallConfirmation } from "./agent";
 import {
-  getSessionMessages,
+  getActiveSessionMessages,
   insertMessages,
   updateMessageContent,
 } from "@/lib/db/messages";
@@ -122,7 +122,7 @@ export async function resolveConfirmation(
   const resolvedStatus = action === "confirm" ? "confirmed" : "rejected";
 
   // Load persisted messages, annotate the tool-call, then update the specific row
-  const persistedMessages = await getSessionMessages(
+  const persistedMessages = await getActiveSessionMessages(
     confirmation.chatSessionId,
   );
   annotateToolCallConfirmation(

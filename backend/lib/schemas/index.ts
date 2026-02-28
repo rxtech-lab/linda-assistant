@@ -289,6 +289,10 @@ export const chatMessageSchema = z.object({
     .describe(
       "Message content — string for simple text, array of parts for rich content",
     ),
+  seq: z
+    .number()
+    .optional()
+    .describe("Message sequence number within the session, used for ordering"),
   isCompacted: z
     .boolean()
     .optional()

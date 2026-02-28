@@ -378,10 +378,28 @@ export async function prepareMessages(opts: {
 			],
 		} as unknown as ModelMessage;
 
-		// Persist compaction to DB — use the actual seq value from the first
-		// recent message (array index may differ from seq after prior compactions)
+		// Persist compaction to DB.
+		// Prefer the actual DB seq from the first recent message; if that is
+		// missing (e.g. in-memory message without seq), derive the boundary
+		// from the max seq of oldMessages (first seq *after* the compacted
+		// range). Only fall back to splitIndex if no seq info is available.
 		const firstRecentMsg = recentMessages[0] as Record<string, unknown>;
-		const keepFromSeq = (firstRecentMsg?.seq as number) ?? splitIndex;
+		let keepFromSeq = firstRecentMsg?.seq as number | undefined;
+
+		if (typeof keepFromSeq !== "number") {
+			const oldSeqs = oldMessages
+				.map((m) => (m as Record<string, unknown>).seq as number | undefined)
+				.filter((seq): seq is number => typeof seq === "number");
+
+			if (oldSeqs.length > 0) {
+				const maxOldSeq = Math.max(...oldSeqs);
+				keepFromSeq = maxOldSeq + 1;
+			} else {
+				// Last-resort fallback: no seqs anywhere, use splitIndex which
+				// matches the logical boundary used to split messages above.
+				keepFromSeq = splitIndex;
+			}
+		}
 		await dbCompactMessages(sessionId, summaryMessage, keepFromSeq);
 
 		const compactedMessages = [summaryMessage, ...recentMessages];
