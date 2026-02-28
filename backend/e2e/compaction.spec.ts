@@ -115,16 +115,22 @@ test.describe("Compaction", () => {
 		// Should still complete successfully
 		expect(eventTypes).toContain("done");
 
-		// Verify messages in DB are reduced (compaction deleted old messages and added summary)
+		// Verify messages in DB still contain old messages (compaction preserves history)
 		const msgsAfter = await request.get(
 			`/api/chat-sessions/${sessionId}/messages`,
 		);
 		const msgsAfterBody = await msgsAfter.json();
-		// After compaction: summary + recent messages + new user + new assistant
-		// Should be fewer than before + 2
-		expect(msgsAfterBody.messages.length).toBeLessThan(
+		// After compaction: old messages (compacted) + summary + recent messages + new user + new assistant
+		// Total should be >= before + 2 (at least the new user message, new assistant response, and summary)
+		expect(msgsAfterBody.messages.length).toBeGreaterThanOrEqual(
 			msgsBeforeBody.messages.length + 2,
 		);
+
+		// Verify that compacted messages are marked with isCompacted flag
+		const compactedMsgs = msgsAfterBody.messages.filter(
+			(m: { isCompacted?: boolean }) => m.isCompacted === true,
+		);
+		expect(compactedMsgs.length).toBeGreaterThan(0);
 
 		// Session should be stopped
 		const statusRes = await request.get(`/api/chat-sessions/${sessionId}`);

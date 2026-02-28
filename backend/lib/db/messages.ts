@@ -3,12 +3,12 @@ import { db } from "@/lib/db";
 import { messages } from "@/lib/db/schema";
 import { eq, and, lt, gte, sql, asc, desc } from "drizzle-orm";
 
-/** Load all messages for a session, ordered by seq */
+/** Load non-compacted messages for a session (for AI agent use), ordered by seq */
 export async function getSessionMessages(chatSessionId: string): Promise<ModelMessage[]> {
   const rows = await db
     .select()
     .from(messages)
-    .where(eq(messages.chatSessionId, chatSessionId))
+    .where(and(eq(messages.chatSessionId, chatSessionId), eq(messages.isCompacted, false)))
     .orderBy(asc(messages.seq));
 
   return rows.map(rowToModelMessage);
@@ -90,10 +90,14 @@ export async function getPagedMessages(
 }
 
 /**
- * Compact messages: replace old messages (seq < keepFromSeq) with a summary,
- * then renumber the kept messages so sequences are contiguous starting at 1.
+ * Compact messages: mark old messages (seq < keepFromSeq) as compacted,
+ * then insert the summary message at the split boundary.
  *
- * The summary message is inserted at seq = 0.
+ * Old messages are preserved in the DB for user history but excluded
+ * from AI agent context via getSessionMessages().
+ *
+ * The summary message is inserted at seq = keepFromSeq, and remaining
+ * messages are shifted up by 1 to make room.
  */
 export async function compactMessages(
   chatSessionId: string,
@@ -102,31 +106,23 @@ export async function compactMessages(
 ): Promise<void> {
   const record = summaryMessage as Record<string, unknown>;
 
-  // 1. Delete old messages (everything before the keep boundary)
+  // 1. Mark old non-compacted messages as compacted (preserve for user history)
   await db
-    .delete(messages)
+    .update(messages)
+    .set({ isCompacted: true })
     .where(
       and(
         eq(messages.chatSessionId, chatSessionId),
         lt(messages.seq, keepFromSeq),
+        eq(messages.isCompacted, false),
       ),
     );
 
-  // 2. Insert summary message at seq = 0
-  await db.insert(messages).values({
-    id: (record.id as string) || undefined,
-    chatSessionId,
-    seq: 0,
-    role: summaryMessage.role,
-    content: summaryMessage.content as unknown,
-  });
-
-  // 3. Renumber remaining messages: shift seq so they start at 1
-  // (keepFromSeq becomes 1, keepFromSeq+1 becomes 2, etc.)
+  // 2. Shift remaining messages' seq by +1 to make room for the summary
   await db
     .update(messages)
     .set({
-      seq: sql`${messages.seq} - ${keepFromSeq} + 1`,
+      seq: sql`${messages.seq} + 1`,
     })
     .where(
       and(
@@ -134,6 +130,16 @@ export async function compactMessages(
         gte(messages.seq, keepFromSeq),
       ),
     );
+
+  // 3. Insert summary message at seq = keepFromSeq
+  await db.insert(messages).values({
+    id: (record.id as string) || undefined,
+    chatSessionId,
+    seq: keepFromSeq,
+    role: summaryMessage.role,
+    content: summaryMessage.content as unknown,
+    isCompacted: false,
+  });
 }
 
 /** Get the count of messages in a session */
@@ -155,5 +161,7 @@ function rowToModelMessage(row: typeof messages.$inferSelect): ModelMessage {
     id: row.id,
     role: row.role as ModelMessage["role"],
     content: row.content as ModelMessage["content"],
+    seq: row.seq,
+    isCompacted: row.isCompacted,
   } as ModelMessage;
 }

@@ -378,8 +378,11 @@ export async function prepareMessages(opts: {
 			],
 		} as unknown as ModelMessage;
 
-		// Persist compaction to DB
-		await dbCompactMessages(sessionId, summaryMessage, splitIndex);
+		// Persist compaction to DB — use the actual seq value from the first
+		// recent message (array index may differ from seq after prior compactions)
+		const firstRecentMsg = recentMessages[0] as Record<string, unknown>;
+		const keepFromSeq = (firstRecentMsg?.seq as number) ?? splitIndex;
+		await dbCompactMessages(sessionId, summaryMessage, keepFromSeq);
 
 		const compactedMessages = [summaryMessage, ...recentMessages];
 		const compactedTokens = estimateTokenCount(compactedMessages) + systemTokens;
