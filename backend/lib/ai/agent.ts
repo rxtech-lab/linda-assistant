@@ -161,8 +161,11 @@ function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
       if (parts.some((p) => p.type === "tool-approval-response")) continue;
     }
 
+    // Strip internal metadata that shouldn't reach the model
+    const { seq: _seq, isCompacted: _ic, ...cleanRecord } = record;
+
     if (!Array.isArray(msg.content)) {
-      result.push(msg);
+      result.push(cleanRecord as unknown as ModelMessage);
       continue;
     }
 
@@ -191,7 +194,7 @@ function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
     if (cleanedParts.length === 0) continue;
 
     result.push({
-      ...record,
+      ...cleanRecord,
       content: cleanedParts,
     } as unknown as ModelMessage);
   }

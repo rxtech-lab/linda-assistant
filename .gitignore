@@ -17,3 +17,4 @@ test-results/.last-run.json
 ios/.DS_Store
 ios/iosUITests/.env
 test-results.xcresult
+backend/package-lock.json

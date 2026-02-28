@@ -77,9 +77,22 @@ AI chat sessions with full message history stored as JSON.
 | assignee_id | text FK nullable | → assignees.id (set null on delete)                             |
 | title       | text             |                                                                 |
 | status      | text             | `starting` / `in_progress` / `waiting_confirmation` / `stopped` |
-| messages    | text (json)      | `ModelMessage[]` - AI SDK native format                         |
 | created_at  | text             |                                                                 |
 | updated_at  | text             |                                                                 |
+
+### `messages`
+
+Individual chat messages, stored in a separate table from sessions.
+
+| Column          | Type             | Notes                                                                 |
+| --------------- | ---------------- | --------------------------------------------------------------------- |
+| id              | text PK          | nanoid                                                                |
+| chat_session_id | text FK NOT NULL | → chat_sessions.id (cascade delete)                                   |
+| seq             | integer NOT NULL | Ordering sequence number                                              |
+| role            | text NOT NULL    | `user` / `assistant` / `tool`                                         |
+| content         | text (json)      | AI SDK `ModelMessage` content (text parts, tool-calls, tool-results)   |
+| is_compacted    | integer (bool)   | default false — compacted messages are kept for history but hidden from AI |
+| created_at      | text             |                                                                       |
 
 ### `confirmations`
 
@@ -115,7 +128,8 @@ iOS devices registered for push notifications.
 - `email_inbox` → belongs to `assignees`, has many `task_emails`
 - `tasks` → has many `task_emails`, `chat_sessions`
 - `task_emails` → belongs to `tasks` and `email_inbox`
-- `chat_sessions` → belongs to `tasks` and `assignees`, has many `confirmations`
+- `chat_sessions` → belongs to `tasks` and `assignees`, has many `confirmations`, has many `messages`
+- `messages` → belongs to `chat_sessions`
 - `confirmations` → belongs to `chat_sessions`
 
 ## Task Status Sync
