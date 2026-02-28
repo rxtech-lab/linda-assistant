@@ -15,5 +15,12 @@ func launchApp() -> XCUIApplication {
     app.launchArguments = ["--reset-auth"]
 
     app.launch()
+
+    #if os(macOS)
+    // On macOS CI runners, system dialogs can steal focus.
+    // Explicitly activate the app to bring it to the foreground.
+    app.activate()
+    #endif
+
     return app
 }

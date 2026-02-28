@@ -190,7 +190,7 @@ jobs:
         if: ${{ inputs.upload-test-results && always() }}
         uses: actions/upload-artifact@v6
         with:
-          name: test-results
+          name: ${{ inputs.artifact-name }}-results
           path: test-results.xcresult
           retention-days: 7
 
@@ -213,7 +213,7 @@ jobs:
         if: ${{ inputs.upload-test-results && always() }}
         uses: actions/upload-artifact@v6
         with:
-          name: test-screenshots
+          name: ${{ inputs.artifact-name }}-screenshots
           path: test-screenshots/
           retention-days: 7
           if-no-files-found: ignore
