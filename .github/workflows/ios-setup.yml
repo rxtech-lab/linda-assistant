@@ -154,9 +154,7 @@ jobs:
 
       - name: Close interfering apps
         if: inputs.sdk == 'macosx'
-        run: |
-          osascript -e 'tell application "System Events" to set visible of every process to false' || true
-          osascript -e 'tell application "Reminders" to quit' || true
+        run: killall Reminders 2>/dev/null || true
 
       - name: Run Script
         run: ./scripts/${{ inputs.script }}

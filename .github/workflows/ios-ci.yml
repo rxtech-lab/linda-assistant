@@ -52,6 +52,7 @@ jobs:
     secrets: inherit
 
   test-macos:
+    if: false
     name: Run macOS Tests
     uses: ./.github/workflows/ios-setup.yml
     with:

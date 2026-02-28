@@ -16,11 +16,5 @@ func launchApp() -> XCUIApplication {
 
     app.launch()
 
-    #if os(macOS)
-    // On macOS CI runners, system dialogs can steal focus.
-    // Explicitly activate the app to bring it to the foreground.
-    app.activate()
-    #endif
-
     return app
 }

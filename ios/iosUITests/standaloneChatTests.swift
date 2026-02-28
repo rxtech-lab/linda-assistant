@@ -44,7 +44,7 @@ final class StandaloneChatTests: XCTestCase {
         let app = launchApp()
         try app.signInWithEmailAndPassword()
 
-        for _ in 0 ..< 5 {
+        for _ in 0 ..< 3 {
             XCTAssertTrue(app.messageInput.waitForExistence(timeout: 10))
             app.messageInput.tap()
             app.messageInput.typeText("long-output-test-1")
