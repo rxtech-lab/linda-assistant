@@ -152,6 +152,10 @@ jobs:
       - name: Generate openapi documentation
         run: ./scripts/ios-update-openapi.sh
 
+      - name: Close interfering apps
+        if: inputs.sdk == 'macosx'
+        run: killall Reminders 2>/dev/null || true
+
       - name: Run Script
         run: ./scripts/${{ inputs.script }}
         env:
@@ -190,7 +194,7 @@ jobs:
         if: ${{ inputs.upload-test-results && always() }}
         uses: actions/upload-artifact@v6
         with:
-          name: test-results
+          name: ${{ inputs.artifact-name }}-results
           path: test-results.xcresult
           retention-days: 7
 
@@ -213,7 +217,7 @@ jobs:
         if: ${{ inputs.upload-test-results && always() }}
         uses: actions/upload-artifact@v6
         with:
-          name: test-screenshots
+          name: ${{ inputs.artifact-name }}-screenshots
           path: test-screenshots/
           retention-days: 7
           if-no-files-found: ignore

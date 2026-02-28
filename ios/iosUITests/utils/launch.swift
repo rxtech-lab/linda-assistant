@@ -15,5 +15,6 @@ func launchApp() -> XCUIApplication {
     app.launchArguments = ["--reset-auth"]
 
     app.launch()
+
     return app
 }

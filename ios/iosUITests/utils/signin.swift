@@ -34,10 +34,9 @@ extension XCUIApplication {
         logger.info("✅ Sign-in button found, tapping...")
         signInButton.tap()
 
-        // Give Safari time to launch
+        // Give Safari/OAuth page time to launch
         sleep(2)
 
-        // Wait for Safari OAuth page to appear
         #if os(iOS)
             let safariViewServiceApp = XCUIApplication(bundleIdentifier: "com.apple.SafariViewService")
             NSLog("⏱️  Waiting for Safari OAuth page to load...")
@@ -65,12 +64,19 @@ extension XCUIApplication {
             sleep(1)
             emailField.typeText("\n") // Press Enter to move to next field
         #elseif os(macOS)
+            // The OAuth flow can accidentally open stray apps (e.g. Reminders via dock).
+            // Terminate them and re-activate our app so the web view is in focus.
+            for bundleId in ["com.apple.reminders", "com.apple.Notes"] {
+                let strayApp = XCUIApplication(bundleIdentifier: bundleId)
+                strayApp.terminate()
+            }
+            activate()
 
             let emailField = textFields["you@example.com"].firstMatch
             let emailFieldExists = emailField.waitForExistence(timeout: 30)
             XCTAssertTrue(emailFieldExists, "Failed to sign in and reach dashboard")
 
-            let passwordField = self/*@START_MENU_TOKEN@*/ .secureTextFields["Enter your password"].firstMatch/*[[".groups",".secureTextFields[\"Password\"].firstMatch",".secureTextFields[\"Enter your password\"].firstMatch",".secureTextFields",".containing(.group, identifier: nil).firstMatch",".firstMatch"],[[[-1,2],[-1,1],[-1,3,2],[-1,0,1]],[[-1,2],[-1,1]],[[-1,5],[-1,4]]],[0]]@END_MENU_TOKEN@*/
+            let passwordField = self.secureTextFields["Enter your password"].firstMatch
 
             emailField.click()
             emailField.typeText(testEmail)

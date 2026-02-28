@@ -20,7 +20,10 @@ mock.module("./permission", () => ({
 // Mock the database module to avoid real DB connections in unit tests
 const mockSelect = mock(() => ({
   from: () => ({
-    where: () => Promise.resolve([{ email: "test@example.com" }]),
+    where: () => ({
+      orderBy: () => Promise.resolve([]),
+      then: (resolve: (v: unknown[]) => void) => resolve([{ email: "test@example.com" }]),
+    }),
   }),
 }));
 

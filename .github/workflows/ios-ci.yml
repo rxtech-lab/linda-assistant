@@ -37,16 +37,32 @@ jobs:
     secrets: inherit
 
   test:
-    name: Run Tests
+    name: Run iOS Tests
     uses: ./.github/workflows/ios-setup.yml
     with:
       runs-on: '"self-hosted", "macOS"'
-      job-name: Run Tests
+      job-name: Run iOS Tests
       script: ios-test-plan.sh
       scheme: LindaAssistant
       configuration: Debug
       sdk: iphonesimulator
       artifact-name: test-logs
+      artifact-path: test.log
+      upload-test-results: true
+    secrets: inherit
+
+  test-macos:
+    if: false
+    name: Run macOS Tests
+    uses: ./.github/workflows/ios-setup.yml
+    with:
+      runs-on: '"self-hosted", "macOS"'
+      job-name: Run macOS Tests
+      script: ios-test-plan.sh
+      scheme: LindaAssistant
+      configuration: Debug
+      sdk: macosx
+      artifact-name: macos-test-logs
       artifact-path: test.log
       upload-test-results: true
     secrets: inherit

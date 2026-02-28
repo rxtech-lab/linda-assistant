@@ -20,12 +20,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
         streamingParts.compactMap { if case .tool(let info) = $0 { return info } else { return nil } }
     }
 
-    // Text buffering: accumulate chunks and flush when 12 chunks filled or 1s idle
+    // Text buffering: accumulate chunks and flush on a 0.5s throttle
     @ObservationIgnored private var _textBuffer = ""
-    @ObservationIgnored private var _chunkCount = 0
     @ObservationIgnored private var _flushTask: Task<Void, Never>?
-    @ObservationIgnored private let maxChunks = 2
-    @ObservationIgnored private let idleFlushDelay: Duration = .seconds(1)
+    @ObservationIgnored private let flushInterval: Duration = .milliseconds(500)
 
     public var onAssistantMessage: (@MainActor (_ parts: [MessagePart]) -> Void)?
     public var onReconnected: (@MainActor () async -> Void)?
@@ -59,12 +57,12 @@ public final class ChatStreamHandler: @unchecked Sendable {
             self._flushTask?.cancel()
             self._flushTask = nil
             self._textBuffer = ""
-            self._chunkCount = 0
             self.streamingParts = []
             self.pendingConfirmations = []
             self.error = nil
             self.isStreaming = true
         }
+        eventManager.emit(.streamContentUpdated)
 
         do {
             let response = try await apiClient.sendChatMessage(assigneeId: assigneeId, SendMessage(content: content))
@@ -144,12 +142,12 @@ public final class ChatStreamHandler: @unchecked Sendable {
             self._flushTask?.cancel()
             self._flushTask = nil
             self._textBuffer = ""
-            self._chunkCount = 0
             self.streamingParts = []
             self.pendingConfirmations = []
             self.error = nil
             self.isStreaming = true
         }
+        eventManager.emit(.streamContentUpdated)
 
         do {
             let response = try await apiClient.sendMessage(sessionId: sessionId, SendMessage(content: content))
@@ -251,13 +249,11 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 isCompacting = false
                 if !isStreaming { isStreaming = true }
                 _textBuffer += payload.text
-                _chunkCount += 1
-                if _chunkCount >= maxChunks {
-                    flushBuffer()
-                } else {
+                // Start a throttle timer if one isn't already running
+                if _flushTask == nil {
                     scheduleFlush()
                 }
-                logger.debug("textDelta: chunks=\(self._chunkCount), buffer=\(self._textBuffer.count), isStreaming=\(self.isStreaming)")
+                logger.debug("textDelta: buffer=\(self._textBuffer.count), isStreaming=\(self.isStreaming)")
 
             case let .toolCall(payload):
                 logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
@@ -368,10 +364,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
     @MainActor
     private func scheduleFlush() {
-        // Cancel previous idle timer and restart — flush after 1s of silence
-        _flushTask?.cancel()
+        // Start a throttle timer — flush after 0.5s, buffering all chunks in between
         _flushTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: self?.idleFlushDelay ?? .seconds(1))
+            try? await Task.sleep(for: self?.flushInterval ?? .milliseconds(500))
             guard let self, !Task.isCancelled else { return }
             self.flushBuffer()
         }
@@ -394,7 +389,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 streamingParts.append(.text(.streaming([buffer])))
             }
         }
-        _chunkCount = 0
+        eventManager.emit(.streamContentUpdated)
     }
 
     @MainActor
@@ -425,6 +420,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
         // Don't clear pendingConfirmations — they must persist until resolved
         isCompacting = false
         isStreaming = false
+        eventManager.emit(.streamContentUpdated)
     }
 }
 

@@ -38,14 +38,15 @@ struct MessageBubble: View {
                         .background(Color.accentColor.opacity(0.15))
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .textSelection(.enabled)
+                        .accessibilityLabel(message.textContent)
                 } else {
                     // Assistant messages: no bubble, 90% width
+                    // No content transition animation - text appears instantly during streaming
                     Markdown(message.textContent)
                         .markdownTheme(.chat)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentTransition(.opacity)
-                        .animation(.easeIn(duration: 0.3), value: message.textContent)
+                        .accessibilityLabel(message.textContent)
                 }
             }
             .contextMenu {
@@ -65,6 +66,8 @@ struct MessageBubble: View {
        .opacity(hasAppeared ? 1 : 0)
        .offset(x: hasAppeared ? 0 : (message.role == .user ? 80 : -80))
        .onAppear {
+           // Assistant messages: no animation (content streams in incrementally)
+           // User messages: spring animation with slide-in effect
            if disableAnimation || message.role == .assistant {
                hasAppeared = true
            } else {

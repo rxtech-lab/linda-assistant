@@ -8,6 +8,7 @@ import {
   CREATE_DOCUMENT_TOOL_NAME,
   createDocumentTool,
 } from "./create-document";
+import { getSessionMessages } from "@/lib/db/messages";
 import { loadAssigneePermissions, resolvePermission } from "./permission";
 import { SEARCH_EMAILS_TOOL_NAME, searchEmailsTool } from "./search-emails";
 import { SEND_EMAIL_TOOL_NAME, sendEmailTool } from "./send-email";
@@ -101,6 +102,31 @@ export async function buildToolSet(
     ? await loadAssigneePermissions(assigneeId)
     : null;
 
+  // In E2E mode, parse [TOOL:name:auto] patterns from the latest user message
+  // to dynamically override specific tools' needsApproval to false
+  const autoConfirmOverrides = new Set<string>();
+  if (isE2E && chatSessionId) {
+    const messages = await getSessionMessages(chatSessionId);
+    const lastUserMsg = [...messages]
+      .reverse()
+      .find((m: any) => m.role === "user");
+    if (lastUserMsg && Array.isArray((lastUserMsg as any).content)) {
+      const text = ((lastUserMsg as any).content as any[])
+        .filter((c) => c.type === "text")
+        .map((c) => c.text)
+        .join(" ");
+      // Match [TOOL:name:auto] and [TOOL:parallel:auto]
+      for (const match of text.matchAll(/\[TOOL:(\w+):auto\]/g)) {
+        autoConfirmOverrides.add(match[1]);
+      }
+      // [TOOL:parallel:auto] overrides both send_email and create_task
+      if (autoConfirmOverrides.has("parallel")) {
+        autoConfirmOverrides.add("send_email");
+        autoConfirmOverrides.add("create_task");
+      }
+    }
+  }
+
   // Load assignee email for send_email from address
   let fromAddress = `linda@${process.env.RESEND_DOMAIN || "assistant.rxlab.app"}`;
   if (assigneeId) {
@@ -136,7 +162,10 @@ export async function buildToolSet(
   for (const { name, create } of toolDefs) {
     const perm = resolvePermission(name, toolPermissions);
     if (perm === "auto-reject") continue;
-    filtered[name] = create(perm === "manual-confirm");
+    const needsApproval = autoConfirmOverrides.has(name)
+      ? false
+      : perm === "manual-confirm";
+    filtered[name] = create(needsApproval);
   }
 
   // Document tools — never require confirmation

@@ -95,6 +95,7 @@ struct ChatOptionsSheet: View {
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(.red)
+                        .accessibilityIdentifier("clear-messages-button")
                     }
                 }
                 .formStyle(.grouped)
