@@ -152,6 +152,12 @@ jobs:
       - name: Generate openapi documentation
         run: ./scripts/ios-update-openapi.sh
 
+      - name: Close interfering apps
+        if: inputs.sdk == 'macosx'
+        run: |
+          osascript -e 'tell application "System Events" to set visible of every process to false' || true
+          osascript -e 'tell application "Reminders" to quit' || true
+
       - name: Run Script
         run: ./scripts/${{ inputs.script }}
         env:
