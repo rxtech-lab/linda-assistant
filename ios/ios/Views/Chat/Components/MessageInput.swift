@@ -49,6 +49,7 @@ struct MessageInput: View {
                     .padding(.vertical, 10)
                     .padding(.leading, 12)
                     .submitLabel(.send)
+                    .accessibilityIdentifier("chat-input")
                     .onSubmit {
                         sendIfPossible()
                     }
@@ -69,6 +70,7 @@ struct MessageInput: View {
                             in: .circle
                         )
                 }
+                .accessibilityIdentifier("stop-button")
                 .buttonStyle(.plain)
                 .padding(.trailing, 8)
             } else {
@@ -81,6 +83,7 @@ struct MessageInput: View {
                         .frame(width: 32, height: 32)
                         .glassEffect(.regular.tint(Color.accentColor.opacity(0.2)).interactive(), in: .circle)
                 }
+                .accessibilityIdentifier("send-button")
                 .buttonStyle(.plain)
                 .padding(.trailing, 8)
                 .opacity(isSendDisabled ? 0.45 : 1)
@@ -124,21 +127,21 @@ struct MessageInput: View {
             .padding(.top, 8)
             .padding(.bottom, 16)
         #endif
-        .onChange(of: isStreaming) { _, newValue in
-            if newValue {
-                startBorderAnimation()
-                startShimmerAnimation()
-            } else {
-                borderAnimationProgress = 0
-                shimmerOffset = -1
+            .onChange(of: isStreaming) { _, newValue in
+                if newValue {
+                    startBorderAnimation()
+                    startShimmerAnimation()
+                } else {
+                    borderAnimationProgress = 0
+                    shimmerOffset = -1
+                }
             }
-        }
-        .onAppear {
-            if isStreaming {
-                startBorderAnimation()
-                startShimmerAnimation()
+            .onAppear {
+                if isStreaming {
+                    startBorderAnimation()
+                    startShimmerAnimation()
+                }
             }
-        }
     }
 
     /// Animated gradient that rotates around the border

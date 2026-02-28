@@ -164,6 +164,7 @@ struct ChatOptionsSheet: View {
                             Label("Clear Messages", systemImage: "trash")
                         }
                         .foregroundStyle(.red)
+                        .accessibilityIdentifier("clear-messages-button")
                     }
                 }
                 .navigationTitle("Options")

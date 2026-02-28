@@ -1,7 +1,7 @@
 {
   "configurations" : [
     {
-      "id" : "805EB59B-C084-493E-8AF2-03AB87D61164",
+      "id" : "D1A6BEB5-2C19-447B-830A-4F4260B0DF32",
       "name" : "Configuration 1",
       "options" : {
 
@@ -9,21 +9,22 @@
     }
   ],
   "defaultOptions" : {
+    "testRepetitionMode" : "retryOnFailure",
     "testTimeoutsEnabled" : true
   },
   "testTargets" : [
     {
       "target" : {
         "containerPath" : "container:ios.xcodeproj",
-        "identifier" : "DF7E29FF2F378F47006A4C0A",
-        "name" : "iosTests"
+        "identifier" : "DF7E2A092F378F47006A4C0A",
+        "name" : "iosUITests"
       }
     },
     {
       "target" : {
-        "containerPath" : "container:packages\/AssistantCore",
-        "identifier" : "AssistantCoreTests",
-        "name" : "AssistantCoreTests"
+        "containerPath" : "container:ios.xcodeproj",
+        "identifier" : "DF7E29FF2F378F47006A4C0A",
+        "name" : "iosTests"
       }
     }
   ],

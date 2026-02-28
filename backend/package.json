@@ -16,7 +16,10 @@
     "openapi:generate": "next-openapi-gen generate",
     "test:e2e": "playwright test",
     "worker": "bun worker/index.ts 2>&1 | tee worker.log",
-    "worker:dev": "bun --watch worker/index.ts 2>&1 | tee worker.log"
+    "worker:dev": "bun --watch worker/index.ts 2>&1 | tee worker.log",
+    "setup:e2e": "bun scripts/setup-e2e-db.ts",
+    "dev:e2e": "bun scripts/setup-e2e-db.ts && bun --env-file=.env.e2e next dev",
+    "worker:e2e": "bun --env-file=.env.e2e worker/index.ts 2>&1 | tee worker.log"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3",

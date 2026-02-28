@@ -27,6 +27,7 @@ TEST_PLAN="${TEST_PLAN:-TestPlan}"
 CONFIGURATION="${CONFIGURATION:-Debug}"
 SDK="${SDK:-iphonesimulator}"
 BUILD_DIR="${BUILD_DIR:-$PROJECT_ROOT/.build}"
+RESULT_BUNDLE_PATH="${RESULT_BUNDLE_PATH:-$PROJECT_ROOT/test-results.xcresult}"
 
 # Find an available iOS simulator if DESTINATION is not set
 if [ -z "$DESTINATION" ]; then
@@ -56,11 +57,47 @@ echo -e "${BLUE}⚙️  Configuration:${NC} $CONFIGURATION"
 echo -e "${BLUE}📱 SDK:${NC} $SDK"
 echo -e "${BLUE}🎯 Destination:${NC} $DESTINATION"
 echo -e "${BLUE}📂 Build Directory:${NC} $BUILD_DIR"
+echo -e "${BLUE}📊 Result Bundle:${NC} $RESULT_BUNDLE_PATH"
+echo ""
+
+# Health check backend server
+BACKEND_URL="${BACKEND_URL:-http://localhost:3000/api/health}"
+echo "🔍 Checking backend server at $BACKEND_URL..."
+for i in {1..30}; do
+    if curl -s "$BACKEND_URL" | grep -q "ok" 2>/dev/null; then
+        echo -e "${GREEN}✅ Backend server is up${NC}"
+        break
+    fi
+    if [ "$i" -eq 30 ]; then
+        echo -e "${RED}❌ Backend server not reachable at $BACKEND_URL${NC}"
+        exit 1
+    fi
+    sleep 2
+done
+
+# Health check worker server
+WORKER_URL="${WORKER_URL:-http://localhost:3002/healthz}"
+echo "🔍 Checking worker server at $WORKER_URL..."
+for i in {1..30}; do
+    if curl -s "$WORKER_URL" | grep -q "ok" 2>/dev/null; then
+        echo -e "${GREEN}✅ Worker server is up${NC}"
+        break
+    fi
+    if [ "$i" -eq 30 ]; then
+        echo -e "${RED}❌ Worker server not reachable at $WORKER_URL${NC}"
+        exit 1
+    fi
+    sleep 2
+done
+
 echo ""
 
 # Run tests
 echo "🧪 Running test plan..."
 echo ""
+
+# Remove stale result bundle (xcodebuild fails if it already exists)
+rm -rf "$RESULT_BUNDLE_PATH"
 
 set +e  # Temporarily disable exit on error to capture the exit code
 
@@ -72,11 +109,12 @@ if command -v xcbeautify &> /dev/null; then
         -configuration "$CONFIGURATION" \
         -destination "$DESTINATION" \
         -derivedDataPath "$BUILD_DIR" \
+        -resultBundlePath "$RESULT_BUNDLE_PATH" \
         -skipPackagePluginValidation \
         -skipMacroValidation \
-        CODE_SIGN_IDENTITY="" \
+        CODE_SIGN_IDENTITY="-" \
         CODE_SIGNING_REQUIRED=NO \
-        CODE_SIGNING_ALLOWED=NO \
+        CODE_SIGNING_ALLOWED=YES \
         2>&1 | xcbeautify
     TEST_EXIT_CODE=${PIPESTATUS[0]}
 else
@@ -87,11 +125,12 @@ else
         -configuration "$CONFIGURATION" \
         -destination "$DESTINATION" \
         -derivedDataPath "$BUILD_DIR" \
+        -resultBundlePath "$RESULT_BUNDLE_PATH" \
         -skipPackagePluginValidation \
         -skipMacroValidation \
-        CODE_SIGN_IDENTITY="" \
+        CODE_SIGN_IDENTITY="-" \
         CODE_SIGNING_REQUIRED=NO \
-        CODE_SIGNING_ALLOWED=NO \
+        CODE_SIGNING_ALLOWED=YES \
         2>&1
     TEST_EXIT_CODE=$?
 fi
