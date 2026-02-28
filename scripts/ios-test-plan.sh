@@ -1,13 +1,14 @@
 #!/bin/bash
 
-# iOS Test Plan Script
-# Runs the Linda Assistant iOS test plan (iosTests + AssistantCoreTests)
+# iOS/macOS Test Plan Script
+# Runs the Linda Assistant test plan (iosTests + AssistantCoreTests)
+# Supports both iOS Simulator and macOS destinations via SDK env var.
 
 set -e  # Exit on error
 set -o pipefail  # Catch errors in pipes
 
 echo "======================================"
-echo "Linda Assistant iOS Test Plan"
+echo "Linda Assistant Test Plan"
 echo "======================================"
 echo ""
 
@@ -29,19 +30,24 @@ SDK="${SDK:-iphonesimulator}"
 BUILD_DIR="${BUILD_DIR:-$PROJECT_ROOT/.build}"
 RESULT_BUNDLE_PATH="${RESULT_BUNDLE_PATH:-$PROJECT_ROOT/test-results.xcresult}"
 
-# Find an available iOS simulator if DESTINATION is not set
+# Determine destination based on SDK
 if [ -z "$DESTINATION" ]; then
-    echo "🔍 Finding available iOS simulator..."
-    SIMULATOR_NAME=$(xcrun simctl list devices available --json | jq -r '.devices | to_entries | .[] | select(.key | contains("iOS")) | .value[] | select(.isAvailable == true) | .name' | head -1)
+    if [ "$SDK" = "macosx" ]; then
+        DESTINATION="platform=macOS"
+        echo "🖥️  Using macOS destination"
+    else
+        echo "🔍 Finding available iOS simulator..."
+        SIMULATOR_NAME=$(xcrun simctl list devices available --json | jq -r '.devices | to_entries | .[] | select(.key | contains("iOS")) | .value[] | select(.isAvailable == true) | .name' | head -1)
 
-    if [ -z "$SIMULATOR_NAME" ]; then
-        echo -e "${RED}❌ Error: No available iOS simulator found${NC}"
-        echo "Please install an iOS simulator via Xcode > Settings > Platforms"
-        exit 1
+        if [ -z "$SIMULATOR_NAME" ]; then
+            echo -e "${RED}❌ Error: No available iOS simulator found${NC}"
+            echo "Please install an iOS simulator via Xcode > Settings > Platforms"
+            exit 1
+        fi
+
+        DESTINATION="platform=iOS Simulator,name=$SIMULATOR_NAME,OS=latest"
+        echo "📱 Auto-detected simulator: $SIMULATOR_NAME"
     fi
-
-    DESTINATION="platform=iOS Simulator,name=$SIMULATOR_NAME,OS=latest"
-    echo "📱 Auto-detected simulator: $SIMULATOR_NAME"
 fi
 
 # Check if project exists
@@ -99,6 +105,24 @@ echo ""
 # Remove stale result bundle (xcodebuild fails if it already exists)
 rm -rf "$RESULT_BUNDLE_PATH"
 
+# macOS builds with entitlements (e.g. push notifications) require extra
+# code-signing overrides so the app can launch without a dev certificate.
+if [ "$SDK" = "macosx" ]; then
+    EXTRA_BUILD_SETTINGS=(
+        CODE_SIGN_IDENTITY="-"
+        CODE_SIGNING_REQUIRED=NO
+        CODE_SIGNING_ALLOWED=YES
+        CODE_SIGN_ENTITLEMENTS=""
+        ENABLE_HARDENED_RUNTIME=NO
+    )
+else
+    EXTRA_BUILD_SETTINGS=(
+        CODE_SIGN_IDENTITY="-"
+        CODE_SIGNING_REQUIRED=NO
+        CODE_SIGNING_ALLOWED=YES
+    )
+fi
+
 set +e  # Temporarily disable exit on error to capture the exit code
 
 if command -v xcbeautify &> /dev/null; then
@@ -112,9 +136,7 @@ if command -v xcbeautify &> /dev/null; then
         -resultBundlePath "$RESULT_BUNDLE_PATH" \
         -skipPackagePluginValidation \
         -skipMacroValidation \
-        CODE_SIGN_IDENTITY="-" \
-        CODE_SIGNING_REQUIRED=NO \
-        CODE_SIGNING_ALLOWED=YES \
+        "${EXTRA_BUILD_SETTINGS[@]}" \
         2>&1 | xcbeautify
     TEST_EXIT_CODE=${PIPESTATUS[0]}
 else
@@ -128,9 +150,7 @@ else
         -resultBundlePath "$RESULT_BUNDLE_PATH" \
         -skipPackagePluginValidation \
         -skipMacroValidation \
-        CODE_SIGN_IDENTITY="-" \
-        CODE_SIGNING_REQUIRED=NO \
-        CODE_SIGNING_ALLOWED=YES \
+        "${EXTRA_BUILD_SETTINGS[@]}" \
         2>&1
     TEST_EXIT_CODE=$?
 fi

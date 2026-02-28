@@ -77,7 +77,8 @@ struct MessageList: View {
             }
             .accessibilityIdentifier("messageListItem")
             .id(msg.id)
-            .transition(.opacity)
+            // Only animate user messages - assistant messages stream in without transition
+            .transition(msg.role == .user ? .opacity : .identity)
         }
 
         // Streaming group header
@@ -102,8 +103,11 @@ struct MessageList: View {
                 .transition(.opacity)
         }
 
-        Spacer()
+        Color.clear
+            .id("bottom")
+            .accessibilityIdentifier("end-of-message-list")
             .frame(height: 30)
+            .contentShape(Rectangle())
             .onAppear {
                 // Enable animation after initial load
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

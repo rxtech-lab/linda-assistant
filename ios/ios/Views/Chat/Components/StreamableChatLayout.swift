@@ -1,4 +1,5 @@
 import AssistantCore
+import Combine
 import os
 import SwiftUI
 
@@ -15,12 +16,14 @@ struct StreamableChatLayout<Header: View>: View {
     let onStop: () async -> Void
     @ViewBuilder let header: () -> Header
 
+    @Environment(EventManager.self) private var eventManager
+
     @State private var messageText = ""
     @State private var selectedToolCall: ToolCallInfo?
     @State private var selectedDocumentItem: DocumentSheetItem?
     @State private var errorDismissTask: Task<Void, Never>?
     @State private var presentedConfirmation: ConfirmationPayload?
-    @State private var scrollPosition = ScrollPosition(idType: String.self)
+    @State private var scrollSubject = PassthroughSubject<Void, Never>()
     private var pendingConfirmationCount: Int {
         streamHandler?.pendingConfirmations.count ?? 0
     }
@@ -57,10 +60,14 @@ struct StreamableChatLayout<Header: View>: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 }
 
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        header()
-                            .id("header")
+                ScrollViewReader { proxy in
+                    List {
+                        Section {
+                            header()
+                        }
+                        .id("header")
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
 
                         MessageList(
                             messages: allMessages,
@@ -85,22 +92,26 @@ struct StreamableChatLayout<Header: View>: View {
                                 selectedDocumentItem = item
                             }
                         )
-
-                        Color.clear
-                            .frame(height: 1)
-                            .id("bottom")
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                     }
-                    .padding()
-                    .scrollTargetLayout()
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .defaultScrollAnchor(.bottom, for: .sizeChanges)
+                    .onAppear {
+                        proxy.scrollTo("bottom", anchor: .bottom)
+                    }
+                    .task {
+                        for await event in eventManager.stream {
+                            if case .streamContentUpdated = event {
+                                withAnimation {
+                                    proxy.scrollTo("bottom", anchor: .bottom)
+                                }
+                            }
+                        }
+                    }
                 }
             }
-            // use scroll position to automatically scroll to bottom when new messages arrive
-            .defaultScrollAnchor(.bottom, for: .alignment)
-            .defaultScrollAnchor(.bottom, for: .initialOffset)
-            .defaultScrollAnchor(.bottom, for: .sizeChanges)
-            .scrollPosition($scrollPosition, anchor: .bottom)
-            // but this solution not works on initial mount. So we use scrollPosition to scroll to bottom onAppear as well
             .onChange(of: pendingConfirmationCount) {
                 // Dismiss sheet if the presented confirmation was resolved (e.g. from another device)
                 if let presented = presentedConfirmation,
