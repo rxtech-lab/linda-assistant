@@ -90,6 +90,23 @@ jobs:
           echo "Contents of Secrets.xcconfig (with secrets masked):"
           sed 's/\(AUTH_CLIENT_ID.*=\).*/\1 ***/' ios/Config/Secrets.xcconfig
 
+      - name: Setup .env from GitHub Secrets
+        env:
+          LINDA_TESTING_SECRETS_BASE64: ${{ secrets.LINDA_TESTING_SECRETS_BASE64 }}
+        run: |
+          echo "$LINDA_TESTING_SECRETS_BASE64" | base64 --decode > ios/iosUITests/.env
+          echo "✅ Successfully decoded .env for iOS UI Tests"
+
+      - name: Setup Admin .env from GitHub Secrets
+        env:
+          ADMIN_ENV_BASE64: ${{ secrets.ADMIN_ENV_BASE64 }}
+        run: |
+          if [ -z "$ADMIN_ENV_BASE64" ]; then
+            echo "⚠️ Warning: ADMIN_ENV_BASE64 secret is not set, skipping admin .env setup"
+          else
+            echo "$ADMIN_ENV_BASE64" | base64 --decode > backend/.env
+            echo "✅ Successfully decoded admin .env"
+          fi    
       - name: Install xcbeautify
         run: brew install xcbeautify
 
@@ -99,8 +116,27 @@ jobs:
           key: xcode-${{ runner.os }}-${{ hashFiles('ios/packages/AssistantCore/Package.swift') }}
           restore-keys: xcode-${{ runner.os }}-
 
+      - name: Start RabbitMQ
+        run: |
+          brew install rabbitmq
+          brew services start rabbitmq
+          echo "Waiting for RabbitMQ..."
+          for i in {1..30}; do
+            if rabbitmqctl status &>/dev/null; then
+              echo "RabbitMQ is ready"
+              break
+            fi
+            sleep 2
+          done
+          rabbitmqctl add_user linda linda
+          rabbitmqctl set_permissions -p / linda ".*" ".*" ".*"
+
       - name: Start Backend Server
-        run: bun install && bun dev &
+        run: bun install && bun dev:e2e &
+        working-directory: backend
+
+      - name: Start Worker Server
+        run: bun worker:e2e &
         working-directory: backend
 
       - name: Wait for Backend Server
@@ -114,6 +150,19 @@ jobs:
             sleep 2
           done
           echo "Backend server did not start in time."
+          exit 1
+
+      - name: Wait for Worker Server
+        run: |
+          echo "Waiting for worker server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:3002/healthz | grep -q "ok"; then
+              echo "Worker server is up!"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Worker server did not start in time."
           exit 1
 
       - name: Generate openapi documentation
@@ -141,6 +190,30 @@ jobs:
           name: test-results
           path: test-results.xcresult
           retention-days: 7
+
+      - name: Extract Screenshots from xcresult
+        if: ${{ inputs.upload-test-results && always() }}
+        run: |
+          if [ -d "test-results.xcresult" ]; then
+            echo "Extracting screenshots from test-results.xcresult..."
+            mkdir -p test-screenshots
+            xcrun xcresulttool get test-results attachments \
+              --path test-results.xcresult \
+              --output-path test-screenshots || echo "No attachments found in result bundle"
+            SCREENSHOT_COUNT=$(find test-screenshots -type f 2>/dev/null | wc -l | tr -d ' ')
+            echo "Found $SCREENSHOT_COUNT attachment(s)"
+          else
+            echo "Result bundle not found at test-results.xcresult"
+          fi
+
+      - name: Upload Screenshots
+        if: ${{ inputs.upload-test-results && always() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-screenshots
+          path: test-screenshots/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Generate Test Report
         if: ${{ inputs.upload-test-results && always() }}
