@@ -16,3 +16,4 @@ test-results/.last-run.json
 *.log
 ios/.DS_Store
 ios/iosUITests/.env
+test-results.xcresult

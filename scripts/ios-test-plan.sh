@@ -61,10 +61,10 @@ echo -e "${BLUE}📊 Result Bundle:${NC} $RESULT_BUNDLE_PATH"
 echo ""
 
 # Health check backend server
-BACKEND_URL="${BACKEND_URL:-http://localhost:3000}"
+BACKEND_URL="${BACKEND_URL:-http://localhost:3000/api/health}"
 echo "🔍 Checking backend server at $BACKEND_URL..."
 for i in {1..30}; do
-    if curl -s "$BACKEND_URL" > /dev/null 2>&1; then
+    if curl -s "$BACKEND_URL" | grep -q "ok" 2>/dev/null; then
         echo -e "${GREEN}✅ Backend server is up${NC}"
         break
     fi
@@ -112,9 +112,9 @@ if command -v xcbeautify &> /dev/null; then
         -resultBundlePath "$RESULT_BUNDLE_PATH" \
         -skipPackagePluginValidation \
         -skipMacroValidation \
-        CODE_SIGN_IDENTITY="" \
+        CODE_SIGN_IDENTITY="-" \
         CODE_SIGNING_REQUIRED=NO \
-        CODE_SIGNING_ALLOWED=NO \
+        CODE_SIGNING_ALLOWED=YES \
         2>&1 | xcbeautify
     TEST_EXIT_CODE=${PIPESTATUS[0]}
 else
@@ -128,9 +128,9 @@ else
         -resultBundlePath "$RESULT_BUNDLE_PATH" \
         -skipPackagePluginValidation \
         -skipMacroValidation \
-        CODE_SIGN_IDENTITY="" \
+        CODE_SIGN_IDENTITY="-" \
         CODE_SIGNING_REQUIRED=NO \
-        CODE_SIGNING_ALLOWED=NO \
+        CODE_SIGNING_ALLOWED=YES \
         2>&1
     TEST_EXIT_CODE=$?
 fi
