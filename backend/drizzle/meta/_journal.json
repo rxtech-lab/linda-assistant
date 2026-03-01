@@ -71,6 +71,13 @@
       "when": 1772183264330,
       "tag": "0009_nosy_black_bolt",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1772300014636,
+      "tag": "0010_clever_luke_cage",
+      "breakpoints": true
     }
   ]
 }

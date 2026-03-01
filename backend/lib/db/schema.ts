@@ -103,6 +103,7 @@ export const messages = sqliteTable("messages", {
   seq: integer("seq").notNull(),
   role: text("role").notNull(),
   content: text("content", { mode: "json" }).$type<unknown>(),
+  isCompacted: integer("is_compacted", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
 });
 

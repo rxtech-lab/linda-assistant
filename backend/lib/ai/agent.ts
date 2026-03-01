@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { eq, sql } from "drizzle-orm";
 import { refreshAccessToken } from "@/lib/auth/refresh";
 import { db } from "@/lib/db";
-import { getSessionMessages, insertMessages } from "@/lib/db/messages";
+import { getActiveSessionMessages, insertMessages } from "@/lib/db/messages";
 import { assignees, chatSessions, confirmations } from "@/lib/db/schema";
 import { createMem0Client } from "@/lib/mem0/client";
 import { setStreamActive } from "@/lib/streaming/manager";
@@ -161,8 +161,11 @@ function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
       if (parts.some((p) => p.type === "tool-approval-response")) continue;
     }
 
+    // Strip internal metadata that shouldn't reach the model
+    const { seq: _seq, isCompacted: _ic, ...cleanRecord } = record;
+
     if (!Array.isArray(msg.content)) {
-      result.push(msg);
+      result.push(cleanRecord as unknown as ModelMessage);
       continue;
     }
 
@@ -191,7 +194,7 @@ function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
     if (cleanedParts.length === 0) continue;
 
     result.push({
-      ...record,
+      ...cleanRecord,
       content: cleanedParts,
     } as unknown as ModelMessage);
   }
@@ -460,7 +463,7 @@ export async function runAgent(options: AgentRunOptions) {
   }
 
   const { tools } = await buildToolSet(userId, session.assigneeId ?? null, accessToken, sessionId);
-  const messages = await getSessionMessages(sessionId);
+  const messages = await getActiveSessionMessages(sessionId);
 
   // Search mem0 for relevant long-term memories
   const mem0 = createMem0Client();

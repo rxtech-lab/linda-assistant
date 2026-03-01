@@ -289,6 +289,14 @@ export const chatMessageSchema = z.object({
     .describe(
       "Message content — string for simple text, array of parts for rich content",
     ),
+  seq: z
+    .number()
+    .optional()
+    .describe("Message sequence number within the session, used for ordering"),
+  isCompacted: z
+    .boolean()
+    .optional()
+    .describe("Whether the message has been compacted (summarized for AI context). Compacted messages are preserved for user history but not sent to the AI agent."),
 });
 
 // ---- Chat Sessions ----

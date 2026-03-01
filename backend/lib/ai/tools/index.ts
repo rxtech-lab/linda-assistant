@@ -8,7 +8,7 @@ import {
   CREATE_DOCUMENT_TOOL_NAME,
   createDocumentTool,
 } from "./create-document";
-import { getSessionMessages } from "@/lib/db/messages";
+import { getActiveSessionMessages } from "@/lib/db/messages";
 import { loadAssigneePermissions, resolvePermission } from "./permission";
 import { SEARCH_EMAILS_TOOL_NAME, searchEmailsTool } from "./search-emails";
 import { SEND_EMAIL_TOOL_NAME, sendEmailTool } from "./send-email";
@@ -106,7 +106,7 @@ export async function buildToolSet(
   // to dynamically override specific tools' needsApproval to false
   const autoConfirmOverrides = new Set<string>();
   if (isE2E && chatSessionId) {
-    const messages = await getSessionMessages(chatSessionId);
+    const messages = await getActiveSessionMessages(chatSessionId);
     const lastUserMsg = [...messages]
       .reverse()
       .find((m: any) => m.role === "user");
