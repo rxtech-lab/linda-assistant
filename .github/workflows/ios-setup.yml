@@ -165,7 +165,7 @@ jobs:
 
       - name: Upload Logs
         if: ${{ inputs.upload-test-results && failure() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}
           path: ${{ inputs.artifact-path }}
@@ -174,7 +174,7 @@ jobs:
 
       - name: Upload Backend Log
         if: ${{ inputs.upload-test-results && always() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}-backend
           path: backend.log
@@ -183,7 +183,7 @@ jobs:
 
       - name: Upload Worker Log
         if: ${{ inputs.upload-test-results && always() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}-worker
           path: worker.log
@@ -192,7 +192,7 @@ jobs:
 
       - name: Upload Test Results
         if: ${{ inputs.upload-test-results && always() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}-results
           path: test-results.xcresult
@@ -215,7 +215,7 @@ jobs:
 
       - name: Upload Screenshots
         if: ${{ inputs.upload-test-results && always() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}-screenshots
           path: test-screenshots/
