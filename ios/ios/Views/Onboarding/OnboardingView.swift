@@ -19,6 +19,14 @@ struct OnboardingView: View {
         viewModel.isValid && !viewModel.isSubmitting
     }
 
+    private var submitButtonPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .bottomBar
+        #else
+        .confirmationAction
+        #endif
+    }
+
     var body: some View {
         Form {
             Section("Assistant Info") {
@@ -76,7 +84,7 @@ struct OnboardingView: View {
             await viewModel.loadModelsAndTools(apiClient: apiClient)
         }
         .toolbar {
-            ToolbarItem(placement: .bottomBar) {
+            ToolbarItem(placement: submitButtonPlacement) {
                 Button {
                     Task {
                         await viewModel.createAssignee(apiClient: apiClient, eventManager: eventManager)
