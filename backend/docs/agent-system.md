@@ -49,11 +49,11 @@ This enables event-driven processing: emails (and future webhook events) are aut
 
 ### RabbitMQ Topology
 
-| Component | Type | Purpose |
-|-----------|------|---------|
-| `agent-tasks` | Durable queue | Triggers agent runs. Message: `{sessionId, userId, type}` |
-| `agent-events` | Topic exchange | Real-time agent output. Routing key: `session.{sessionId}` |
-| Per-SSE connection | Exclusive auto-delete queue | Bound to exchange — only receives events for that session |
+| Component          | Type                        | Purpose                                                    |
+| ------------------ | --------------------------- | ---------------------------------------------------------- |
+| `agent-tasks`      | Durable queue               | Triggers agent runs. Message: `{sessionId, userId, type}`  |
+| `agent-events`     | Topic exchange              | Real-time agent output. Routing key: `session.{sessionId}` |
+| Per-SSE connection | Exclusive auto-delete queue | Bound to exchange — only receives events for that session  |
 
 ### Worker Process
 
@@ -105,14 +105,15 @@ runAgent(sessionId, userId, onEvent)
 
 ### Defined in `lib/ai/tools/`
 
-| Tool | Has Execute | Default Permission |
-|------|-------------|-------------------|
-| `send_email` | No | `manual-confirm` |
-| `search_emails` | Yes | `manual-confirm` |
-| `create_task` | Yes | `manual-confirm` |
-| `update_task` | Yes | `manual-confirm` |
+| Tool            | Has Execute | Default Permission |
+| --------------- | ----------- | ------------------ |
+| `send_email`    | No          | `manual-confirm`   |
+| `search_emails` | Yes         | `manual-confirm`   |
+| `create_task`   | Yes         | `manual-confirm`   |
+| `update_task`   | Yes         | `manual-confirm`   |
 
 Tools are built per-request with `buildToolSet(userId, toolPermissions)`:
+
 - `userId` is injected into tool closures for data scoping
 - `toolPermissions` controls per-tool behavior (from assignee config): `auto-confirm`, `manual-confirm`, or `auto-reject`
 - Tools with `auto-reject` are excluded from the tool set
@@ -205,15 +206,15 @@ The subscribe-first approach ensures no events are lost between reading the cach
 
 ### Stream Events
 
-| Event | Data | When |
-|-------|------|------|
-| `status` | `{status: string}` | Session status changes |
-| `text-delta` | `{text: string}` | AI generates text |
-| `tool-call` | `{toolCallId, toolName, input}` | AI calls a tool |
-| `tool-result` | `{toolCallId, toolName, output}` | Tool returns result |
-| `confirmation_required` | `{toolCallId, toolName, parameters}` | Tool needs approval |
-| `error` | `{error: string}` | Error occurred |
-| `done` | `{}` | Agent run finished |
+| Event                   | Data                                 | When                   |
+| ----------------------- | ------------------------------------ | ---------------------- |
+| `status`                | `{status: string}`                   | Session status changes |
+| `text-delta`            | `{text: string}`                     | AI generates text      |
+| `tool-call`             | `{toolCallId, toolName, input}`      | AI calls a tool        |
+| `tool-result`           | `{toolCallId, toolName, output}`     | Tool returns result    |
+| `confirmation_required` | `{toolCallId, toolName, parameters}` | Tool needs approval    |
+| `error`                 | `{error: string}`                    | Error occurred         |
+| `done`                  | `{}`                                 | Agent run finished     |
 
 ### Stream Recovery
 
@@ -221,16 +222,16 @@ Chunks are cached in Redis (`stream:chunks:{sessionId}`) with 1-hour TTL. When a
 
 ## RabbitMQ Queue (`lib/queue/`)
 
-| File | Purpose |
-|------|---------|
-| `types.ts` | Shared interfaces (`AgentTask`, `AgentEvent`) and queue/exchange name constants |
-| `connection.ts` | AMQP connection singleton with lazy topology setup |
-| `producer.ts` | `publishTask()` — sends to `agent-tasks` queue; `publishEvent()` — publishes to `agent-events` exchange |
-| `consumer.ts` | `consumeTasks()` — worker task consumer; `subscribeToEvents()` — per-SSE exclusive queue subscriber |
+| File            | Purpose                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------- |
+| `types.ts`      | Shared interfaces (`AgentTask`, `AgentEvent`) and queue/exchange name constants                         |
+| `connection.ts` | AMQP connection singleton with lazy topology setup                                                      |
+| `producer.ts`   | `publishTask()` — sends to `agent-tasks` queue; `publishEvent()` — publishes to `agent-events` exchange |
+| `consumer.ts`   | `consumeTasks()` — worker task consumer; `subscribeToEvents()` — per-SSE exclusive queue subscriber     |
 
 ## Redis Keys
 
-| Key Pattern | Purpose | TTL |
-|-------------|---------|-----|
-| `stream:chunks:{sessionId}` | Cached SSE chunks for replay | 1 hour |
-| `stream:active:{sessionId}` | Whether agent is currently running | 5 min |
+| Key Pattern                 | Purpose                            | TTL    |
+| --------------------------- | ---------------------------------- | ------ |
+| `stream:chunks:{sessionId}` | Cached SSE chunks for replay       | 1 hour |
+| `stream:active:{sessionId}` | Whether agent is currently running | 5 min  |

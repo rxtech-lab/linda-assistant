@@ -24,6 +24,12 @@ public struct ToolPermission: Codable, Sendable, Hashable {
     }
 }
 
+public struct AssigneeFormSchema: Codable, Sendable {
+    public let assignee: Assignee?
+    public let models: [String]
+    public let tools: [AgentTool]
+}
+
 public struct CreateAssignee: Codable, Sendable {
     public let name: String
     public let email: String

@@ -1,6 +1,7 @@
 import { redis } from "@/lib/redis";
 
 const CHUNK_KEY = (sessionId: string) => `stream:chunks:${sessionId}`;
+const SEQ_KEY = (sessionId: string) => `stream:seq:${sessionId}`;
 const ACTIVE_KEY = (sessionId: string) => `stream:active:${sessionId}`;
 const CHUNK_TTL = 60 * 60; // 1 hour
 
@@ -14,7 +15,13 @@ export async function getStreamChunks(sessionId: string): Promise<string[]> {
 }
 
 export async function clearStreamChunks(sessionId: string) {
-  await redis.del(CHUNK_KEY(sessionId));
+  await redis.del(CHUNK_KEY(sessionId), SEQ_KEY(sessionId));
+}
+
+export async function nextSeq(sessionId: string): Promise<number> {
+  const seq = await redis.incr(SEQ_KEY(sessionId));
+  await redis.expire(SEQ_KEY(sessionId), CHUNK_TTL);
+  return seq;
 }
 
 export async function setStreamActive(sessionId: string, active: boolean) {

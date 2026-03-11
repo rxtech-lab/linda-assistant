@@ -58,8 +58,16 @@ final class ChatDetailViewModel {
         }
         handler.onUserMessage = { [weak self] id, content in
             guard let self else { return }
-            // Dedup: skip if a message with this ID already exists (sent from this device)
+            // Dedup: skip if a message with this server ID already exists
             guard !displayMessages.contains(where: { $0.id == id }) else { return }
+            // Match optimistic message (temp "user-" prefix) by content → update its ID
+            if let idx = displayMessages.lastIndex(where: {
+                $0.id.hasPrefix("user-") && $0.role == .user && $0.textContent == content
+            }) {
+                displayMessages[idx] = DisplayMessage(id: id, role: .user, parts: displayMessages[idx].parts)
+                return
+            }
+            // Multi-device: message sent from another device
             let userMsg = DisplayMessage(
                 id: id,
                 role: .user,

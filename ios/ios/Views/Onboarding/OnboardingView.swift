@@ -15,6 +15,18 @@ struct OnboardingView: View {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
     }
 
+    private var isSubmitButtonEnable: Bool {
+        viewModel.isValid && !viewModel.isSubmitting
+    }
+
+    private var submitButtonPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .bottomBar
+        #else
+        .confirmationAction
+        #endif
+    }
+
     var body: some View {
         Form {
             Section("Assistant Info") {
@@ -45,9 +57,15 @@ struct OnboardingView: View {
                             VStack(alignment: .leading) {
                                 Text(tool.name)
                                     .font(.body)
-                                Text(tool.description)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                if let markdown = try? AttributedString(markdown: tool.description) {
+                                    Text(markdown)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text(tool.description)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                             Spacer()
                             Picker("", selection: viewModel.bindingForTool(tool.name)) {
@@ -60,8 +78,13 @@ struct OnboardingView: View {
                     }
                 }
             }
-
-            Section {
+        }
+        .navigationTitle("Welcome to Linda")
+        .task {
+            await viewModel.loadModelsAndTools(apiClient: apiClient)
+        }
+        .toolbar {
+            ToolbarItem(placement: submitButtonPlacement) {
                 Button {
                     Task {
                         await viewModel.createAssignee(apiClient: apiClient, eventManager: eventManager)
@@ -78,13 +101,19 @@ struct OnboardingView: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
-                .foregroundStyle(Color.primaryButtonColor)
-                .disabled(!viewModel.isValid || viewModel.isSubmitting)
+                .foregroundStyle(isSubmitButtonEnable ? Color.primaryButtonColor : Color.gray)
+                .disabled(!isSubmitButtonEnable)
             }
         }
-        .navigationTitle("Welcome to Linda")
-        .task {
-            await viewModel.loadModelsAndTools(apiClient: apiClient)
+        .overlay(alignment: .center) {
+            if viewModel.isLoadingModelsAndTools {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("Loading settings")
+                }
+                .padding()
+                .glassEffect(in: .rect(cornerRadius: 24))
+            }
         }
         .alert("Error", isPresented: .constant(!isPreview && viewModel.error != nil)) {
             Button("OK") { viewModel.error = nil }
