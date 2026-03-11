@@ -14,6 +14,7 @@ export interface AgentEvent {
   event: string;
   data: unknown;
   timestamp: number;
+  seq?: number;
 }
 
 export interface AgentCommand {

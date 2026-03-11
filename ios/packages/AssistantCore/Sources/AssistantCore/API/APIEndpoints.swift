@@ -25,6 +25,15 @@ public extension APIClient {
         try await request(path: "tools")
     }
 
+    // MARK: - Assignees Form Schema
+
+    func getAssigneeFormSchema(id: String? = nil) async throws -> AssigneeFormSchema {
+        if let id {
+            return try await request(path: "assignees/\(id)/schema")
+        }
+        return try await request(path: "assignees/schema")
+    }
+
     // MARK: - Assignees
 
     func listAssignees(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Assignee> {

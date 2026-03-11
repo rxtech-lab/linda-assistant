@@ -4,7 +4,7 @@ import SwiftUI
 struct AssigneeFormSheet: View {
     enum Mode {
         case create
-        case edit(Assignee)
+        case edit(String)
     }
 
     let mode: Mode
@@ -20,6 +20,7 @@ struct AssigneeFormSheet: View {
     @State private var availableTools: [AgentTool] = []
     @State private var toolPermissions: [String: String] = [:]
     @State private var isSubmitting = false
+    @State private var isLoadingFormData = false
     @State private var error: String?
 
     private var apiClient: APIClient {
@@ -61,7 +62,11 @@ struct AssigneeFormSheet: View {
                             HStack {
                                 VStack(alignment: .leading) {
                                     Text(tool.name).font(.body)
-                                    Text(tool.description).font(.caption).foregroundStyle(.secondary)
+                                    if let markdown = try? AttributedString(markdown: tool.description) {
+                                        Text(markdown).font(.caption).foregroundStyle(.secondary)
+                                    } else {
+                                        Text(tool.description).font(.caption).foregroundStyle(.secondary)
+                                    }
                                 }
                                 Spacer()
                                 Picker("", selection: bindingForTool(tool.name)) {
@@ -116,8 +121,17 @@ struct AssigneeFormSheet: View {
                 }
             }
             .task {
-                await loadModelsAndTools()
-                populateForEdit()
+                await loadFormData()
+            }
+            .overlay(alignment: .center) {
+                if isLoadingFormData {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text("Loading settings")
+                    }
+                    .padding()
+                    .glassEffect(in: .rect(cornerRadius: 24))
+                }
             }
         }
         .presentationDetents([.large])
@@ -130,34 +144,36 @@ struct AssigneeFormSheet: View {
         )
     }
 
-    private func loadModelsAndTools() async {
+    private func loadFormData() async {
+        isLoadingFormData = true
+        defer { isLoadingFormData = false }
+
         do {
-            async let modelsReq = apiClient.listModels()
-            async let toolsReq = apiClient.listTools()
-            let (models, tools) = try await (modelsReq, toolsReq)
-            availableModels = models
-            availableTools = tools
-            if selectedModel.isEmpty, let first = models.first {
+            let assigneeId: String? = { if case let .edit(id) = mode { return id }; return nil }()
+            let formData = try await apiClient.getAssigneeFormSchema(id: assigneeId)
+            availableModels = formData.models
+            availableTools = formData.tools
+
+            if let assignee = formData.assignee {
+                name = assignee.name
+                email = assignee.email
+                personality = assignee.personality ?? ""
+                selectedModel = assignee.model ?? ""
+                if let perms = assignee.toolPermissions {
+                    for perm in perms {
+                        toolPermissions[perm.toolName] = perm.permission
+                    }
+                }
+            }
+
+            if selectedModel.isEmpty, let first = formData.models.first {
                 selectedModel = first
             }
-            for tool in tools where toolPermissions[tool.name] == nil {
+            for tool in formData.tools where toolPermissions[tool.name] == nil {
                 toolPermissions[tool.name] = tool.defaultPermission
             }
         } catch {
             self.error = error.localizedDescription
-        }
-    }
-
-    private func populateForEdit() {
-        guard case let .edit(assignee) = mode else { return }
-        name = assignee.name
-        email = assignee.email
-        personality = assignee.personality ?? ""
-        selectedModel = assignee.model ?? ""
-        if let perms = assignee.toolPermissions {
-            for perm in perms {
-                toolPermissions[perm.toolName] = perm.permission
-            }
         }
     }
 
@@ -168,7 +184,7 @@ struct AssigneeFormSheet: View {
         let permissions = toolPermissions.map { ToolPermission(toolName: $0.key, permission: $0.value) }
 
         do {
-            if case let .edit(existing) = mode {
+            if case let .edit(assigneeId) = mode {
                 let body = UpdateAssignee(
                     name: name.trimmingCharacters(in: .whitespaces),
                     email: email.trimmingCharacters(in: .whitespaces),
@@ -176,7 +192,7 @@ struct AssigneeFormSheet: View {
                     model: selectedModel.isEmpty ? nil : selectedModel,
                     toolPermissions: permissions.isEmpty ? nil : permissions
                 )
-                let updated = try await apiClient.updateAssignee(id: existing.id, body)
+                let updated = try await apiClient.updateAssignee(id: assigneeId, body)
                 onSave(updated)
             } else {
                 let body = CreateAssignee(
