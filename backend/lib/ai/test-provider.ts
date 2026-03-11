@@ -179,6 +179,15 @@ function buildStreamChunks(
         : "";
 
   // Scenario: slow stream with many chunks (for stop-stream e2e testing)
+  if (lastText.includes("[SLOW_STREAM_LONG]")) {
+    return {
+      chunks: createChunkedTextStream(
+        "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu one two three four",
+      ),
+      chunkDelayInMs: 300,
+    };
+  }
+
   if (lastText.includes("[SLOW_STREAM]")) {
     return {
       chunks: createChunkedTextStream(

@@ -10,6 +10,7 @@ final class OnboardingViewModel {
     var availableModels: [String] = []
     var availableTools: [AgentTool] = []
     var toolPermissions: [String: String] = [:]
+    var isLoadingModelsAndTools = false
     var isSubmitting = false
     var isComplete = false
     var error: String?
@@ -28,6 +29,7 @@ final class OnboardingViewModel {
     }
 
     func loadModelsAndTools(apiClient: APIClient) async {
+        isLoadingModelsAndTools = true
         do {
             async let modelsReq = apiClient.listModels()
             async let toolsReq = apiClient.listTools()
@@ -43,6 +45,7 @@ final class OnboardingViewModel {
         } catch {
             self.error = error.localizedDescription
         }
+        isLoadingModelsAndTools = false
     }
 
     func createAssignee(apiClient: APIClient, eventManager: EventManager) async {

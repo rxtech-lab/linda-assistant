@@ -7,7 +7,7 @@ import { authenticate } from "@/lib/auth/middleware";
 import { assigneeIdParamSchema, streamEventSchema } from "@/lib/schemas";
 import { errorJson } from "@/lib/utils/response";
 import { createSSEStream, sseResponse } from "@/lib/streaming/sse";
-import { subscribeToEvents } from "@/lib/queue/consumer";
+import { streamWithReplay } from "@/lib/streaming/replay";
 
 /**
  * SSE stream for real-time agent events on an assignee's persistent chat.
@@ -16,7 +16,8 @@ import { subscribeToEvents } from "@/lib/queue/consumer";
  * (send a message first via `POST /api/chat/:assigneeId/message`).
  *
  * The stream stays open indefinitely — the client connects once and receives
- * live events for all agent runs in this session.
+ * live events for all agent runs in this session. On reconnection, cached
+ * events are replayed from Redis before switching to live mode.
  *
  * Events: status, text-delta, tool-call, tool-result, confirmation_required, error, done
  *
@@ -56,7 +57,7 @@ export async function GET(
 
   // Start streaming in the background
   (async () => {
-    let subscription: Awaited<ReturnType<typeof subscribeToEvents>> | null = null;
+    let subscription: Awaited<ReturnType<typeof streamWithReplay>> | null = null;
     let heartbeat: ReturnType<typeof setInterval> | null = null;
     let cleanedUp = false;
 
@@ -75,17 +76,17 @@ export async function GET(
       // Keep connection alive with periodic pings (every 30s)
       heartbeat = setInterval(ping, 30_000);
 
-      // Subscribe to live events from the worker
+      // Subscribe, replay cached events, then switch to live mode
       console.log(
         `[Stream] Subscribing to events for session=${session.id} (assignee=${assigneeId})`,
       );
-      subscription = await subscribeToEvents(session.id, (agentEvent) => {
-        console.log(`[Stream] Live event: ${agentEvent.event} session=${session.id}`);
-        send(agentEvent.event, agentEvent.data);
-      });
-
-      // Send current session status
-      send("status", { id: crypto.randomUUID(), status: session.status });
+      subscription = await streamWithReplay(
+        session.id,
+        session.status ?? "idle",
+        send,
+        cleanup,
+        request.signal,
+      );
     } catch (error) {
       if (!request.signal.aborted) {
         send("error", { id: crypto.randomUUID(), error: String(error) });

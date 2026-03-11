@@ -48,7 +48,7 @@ struct AssigneeDetailView: View {
         }
         .sheet(isPresented: $showingEdit) {
             if let assignee = viewModel.assignee {
-                AssigneeFormSheet(mode: .edit(assignee)) { updated in
+                AssigneeFormSheet(mode: .edit(assignee.id)) { updated in
                     eventManager.emit(.assigneeUpdated(updated))
                 }
             }
