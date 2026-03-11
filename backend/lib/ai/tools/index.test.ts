@@ -105,6 +105,31 @@ describe("buildToolSet", () => {
     expect(Object.keys(tools).sort()).toEqual(["search_emails", "update_task", "update_document"].sort());
   });
 
+  test("filters out disabled tools", async () => {
+    mockLoadAssigneePermissions.mockResolvedValueOnce([
+      { toolName: "send_email", permission: "disabled" },
+    ]);
+
+    const { tools } = await buildToolSet("user-1", "assignee-1", "test-token");
+
+    expect(Object.keys(tools)).not.toContain("send_email");
+    expect(Object.keys(tools)).toContain("search_emails");
+    expect(Object.keys(tools)).toContain("create_task");
+    expect(Object.keys(tools)).toContain("update_task");
+  });
+
+  test("handles multiple permissions including mixed disabled and reject", async () => {
+    mockLoadAssigneePermissions.mockResolvedValueOnce([
+      { toolName: "send_email", permission: "disabled" },
+      { toolName: "create_task", permission: "auto-reject" },
+      { toolName: "search_emails", permission: "auto-confirm" },
+    ]);
+
+    const { tools } = await buildToolSet("user-1", "assignee-1", "test-token");
+
+    expect(Object.keys(tools).sort()).toEqual(["search_emails", "update_task", "update_document"].sort());
+  });
+
   test("tools not in permission array are included (default manual-confirm)", async () => {
     mockLoadAssigneePermissions.mockResolvedValueOnce([
       { toolName: "send_email", permission: "auto-confirm" },
@@ -130,10 +155,12 @@ describe("resolvePermission", () => {
     const perms: ToolPermission[] = [
       { toolName: "send_email", permission: "auto-confirm" },
       { toolName: "create_task", permission: "auto-reject" },
+      { toolName: "update_task", permission: "disabled" },
     ];
 
     expect(resolvePermission("send_email", perms)).toBe("auto-confirm");
     expect(resolvePermission("create_task", perms)).toBe("auto-reject");
-    expect(resolvePermission("update_task", perms)).toBe("manual-confirm");
+    expect(resolvePermission("update_task", perms)).toBe("disabled");
+    expect(resolvePermission("search_emails", perms)).toBe("manual-confirm");
   });
 });

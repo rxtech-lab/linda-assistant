@@ -54,6 +54,7 @@ export type PermissionCheckResult =
  * - auto-confirm: executes immediately, returns { status: "executed", result }
  * - manual-confirm: returns { status: "confirmation_required" }
  * - auto-reject: returns { status: "rejected" }
+ * - disabled: returns { status: "rejected" } (tool should not be in toolset)
  */
 export async function runToolWithPermissionCheck(
   assigneeId: string | null,
@@ -70,6 +71,7 @@ export async function runToolWithPermissionCheck(
     case "manual-confirm":
       return { status: "confirmation_required" };
     case "auto-reject":
+    case "disabled":
       return { status: "rejected" };
   }
 }

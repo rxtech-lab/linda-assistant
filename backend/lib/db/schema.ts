@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 
 export type ToolPermission = {
   toolName: string;
-  permission: "auto-confirm" | "manual-confirm" | "auto-reject";
+  permission: "auto-confirm" | "manual-confirm" | "auto-reject" | "disabled";
 };
 
 export type EmailAttachment = {

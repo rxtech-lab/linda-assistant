@@ -68,6 +68,7 @@ struct AssigneeFormSheet: View {
                                     Text("Auto").tag("auto-confirm")
                                     Text("Manual").tag("manual-confirm")
                                     Text("Reject").tag("auto-reject")
+                                    Text("Disabled").tag("disabled")
                                 }
                                 .labelsHidden()
                             }

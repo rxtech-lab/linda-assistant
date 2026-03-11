@@ -39,7 +39,7 @@ The middleware calls the RxLab OIDC userinfo endpoint to validate the token and 
 }
 ```
 
-Permission values: `auto-confirm` (execute without asking), `manual-confirm` (pause for user approval), `auto-reject` (tool unavailable). Tools not listed default to `manual-confirm`.
+Permission values: `auto-confirm` (execute without asking), `manual-confirm` (pause for user approval), `auto-reject` (tool unavailable), `disabled` (tool removed from toolset). Tools not listed default to `manual-confirm`.
 
 ### Emails
 
