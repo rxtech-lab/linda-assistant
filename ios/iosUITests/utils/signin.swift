@@ -34,8 +34,8 @@ extension XCUIApplication {
         logger.info("✅ Sign-in button found, tapping...")
         signInButton.tap()
 
-        // Give Safari/OAuth page time to launch
-        sleep(2)
+        // Give Safari/OAuth page time to launch (cold CI simulators need longer)
+        sleep(5)
 
         #if os(iOS)
             let safariViewServiceApp = XCUIApplication(bundleIdentifier: "com.apple.SafariViewService")
@@ -46,15 +46,18 @@ extension XCUIApplication {
             let emailField = safariViewServiceApp.textFields["you@example.com"].firstMatch
             let passwordField = safariViewServiceApp.secureTextFields["Enter your password"].firstMatch
 
-            // Use a longer timeout and provide better error message
-            let emailFieldExists = emailField.waitForExistence(timeout: 30)
+            // Use a longer timeout — cold CI simulators can take a while for Safari to render the page
+            let emailFieldExists = emailField.waitForExistence(timeout: 60)
+            guard emailFieldExists else {
+                throw NSError(domain: "SigninError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Email field did not appear in OAuth page — Safari may not have loaded in time"])
+            }
             NSLog("✅ Email field found, entering credentials...")
             logger.info("✅ Email field found, entering credentials...")
 
             // Fill in credentials from environment
             // WebView elements need extra handling for keyboard focus in CI
             emailField.tap()
-            sleep(1) // Give WebView time to establish keyboard focus
+            sleep(3) // Give WebView time to establish keyboard focus and let autofill settle
             // Type the email
             emailField.typeText(testEmail)
             NSLog("✅ Email entered")
