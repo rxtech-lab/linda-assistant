@@ -147,7 +147,7 @@ final class ChatDetailViewModel {
         await MainActor.run {
             extractPendingConfirmations(
                 from: session.messages,
-                streamHandler: streamHandler
+                streamHandler: self.streamHandler
             )
         }
     }

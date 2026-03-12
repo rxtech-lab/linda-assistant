@@ -12,8 +12,8 @@ struct StreamableChatLayout<Header: View>: View {
     let streamHandler: ChatStreamHandler?
     let displayError: String?
     let onClearError: () -> Void
-    let onSend: (String) async -> Void
-    let onStop: () async -> Void
+    let onSend: (String) -> Void
+    let onStop: () -> Void
     @ViewBuilder let header: () -> Header
 
     @Environment(EventManager.self) private var eventManager
@@ -177,11 +177,9 @@ struct StreamableChatLayout<Header: View>: View {
                 text: $messageText,
                 isStreaming: streamHandler?.isStreaming == true
             ) { text in
-                Task {
-                    await onSend(text)
-                }
+                onSend(text)
             } onStop: {
-                Task { await onStop() }
+                onStop()
             }
         }
         .sheet(item: $presentedConfirmation) { confirmation in
@@ -278,8 +276,8 @@ extension StreamableChatLayout where Header == EmptyView {
         streamHandler: ChatStreamHandler?,
         displayError: String?,
         onClearError: @escaping () -> Void,
-        onSend: @escaping (String) async -> Void,
-        onStop: @escaping () async -> Void
+        onSend: @escaping (String) -> Void,
+        onStop: @escaping () -> Void
     ) {
         self.messages = messages
         self.assigneeName = assigneeName

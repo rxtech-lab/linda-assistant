@@ -7,6 +7,7 @@ import { insertTaskSchema, selectTaskSchema } from "@/lib/schemas";
 import { parsePagination } from "@/lib/utils/pagination";
 import { successJson, errorJson, paginatedJson } from "@/lib/utils/response";
 import { registerCronTask } from "@/lib/celery/client";
+import { getNextRunSeconds } from "@/lib/utils/cron";
 import { z } from "zod";
 
 const listResponseSchema = z.object({
@@ -35,7 +36,15 @@ export async function GET(request: NextRequest) {
     db.select({ count: sql<number>`count(*)` }).from(tasks).where(eq(tasks.userId, auth.userId)),
   ]);
 
-  return paginatedJson(items, countResult[0].count, limit, offset);
+  const itemsWithNextRun = items.map((task) => ({
+    ...task,
+    nextRunAt:
+      task.isCronEnabled && task.cronSchedule
+        ? getNextRunSeconds(task.cronSchedule)
+        : null,
+  }));
+
+  return paginatedJson(itemsWithNextRun, countResult[0].count, limit, offset);
 }
 
 /**

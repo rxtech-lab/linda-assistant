@@ -32,6 +32,19 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
+  celery:
+    build:
+      context: ../celery
+    ports:
+      - "8099:8000"
+    environment:
+      RABBITMQ_URL: amqp://linda:linda@rabbitmq:5672
+      CELERY_REDIS_URL: redis://redis:6379
+      BACKEND_INTERNAL_URL: http://host.docker.internal:3000
+      CELERY_ADMIN_KEY: local-dev-admin-key
+    depends_on:
+      - rabbitmq
+      - redis
   mem0:
     build:
       context: ../mem0

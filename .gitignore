@@ -18,3 +18,5 @@ ios/.DS_Store
 ios/iosUITests/.env
 test-results.xcresult
 backend/package-lock.json
+.env
+*.pid

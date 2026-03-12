@@ -11,6 +11,7 @@ import {
 } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
 import { registerCronTask, updateCronTask, deleteCronTask } from "@/lib/celery/client";
+import { getNextRunSeconds } from "@/lib/utils/cron";
 import { z } from "zod";
 
 const taskDetailSchema = selectTaskSchema.extend({
@@ -67,7 +68,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .where(eq(taskEmails.taskId, id)),
   ]);
 
-  return successJson({ ...task, chatSessions: sessions, emails: linkedEmails });
+  const lastRunAt = sessions.length > 0
+    ? sessions.reduce((latest, s) =>
+        s.updatedAt && (!latest || s.updatedAt > latest) ? s.updatedAt : latest,
+        null as string | null,
+      )
+    : null;
+
+  const nextRunAt =
+    task.isCronEnabled && task.cronSchedule
+      ? getNextRunSeconds(task.cronSchedule, lastRunAt ? new Date(lastRunAt) : null)
+      : null;
+
+  return successJson({ ...task, chatSessions: sessions, emails: linkedEmails, nextRunAt });
 }
 
 /**

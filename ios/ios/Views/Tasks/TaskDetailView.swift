@@ -63,6 +63,7 @@ struct TaskDetailView: View {
                                         }
                                     }
                                 }
+                                .accessibilityIdentifier("chat-session-row-\(session.id)")
                             }
                             .onDelete { offsets in
                                 Task {
@@ -80,6 +81,7 @@ struct TaskDetailView: View {
                         } label: {
                             Label("Start New Chat Session", systemImage: "plus.bubble")
                         }
+                        .accessibilityIdentifier("start-chat-button")
                     }
 
                     if !task.emails.isEmpty {

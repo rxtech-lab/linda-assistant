@@ -38,8 +38,10 @@ struct TaskFormSheet: View {
             Form {
                 Section("Details") {
                     TextField("Title", text: $title)
+                        .accessibilityIdentifier("task-title-field")
                     TextField("Description", text: $description, axis: .vertical)
                         .lineLimit(3 ... 6)
+                        .accessibilityIdentifier("task-description-field")
                 }
 
                 Section("Status") {
@@ -57,22 +59,14 @@ struct TaskFormSheet: View {
                             Text(assignee.name).tag(Optional(assignee.id))
                         }
                     }
+                    .accessibilityIdentifier("task-assignee-picker")
                 }
 
                 Section("Schedule") {
                     Toggle("Enable cron schedule", isOn: $isCronEnabled)
+                        .accessibilityIdentifier("task-cron-toggle")
                     if isCronEnabled {
-                        TextField("Cron expression (e.g. 0 9 * * *)", text: $cronSchedule)
-                            .font(.system(.body, design: .monospaced))
-                            .autocorrectionDisabled()
-                            #if os(iOS)
-                            .textInputAutocapitalization(.never)
-                            #endif
-                        if !cronSchedule.trimmingCharacters(in: .whitespaces).isEmpty {
-                            Text(cronSchedule.cronDescription)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        CronExpressionView(cronExpression: $cronSchedule)
                     }
                 }
 
@@ -101,6 +95,7 @@ struct TaskFormSheet: View {
                                 Text("Save").frame(maxWidth: .infinity)
                             }
                         }
+                        .accessibilityIdentifier("task-save-button")
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSubmitting)
                     }
                 #endif

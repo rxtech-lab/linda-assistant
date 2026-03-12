@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { tasks } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { tasks, chatSessions } from "@/lib/db/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import { errorJson, successJson } from "@/lib/utils/response";
 import { createAssigneeFollowUp } from "@/lib/utils/chat-session";
 import { z } from "zod";
@@ -34,6 +34,20 @@ export async function POST(
 
   if (!task) return errorJson("Task not found", 404);
   if (!task.assigneeId) return errorJson("Task has no assignee configured", 422);
+
+  const activeSessions = await db
+    .select({ id: chatSessions.id })
+    .from(chatSessions)
+    .where(
+      and(
+        eq(chatSessions.taskId, id),
+        inArray(chatSessions.status, ["starting", "in_progress", "waiting_confirmation"]),
+      ),
+    );
+
+  if (activeSessions.length > 0) {
+    return errorJson("Task already has an active run in progress", 409);
+  }
 
   const session = await createAssigneeFollowUp(
     task.description ?? task.title,

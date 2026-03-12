@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { availableModelSchema, DEFAULT_MODEL } from "@/lib/ai/models";
+import { isValidCronExpression } from "@/lib/utils/cron";
 
 // Tool permissions
 export const toolPermissionSchema = z.object({
@@ -166,6 +167,7 @@ export const selectTaskSchema = z.object({
   categories: z.array(z.string()).nullable().describe("Category labels"),
   cronSchedule: z.string().nullable().describe("Cron expression e.g. '0 9 * * *'"),
   isCronEnabled: z.boolean().nullable().describe("Whether cron scheduling is active"),
+  nextRunAt: z.number().nullable().optional().describe("Seconds from now until next scheduled run (null if cron disabled or no schedule, omitted on write responses)"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
@@ -184,7 +186,14 @@ export const insertTaskSchema = z.object({
     .describe("Initial status"),
   tags: z.array(z.string()).optional().describe("Freeform tags"),
   categories: z.array(z.string()).optional().describe("Category labels"),
-  cronSchedule: z.string().optional().nullable().describe("Cron expression e.g. '0 9 * * *'"),
+  cronSchedule: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((val) => !val || isValidCronExpression(val), {
+      message: "Invalid cron expression",
+    })
+    .describe("Cron expression e.g. '0 9 * * *'"),
   isCronEnabled: z.boolean().optional().describe("Enable cron scheduling"),
 });
 

@@ -182,4 +182,54 @@ test.describe("Cron Task Scheduling", () => {
     });
     expect(res.status()).toBe(404);
   });
+
+  test("creating a task with invalid cron expression returns 422", async ({ request }) => {
+    const res = await request.post("/api/tasks", {
+      data: {
+        title: "Bad Cron Task",
+        assigneeId,
+        cronSchedule: "not-a-cron",
+        isCronEnabled: true,
+      },
+    });
+    expect(res.status()).toBe(422);
+  });
+
+  test("updating a task with invalid cron expression returns 422", async ({ request }) => {
+    const createRes = await request.post("/api/tasks", {
+      data: { title: "Valid Task For Update", assigneeId },
+    });
+    expect(createRes.ok()).toBeTruthy();
+    const task = await createRes.json();
+
+    const res = await request.put(`/api/tasks/${task.id}`, {
+      data: { cronSchedule: "60 * * * *" },
+    });
+    expect(res.status()).toBe(422);
+  });
+
+  test("execute returns 409 when task already has active run", async ({ request }) => {
+    const createRes = await request.post("/api/tasks", {
+      data: {
+        title: "Concurrent Cron Task",
+        assigneeId,
+        cronSchedule: "* * * * *",
+        isCronEnabled: true,
+      },
+    });
+    expect(createRes.ok()).toBeTruthy();
+    const task = await createRes.json();
+
+    // First execute — creates a session in "starting" status
+    const first = await request.post(`/api/tasks/${task.id}/execute`, {
+      headers: { authorization: `Bearer ${CELERY_ADMIN_KEY}` },
+    });
+    expect(first.ok()).toBeTruthy();
+
+    // Second execute while first session is still active — should be skipped
+    const second = await request.post(`/api/tasks/${task.id}/execute`, {
+      headers: { authorization: `Bearer ${CELERY_ADMIN_KEY}` },
+    });
+    expect(second.status()).toBe(409);
+  });
 });

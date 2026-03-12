@@ -22,8 +22,14 @@ struct ChatDetailView: View {
             streamHandler: viewModel.streamHandler,
             displayError: viewModel.displayError,
             onClearError: { viewModel.clearError() },
-            onSend: { text in await viewModel.sendMessage(text, sessionId: sessionId) },
-            onStop: { await viewModel.stopStream(sessionId: sessionId) }
+            onSend: { text in
+                Task {
+                    await viewModel.sendMessage(text, sessionId: sessionId)
+                }
+            },
+            onStop: {
+                Task { await viewModel.stopStream(sessionId: sessionId) }
+            }
         )
         .navigationTitle(viewModel.session?.title ?? "Chat")
         #if os(iOS)
