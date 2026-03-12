@@ -79,11 +79,14 @@ public struct UpdateAssignee: Codable, Sendable {
 public struct LindaTask: Codable, Identifiable, Sendable {
     public let id: String
     public let userId: String
+    public let assigneeId: String?
     public let title: String
     public let description: String?
     public let status: String?
     public let tags: [String]?
     public let categories: [String]?
+    public let cronSchedule: String?
+    public let isCronEnabled: Bool?
     public let createdAt: String?
     public let updatedAt: String?
 }
@@ -91,11 +94,14 @@ public struct LindaTask: Codable, Identifiable, Sendable {
 public struct TaskDetail: Codable, Identifiable, Sendable {
     public let id: String
     public let userId: String
+    public let assigneeId: String?
     public let title: String
     public let description: String?
     public let status: String?
     public let tags: [String]?
     public let categories: [String]?
+    public let cronSchedule: String?
+    public let isCronEnabled: Bool?
     public let createdAt: String?
     public let updatedAt: String?
     public let chatSessions: [SessionSummary]
@@ -108,19 +114,28 @@ public struct CreateTask: Codable, Sendable {
     public let status: String?
     public let tags: [String]?
     public let categories: [String]?
+    public let assigneeId: String?
+    public let cronSchedule: String?
+    public let isCronEnabled: Bool?
 
     public init(
         title: String,
         description: String? = nil,
         status: String? = nil,
         tags: [String]? = nil,
-        categories: [String]? = nil
+        categories: [String]? = nil,
+        assigneeId: String? = nil,
+        cronSchedule: String? = nil,
+        isCronEnabled: Bool? = nil
     ) {
         self.title = title
         self.description = description
         self.status = status
         self.tags = tags
         self.categories = categories
+        self.assigneeId = assigneeId
+        self.cronSchedule = cronSchedule
+        self.isCronEnabled = isCronEnabled
     }
 }
 
@@ -130,19 +145,28 @@ public struct UpdateTask: Codable, Sendable {
     public let status: String?
     public let tags: [String]?
     public let categories: [String]?
+    public let assigneeId: String?
+    public let cronSchedule: String?
+    public let isCronEnabled: Bool?
 
     public init(
         title: String? = nil,
         description: String? = nil,
         status: String? = nil,
         tags: [String]? = nil,
-        categories: [String]? = nil
+        categories: [String]? = nil,
+        assigneeId: String? = nil,
+        cronSchedule: String? = nil,
+        isCronEnabled: Bool? = nil
     ) {
         self.title = title
         self.description = description
         self.status = status
         self.tags = tags
         self.categories = categories
+        self.assigneeId = assigneeId
+        self.cronSchedule = cronSchedule
+        self.isCronEnabled = isCronEnabled
     }
 }
 

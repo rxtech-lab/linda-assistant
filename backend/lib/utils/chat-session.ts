@@ -15,12 +15,14 @@ export async function createAssigneeFollowUp(
   textContent: string,
   assignee: Assignee,
   title?: string,
+  taskId?: string,
 ) {
   const [session] = await db
     .insert(chatSessions)
     .values({
       userId: assignee.userId,
       assigneeId: assignee.id,
+      taskId: taskId ?? null,
       title: title ?? textContent.slice(0, 80),
       status: "starting",
     })

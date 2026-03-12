@@ -6,6 +6,7 @@ import { authenticate } from "@/lib/auth/middleware";
 import { insertTaskSchema, selectTaskSchema } from "@/lib/schemas";
 import { parsePagination } from "@/lib/utils/pagination";
 import { successJson, errorJson, paginatedJson } from "@/lib/utils/response";
+import { registerCronTask } from "@/lib/celery/client";
 import { z } from "zod";
 
 const listResponseSchema = z.object({
@@ -55,6 +56,10 @@ export async function POST(request: NextRequest) {
     .insert(tasks)
     .values({ ...parsed.data, userId: auth.userId })
     .returning();
+
+  if (created.isCronEnabled && created.cronSchedule) {
+    await registerCronTask(created.id, created.cronSchedule);
+  }
 
   return successJson(created, 201);
 }

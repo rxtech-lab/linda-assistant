@@ -10,6 +10,7 @@ import {
   idParamSchema,
 } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
+import { registerCronTask, updateCronTask, deleteCronTask } from "@/lib/celery/client";
 import { z } from "zod";
 
 const taskDetailSchema = selectTaskSchema.extend({
@@ -92,6 +93,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     .returning();
 
   if (!updated) return errorJson("Task not found", 404);
+
+  // Sync cron schedule with Celery
+  if (updated.isCronEnabled && updated.cronSchedule) {
+    if (parsed.data.cronSchedule !== undefined) {
+      await updateCronTask(id, updated.cronSchedule);
+    } else {
+      await registerCronTask(id, updated.cronSchedule);
+    }
+  } else if (parsed.data.isCronEnabled === false) {
+    await deleteCronTask(id);
+  }
+
   return successJson(updated);
 }
 
@@ -115,5 +128,8 @@ export async function DELETE(
     .returning();
 
   if (!deleted) return errorJson("Task not found", 404);
+
+  await deleteCronTask(id);
+
   return successJson({ deleted: true });
 }
