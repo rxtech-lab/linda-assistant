@@ -111,7 +111,6 @@ public struct TaskDetail: Codable, Identifiable, Sendable {
 public struct CreateTask: Codable, Sendable {
     public let title: String
     public let description: String?
-    public let status: String?
     public let tags: [String]?
     public let categories: [String]?
     public let assigneeId: String?
@@ -121,7 +120,6 @@ public struct CreateTask: Codable, Sendable {
     public init(
         title: String,
         description: String? = nil,
-        status: String? = nil,
         tags: [String]? = nil,
         categories: [String]? = nil,
         assigneeId: String? = nil,
@@ -130,7 +128,6 @@ public struct CreateTask: Codable, Sendable {
     ) {
         self.title = title
         self.description = description
-        self.status = status
         self.tags = tags
         self.categories = categories
         self.assigneeId = assigneeId
@@ -142,7 +139,6 @@ public struct CreateTask: Codable, Sendable {
 public struct UpdateTask: Codable, Sendable {
     public let title: String?
     public let description: String?
-    public let status: String?
     public let tags: [String]?
     public let categories: [String]?
     public let assigneeId: String?
@@ -152,7 +148,6 @@ public struct UpdateTask: Codable, Sendable {
     public init(
         title: String? = nil,
         description: String? = nil,
-        status: String? = nil,
         tags: [String]? = nil,
         categories: [String]? = nil,
         assigneeId: String? = nil,
@@ -161,7 +156,6 @@ public struct UpdateTask: Codable, Sendable {
     ) {
         self.title = title
         self.description = description
-        self.status = status
         self.tags = tags
         self.categories = categories
         self.assigneeId = assigneeId

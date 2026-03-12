@@ -14,7 +14,6 @@ struct TaskFormSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
     @State private var description = ""
-    @State private var status = "pending"
     @State private var tagsText = ""
     @State private var categoriesText = ""
     @State private var selectedAssigneeId: String? = nil
@@ -44,11 +43,21 @@ struct TaskFormSheet: View {
                         .accessibilityIdentifier("task-description-field")
                 }
 
-                Section("Status") {
-                    Picker("Status", selection: $status) {
-                        ForEach(TaskStatus.allCases, id: \.rawValue) { s in
-                            Text(s.rawValue.capitalized).tag(s.rawValue)
+                Section("Assignee") {
+                    Picker("Assignee", selection: $selectedAssigneeId) {
+                        Text("None").tag(String?.none)
+                        ForEach(availableAssignees) { assignee in
+                            Text(assignee.name).tag(Optional(assignee.id))
                         }
+                    }
+                    .accessibilityIdentifier("task-assignee-picker")
+                }
+
+                Section("Schedule") {
+                    Toggle("Enable cron schedule", isOn: $isCronEnabled)
+                        .accessibilityIdentifier("task-cron-toggle")
+                    if isCronEnabled {
+                        CronExpressionView(cronExpression: $cronSchedule)
                     }
                 }
 
@@ -137,7 +146,6 @@ struct TaskFormSheet: View {
         guard case let .edit(task) = mode else { return }
         title = task.title
         description = task.description ?? ""
-        status = task.status ?? "pending"
         tagsText = task.tags?.joined(separator: ", ") ?? ""
         categoriesText = task.categories?.joined(separator: ", ") ?? ""
         selectedAssigneeId = task.assigneeId
@@ -163,7 +171,6 @@ struct TaskFormSheet: View {
                 let body = UpdateTask(
                     title: title.trimmingCharacters(in: .whitespaces),
                     description: description.isEmpty ? nil : description,
-                    status: status,
                     tags: parseTags(tagsText),
                     categories: parseTags(categoriesText),
                     assigneeId: selectedAssigneeId,
@@ -176,7 +183,6 @@ struct TaskFormSheet: View {
                 let body = CreateTask(
                     title: title.trimmingCharacters(in: .whitespaces),
                     description: description.isEmpty ? nil : description,
-                    status: status,
                     tags: parseTags(tagsText),
                     categories: parseTags(categoriesText),
                     assigneeId: selectedAssigneeId,

@@ -90,6 +90,14 @@ public extension APIClient {
         try await requestNoContent(path: "tasks/\(id)")
     }
 
+    func startTask(id: String) async throws -> LindaTask {
+        try await request(path: "tasks/\(id)/start", method: "POST")
+    }
+
+    func stopTask(id: String) async throws -> LindaTask {
+        try await request(path: "tasks/\(id)/stop", method: "POST")
+    }
+
     func listTaskChatSessions(taskId: String) async throws -> [SessionSummary] {
         try await request(path: "tasks/\(taskId)/chat-sessions")
     }
