@@ -48,19 +48,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-liberation \
     fonts-noto-cjk \
     fontconfig \
-    libgbm1 \
-    libnss3 \
-    libatk1.0-0 \
+    libasound2 \
     libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcairo2 \
     libcups2 \
+    libdbus-1-3 \
     libdrm2 \
-    libxkbcommon0 \
+    libexpat1 \
+    libgbm1 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libx11-6 \
+    libxcb1 \
     libxcomposite1 \
     libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxkbcommon0 \
     libxrandr2 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
     libxshmfence1 \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -fv
@@ -80,6 +87,9 @@ COPY --from=deps --chown=nextjs:nodejs /app/.cache/puppeteer /app/.cache/puppete
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy the PDF generation smoke-test script (used in CI)
+COPY --chown=nextjs:nodejs scripts/test-pdf-generation.ts ./scripts/test-pdf-generation.ts
 
 USER nextjs
 

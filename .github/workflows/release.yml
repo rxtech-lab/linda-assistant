@@ -70,6 +70,12 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
+      - name: Test PDF generation (frontend)
+        if: github.event_name != 'release' && matrix.image == 'linda-frontend'
+        run: |
+          docker run --rm ${{ matrix.image }}:test \
+            bun scripts/test-pdf-generation.ts
+
       - name: Health check (mem0)
         if: github.event_name != 'release' && matrix.image == 'linda-mem0'
         run: |
