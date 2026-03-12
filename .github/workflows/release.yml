@@ -29,6 +29,8 @@ jobs:
             context: backend
           - image: linda-mem0
             context: mem0
+          - image: linda-celery
+            context: celery
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -68,7 +70,7 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
-      - name: Health check
+      - name: Health check (mem0)
         if: github.event_name != 'release' && matrix.image == 'linda-mem0'
         run: |
           docker network create mem0-net
@@ -91,6 +93,28 @@ jobs:
           docker logs qdrant
           docker rm -f mem0-test qdrant
           docker network rm mem0-net
+          exit 1
+
+      - name: Health check (celery)
+        if: github.event_name != 'release' && matrix.image == 'linda-celery'
+        run: |
+          docker run -d --name celery-test -p 8000:8000 \
+            -e RABBITMQ_URL=amqp://guest:guest@localhost:5672 \
+            -e CELERY_REDIS_URL=redis://localhost:6379 \
+            -e BACKEND_INTERNAL_URL=http://localhost:3000 \
+            -e CELERY_ADMIN_KEY=test-key \
+            ${{ matrix.image }}:test
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+              echo "Health check passed"
+              docker rm -f celery-test
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Health check failed"
+          docker logs celery-test
+          docker rm -f celery-test
           exit 1
 
       - name: Build and push Docker image
@@ -160,12 +184,16 @@ jobs:
           kubectl set image deployment/linda-mem0 \
             linda-mem0=ghcr.io/${{ github.repository_owner }}/linda-mem0:${VERSION} \
             -n linda
+          kubectl set image deployment/linda-celery \
+            linda-celery=ghcr.io/${{ github.repository_owner }}/linda-celery:${VERSION} \
+            -n linda
 
       - name: Wait for rollouts
         run: |
           kubectl rollout status deployment/linda-frontend -n linda --timeout=300s
           kubectl rollout status deployment/linda-worker -n linda --timeout=300s
           kubectl rollout status deployment/linda-mem0 -n linda --timeout=300s
+          kubectl rollout status deployment/linda-celery -n linda --timeout=300s
 
       - name: Verify deployment
         run: |

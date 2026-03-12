@@ -59,6 +59,7 @@ struct TaskListView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityIdentifier("add-task-button")
             }
         }
         .sheet(isPresented: $showingNewTask) {

@@ -53,6 +53,7 @@ struct NewChatSheet: View {
                             Text("Start Chat").frame(maxWidth: .infinity)
                         }
                     }
+                    .accessibilityIdentifier("create-new-chat")
                     .disabled(isSubmitting)
                 }
             }
