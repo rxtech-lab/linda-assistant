@@ -76,7 +76,8 @@ ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 RUN groupadd --system --gid 1001 nodejs && \
-    useradd --system --uid 1001 --no-log-init -g nodejs nextjs
+    useradd --system --uid 1001 --no-log-init -g nodejs nextjs && \
+    mkdir -p /home/nextjs && chown nextjs:nodejs /home/nextjs
 
 COPY --from=builder /app/public ./public
 
