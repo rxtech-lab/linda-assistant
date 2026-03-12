@@ -115,8 +115,8 @@ runAgent(sessionId, userId, onEvent)
 Tools are built per-request with `buildToolSet(userId, toolPermissions)`:
 
 - `userId` is injected into tool closures for data scoping
-- `toolPermissions` controls per-tool behavior (from assignee config): `auto-confirm`, `manual-confirm`, or `auto-reject`
-- Tools with `auto-reject` are excluded from the tool set
+- `toolPermissions` controls per-tool behavior (from assignee config): `auto-confirm`, `manual-confirm`, `auto-reject`, or `disabled`
+- Tools with `auto-reject` or `disabled` are excluded from the tool set
 - Tools not listed in permissions default to `manual-confirm`
 - Tools without `execute` (like `send_email`) cause `streamText` to return `finishReason: 'tool-calls'` without executing them
 

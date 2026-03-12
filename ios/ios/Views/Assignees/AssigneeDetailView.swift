@@ -176,6 +176,7 @@ private struct ToolPermissionRow: View {
         ("auto-confirm", "Auto"),
         ("manual-confirm", "Confirm"),
         ("auto-reject", "Reject"),
+        ("disabled", "Disabled"),
     ]
 
     init(permission: ToolPermission, onPermissionChange: ((String) -> Void)? = nil) {
@@ -266,6 +267,7 @@ private struct PermissionBadge: View {
             case "auto-confirm": "Auto"
             case "manual-confirm": "Confirm"
             case "auto-reject": "Reject"
+            case "disabled": "Disabled"
             default: permission.capitalized
         }
     }
@@ -275,6 +277,7 @@ private struct PermissionBadge: View {
             case "auto-confirm", "auto": .green
             case "manual-confirm", "confirm": .orange
             case "auto-reject", "deny", "denied": .red
+            case "disabled": .gray
             default: .secondary
         }
     }

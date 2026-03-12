@@ -5,7 +5,7 @@ import { availableModelSchema, DEFAULT_MODEL } from "@/lib/ai/models";
 export const toolPermissionSchema = z.object({
   toolName: z.string().describe("Name of the tool"),
   permission: z
-    .enum(["auto-confirm", "manual-confirm", "auto-reject"])
+    .enum(["auto-confirm", "manual-confirm", "auto-reject", "disabled"])
     .describe("Permission level for the tool"),
 });
 

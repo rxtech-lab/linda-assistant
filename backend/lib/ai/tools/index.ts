@@ -22,7 +22,7 @@ import { createFirecrawlMcp } from "./mcps/firecrawl";
 import { createTransportMcp } from "./mcps/transport";
 
 export interface ToolSetResult {
-  /** Tools filtered to exclude auto-reject entries, built with correct needsApproval */
+  /** Tools filtered to exclude auto-reject and disabled entries, built with correct needsApproval */
   tools: Record<string, unknown>;
 }
 
@@ -62,7 +62,7 @@ async function loadMcpTools(
         `${config.prefix}${toolName}`,
         toolPermissions,
       );
-      if (perm === "auto-reject") continue;
+      if (perm === "auto-reject" || perm === "disabled") continue;
       needsApproval[toolName] = perm === "manual-confirm";
     }
 
@@ -76,7 +76,7 @@ async function loadMcpTools(
         `${config.prefix}${toolName}`,
         toolPermissions,
       );
-      if (perm === "auto-reject") continue;
+      if (perm === "auto-reject" || perm === "disabled") continue;
       prefixed[`${config.prefix}${toolName}`] = tool as unknown;
     }
 
@@ -97,6 +97,7 @@ async function loadMcpTools(
  * - auto-confirm → needsApproval: false → SDK executes immediately
  * - manual-confirm → needsApproval: true → SDK emits tool-approval-request
  * - auto-reject → tool excluded from toolset
+ * - disabled → tool excluded from toolset
  */
 export async function buildToolSet(
   userId: string,
@@ -168,7 +169,7 @@ export async function buildToolSet(
   const filtered: Record<string, unknown> = {};
   for (const { name, create } of toolDefs) {
     const perm = resolvePermission(name, toolPermissions);
-    if (perm === "auto-reject") continue;
+    if (perm === "auto-reject" || perm === "disabled") continue;
     const needsApproval = autoConfirmOverrides.has(name)
       ? false
       : perm === "manual-confirm";
