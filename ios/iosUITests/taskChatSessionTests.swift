@@ -54,7 +54,7 @@ final class TaskChatSessionTests: XCTestCase {
         lindaOption.tap()
 
         // Save the task
-        let saveButton = app.buttons["task-save-button"].firstMatch
+        let saveButton = app.buttons["Save"].firstMatch
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5), "Save button should appear")
         saveButton.tap()
 

@@ -61,9 +61,11 @@ export async function POST(request: NextRequest) {
   const parsed = insertTaskSchema.safeParse(body);
   if (!parsed.success) return errorJson(parsed.error.message, 422);
 
+  const status = parsed.data.isCronEnabled ? "running" : "pending";
+
   const [created] = await db
     .insert(tasks)
-    .values({ ...parsed.data, userId: auth.userId })
+    .values({ ...parsed.data, userId: auth.userId, status })
     .returning();
 
   if (created.isCronEnabled && created.cronSchedule) {

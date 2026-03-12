@@ -180,10 +180,6 @@ export const insertTaskSchema = z.object({
     .max(5000)
     .optional()
     .describe("Detailed task description"),
-  status: z
-    .enum(["pending", "running", "finished", "cancelled"])
-    .optional()
-    .describe("Initial status"),
   tags: z.array(z.string()).optional().describe("Freeform tags"),
   categories: z.array(z.string()).optional().describe("Category labels"),
   cronSchedule: z

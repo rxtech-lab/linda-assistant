@@ -43,6 +43,26 @@ final class TaskDetailViewModel {
         }
     }
 
+    func startTask(apiClient: APIClient, eventManager: EventManager) async {
+        guard let task else { return }
+        do {
+            let updated = try await apiClient.startTask(id: task.id)
+            eventManager.emit(.taskUpdated(updated))
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func stopTask(apiClient: APIClient, eventManager: EventManager) async {
+        guard let task else { return }
+        do {
+            let updated = try await apiClient.stopTask(id: task.id)
+            eventManager.emit(.taskUpdated(updated))
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     func deleteChatSessions(at offsets: IndexSet, apiClient: APIClient, eventManager: EventManager) async {
         guard let task else { return }
         let sessions = task.chatSessions

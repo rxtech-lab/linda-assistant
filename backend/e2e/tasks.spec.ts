@@ -13,12 +13,11 @@ const user2Headers = { "x-test-user-id": "e2e-user-2" };
 test.describe("Tasks CRUD", () => {
   let taskId: string;
 
-  test("POST /api/tasks creates a task", async ({ request }) => {
+  test("POST /api/tasks creates a task with pending status", async ({ request }) => {
     const res = await request.post("/api/tasks", {
       data: {
         title: "Test Task",
         description: "A test task description",
-        status: "pending",
         tags: ["test", "e2e"],
         categories: ["testing"],
       },
@@ -29,13 +28,26 @@ test.describe("Tasks CRUD", () => {
     expect(body).toMatchObject({
       title: "Test Task",
       description: "A test task description",
-      status: "pending",
       tags: ["test", "e2e"],
       categories: ["testing"],
     });
+    expect(body.status).toBe("pending");
     expect(body.id).toBeTruthy();
     expect(body.userId).toBe("e2e-test-user");
     taskId = body.id;
+  });
+
+  test("POST /api/tasks with cron enabled defaults to running status", async ({ request }) => {
+    const res = await request.post("/api/tasks", {
+      data: {
+        title: "Cron Default Task",
+        isCronEnabled: true,
+        cronSchedule: "0 9 * * *",
+      },
+    });
+    expect(res.status()).toBe(201);
+    const body = await res.json();
+    expect(body.status).toBe("running");
   });
 
   test("GET /api/tasks lists tasks with pagination", async ({ request }) => {
@@ -66,15 +78,32 @@ test.describe("Tasks CRUD", () => {
 
   test("PUT /api/tasks/:id updates and preserves unchanged fields", async ({ request }) => {
     const res = await request.put(`/api/tasks/${taskId}`, {
-      data: { title: "Updated Task", status: "running" },
+      data: { title: "Updated Task" },
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     taskResponseSchema.parse(body);
     expect(body.title).toBe("Updated Task");
-    expect(body.status).toBe("running");
     expect(body.description).toBe("A test task description");
     expect(body.tags).toEqual(["test", "e2e"]);
+  });
+
+  test("POST /api/tasks/:id/start sets status to running", async ({ request }) => {
+    const res = await request.post(`/api/tasks/${taskId}/start`);
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    taskResponseSchema.parse(body);
+    expect(body.status).toBe("running");
+    expect(body.id).toBe(taskId);
+  });
+
+  test("POST /api/tasks/:id/stop sets status to stopped", async ({ request }) => {
+    const res = await request.post(`/api/tasks/${taskId}/stop`);
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    taskResponseSchema.parse(body);
+    expect(body.status).toBe("stopped");
+    expect(body.id).toBe(taskId);
   });
 
   test("DELETE /api/tasks/:id removes the task", async ({ request }) => {
@@ -86,6 +115,20 @@ test.describe("Tasks CRUD", () => {
 
     const getRes = await request.get(`/api/tasks/${taskId}`);
     expect(getRes.status()).toBe(404);
+  });
+});
+
+test.describe("Tasks start/stop non-existing resource", () => {
+  const fakeId = "nonexistent-task-12345";
+
+  test("start non-existing task returns 404", async ({ request }) => {
+    const res = await request.post(`/api/tasks/${fakeId}/start`);
+    expect(res.status()).toBe(404);
+  });
+
+  test("stop non-existing task returns 404", async ({ request }) => {
+    const res = await request.post(`/api/tasks/${fakeId}/stop`);
+    expect(res.status()).toBe(404);
   });
 });
 
@@ -136,6 +179,20 @@ test.describe("Tasks cross-user isolation", () => {
     const getRes = await request.get(`/api/tasks/${user1TaskId}`);
     expect(getRes.ok()).toBeTruthy();
   });
+
+  test("user2 cannot start user1 task", async ({ request }) => {
+    const res = await request.post(`/api/tasks/${user1TaskId}/start`, {
+      headers: user2Headers,
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test("user2 cannot stop user1 task", async ({ request }) => {
+    const res = await request.post(`/api/tasks/${user1TaskId}/stop`, {
+      headers: user2Headers,
+    });
+    expect(res.status()).toBe(404);
+  });
 });
 
 test.describe("Tasks non-existing resource", () => {
@@ -176,7 +233,6 @@ test.describe("Tasks partial update", () => {
       data: {
         title: "Partial Task",
         description: "Original description",
-        status: "pending",
         tags: ["original"],
         categories: ["cat1"],
       },
@@ -194,20 +250,7 @@ test.describe("Tasks partial update", () => {
     taskResponseSchema.parse(body);
     expect(body.title).toBe("New Title");
     expect(body.description).toBe("Original description");
-    expect(body.status).toBe("pending");
     expect(body.tags).toEqual(["original"]);
-  });
-
-  test("update only status preserves other fields", async ({ request }) => {
-    const res = await request.put(`/api/tasks/${taskId}`, {
-      data: { status: "running" },
-    });
-    expect(res.ok()).toBeTruthy();
-    const body = await res.json();
-    taskResponseSchema.parse(body);
-    expect(body.status).toBe("running");
-    expect(body.title).toBe("New Title");
-    expect(body.description).toBe("Original description");
   });
 
   test("update tags array replaces entirely", async ({ request }) => {

@@ -238,7 +238,10 @@ final class ChatTabViewModel {
             role: .user,
             parts: [.text(.plain(content))]
         )
-        displayMessages.append(userMsg)
+
+        withAnimation(.spring(duration: 0.3)) {
+            displayMessages.append(userMsg)
+        }
 
         // If no session yet, set up stream handler and connect after sending
         let needsConnect = !hasSession
@@ -247,13 +250,15 @@ final class ChatTabViewModel {
         }
 
         let messageId = await streamHandler?.sendChatMessage(assigneeId: assignee.id, content: content)
-        // Update local message ID to backend ID for dedup when SSE event arrives
+//        Update local message ID to backend ID for dedup when SSE event arrives(no animation)
         if let messageId, let idx = displayMessages.firstIndex(where: { $0.id == tempId }) {
-            displayMessages[idx] = DisplayMessage(
-                id: messageId,
-                role: displayMessages[idx].role,
-                parts: displayMessages[idx].parts
-            )
+            withAnimation(.none) {
+                displayMessages[idx] = DisplayMessage(
+                    id: messageId,
+                    role: displayMessages[idx].role,
+                    parts: displayMessages[idx].parts
+                )
+            }
         }
 
         if needsConnect {

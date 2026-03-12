@@ -51,6 +51,7 @@ public struct StoppedResponse: Codable, Sendable {
 public enum TaskStatus: String, CaseIterable, Sendable {
     case pending
     case running
+    case stopped
     case finished
     case cancelled
 }

@@ -99,13 +99,17 @@ struct StreamableChatLayout<Header: View>: View {
                     .scrollContentBackground(.hidden)
                     .defaultScrollAnchor(.bottom, for: .sizeChanges)
                     .onAppear {
-                        proxy.scrollTo("bottom", anchor: .bottom)
+                        DispatchQueue.main.async {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
                     }
                     .task {
                         for await event in eventManager.stream {
                             if case .streamContentUpdated = event {
-                                withAnimation {
-                                    proxy.scrollTo("bottom", anchor: .bottom)
+                                DispatchQueue.main.async {
+                                    withAnimation {
+                                        proxy.scrollTo("bottom", anchor: .bottom)
+                                    }
                                 }
                             }
                         }
