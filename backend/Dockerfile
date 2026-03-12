@@ -11,7 +11,12 @@ WORKDIR /app
 # Install dependencies with bun
 FROM base AS deps
 COPY package.json bun.lock* ./
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 RUN bun install --no-save --frozen-lockfile
+
+# Install the exact Chrome version Puppeteer expects (cached by lockfile changes only)
+ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
+RUN bunx puppeteer browsers install chrome
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -38,20 +43,38 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME="0.0.0.0"
 
-# Install Chromium for Puppeteer PDF generation
+# Install Chrome runtime dependencies and Chinese fonts (Noto Sans CJK)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromium \
     fonts-liberation \
+    fonts-noto-cjk \
+    fontconfig \
     libgbm1 \
-    && rm -rf /var/lib/apt/lists/*
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    libxshmfence1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -fv
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 RUN groupadd --system --gid 1001 nodejs && \
     useradd --system --uid 1001 --no-log-init -g nodejs nextjs
 
 COPY --from=builder /app/public ./public
+
+# Copy Chrome browser installed by Puppeteer from the deps stage
+COPY --from=deps --chown=nextjs:nodejs /app/.cache/puppeteer /app/.cache/puppeteer
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
