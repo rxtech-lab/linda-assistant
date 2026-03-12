@@ -136,13 +136,11 @@ jobs:
           mkdir -p "$PP_PATH"
           echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > /tmp/profile.provisionprofile
           UUID=$(security cms -D -i /tmp/profile.provisionprofile | plutil -extract UUID raw -)
-          PP_NAME=$(security cms -D -i /tmp/profile.provisionprofile | plutil -extract Name raw -)
-          echo "Installing provisioning profile '$PP_NAME' with UUID: $UUID"
+          echo "Installing provisioning profile with UUID: $UUID"
           cp /tmp/profile.provisionprofile "$PP_PATH/$UUID.provisionprofile"
-          echo "PP_NAME=$PP_NAME" >> "$GITHUB_ENV"
 
       - name: Set manual code signing
-        run: ./scripts/ci-set-manual-signing.sh "${{ secrets.SIGNING_CERTIFICATE_NAME }}" "${{ env.PP_NAME }}"
+        run: ./scripts/ci-set-manual-signing.sh "${{ secrets.SIGNING_CERTIFICATE_NAME }}" "LindaAssistant"
 
       - name: Derive release version
         run: |
@@ -169,8 +167,8 @@ jobs:
             -destination "platform=macOS" \
             -archivePath output/output.xcarchive \
             -skipPackagePluginValidation \
-            OTHER_CODE_SIGN_FLAGS="--options=runtime --timestamp" \
-            | xcpretty
+            -skipMacroValidation \
+            OTHER_CODE_SIGN_FLAGS="--options=runtime --timestamp" | xcpretty
 
       - name: Sign Sparkle artifacts
         if: github.event_name == 'release'

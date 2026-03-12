@@ -136,6 +136,7 @@ if command -v xcbeautify &> /dev/null; then
         -resultBundlePath "$RESULT_BUNDLE_PATH" \
         -skipPackagePluginValidation \
         -skipMacroValidation \
+        -retry-tests-on-failure \
         "${EXTRA_BUILD_SETTINGS[@]}" \
         2>&1 | xcbeautify
     TEST_EXIT_CODE=${PIPESTATUS[0]}
@@ -150,6 +151,7 @@ else
         -resultBundlePath "$RESULT_BUNDLE_PATH" \
         -skipPackagePluginValidation \
         -skipMacroValidation \
+        -retry-tests-on-failure \
         "${EXTRA_BUILD_SETTINGS[@]}" \
         2>&1
     TEST_EXIT_CODE=$?

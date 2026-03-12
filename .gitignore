@@ -20,3 +20,4 @@ test-results.xcresult
 backend/package-lock.json
 .env
 *.pid
+output/
