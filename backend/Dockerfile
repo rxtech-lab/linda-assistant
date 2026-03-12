@@ -11,7 +11,12 @@ WORKDIR /app
 # Install dependencies with bun
 FROM base AS deps
 COPY package.json bun.lock* ./
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 RUN bun install --no-save --frozen-lockfile
+
+# Install the exact Chrome version Puppeteer expects (cached by lockfile changes only)
+ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
+RUN bunx puppeteer browsers install chrome
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -26,10 +31,6 @@ COPY . .
 
 # Run openapi:generate + next build, skip db:push (handled at deploy time)
 RUN bun run openapi:generate && bun next build
-
-# Install the exact Chrome version Puppeteer expects into a known cache directory
-ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
-RUN npx puppeteer browsers install chrome
 
 # Production image, copy all the files and run next
 FROM base AS runner
@@ -72,8 +73,8 @@ RUN groupadd --system --gid 1001 nodejs && \
 
 COPY --from=builder /app/public ./public
 
-# Copy Chrome browser installed by Puppeteer from the builder stage
-COPY --from=builder --chown=nextjs:nodejs /app/.cache/puppeteer /app/.cache/puppeteer
+# Copy Chrome browser installed by Puppeteer from the deps stage
+COPY --from=deps --chown=nextjs:nodejs /app/.cache/puppeteer /app/.cache/puppeteer
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
