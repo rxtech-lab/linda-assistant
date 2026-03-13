@@ -12,6 +12,8 @@ struct ToolCallDetailSheet: View {
             case .rejected: "nosign"
             case .pendingConfirmation: "exclamationmark.shield.fill"
             case .running: "arrow.trianglehead.2.clockwise"
+            case .stoppedNoResult:
+                "stop.circle.fill"
         }
     }
 
@@ -21,6 +23,8 @@ struct ToolCallDetailSheet: View {
             case .failed, .rejected: .red
             case .pendingConfirmation: .orange
             case .running: .blue
+            case .stoppedNoResult:
+                .gray
         }
     }
 
@@ -31,6 +35,8 @@ struct ToolCallDetailSheet: View {
             case .rejected: "Tool Rejected"
             case .pendingConfirmation: "Pending Confirmation"
             case .running: "Tool Running"
+            case .stoppedNoResult:
+                "Tool Stopped"
         }
     }
 

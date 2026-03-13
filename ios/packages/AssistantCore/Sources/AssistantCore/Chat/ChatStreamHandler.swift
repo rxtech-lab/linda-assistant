@@ -481,14 +481,17 @@ public enum ToolCallStatus: Sendable, Equatable {
     case failed
     case pendingConfirmation
     case rejected
+    case stoppedNoResult
 
     /// Map a confirmation status string to a ToolCallStatus.
-    public static func from(confirmation: ToolCallConfirmation?) -> ToolCallStatus {
+    /// When `hasResult` is false and confirmation is "confirmed", returns `.stoppedNoResult`
+    /// because the user approved the tool but no result was produced.
+    public static func from(confirmation: ToolCallConfirmation?, hasResult: Bool = true) -> ToolCallStatus {
         guard let status = confirmation?.status else { return .completed }
         switch status {
             case "rejected": return .rejected
             case "pending": return .pendingConfirmation
-            default: return .completed
+            default: return hasResult ? .completed : .stoppedNoResult
         }
     }
 }

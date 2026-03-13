@@ -100,88 +100,134 @@ export interface StreamEvent {
   data: Record<string, unknown>;
 }
 
-export async function consumeStream(
+export interface StreamHandle {
+  /** All events received so far */
+  events: StreamEvent[];
+  /** Wait for the next `done` event on the stream */
+  waitForDone: () => Promise<void>;
+  /** Close the SSE connection */
+  cancel: () => void;
+}
+
+export function consumeStream(
   assigneeId: string,
   options?: {
-    until?: "done" | "confirmation_required";
     timeout?: number;
+    onMessage?: (event: StreamEvent) => void | Promise<void>;
   },
-): Promise<StreamEvent[]> {
-  const until = options?.until ?? "done";
+): StreamHandle {
   const timeout = options?.timeout ?? 120_000;
   const token = loadToken();
-
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
 
-  try {
-    const res = await fetch(`${BASE_URL}/api/chat/${assigneeId}/stream`, {
-      headers: { Authorization: `Bearer ${token.access_token}` },
-      signal: controller.signal,
-    });
+  const events: StreamEvent[] = [];
+  let doneCount = 0;
+  const doneWaiters: Array<{ target: number; resolve: () => void; reject: (err: Error) => void }> = [];
 
-    if (!res.ok) {
-      throw new Error(
-        `GET /api/chat/${assigneeId}/stream failed (${res.status})`,
-      );
-    }
-
-    const events: StreamEvent[] = [];
-    const reader = res.body!.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      // Parse SSE frames from buffer
-      const lines = buffer.split("\n");
-      buffer = lines.pop()!; // keep incomplete line in buffer
-
-      let currentEvent = "";
-      let currentData = "";
-
-      for (const line of lines) {
-        console.log("SSE line:", line);
-        if (line.startsWith("event: ")) {
-          currentEvent = line.slice(7).trim();
-        } else if (line.startsWith("data: ")) {
-          currentData = line.slice(6);
-        } else if (line === "" && currentEvent && currentData) {
-          // End of SSE frame
-          try {
-            const data = JSON.parse(currentData);
-            const evt: StreamEvent = { event: currentEvent, data };
-            events.push(evt);
-
-            // Check stop conditions
-            if (until === "done" && currentEvent === "done") {
-              reader.cancel();
-              return events;
-            }
-            if (
-              until === "confirmation_required" &&
-              currentEvent === "confirmation_required"
-            ) {
-              reader.cancel();
-              return events;
-            }
-          } catch {
-            // Skip unparseable data (e.g. ping frames)
-          }
-          currentEvent = "";
-          currentData = "";
-        }
+  const notifyDone = () => {
+    doneCount++;
+    const resolved: number[] = [];
+    for (let i = 0; i < doneWaiters.length; i++) {
+      if (doneCount >= doneWaiters[i]!.target) {
+        doneWaiters[i]!.resolve();
+        resolved.push(i);
       }
     }
+    for (let i = resolved.length - 1; i >= 0; i--) {
+      doneWaiters.splice(resolved[i]!, 1);
+    }
+  };
 
-    return events;
-  } finally {
-    clearTimeout(timer);
-  }
+  const rejectAll = (err: Error) => {
+    for (const w of doneWaiters) w.reject(err);
+    doneWaiters.length = 0;
+  };
+
+  // Start reading SSE in background
+  (async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/chat/${assigneeId}/stream`, {
+        headers: { Authorization: `Bearer ${token.access_token}` },
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        throw new Error(
+          `GET /api/chat/${assigneeId}/stream failed (${res.status})`,
+        );
+      }
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE frames from buffer
+        const lines = buffer.split("\n");
+        buffer = lines.pop()!; // keep incomplete line in buffer
+
+        let currentEvent = "";
+        let currentData = "";
+
+        for (const line of lines) {
+          console.log("SSE line:", line);
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            currentData = line.slice(6);
+          } else if (line === "" && currentEvent && currentData) {
+            // End of SSE frame
+            try {
+              const data = JSON.parse(currentData);
+              const evt: StreamEvent = { event: currentEvent, data };
+              events.push(evt);
+
+              if (currentEvent === "done") {
+                notifyDone();
+              }
+
+              if (options?.onMessage) {
+                await options.onMessage(evt);
+              }
+            } catch {
+              // Skip unparseable data (e.g. ping frames)
+            }
+            currentEvent = "";
+            currentData = "";
+          }
+        }
+      }
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        console.error("Stream error:", err);
+        rejectAll(err instanceof Error ? err : new Error(String(err)));
+      }
+    }
+  })();
+
+  return {
+    events,
+    waitForDone: () => {
+      const target = doneCount + 1;
+      return new Promise<void>((resolve, reject) => {
+        if (doneCount >= target) {
+          resolve();
+          return;
+        }
+        doneWaiters.push({ target, resolve, reject });
+      });
+    },
+    cancel: () => {
+      controller.abort();
+      clearTimeout(timer);
+    },
+  };
 }
 
 // ---- Chat History ----

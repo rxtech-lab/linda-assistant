@@ -12,6 +12,7 @@ struct ToolCallBadge: View {
             case .failed: "xmark.circle.fill"
             case .running: "arrow.trianglehead.2.clockwise"
             case .rejected: "nosign"
+            case .stoppedNoResult: "stop.circle.fill"
         }
     }
 
@@ -21,6 +22,7 @@ struct ToolCallBadge: View {
             case .pendingConfirmation: .orange
             case .failed, .rejected: .red
             case .running: .blue
+            case .stoppedNoResult: .orange
         }
     }
 
@@ -31,6 +33,7 @@ struct ToolCallBadge: View {
             case .failed: "Failed"
             case .running: "Running..."
             case .rejected: "Rejected"
+            case .stoppedNoResult: "Stopped"
         }
     }
 

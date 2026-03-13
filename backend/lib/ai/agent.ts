@@ -150,7 +150,7 @@ function normalizeToolResultOutput(output: unknown, hasIsError: boolean): Record
  * - Normalizes tool-result output to match SDK `outputSchema`
  * - Removes `isError` field (not in SDK schema)
  */
-function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
+export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
   const result: ModelMessage[] = [];
   for (const msg of messages) {
     const record = msg as Record<string, unknown>;
@@ -199,29 +199,46 @@ function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
     } as unknown as ModelMessage);
   }
   // Safety net: ensure every tool-call has a matching tool-result after cleaning.
-  // This prevents AI_MissingToolResultsError when messages have orphaned tool-calls
-  // (e.g., from a previous crash mid-confirmation flow).
-  const allToolCallIds = new Set<string>();
-  const allToolResultIds = new Set<string>();
+  // The AI SDK requires tool-result messages immediately after the assistant message
+  // containing the tool-call. Collect existing tool-result IDs first, then inject
+  // missing ones right after the assistant message that contains the orphaned tool-call.
+  const existingToolResultIds = new Set<string>();
   for (const msg of result) {
     if (!Array.isArray(msg.content)) continue;
     for (const part of msg.content as Record<string, unknown>[]) {
-      if (part.type === "tool-call" && typeof part.toolCallId === "string")
-        allToolCallIds.add(part.toolCallId);
       if (part.type === "tool-result" && typeof part.toolCallId === "string")
-        allToolResultIds.add(part.toolCallId);
+        existingToolResultIds.add(part.toolCallId);
     }
   }
-  for (const id of allToolCallIds) {
-    if (!allToolResultIds.has(id)) {
-      console.warn(`[cleanMessagesForModel] Injecting missing tool-result for toolCallId=${id}`);
-      result.push({
+
+  const finalResult: ModelMessage[] = [];
+  for (const msg of result) {
+    finalResult.push(msg);
+
+    // After each assistant message, check for orphaned tool-calls and inject results
+    if (msg.role !== "assistant" || !Array.isArray(msg.content)) continue;
+    const orphanedToolCalls: Array<{ toolCallId: string; toolName: string }> = [];
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (
+        part.type === "tool-call" &&
+        typeof part.toolCallId === "string" &&
+        !existingToolResultIds.has(part.toolCallId)
+      ) {
+        orphanedToolCalls.push({
+          toolCallId: part.toolCallId,
+          toolName: (part.toolName as string) ?? "unknown",
+        });
+      }
+    }
+    for (const { toolCallId, toolName } of orphanedToolCalls) {
+      console.warn(`[cleanMessagesForModel] Injecting missing tool-result for toolCallId=${toolCallId} toolName=${toolName}`);
+      finalResult.push({
         role: "tool",
         content: [
           {
             type: "tool-result",
-            toolCallId: id,
-            toolName: "unknown",
+            toolCallId,
+            toolName,
             output: { type: "error-text", value: "Tool execution was interrupted" },
           },
         ],
@@ -229,7 +246,7 @@ function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
     }
   }
 
-  return result;
+  return finalResult;
 }
 
 export function buildSystemPrompt(

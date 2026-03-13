@@ -14,8 +14,6 @@ import {
   findToolResultParts,
   findAllToolCallParts,
   findAllToolResultParts,
-  type StreamEvent,
-  type ChatMessage,
 } from "./chat.utils";
 
 let assigneeId: string;
@@ -32,188 +30,182 @@ test.describe("Chat with tool calls", () => {
   test("test 1: create document + approve send_email confirmation + continue chat", async () => {
     await clearChatHistory(assigneeId);
 
-    // Step 1: Send message asking to create doc and send email
-    await sendMessage(
-      assigneeId,
-      "Write a short document in markdown format with title 'Hello World' and content just saying hello world. Then send it to nonexistent@invalid-domain-that-does-not-exist.example.com",
-    );
-
-    // Step 2: Consume stream until confirmation_required (send_email needs approval)
-    const events1 = await consumeStream(assigneeId, {
-      until: "confirmation_required",
+    // Single stream connection for the entire test
+    const stream = consumeStream(assigneeId, {
       timeout: 180_000,
+      onMessage: async (evt) => {
+        if (evt.event === "confirmation_required") {
+          expect(evt.data.toolName).toBe("send_email");
+          const pending = await listConfirmations();
+          const c = pending.find((c) => c.toolName === "send_email");
+          expect(c).toBeTruthy();
+          await resolveConfirmation(c!.id, "confirm");
+        }
+      },
     });
 
-    // Verify create_document tool was auto-executed
-    const docToolCalls = events1.filter(
-      (e) => e.event === "tool-call" && e.data.toolName === "create_document",
-    );
-    expect(docToolCalls.length).toBeGreaterThanOrEqual(1);
+    try {
+      // Step 1: Send message asking to create doc and send email
+      await sendMessage(
+        assigneeId,
+        "Write a short document in markdown format with title 'Hello World' and content just saying hello world. Then send it to nonexistent@invalid-domain-that-does-not-exist.example.com",
+      );
+      await stream.waitForDone();
 
-    const docToolResults = events1.filter(
-      (e) => e.event === "tool-result" && e.data.toolName === "create_document",
-    );
-    expect(docToolResults.length).toBeGreaterThanOrEqual(1);
+      // Verify create_document tool was auto-executed
+      const docToolCalls = stream.events.filter(
+        (e) => e.event === "tool-call" && e.data.toolName === "create_document",
+      );
+      expect(docToolCalls.length).toBeGreaterThanOrEqual(1);
 
-    // Verify send_email confirmation was requested
-    const confirmationEvents = events1.filter(
-      (e) => e.event === "confirmation_required",
-    );
-    expect(confirmationEvents.length).toBeGreaterThanOrEqual(1);
-    expect(confirmationEvents[0]?.data.toolName).toBe("send_email");
+      const docToolResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "create_document",
+      );
+      expect(docToolResults.length).toBeGreaterThanOrEqual(1);
 
-    // Step 3: List and approve the pending confirmation
-    const pending = await listConfirmations();
-    const sendEmailConfirmation = pending.find(
-      (c) => c.toolName === "send_email",
-    );
-    expect(sendEmailConfirmation).toBeTruthy();
-    await resolveConfirmation(sendEmailConfirmation!.id, "confirm");
+      // Verify send_email confirmation was requested
+      const confirmationEvents = stream.events.filter(
+        (e) => e.event === "confirmation_required",
+      );
+      expect(confirmationEvents.length).toBeGreaterThanOrEqual(1);
+      expect(confirmationEvents[0]?.data.toolName).toBe("send_email");
 
-    // Step 4: Continue consuming stream until done (agent resumes after approval)
-    const events2 = await consumeStream(assigneeId, {
-      until: "done",
-      timeout: 180_000,
-    });
+      // Verify send_email tool-result appeared (success or error — both are valid)
+      const sendEmailResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "send_email",
+      );
+      expect(sendEmailResults.length).toBeGreaterThanOrEqual(1);
 
-    // Verify send_email tool-result appeared (success or error — both are valid)
-    const sendEmailResults = events2.filter(
-      (e) => e.event === "tool-result" && e.data.toolName === "send_email",
-    );
-    expect(sendEmailResults.length).toBeGreaterThanOrEqual(1);
+      // Step 2: Send follow-up message and verify agent still responds
+      await sendMessage(assigneeId, "What just happened?");
+      await stream.waitForDone();
 
-    // Step 5: Send follow-up message and verify agent still responds
-    await sendMessage(assigneeId, "What just happened?");
-    const events3 = await consumeStream(assigneeId, { until: "done" });
+      const textDeltas = stream.events.filter((e) => e.event === "text-delta");
+      expect(textDeltas.length).toBeGreaterThan(0);
 
-    const textDeltas = events3.filter((e) => e.event === "text-delta");
-    expect(textDeltas.length).toBeGreaterThan(0);
+      // Step 3: Validate chat history
+      const { messages } = await getChatHistory(assigneeId);
+      expect(messages.length).toBeGreaterThanOrEqual(6);
 
-    // Step 6: Validate chat history
-    const { messages } = await getChatHistory(assigneeId);
-    expect(messages.length).toBeGreaterThanOrEqual(6);
-    // Minimum: user1, assistant(tool-calls), tool(doc-result), tool(email-result), user2, assistant
+      // Verify create_document tool-call has auto-approved status
+      const docCallParts = findToolCallParts(messages, "create_document");
+      expect(docCallParts.length).toBeGreaterThanOrEqual(1);
 
-    // Verify create_document tool-call has auto-approved status
-    const docCallParts = findToolCallParts(messages, "create_document");
-    expect(docCallParts.length).toBeGreaterThanOrEqual(1);
+      // Verify create_document tool-result exists
+      const docResultParts = findToolResultParts(messages, "create_document");
+      expect(docResultParts.length).toBeGreaterThanOrEqual(1);
 
-    // Verify create_document tool-result exists
-    const docResultParts = findToolResultParts(messages, "create_document");
-    expect(docResultParts.length).toBeGreaterThanOrEqual(1);
+      // Verify send_email tool-call has confirmation with confirmed status
+      const emailCallParts = findToolCallParts(messages, "send_email");
+      expect(emailCallParts.length).toBeGreaterThanOrEqual(1);
+      const emailConfirmation = emailCallParts[0]?.confirmation as
+        | { id: string; status: string }
+        | undefined;
+      expect(emailConfirmation).toBeTruthy();
+      expect(emailConfirmation!.status).toBe("confirmed");
 
-    // Verify send_email tool-call has confirmation with confirmed status
-    const emailCallParts = findToolCallParts(messages, "send_email");
-    expect(emailCallParts.length).toBeGreaterThanOrEqual(1);
-    const emailConfirmation = emailCallParts[0]?.confirmation as
-      | { id: string; status: string }
-      | undefined;
-    expect(emailConfirmation).toBeTruthy();
-    expect(emailConfirmation!.status).toBe("confirmed");
+      // Verify send_email tool-result exists
+      const emailResultParts = findToolResultParts(messages, "send_email");
+      expect(emailResultParts.length).toBeGreaterThanOrEqual(1);
 
-    // Verify send_email tool-result exists
-    const emailResultParts = findToolResultParts(messages, "send_email");
-    expect(emailResultParts.length).toBeGreaterThanOrEqual(1);
+      // Verify all tool-calls have matching tool-results
+      const allCalls = findAllToolCallParts(messages);
+      const allResults = findAllToolResultParts(messages);
+      const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
+      for (const call of allCalls) {
+        expect(resultIds.has(call.toolCallId as string)).toBe(true);
+      }
 
-    // Verify all tool-calls have matching tool-results
-    const allCalls = findAllToolCallParts(messages);
-    const allResults = findAllToolResultParts(messages);
-    const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
-    for (const call of allCalls) {
-      expect(resultIds.has(call.toolCallId as string)).toBe(true);
+      // Verify follow-up exchange exists (last two messages should be user + assistant)
+      const lastTwo = messages.slice(-2);
+      expect(lastTwo[0]?.role).toBe("user");
+      expect(lastTwo[1]?.role).toBe("assistant");
+
+      console.log(
+        `Test 1 passed: ${messages.length} messages, ${allCalls.length} tool calls`,
+      );
+    } finally {
+      stream.cancel();
     }
-
-    // Verify follow-up exchange exists (last two messages should be user + assistant)
-    const lastTwo = messages.slice(-2);
-    expect(lastTwo[0]?.role).toBe("user");
-    expect(lastTwo[1]?.role).toBe("assistant");
-
-    console.log(
-      `Test 1 passed: ${messages.length} messages, ${allCalls.length} tool calls`,
-    );
   });
 
   test("test 2: send email + reject confirmation + continue chat", async () => {
     await clearChatHistory(assigneeId);
 
-    // Step 1: Send message asking to send email
-    await sendMessage(
-      assigneeId,
-      "Send an email to nonexistent@invalid-domain-that-does-not-exist.example.com with subject 'Test Email' and body 'Hello, this is a test.'",
-    );
-
-    // Step 2: Consume stream until confirmation_required
-    const events1 = await consumeStream(assigneeId, {
-      until: "confirmation_required",
+    // Single stream connection for the entire test
+    const stream = consumeStream(assigneeId, {
       timeout: 180_000,
+      onMessage: async (evt) => {
+        if (evt.event === "confirmation_required") {
+          expect(evt.data.toolName).toBe("send_email");
+          const pending = await listConfirmations();
+          const c = pending.find((c) => c.toolName === "send_email");
+          expect(c).toBeTruthy();
+          await resolveConfirmation(c!.id, "reject");
+        }
+      },
     });
 
-    const confirmationEvents = events1.filter(
-      (e) => e.event === "confirmation_required",
-    );
-    expect(confirmationEvents.length).toBeGreaterThanOrEqual(1);
-    expect(confirmationEvents[0]?.data.toolName).toBe("send_email");
+    try {
+      // Step 1: Send message asking to send email
+      await sendMessage(
+        assigneeId,
+        "Send an email to nonexistent@invalid-domain-that-does-not-exist.example.com with subject 'Test Email' and body 'Hello, this is a test.'",
+      );
+      await stream.waitForDone();
 
-    // Step 3: Reject the confirmation
-    const pending = await listConfirmations();
-    const sendEmailConfirmation = pending.find(
-      (c) => c.toolName === "send_email",
-    );
-    expect(sendEmailConfirmation).toBeTruthy();
-    await resolveConfirmation(sendEmailConfirmation!.id, "reject");
+      // Verify confirmation was requested
+      const confirmationEvents = stream.events.filter(
+        (e) => e.event === "confirmation_required",
+      );
+      expect(confirmationEvents.length).toBeGreaterThanOrEqual(1);
+      expect(confirmationEvents[0]?.data.toolName).toBe("send_email");
 
-    // Step 4: Consume stream until done (agent acknowledges rejection)
-    const events2 = await consumeStream(assigneeId, {
-      until: "done",
-      timeout: 180_000,
-    });
+      // Verify agent produced text after rejection
+      const textDeltas = stream.events.filter((e) => e.event === "text-delta");
+      expect(textDeltas.length).toBeGreaterThan(0);
 
-    // Verify agent produced text after rejection
-    const textDeltas = events2.filter((e) => e.event === "text-delta");
-    expect(textDeltas.length).toBeGreaterThan(0);
+      // Step 2: Send follow-up and verify agent responds
+      await sendMessage(assigneeId, "OK thanks");
+      await stream.waitForDone();
 
-    // Step 5: Send follow-up and verify agent responds
-    await sendMessage(assigneeId, "OK thanks");
-    const events3 = await consumeStream(assigneeId, { until: "done" });
+      // Step 3: Validate chat history
+      const { messages } = await getChatHistory(assigneeId);
+      expect(messages.length).toBeGreaterThanOrEqual(5);
 
-    const followUpText = events3.filter((e) => e.event === "text-delta");
-    expect(followUpText.length).toBeGreaterThan(0);
+      // Verify send_email tool-call has confirmation with rejected status
+      const emailCallParts = findToolCallParts(messages, "send_email");
+      expect(emailCallParts.length).toBeGreaterThanOrEqual(1);
+      const emailConfirmation = emailCallParts[0]?.confirmation as
+        | { id: string; status: string }
+        | undefined;
+      expect(emailConfirmation).toBeTruthy();
+      expect(emailConfirmation!.status).toBe("rejected");
 
-    // Step 6: Validate chat history
-    const { messages } = await getChatHistory(assigneeId);
-    expect(messages.length).toBeGreaterThanOrEqual(5);
-    // Minimum: user1, assistant(tool-call), tool(rejection-result), assistant(text), user2, assistant
+      // Verify rejection tool-result exists with isError
+      const emailResultParts = findToolResultParts(messages, "send_email");
+      expect(emailResultParts.length).toBeGreaterThanOrEqual(1);
+      expect(emailResultParts[0]?.isError).toBe(true);
 
-    // Verify send_email tool-call has confirmation with rejected status
-    const emailCallParts = findToolCallParts(messages, "send_email");
-    expect(emailCallParts.length).toBeGreaterThanOrEqual(1);
-    const emailConfirmation = emailCallParts[0]?.confirmation as
-      | { id: string; status: string }
-      | undefined;
-    expect(emailConfirmation).toBeTruthy();
-    expect(emailConfirmation!.status).toBe("rejected");
+      // Verify all tool-calls have matching tool-results
+      const allCalls = findAllToolCallParts(messages);
+      const allResults = findAllToolResultParts(messages);
+      const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
+      for (const call of allCalls) {
+        expect(resultIds.has(call.toolCallId as string)).toBe(true);
+      }
 
-    // Verify rejection tool-result exists with isError
-    const emailResultParts = findToolResultParts(messages, "send_email");
-    expect(emailResultParts.length).toBeGreaterThanOrEqual(1);
-    expect(emailResultParts[0]?.isError).toBe(true);
+      // Verify follow-up exchange
+      const lastTwo = messages.slice(-2);
+      expect(lastTwo[0]?.role).toBe("user");
+      expect(lastTwo[1]?.role).toBe("assistant");
 
-    // Verify all tool-calls have matching tool-results
-    const allCalls = findAllToolCallParts(messages);
-    const allResults = findAllToolResultParts(messages);
-    const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
-    for (const call of allCalls) {
-      expect(resultIds.has(call.toolCallId as string)).toBe(true);
+      console.log(
+        `Test 2 passed: ${messages.length} messages, rejection confirmed`,
+      );
+    } finally {
+      stream.cancel();
     }
-
-    // Verify follow-up exchange
-    const lastTwo = messages.slice(-2);
-    expect(lastTwo[0]?.role).toBe("user");
-    expect(lastTwo[1]?.role).toBe("assistant");
-
-    console.log(
-      `Test 2 passed: ${messages.length} messages, rejection confirmed`,
-    );
   });
 
   test("test 3: web search with auto-confirm + continue chat", async () => {
@@ -243,48 +235,42 @@ test.describe("Chat with tool calls", () => {
       );
     }
 
+    // Single stream connection for the entire test
+    const stream = consumeStream(assigneeId, { timeout: 180_000 });
+
     try {
       // Step 2: Send message asking to search web
       await sendMessage(
         assigneeId,
         "Search the web for today's weather in Hong Kong and tell me the result",
       );
-
-      // Step 3: Consume stream until done (tools auto-execute, no confirmation)
-      const events = await consumeStream(assigneeId, {
-        until: "done",
-        timeout: 180_000,
-      });
+      await stream.waitForDone();
 
       // Verify tool-call events happened (firecrawl tools)
-      const toolCalls = events.filter((e) => e.event === "tool-call");
+      const toolCalls = stream.events.filter((e) => e.event === "tool-call");
       expect(toolCalls.length).toBeGreaterThanOrEqual(1);
 
       // Verify tool-result events happened
-      const toolResults = events.filter((e) => e.event === "tool-result");
+      const toolResults = stream.events.filter((e) => e.event === "tool-result");
       expect(toolResults.length).toBeGreaterThanOrEqual(1);
 
       // Verify no confirmation was required
-      const confirmations = events.filter(
+      const confirmations = stream.events.filter(
         (e) => e.event === "confirmation_required",
       );
       expect(confirmations.length).toBe(0);
 
       // Verify agent produced text response
-      const textDeltas = events.filter((e) => e.event === "text-delta");
+      const textDeltas = stream.events.filter((e) => e.event === "text-delta");
       expect(textDeltas.length).toBeGreaterThan(0);
 
-      // Step 4: Send follow-up and verify agent responds
+      // Step 3: Send follow-up and verify agent responds
       await sendMessage(assigneeId, "Summarize what you found in one sentence");
-      const events2 = await consumeStream(assigneeId, { until: "done" });
+      await stream.waitForDone();
 
-      const followUpText = events2.filter((e) => e.event === "text-delta");
-      expect(followUpText.length).toBeGreaterThan(0);
-
-      // Step 5: Validate chat history
+      // Step 4: Validate chat history
       const { messages } = await getChatHistory(assigneeId);
       expect(messages.length).toBeGreaterThanOrEqual(5);
-      // Minimum: user1, assistant(tool-calls), tool(results), assistant(text), user2, assistant
 
       // Verify firecrawl tool-calls have auto-approved status
       const allCalls = findAllToolCallParts(messages);
@@ -313,6 +299,7 @@ test.describe("Chat with tool calls", () => {
         `Test 3 passed: ${messages.length} messages, ${firecrawlCalls.length} firecrawl tool calls`,
       );
     } finally {
+      stream.cancel();
       // Cleanup: restore original permissions
       if (firecrawlTools.length > 0) {
         await updateAssigneePermissions(assigneeId, originalPermissions);
