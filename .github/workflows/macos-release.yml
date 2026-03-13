@@ -1,0 +1,263 @@
+name: macOS Release
+
+on:
+  push:
+  release:
+    types: [released]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build macOS App
+    runs-on: self-hosted
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Setup Secrets.xcconfig from GitHub Secrets
+        env:
+          SECRETS_XCCONFIG_BASE64: ${{ secrets.SECRETS_XCCONFIG_BASE64 }}
+        run: |
+          if [ -z "$SECRETS_XCCONFIG_BASE64" ]; then
+            echo "Warning: SECRETS_XCCONFIG_BASE64 secret is not set"
+            echo "Creating a default Secrets.xcconfig for CI build"
+            cat > ios/Config/Secrets.xcconfig << 'EOF'
+          // Secrets.xcconfig - CI Generated
+          AUTH_CLIENT_ID_DEV = client_ci_placeholder
+          AUTH_CLIENT_ID_PROD = client_ci_placeholder
+          EOF
+          else
+            echo "Decoding Secrets.xcconfig from GitHub secrets"
+            echo "$SECRETS_XCCONFIG_BASE64" | base64 --decode > ios/Config/Secrets.xcconfig
+          fi
+
+      - name: Setup Admin .env from GitHub Secrets
+        env:
+          ADMIN_ENV_BASE64: ${{ secrets.ADMIN_ENV_BASE64 }}
+        run: |
+          if [ -z "$ADMIN_ENV_BASE64" ]; then
+            echo "Warning: ADMIN_ENV_BASE64 secret is not set, skipping admin .env setup"
+          else
+            echo "$ADMIN_ENV_BASE64" | base64 --decode > backend/.env
+          fi
+
+      - name: Start RabbitMQ
+        run: |
+          brew install rabbitmq
+          brew services start rabbitmq
+          echo "Waiting for RabbitMQ..."
+          for i in {1..30}; do
+            if rabbitmqctl status &>/dev/null; then
+              echo "RabbitMQ is ready"
+              break
+            fi
+            sleep 2
+          done
+          rabbitmqctl add_user linda linda
+          rabbitmqctl set_permissions -p / linda ".*" ".*" ".*"
+
+      - name: Start Backend Server
+        run: bun install && bun dev:e2e > ../backend.log 2>&1 &
+        working-directory: backend
+
+      - name: Start Worker Server
+        run: bun worker:e2e > ../worker.log 2>&1 &
+        working-directory: backend
+
+      - name: Wait for Backend Server
+        run: |
+          echo "Waiting for backend server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:3000/api/health | grep -q "ok"; then
+              echo "Backend server is up!"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Backend server did not start in time."
+          exit 1
+
+      - name: Wait for Worker Server
+        run: |
+          echo "Waiting for worker server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:3002/healthz | grep -q "ok"; then
+              echo "Worker server is up!"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Worker server did not start in time."
+          exit 1
+
+      - name: Generate OpenAPI spec
+        run: ./scripts/ios-update-openapi.sh
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Install xcpretty
+        run: gem install xcpretty
+
+      - name: Install dependencies
+        run: |
+          npm install --global create-dmg
+          python3 -m pip install --upgrade pip
+          python3 -m pip install markdown
+
+      - name: Import code signing certificate
+        uses: apple-actions/import-codesign-certs@v6
+        with:
+          p12-file-base64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.P12_PASSWORD }}
+
+      - name: Install provisioning profile
+        env:
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          PP_PATH="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PP_PATH"
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > /tmp/profile.provisionprofile
+          UUID=$(security cms -D -i /tmp/profile.provisionprofile | plutil -extract UUID raw -)
+          echo "Installing provisioning profile with UUID: $UUID"
+          cp /tmp/profile.provisionprofile "$PP_PATH/$UUID.provisionprofile"
+
+      - name: Set manual code signing
+        run: ./scripts/ci-set-manual-signing.sh "${{ secrets.SIGNING_CERTIFICATE_NAME }}" "LindaAssistant"
+
+      - name: Derive release version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            RAW_TAG="${{ github.event.release.tag_name }}"
+            VERSION="${RAW_TAG#v}"
+          else
+            VERSION="dev"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=${{ github.run_number }}" >> "$GITHUB_ENV"
+
+      - name: Update project versions
+        if: github.event_name == 'release'
+        run: ./scripts/update-version.sh "$VERSION" "$BUILD_NUMBER"
+
+      - name: Archive macOS app
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project ios/ios.xcodeproj \
+            -scheme LindaAssistant \
+            -configuration Release \
+            -destination "platform=macOS" \
+            -archivePath output/output.xcarchive \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            OTHER_CODE_SIGN_FLAGS="--options=runtime --timestamp" | xcpretty
+
+      - name: Sign Sparkle artifacts
+        if: github.event_name == 'release'
+        run: ./scripts/sign-sparkle.sh
+        env:
+          SIGNING_CERTIFICATE_NAME: ${{ secrets.SIGNING_CERTIFICATE_NAME }}
+
+      - name: Notarize and staple DMG
+        run: ./scripts/notary.sh
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PWD: ${{ secrets.APPLE_ID_PWD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SKIP_NOTARIZE: ${{ github.event_name != 'release' && 'true' || 'false' }}
+
+      - name: Generate appcast and release notes
+        run: ./scripts/generate-appcast.sh
+        env:
+          SPARKLE_KEY: ${{ secrets.SPARKLE_KEY }}
+          VERSION: ${{ env.VERSION }}
+          BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_NOTE: ${{ github.event.release.body }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Upload DMG to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            LindaAssistant.dmg \
+            --repo "${{ github.repository }}" \
+            --clobber
+
+      - name: Upload appcast artifact
+        if: github.event_name == 'release'
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-appcast-${{ github.sha }}
+          path: appcast.xml
+          retention-days: 1
+
+      - name: Upload release notes artifact
+        if: github.event_name == 'release'
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-release-notes-${{ github.sha }}
+          path: release_notes.html
+          retention-days: 1
+
+  deploy:
+    name: Deploy Sparkle Metadata to Pages
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Download appcast artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-appcast-${{ github.sha }}
+
+      - name: Download release notes artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-release-notes-${{ github.sha }}
+
+      - name: Prepare Pages payload
+        run: |
+          mkdir -p pages
+          cp appcast.xml pages/appcast.xml
+          cp release_notes.html pages/release_notes.html
+          printf '%s\n' 'update.linda.rxlab.app' > pages/CNAME
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: pages
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

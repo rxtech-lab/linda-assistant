@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { availableModelSchema, DEFAULT_MODEL } from "@/lib/ai/models";
+import { isValidCronExpression } from "@/lib/utils/cron";
 
 // Tool permissions
 export const toolPermissionSchema = z.object({
   toolName: z.string().describe("Name of the tool"),
   permission: z
-    .enum(["auto-confirm", "manual-confirm", "auto-reject"])
+    .enum(["auto-confirm", "manual-confirm", "auto-reject", "disabled"])
     .describe("Permission level for the tool"),
 });
 
@@ -158,28 +159,38 @@ export const resendWebhookPayloadSchema = z.object({
 export const selectTaskSchema = z.object({
   id: z.string().describe("Unique identifier"),
   userId: z.string().describe("Owner user ID"),
+  assigneeId: z.string().nullable().describe("Linked assignee ID"),
   title: z.string().describe("Task title"),
   description: z.string().nullable().describe("Detailed task description"),
   status: z.string().nullable().describe("Current status"),
   tags: z.array(z.string()).nullable().describe("Freeform tags"),
   categories: z.array(z.string()).nullable().describe("Category labels"),
+  cronSchedule: z.string().nullable().describe("Cron expression e.g. '0 9 * * *'"),
+  isCronEnabled: z.boolean().nullable().describe("Whether cron scheduling is active"),
+  nextRunAt: z.number().nullable().optional().describe("Seconds from now until next scheduled run (null if cron disabled or no schedule, omitted on write responses)"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
 
 export const insertTaskSchema = z.object({
+  assigneeId: z.string().optional().nullable().describe("Linked assignee ID"),
   title: z.string().min(1).max(200).describe("Task title"),
   description: z
     .string()
     .max(5000)
     .optional()
     .describe("Detailed task description"),
-  status: z
-    .enum(["pending", "running", "finished", "cancelled"])
-    .optional()
-    .describe("Initial status"),
   tags: z.array(z.string()).optional().describe("Freeform tags"),
   categories: z.array(z.string()).optional().describe("Category labels"),
+  cronSchedule: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((val) => !val || isValidCronExpression(val), {
+      message: "Invalid cron expression",
+    })
+    .describe("Cron expression e.g. '0 9 * * *'"),
+  isCronEnabled: z.boolean().optional().describe("Enable cron scheduling"),
 });
 
 export const updateTaskSchema = insertTaskSchema.partial();

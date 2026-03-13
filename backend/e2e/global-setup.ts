@@ -13,6 +13,7 @@ import fs from "fs";
 import path from "path";
 
 const WORKER_PID_FILE = path.resolve(__dirname, "..", "e2e-worker.pid");
+const CELERY_MOCK_PID_FILE = path.resolve(__dirname, "..", "e2e-celery-mock.pid");
 
 export default async function globalSetup() {
   const dbPath = path.resolve(__dirname, "..", "e2e-test.db");
@@ -113,6 +114,32 @@ export default async function globalSetup() {
       ContentType: "image/png",
     }),
   );
+
+  // Start Celery mock server
+  const celeryMock = spawn("bun", ["e2e/helpers/celery-mock-server.ts"], {
+    cwd: path.resolve(__dirname, ".."),
+    env: { ...process.env, CELERY_MOCK_PORT: "8099" },
+    stdio: "pipe",
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Celery mock startup timeout")), 10000);
+    celeryMock.stdout?.on("data", (data: Buffer) => {
+      if (data.toString().includes("celery-mock-ready")) {
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+    celeryMock.stderr?.on("data", (data: Buffer) => {
+      process.stderr.write(`[celery-mock:err] ${data.toString()}`);
+    });
+    celeryMock.on("error", (err) => { clearTimeout(timeout); reject(err); });
+    celeryMock.on("exit", (code) => {
+      if (code !== null && code !== 0) { clearTimeout(timeout); reject(new Error(`Celery mock exited with code ${code}`)); }
+    });
+  });
+
+  fs.writeFileSync(CELERY_MOCK_PID_FILE, String(celeryMock.pid));
 
   // Start worker process
   const worker = spawn("bun", ["worker/index.ts"], {

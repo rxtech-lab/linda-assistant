@@ -297,7 +297,7 @@ test.describe("Tool permissions", () => {
   const buildExpectedPermissions = (
     overrides: Array<{
       toolName: string;
-      permission: "auto-confirm" | "manual-confirm" | "auto-reject";
+      permission: "auto-confirm" | "manual-confirm" | "auto-reject" | "disabled";
     }>,
   ) => {
     const lookup = new Map(

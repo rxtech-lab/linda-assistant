@@ -45,6 +45,7 @@
     "redoc": "^2.5.2",
     "resend": "^6.9.2",
     "svix": "^1",
+    "cron-parser": "^4",
     "zod": "^3"
   },
   "devDependencies": {

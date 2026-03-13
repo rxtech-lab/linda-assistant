@@ -33,13 +33,13 @@ struct MessageList: View {
     var body: some View {
         // Messages — each message's parts rendered in order
         ForEach(Array(messages.enumerated()), id: \.element.id) { index, msg in
-            Group {
-                // Date divider if date changed
-                if shouldShowDateDivider(at: index), let timestamp = msg.timestamp {
-                    DateDividerView(date: timestamp)
-                        .padding(.vertical, 8)
-                }
+            // Date divider if date changed (separate row)
+            if shouldShowDateDivider(at: index), let timestamp = msg.timestamp {
+                DateDividerView(date: timestamp)
+                    .padding(.vertical, 8)
+            }
 
+            VStack(alignment: msg.role == .user ? .trailing : .leading, spacing: 4) {
                 if msg.role == .assistant {
                     let isFirstInGroup = index == 0 || messages[index - 1].role != .assistant
                     if isFirstInGroup {
@@ -53,7 +53,7 @@ struct MessageList: View {
                     switch part {
                     case .text(let content):
                         if !content.displayText.isEmpty {
-                            MessageBubble(message: msg, disableAnimation: !animationEnabled)
+                            MessageBubble(message: msg)
                                 .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                         }
                     case .tool(let toolCall):
@@ -78,7 +78,11 @@ struct MessageList: View {
             .accessibilityIdentifier("messageListItem")
             .id(msg.id)
             // Only animate user messages - assistant messages stream in without transition
-            .transition(msg.role == .user ? .opacity : .identity)
+            // User messages slide in from the right (where they appear)
+            .transition(msg.role == .user ? .asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .opacity
+            ).animation(.spring(duration: 0.3)) : .identity)
         }
 
         // Streaming group header

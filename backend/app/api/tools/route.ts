@@ -7,7 +7,7 @@ import { buildToolSet } from "@/lib/ai/tools";
 const toolSchema = z.object({
   name: z.string(),
   description: z.string(),
-  defaultPermission: z.enum(["auto-confirm", "manual-confirm", "auto-reject"]),
+  defaultPermission: z.enum(["auto-confirm", "manual-confirm", "auto-reject", "disabled"]),
 });
 
 const toolsListSchema = z.array(toolSchema);

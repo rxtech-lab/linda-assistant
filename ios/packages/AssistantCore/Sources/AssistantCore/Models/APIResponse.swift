@@ -51,6 +51,7 @@ public struct StoppedResponse: Codable, Sendable {
 public enum TaskStatus: String, CaseIterable, Sendable {
     case pending
     case running
+    case stopped
     case finished
     case cancelled
 }
@@ -61,4 +62,5 @@ public enum PermissionLevel: String, CaseIterable, Sendable {
     case autoConfirm = "auto-confirm"
     case manualConfirm = "manual-confirm"
     case autoReject = "auto-reject"
+    case disabled = "disabled"
 }

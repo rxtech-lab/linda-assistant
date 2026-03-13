@@ -19,9 +19,10 @@ import {
 } from "./update-document";
 import { createFilesMcp } from "./mcps/files";
 import { createFirecrawlMcp } from "./mcps/firecrawl";
+import { createTransportMcp } from "./mcps/transport";
 
 export interface ToolSetResult {
-  /** Tools filtered to exclude auto-reject entries, built with correct needsApproval */
+  /** Tools filtered to exclude auto-reject and disabled entries, built with correct needsApproval */
   tools: Record<string, unknown>;
 }
 
@@ -57,8 +58,11 @@ async function loadMcpTools(
 
     // Build needsApproval map based on permissions
     for (const toolName of Object.keys(rawTools)) {
-      const perm = resolvePermission(`${config.prefix}${toolName}`, toolPermissions);
-      if (perm === "auto-reject") continue;
+      const perm = resolvePermission(
+        `${config.prefix}${toolName}`,
+        toolPermissions,
+      );
+      if (perm === "auto-reject" || perm === "disabled") continue;
       needsApproval[toolName] = perm === "manual-confirm";
     }
 
@@ -68,8 +72,11 @@ async function loadMcpTools(
     // Prefix tool names and filter out auto-rejected tools
     const prefixed: Record<string, unknown> = {};
     for (const [toolName, tool] of Object.entries(mcpTools)) {
-      const perm = resolvePermission(`${config.prefix}${toolName}`, toolPermissions);
-      if (perm === "auto-reject") continue;
+      const perm = resolvePermission(
+        `${config.prefix}${toolName}`,
+        toolPermissions,
+      );
+      if (perm === "auto-reject" || perm === "disabled") continue;
       prefixed[`${config.prefix}${toolName}`] = tool as unknown;
     }
 
@@ -90,6 +97,7 @@ async function loadMcpTools(
  * - auto-confirm → needsApproval: false → SDK executes immediately
  * - manual-confirm → needsApproval: true → SDK emits tool-approval-request
  * - auto-reject → tool excluded from toolset
+ * - disabled → tool excluded from toolset
  */
 export async function buildToolSet(
   userId: string,
@@ -161,7 +169,7 @@ export async function buildToolSet(
   const filtered: Record<string, unknown> = {};
   for (const { name, create } of toolDefs) {
     const perm = resolvePermission(name, toolPermissions);
-    if (perm === "auto-reject") continue;
+    if (perm === "auto-reject" || perm === "disabled") continue;
     const needsApproval = autoConfirmOverrides.has(name)
       ? false
       : perm === "manual-confirm";
@@ -171,7 +179,10 @@ export async function buildToolSet(
   // Document tools — never require confirmation
   filtered[UPDATE_DOCUMENT_TOOL_NAME] = updateDocumentTool(userId);
   if (chatSessionId) {
-    filtered[CREATE_DOCUMENT_TOOL_NAME] = createDocumentTool(userId, chatSessionId);
+    filtered[CREATE_DOCUMENT_TOOL_NAME] = createDocumentTool(
+      userId,
+      chatSessionId,
+    );
   }
 
   // Skip MCP tools in E2E test mode (no valid OAuth tokens for external services)
@@ -190,6 +201,10 @@ export async function buildToolSet(
       {
         prefix: "firecrawl_",
         createMcp: createFirecrawlMcp,
+      },
+      {
+        prefix: "transport_",
+        createMcp: createTransportMcp,
       },
     ];
 

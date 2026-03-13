@@ -12,9 +12,6 @@ import SwiftUI
 
 struct MessageBubble: View {
     let message: DisplayMessage
-    var disableAnimation = false
-
-    @State private var hasAppeared = false
 
     var body: some View {
         HStack {
@@ -63,19 +60,6 @@ struct MessageBubble: View {
 
             if message.role == .assistant { Spacer() }
         }
-       .opacity(hasAppeared ? 1 : 0)
-       .offset(x: hasAppeared ? 0 : (message.role == .user ? 80 : -80))
-       .onAppear {
-           // Assistant messages: no animation (content streams in incrementally)
-           // User messages: spring animation with slide-in effect
-           if disableAnimation || message.role == .assistant {
-               hasAppeared = true
-           } else {
-               withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                   hasAppeared = true
-               }
-           }
-       }
         .accessibilityIdentifier("messageBubble-\(message.id)")
     }
 }
@@ -100,16 +84,14 @@ private func copyToPasteboard(_ text: String) {
                     id: "1",
                     role: .user,
                     parts: [.text(.plain("Hello! Can you help me with Swift?"))]
-                ),
-                disableAnimation: true
+                )
             )
             MessageBubble(
                 message: DisplayMessage(
                     id: "2",
                     role: .user,
                     parts: [.text(.plain("What about **bold** and *italic* text?"))]
-                ),
-                disableAnimation: true
+                )
             )
         }
         .padding()
@@ -133,8 +115,7 @@ private func copyToPasteboard(_ text: String) {
 
                     What would you like to know more about?
                     """))]
-                ),
-                disableAnimation: true
+                )
             )
         }
         .padding()
@@ -144,8 +125,8 @@ private func copyToPasteboard(_ text: String) {
 #Preview("MessageBubble - Conversation") {
     ScrollView {
         VStack(alignment: .leading, spacing: 16) {
-            MessageBubble(message: .previewUser, disableAnimation: true)
-            MessageBubble(message: .previewAssistant, disableAnimation: true)
+            MessageBubble(message: .previewUser)
+            MessageBubble(message: .previewAssistant)
         }
         .padding()
     }

@@ -1,5 +1,12 @@
 import AssistantCore
 import SwiftUI
+#if os(macOS)
+    import Sparkle
+#endif
+
+#if os(macOS)
+    private var updaterController: SPUStandardUpdaterController?
+#endif
 
 #if canImport(UIKit)
     class AppDelegate: NSObject, UIApplicationDelegate {
@@ -58,6 +65,16 @@ struct iosApp: App {
     @State private var eventManager = EventManager()
     @State private var pushManager = PushNotificationManager()
 
+    init() {
+        #if os(macOS)
+            updaterController = SPUStandardUpdaterController(
+                startingUpdater: true,
+                updaterDelegate: nil,
+                userDriverDelegate: nil
+            )
+        #endif
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -70,6 +87,13 @@ struct iosApp: App {
         }
         #if os(macOS)
         .windowStyle(.hiddenTitleBar)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates...") {
+                    updaterController?.checkForUpdates(nil)
+                }
+            }
+        }
         #endif
     }
 }

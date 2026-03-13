@@ -25,6 +25,15 @@ public extension APIClient {
         try await request(path: "tools")
     }
 
+    // MARK: - Assignees Form Schema
+
+    func getAssigneeFormSchema(id: String? = nil) async throws -> AssigneeFormSchema {
+        if let id {
+            return try await request(path: "assignees/\(id)/schema")
+        }
+        return try await request(path: "assignees/schema")
+    }
+
     // MARK: - Assignees
 
     func listAssignees(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Assignee> {
@@ -79,6 +88,14 @@ public extension APIClient {
 
     func deleteTask(id: String) async throws {
         try await requestNoContent(path: "tasks/\(id)")
+    }
+
+    func startTask(id: String) async throws -> LindaTask {
+        try await request(path: "tasks/\(id)/start", method: "POST")
+    }
+
+    func stopTask(id: String) async throws -> LindaTask {
+        try await request(path: "tasks/\(id)/stop", method: "POST")
     }
 
     func listTaskChatSessions(taskId: String) async throws -> [SessionSummary] {

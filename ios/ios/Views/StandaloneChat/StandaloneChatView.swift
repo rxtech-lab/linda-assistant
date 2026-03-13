@@ -28,14 +28,18 @@ struct ChatTabView: View {
                     displayError: viewModel.displayError,
                     onClearError: { viewModel.clearError() },
                     onSend: { text in
-                        await viewModel.sendMessage(
-                            text,
-                            apiClient: apiClient,
-                            authManager: authManager,
-                            eventManager: eventManager
-                        )
+                        Task {
+                            await viewModel.sendMessage(
+                                text,
+                                apiClient: apiClient,
+                                authManager: authManager,
+                                eventManager: eventManager
+                            )
+                        }
                     },
-                    onStop: { await viewModel.stopStream() }
+                    onStop: {
+                        Task { await viewModel.stopStream() }
+                    }
                 ) {
                     // Load more indicator
                     if viewModel.hasMoreMessages {

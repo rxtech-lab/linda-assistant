@@ -26,3 +26,7 @@ The iOS app uses `EventManager` (in `AssistantCore`) with `AppEvent` enum for cr
 2. **Subscribe** in every view that displays that resource, using `subscribeToEvents()` in a `.task` modifier
 
 Existing event types: `assigneeCreated/Updated/Deleted`, `taskCreated/Updated/Deleted`, `emailUpdated/Deleted`, `chatSessionCreated/Deleted`, `confirmationResolved`, `error`.
+
+# iOS SwiftUI Test with viewinspector
+
+Always use view inspector to inspect view and interact with view when user wants to write unit test on views. Do not create a new view for the test or just do some basic expect text tests. Need to use sut for real test and always use original view to test! Do not verify the state directly, use UI to verify! Use UI to verify! Just like a regular user who cannot see the states directly!

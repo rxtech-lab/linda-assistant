@@ -4,7 +4,7 @@ import { closeConnection, isConnected, setupTopology } from "@/lib/queue/connect
 import { consumeTasks, subscribeToCommands, type CommandSubscription } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
 import type { AgentTask } from "@/lib/queue/types";
-import { isStreamActive } from "@/lib/streaming/manager";
+import { clearStreamChunks, isStreamActive } from "@/lib/streaming/manager";
 import { notifySessionResponse } from "@/lib/utils/chat-session";
 
 async function handleTask(task: AgentTask): Promise<void> {
@@ -17,6 +17,9 @@ async function handleTask(task: AgentTask): Promise<void> {
     console.log(`[Worker] Session ${sessionId} already active, skipping`);
     return;
   }
+
+  // Clear cached stream chunks from any previous run so replay starts fresh
+  await clearStreamChunks(sessionId);
 
   const controller = new AbortController();
   let commandSub: CommandSubscription | null = null;

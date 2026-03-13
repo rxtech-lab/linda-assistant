@@ -24,9 +24,21 @@ struct TaskDetailView: View {
                 }
             } else if let task = viewModel.task {
                 List {
-                    Section("Status") {
-                        if let status = task.status {
-                            StatusBadge(status: status)
+                    Section("Actions") {
+                        if task.status == "running" {
+                            Button(role: .destructive) {
+                                Task { await viewModel.stopTask(apiClient: apiClient, eventManager: eventManager) }
+                            } label: {
+                                Label("Stop Task", systemImage: "stop.circle")
+                            }
+                            .accessibilityIdentifier("stop-task-button")
+                        } else {
+                            Button {
+                                Task { await viewModel.startTask(apiClient: apiClient, eventManager: eventManager) }
+                            } label: {
+                                Label("Start Task", systemImage: "play.circle")
+                            }
+                            .accessibilityIdentifier("start-task-button")
                         }
                     }
 
@@ -63,6 +75,7 @@ struct TaskDetailView: View {
                                         }
                                     }
                                 }
+                                .accessibilityIdentifier("chat-session-row-\(session.id)")
                             }
                             .onDelete { offsets in
                                 Task {
@@ -80,6 +93,7 @@ struct TaskDetailView: View {
                         } label: {
                             Label("Start New Chat Session", systemImage: "plus.bubble")
                         }
+                        .accessibilityIdentifier("start-chat-button")
                     }
 
                     if !task.emails.isEmpty {

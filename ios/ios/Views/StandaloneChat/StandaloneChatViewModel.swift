@@ -202,8 +202,16 @@ final class ChatTabViewModel {
         }
         handler.onUserMessage = { [weak self] id, content in
             guard let self else { return }
-            // Dedup: skip if a message with this ID already exists (sent from this device)
+            // Dedup: skip if a message with this server ID already exists
             guard !displayMessages.contains(where: { $0.id == id }) else { return }
+            // Match optimistic message (temp "user-" prefix) by content → update its ID
+            if let idx = displayMessages.lastIndex(where: {
+                $0.id.hasPrefix("user-") && $0.role == .user && $0.textContent == content
+            }) {
+                displayMessages[idx] = DisplayMessage(id: id, role: .user, parts: displayMessages[idx].parts)
+                return
+            }
+            // Multi-device: message sent from another device
             let userMsg = DisplayMessage(
                 id: id,
                 role: .user,
@@ -230,7 +238,10 @@ final class ChatTabViewModel {
             role: .user,
             parts: [.text(.plain(content))]
         )
-        displayMessages.append(userMsg)
+
+        withAnimation(.spring(duration: 0.3)) {
+            displayMessages.append(userMsg)
+        }
 
         // If no session yet, set up stream handler and connect after sending
         let needsConnect = !hasSession
@@ -239,13 +250,15 @@ final class ChatTabViewModel {
         }
 
         let messageId = await streamHandler?.sendChatMessage(assigneeId: assignee.id, content: content)
-        // Update local message ID to backend ID for dedup when SSE event arrives
+//        Update local message ID to backend ID for dedup when SSE event arrives(no animation)
         if let messageId, let idx = displayMessages.firstIndex(where: { $0.id == tempId }) {
-            displayMessages[idx] = DisplayMessage(
-                id: messageId,
-                role: displayMessages[idx].role,
-                parts: displayMessages[idx].parts
-            )
+            withAnimation(.none) {
+                displayMessages[idx] = DisplayMessage(
+                    id: messageId,
+                    role: displayMessages[idx].role,
+                    parts: displayMessages[idx].parts
+                )
+            }
         }
 
         if needsConnect {

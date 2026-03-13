@@ -29,67 +29,177 @@ export async function generateDocumentPdf(
     return { buffer: Buffer.from("%PDF-1.0 mock"), title: doc.title };
   }
 
-  // Convert content to HTML
-  let htmlContent: string;
-  if (doc.format === "markdown") {
-    htmlContent = await marked(doc.content);
-  } else {
-    htmlContent = doc.content;
+  // Strip any full-HTML wrapper the AI may have embedded in the content
+  function extractBodyContent(raw: string): string {
+    const bodyMatch = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    if (bodyMatch) return bodyMatch[1].trim();
+    return raw
+      .replace(/<!DOCTYPE[^>]*>/gi, "")
+      .replace(/<html[^>]*>/gi, "")
+      .replace(/<\/html>/gi, "")
+      .replace(/<head[\s\S]*?<\/head>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<\/?body[^>]*>/gi, "")
+      .trim();
   }
 
-  // Wrap in full HTML document with styling
+  // Convert content to HTML
+  let htmlContent: string;
+  if (doc.format === "html") {
+    htmlContent = extractBodyContent(doc.content);
+  } else {
+    // Parse markdown to HTML, then strip any HTML wrappers the AI may have included
+    const rawHtml = await marked(doc.content);
+    htmlContent = extractBodyContent(rawHtml);
+  }
+
+  // The headless Chrome Docker image renders all <head> content (<style>, <title>)
+  // as visible text in PDFs, and addStyleTag also fails (puppeteer #8781).
+  // Workaround: inject styles via page.evaluate() directly on DOM elements.
   const fullHtml = `<!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <title>${escapeHtml(doc.title)}</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 40px 20px;
-      line-height: 1.6;
-      color: #333;
-    }
-    h1 { font-size: 2em; margin-bottom: 0.5em; }
-    h2 { font-size: 1.5em; margin-top: 1.5em; }
-    h3 { font-size: 1.2em; margin-top: 1.2em; }
-    table { border-collapse: collapse; width: 100%; margin: 1em 0; }
-    th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
-    th { background-color: #f5f5f5; }
-    pre { background-color: #f5f5f5; padding: 16px; border-radius: 4px; overflow-x: auto; }
-    code { background-color: #f5f5f5; padding: 2px 4px; border-radius: 2px; font-size: 0.9em; }
-    pre code { background: none; padding: 0; }
-    blockquote { border-left: 4px solid #ddd; margin: 1em 0; padding: 0.5em 1em; color: #666; }
-    img { max-width: 100%; }
-  </style>
-</head>
 <body>
   <h1>${escapeHtml(doc.title)}</h1>
+  <hr>
   ${htmlContent}
 </body>
 </html>`;
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    ...(process.env.PUPPETEER_EXECUTABLE_PATH
-      ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH }
-      : {}),
-  });
+  const chromeUrl = process.env.CHROME_URL;
+  if (!chromeUrl) throw new Error("CHROME_URL environment variable is required");
 
+  // Query Chrome's /json/version to get the full WebSocket debugger URL
+  const httpBase = chromeUrl.replace(/^ws:\/\//, "http://");
+  const versionRes = await fetch(`${httpBase}/json/version`);
+  const { webSocketDebuggerUrl } = (await versionRes.json()) as {
+    webSocketDebuggerUrl: string;
+  };
+  // Replace the advertised host (127.0.0.1) with the configured host
+  const chromeHost = new URL(httpBase).host;
+  const browserWSEndpoint = webSocketDebuggerUrl.replace(
+    /ws:\/\/[^/]+/,
+    `ws://${chromeHost}`,
+  );
+
+  const browser = await puppeteer.connect({ browserWSEndpoint });
+
+  const page = await browser.newPage();
   try {
-    const page = await browser.newPage();
     await page.setContent(fullHtml, { waitUntil: "networkidle0" });
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
+
+    // Apply styles via JS — no <style> tags (Chrome Docker bug renders them as
+    // text in PDFs and also doesn't apply default block-level display).
+    await page.evaluate(() => {
+      const s = document.body.style;
+      s.fontFamily =
+        "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      s.maxWidth = "800px";
+      s.margin = "0 auto";
+      s.padding = "40px 20px";
+      s.lineHeight = "1.6";
+      s.color = "#333";
+
+      // Force block display on all standard block elements
+      const blockTags =
+        "p,h1,h2,h3,h4,h5,h6,div,ul,ol,li,blockquote,pre,table,thead,tbody,tfoot,hr,figure,figcaption,section,article,header,footer,nav,main,details,summary";
+      document.querySelectorAll(blockTags).forEach((el) => {
+        (el as HTMLElement).style.display = "block";
+      });
+      // Table elements need specific display types
+      document.querySelectorAll("table").forEach((el) => {
+        el.style.display = "table";
+        el.style.borderCollapse = "collapse";
+        el.style.width = "100%";
+        el.style.margin = "1em 0";
+      });
+      document.querySelectorAll("thead").forEach((el) => {
+        el.style.display = "table-header-group";
+      });
+      document.querySelectorAll("tbody").forEach((el) => {
+        el.style.display = "table-row-group";
+      });
+      document.querySelectorAll("tr").forEach((el) => {
+        el.style.display = "table-row";
+      });
+      document.querySelectorAll("th, td").forEach((el) => {
+        const s = (el as HTMLElement).style;
+        s.display = "table-cell";
+        s.border = "1px solid #ddd";
+        s.padding = "8px 12px";
+        s.textAlign = "left";
+      });
+
+      // Custom styles
+      const styles: Record<string, Record<string, string>> = {
+        h1: { fontSize: "2em", marginBottom: "0.5em", marginTop: "0" },
+        h2: { fontSize: "1.5em", marginTop: "1.5em" },
+        h3: { fontSize: "1.2em", marginTop: "1.2em" },
+        p: { marginTop: "0.5em", marginBottom: "0.5em" },
+        hr: {
+          border: "none",
+          borderTop: "1px solid #ddd",
+          margin: "0.8em 0 1.5em 0",
+        },
+        th: { backgroundColor: "#f5f5f5", fontWeight: "bold" },
+        pre: {
+          backgroundColor: "#f5f5f5",
+          padding: "16px",
+          borderRadius: "4px",
+          overflowX: "auto",
+        },
+        code: {
+          backgroundColor: "#f5f5f5",
+          padding: "2px 4px",
+          borderRadius: "2px",
+          fontSize: "0.9em",
+        },
+        blockquote: {
+          borderLeft: "4px solid #ddd",
+          margin: "1em 0",
+          padding: "0.5em 1em",
+          color: "#666",
+        },
+        ul: { paddingLeft: "2em", marginTop: "0.5em", marginBottom: "0.5em" },
+        ol: { paddingLeft: "2em", marginTop: "0.5em", marginBottom: "0.5em" },
+        li: { display: "list-item" },
+        img: { maxWidth: "100%" },
+      };
+
+      for (const [tag, props] of Object.entries(styles)) {
+        document.querySelectorAll(tag).forEach((el) => {
+          Object.assign((el as HTMLElement).style, props);
+        });
+      }
+
+      // Reset code inside pre
+      document.querySelectorAll("pre code").forEach((el) => {
+        const s = (el as HTMLElement).style;
+        s.background = "none";
+        s.padding = "0";
+      });
     });
 
-    return { buffer: Buffer.from(pdfBuffer), title: doc.title };
+    const cdp = await page.createCDPSession();
+    const { data } = await cdp.send("Page.printToPDF", {
+      printBackground: true,
+      paperWidth: 8.27, // A4
+      paperHeight: 11.69,
+      marginTop: 0.79, // ~20mm
+      marginBottom: 0.98, // ~25mm
+      marginLeft: 0.59, // ~15mm
+      marginRight: 0.59,
+      displayHeaderFooter: true,
+      headerTemplate: "<span></span>",
+      footerTemplate: `
+        <div style="width: 100%; font-size: 9px; color: #999; text-align: center; padding: 0 15mm;">
+          <span class="pageNumber"></span> / <span class="totalPages"></span>
+        </div>`,
+    });
+    const pdfBuffer = Buffer.from(data, "base64");
+
+    return { buffer: pdfBuffer, title: doc.title };
   } finally {
-    await browser.close();
+    await page.close();
+    browser.disconnect();
   }
 }

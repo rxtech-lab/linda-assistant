@@ -6,6 +6,8 @@ import { authenticate } from "@/lib/auth/middleware";
 import { insertTaskSchema, selectTaskSchema } from "@/lib/schemas";
 import { parsePagination } from "@/lib/utils/pagination";
 import { successJson, errorJson, paginatedJson } from "@/lib/utils/response";
+import { registerCronTask } from "@/lib/celery/client";
+import { getNextRunSeconds } from "@/lib/utils/cron";
 import { z } from "zod";
 
 const listResponseSchema = z.object({
@@ -34,7 +36,15 @@ export async function GET(request: NextRequest) {
     db.select({ count: sql<number>`count(*)` }).from(tasks).where(eq(tasks.userId, auth.userId)),
   ]);
 
-  return paginatedJson(items, countResult[0].count, limit, offset);
+  const itemsWithNextRun = items.map((task) => ({
+    ...task,
+    nextRunAt:
+      task.isCronEnabled && task.cronSchedule
+        ? getNextRunSeconds(task.cronSchedule)
+        : null,
+  }));
+
+  return paginatedJson(itemsWithNextRun, countResult[0].count, limit, offset);
 }
 
 /**
@@ -51,10 +61,16 @@ export async function POST(request: NextRequest) {
   const parsed = insertTaskSchema.safeParse(body);
   if (!parsed.success) return errorJson(parsed.error.message, 422);
 
+  const status = parsed.data.isCronEnabled ? "running" : "pending";
+
   const [created] = await db
     .insert(tasks)
-    .values({ ...parsed.data, userId: auth.userId })
+    .values({ ...parsed.data, userId: auth.userId, status })
     .returning();
+
+  if (created.isCronEnabled && created.cronSchedule) {
+    await registerCronTask(created.id, created.cronSchedule);
+  }
 
   return successJson(created, 201);
 }

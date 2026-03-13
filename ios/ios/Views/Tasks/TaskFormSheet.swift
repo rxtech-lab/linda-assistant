@@ -14,9 +14,12 @@ struct TaskFormSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
     @State private var description = ""
-    @State private var status = "pending"
     @State private var tagsText = ""
     @State private var categoriesText = ""
+    @State private var selectedAssigneeId: String? = nil
+    @State private var availableAssignees: [Assignee] = []
+    @State private var isCronEnabled = false
+    @State private var cronSchedule = ""
     @State private var isSubmitting = false
     @State private var error: String?
 
@@ -34,15 +37,45 @@ struct TaskFormSheet: View {
             Form {
                 Section("Details") {
                     TextField("Title", text: $title)
+                        .accessibilityIdentifier("task-title-field")
                     TextField("Description", text: $description, axis: .vertical)
                         .lineLimit(3 ... 6)
+                        .accessibilityIdentifier("task-description-field")
                 }
 
-                Section("Status") {
-                    Picker("Status", selection: $status) {
-                        ForEach(TaskStatus.allCases, id: \.rawValue) { s in
-                            Text(s.rawValue.capitalized).tag(s.rawValue)
+                Section("Assignee") {
+                    Picker("Assignee", selection: $selectedAssigneeId) {
+                        Text("None").tag(String?.none)
+                        ForEach(availableAssignees) { assignee in
+                            Text(assignee.name).tag(Optional(assignee.id))
                         }
+                    }
+                    .accessibilityIdentifier("task-assignee-picker")
+                }
+
+                Section("Schedule") {
+                    Toggle("Enable cron schedule", isOn: $isCronEnabled)
+                        .accessibilityIdentifier("task-cron-toggle")
+                    if isCronEnabled {
+                        CronExpressionView(cronExpression: $cronSchedule)
+                    }
+                }
+
+                Section("Assignee") {
+                    Picker("Assignee", selection: $selectedAssigneeId) {
+                        Text("None").tag(String?.none)
+                        ForEach(availableAssignees) { assignee in
+                            Text(assignee.name).tag(Optional(assignee.id))
+                        }
+                    }
+                    .accessibilityIdentifier("task-assignee-picker")
+                }
+
+                Section("Schedule") {
+                    Toggle("Enable cron schedule", isOn: $isCronEnabled)
+                        .accessibilityIdentifier("task-cron-toggle")
+                    if isCronEnabled {
+                        CronExpressionView(cronExpression: $cronSchedule)
                     }
                 }
 
@@ -71,6 +104,7 @@ struct TaskFormSheet: View {
                                 Text("Save").frame(maxWidth: .infinity)
                             }
                         }
+                        .accessibilityIdentifier("task-save-button")
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSubmitting)
                     }
                 #endif
@@ -94,17 +128,29 @@ struct TaskFormSheet: View {
                 }
             }
             .onAppear { populateForEdit() }
+            .task { await loadAssignees() }
         }
         .presentationDetents([.large])
+    }
+
+    private func loadAssignees() async {
+        do {
+            let response = try await apiClient.listAssignees(limit: 100)
+            availableAssignees = response.data
+        } catch {
+            // Non-critical — assignee picker just stays empty
+        }
     }
 
     private func populateForEdit() {
         guard case let .edit(task) = mode else { return }
         title = task.title
         description = task.description ?? ""
-        status = task.status ?? "pending"
         tagsText = task.tags?.joined(separator: ", ") ?? ""
         categoriesText = task.categories?.joined(separator: ", ") ?? ""
+        selectedAssigneeId = task.assigneeId
+        isCronEnabled = task.isCronEnabled ?? false
+        cronSchedule = task.cronSchedule ?? ""
     }
 
     private func parseTags(_ text: String) -> [String]? {
@@ -116,14 +162,20 @@ struct TaskFormSheet: View {
         isSubmitting = true
         error = nil
 
+        let effectiveCronSchedule = isCronEnabled && !cronSchedule.trimmingCharacters(in: .whitespaces).isEmpty
+            ? cronSchedule.trimmingCharacters(in: .whitespaces)
+            : nil
+
         do {
             if case let .edit(existing) = mode {
                 let body = UpdateTask(
                     title: title.trimmingCharacters(in: .whitespaces),
                     description: description.isEmpty ? nil : description,
-                    status: status,
                     tags: parseTags(tagsText),
-                    categories: parseTags(categoriesText)
+                    categories: parseTags(categoriesText),
+                    assigneeId: selectedAssigneeId,
+                    cronSchedule: effectiveCronSchedule,
+                    isCronEnabled: isCronEnabled
                 )
                 let updated = try await apiClient.updateTask(id: existing.id, body)
                 onSave(updated)
@@ -131,9 +183,11 @@ struct TaskFormSheet: View {
                 let body = CreateTask(
                     title: title.trimmingCharacters(in: .whitespaces),
                     description: description.isEmpty ? nil : description,
-                    status: status,
                     tags: parseTags(tagsText),
-                    categories: parseTags(categoriesText)
+                    categories: parseTags(categoriesText),
+                    assigneeId: selectedAssigneeId,
+                    cronSchedule: effectiveCronSchedule,
+                    isCronEnabled: isCronEnabled
                 )
                 let created = try await apiClient.createTask(body)
                 onSave(created)

@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 
 export type ToolPermission = {
   toolName: string;
-  permission: "auto-confirm" | "manual-confirm" | "auto-reject";
+  permission: "auto-confirm" | "manual-confirm" | "auto-reject" | "disabled";
 };
 
 export type EmailAttachment = {
@@ -55,11 +55,14 @@ export const tasks = sqliteTable("tasks", {
     .primaryKey()
     .$defaultFn(() => nanoid()),
   userId: text("user_id").notNull(),
+  assigneeId: text("assignee_id").references(() => assignees.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   description: text("description"),
   status: text("status").default("pending"),
   tags: text("tags", { mode: "json" }).$type<string[]>(),
   categories: text("categories", { mode: "json" }).$type<string[]>(),
+  cronSchedule: text("cron_schedule"),
+  isCronEnabled: integer("is_cron_enabled", { mode: "boolean" }).default(false),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });

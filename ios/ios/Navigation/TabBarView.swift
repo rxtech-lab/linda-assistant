@@ -18,6 +18,7 @@ import SwiftUI
                             }
                     }
                 }
+                .accessibilityIdentifier("tasks-tab")
 
                 Tab("Email", systemImage: "envelope", value: .emails) {
                     NavigationStack(path: $nav.emailsPath) {
@@ -29,6 +30,7 @@ import SwiftUI
                             }
                     }
                 }
+                .accessibilityIdentifier("emails-tab")
 
                 Tab("Assignees", systemImage: "person.2", value: .assignees) {
                     NavigationStack(path: $nav.assigneesPath) {
@@ -40,6 +42,7 @@ import SwiftUI
                             }
                     }
                 }
+                .accessibilityIdentifier("assignees-tab")
 
                 Tab("Settings", systemImage: "gearshape", value: .settings) {
                     NavigationStack(path: $nav.settingsPath) {
@@ -51,6 +54,7 @@ import SwiftUI
                             }
                     }
                 }
+                .accessibilityIdentifier("settings-tab")
             }
             .tabBarMinimizeBehavior(.onScrollUp)
         }

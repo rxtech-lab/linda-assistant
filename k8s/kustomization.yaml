@@ -7,14 +7,17 @@ metadata:
 
 resources:
   - namespace.yaml
+  - secrets.yaml
   - configmap.yaml
   - frontend-deployment.yaml
   - frontend-service.yaml
   - worker-deployment.yaml
   - rabbitmq-deployment.yaml
   - rabbitmq-service.yaml
-  # - mem0-deployment.yaml
-  # - mem0-service.yaml
+  - celery-deployment.yaml
+  - celery-service.yaml
+  - mem0-deployment.yaml
+  - mem0-service.yaml
   - ingress.yaml
 
 namespace: linda
@@ -23,4 +26,10 @@ images:
   - name: ghcr.io/rxtech-lab/linda-frontend
     newTag: latest
   - name: ghcr.io/rxtech-lab/linda-worker
+    newTag: latest
+  - name: ghcr.io/rxtech-lab/linda-celery
+    newTag: latest
+  - name: ghcr.io/rxtech-lab/linda-mem0
+    newTag: latest
+  - name: ghcr.io/rxtech-lab/headless-chrome-cjk
     newTag: latest

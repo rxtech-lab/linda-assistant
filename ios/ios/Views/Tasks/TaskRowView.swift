@@ -40,6 +40,7 @@ struct TaskRowView: View {
             }
         }
         .padding(.vertical, 2)
+        .accessibilityIdentifier("task-row-\(task.id)")
     }
 
     private func relativeTime(_ dateString: String) -> String {

@@ -18,3 +18,8 @@ ios/.DS_Store
 ios/iosUITests/.env
 test-results.xcresult
 backend/package-lock.json
+.env
+*.pid
+output/
+backend-e2e/auth-token.json
+backend-e2e/test-results/

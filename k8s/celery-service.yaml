@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: celery
+  namespace: linda
+  labels:
+    app: linda-celery
+spec:
+  type: ClusterIP
+  selector:
+    app: linda-celery
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
