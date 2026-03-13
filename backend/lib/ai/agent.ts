@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { refreshAccessToken } from "@/lib/auth/refresh";
 import { db } from "@/lib/db";
-import { getActiveSessionMessages, insertMessages, updateMessageContent } from "@/lib/db/messages";
+import { getActiveSessionMessages, insertMessageAfter, insertMessages, updateMessageContent } from "@/lib/db/messages";
 import { assignees, chatSessions, confirmations } from "@/lib/db/schema";
 import { createMem0Client } from "@/lib/mem0/client";
 import { setStreamActive } from "@/lib/streaming/manager";
@@ -198,51 +198,80 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
       content: cleanedParts,
     } as unknown as ModelMessage);
   }
-  // Safety net: ensure every tool-call has a matching tool-result after cleaning.
-  // The AI SDK requires tool-result messages immediately after the assistant message
-  // containing the tool-call. Collect existing tool-result IDs first, then inject
-  // missing ones right after the assistant message that contains the orphaned tool-call.
-  const existingToolResultIds = new Set<string>();
-  for (const msg of result) {
-    if (!Array.isArray(msg.content)) continue;
-    for (const part of msg.content as Record<string, unknown>[]) {
-      if (part.type === "tool-result" && typeof part.toolCallId === "string")
-        existingToolResultIds.add(part.toolCallId);
+  // Safety net: The AI SDK requires every tool-call to have a matching tool-result
+  // immediately after the assistant message. Tool-results may exist elsewhere in the
+  // array (e.g., appended at the end) or may be missing entirely. This pass:
+  // 1. Collects all tool-result parts into a lookup (removing them from their current position)
+  // 2. Rebuilds the array, placing tool-results right after their assistant messages
+  // 3. Injects synthetic results for any tool-calls that still have no result
+
+  // Step 1: Extract all tool-result parts into a map, keyed by toolCallId
+  const toolResultByCallId = new Map<string, Record<string, unknown>>();
+  const toolResultMsgIndices = new Set<number>();
+  for (let i = 0; i < result.length; i++) {
+    const msg = result[i];
+    if (msg.role !== "tool" || !Array.isArray(msg.content)) continue;
+    const parts = msg.content as Record<string, unknown>[];
+    for (const part of parts) {
+      if (part.type === "tool-result" && typeof part.toolCallId === "string") {
+        toolResultByCallId.set(part.toolCallId, part);
+        toolResultMsgIndices.add(i);
+      }
     }
   }
 
+  // Step 2: Rebuild, inserting tool-results right after their assistant messages
+  const placedCallIds = new Set<string>();
   const finalResult: ModelMessage[] = [];
-  for (const msg of result) {
-    finalResult.push(msg);
+  for (let i = 0; i < result.length; i++) {
+    // Skip tool-result messages — they'll be re-inserted after their assistant messages
+    if (toolResultMsgIndices.has(i)) continue;
 
-    // After each assistant message, check for orphaned tool-calls and inject results
+    finalResult.push(result[i]);
+
+    // After each assistant message, place matching tool-results
+    const msg = result[i];
     if (msg.role !== "assistant" || !Array.isArray(msg.content)) continue;
-    const orphanedToolCalls: Array<{ toolCallId: string; toolName: string }> = [];
+
+    const neededResults: Record<string, unknown>[] = [];
     for (const part of msg.content as Record<string, unknown>[]) {
-      if (
-        part.type === "tool-call" &&
-        typeof part.toolCallId === "string" &&
-        !existingToolResultIds.has(part.toolCallId)
-      ) {
-        orphanedToolCalls.push({
-          toolCallId: part.toolCallId,
-          toolName: (part.toolName as string) ?? "unknown",
+      if (part.type !== "tool-call" || typeof part.toolCallId !== "string") continue;
+      const toolCallId = part.toolCallId;
+      const toolName = (part.toolName as string) ?? "unknown";
+
+      const existingResult = toolResultByCallId.get(toolCallId);
+      if (existingResult) {
+        neededResults.push(existingResult);
+      } else {
+        console.warn(`[cleanMessagesForModel] Injecting missing tool-result for toolCallId=${toolCallId} toolName=${toolName}`);
+        neededResults.push({
+          type: "tool-result",
+          toolCallId,
+          toolName,
+          output: { type: "error-text", value: "Tool execution was interrupted" },
         });
       }
+      placedCallIds.add(toolCallId);
     }
-    for (const { toolCallId, toolName } of orphanedToolCalls) {
-      console.warn(`[cleanMessagesForModel] Injecting missing tool-result for toolCallId=${toolCallId} toolName=${toolName}`);
+
+    if (neededResults.length > 0) {
       finalResult.push({
         role: "tool",
-        content: [
-          {
-            type: "tool-result",
-            toolCallId,
-            toolName,
-            output: { type: "error-text", value: "Tool execution was interrupted" },
-          },
-        ],
+        content: neededResults,
       } as unknown as ModelMessage);
+    }
+  }
+
+  // Step 3: Append any remaining tool-results that didn't match an assistant message
+  for (const i of toolResultMsgIndices) {
+    const msg = result[i];
+    if (!Array.isArray(msg.content)) continue;
+    const parts = msg.content as Record<string, unknown>[];
+    const unplaced = parts.filter(
+      (p) => p.type === "tool-result" && typeof p.toolCallId === "string" && !placedCallIds.has(p.toolCallId as string),
+    );
+    if (unplaced.length > 0) {
+      finalResult.push({ role: "tool", content: unplaced } as unknown as ModelMessage);
     }
   }
 
@@ -521,13 +550,11 @@ async function resolvePendingToolCalls(
     }
   }
 
-  // Insert each tool-result right after the assistant message containing its tool-call.
-  // The AI SDK requires tool-result messages immediately after the assistant message;
-  // appending at the end would break when a user message sits between the assistant
-  // tool-call and the tool-result (e.g., user sent a new message while ignoring a confirmation).
+  // Insert each tool-result right after the assistant message containing its tool-call
+  // in BOTH the in-memory array and the database. The AI SDK requires tool-result messages
+  // immediately after the assistant message; appending at the end would break on next DB
+  // load when a user message sits between the assistant tool-call and the tool-result.
   if (newMessages.length > 0) {
-    await insertMessages(sessionId, newMessages);
-
     // Build a map from toolCallId → tool-result message
     const resultByToolCallId = new Map<string, ModelMessage>();
     for (const msg of newMessages) {
@@ -539,18 +566,25 @@ async function resolvePendingToolCalls(
       }
     }
 
-    // Insert tool-result messages right after their assistant messages
+    // Insert tool-result messages right after their assistant messages (in-memory + DB)
     const reordered: ModelMessage[] = [];
     const inserted = new Set<string>();
     for (const msg of cleaned) {
       reordered.push(msg);
       if (msg.role !== "assistant" || !Array.isArray(msg.content)) continue;
+      const msgId = (msg as Record<string, unknown>).id as string | undefined;
       for (const part of msg.content as Record<string, unknown>[]) {
         if (part.type === "tool-call" && typeof part.toolCallId === "string") {
           const resultMsg = resultByToolCallId.get(part.toolCallId);
           if (resultMsg && !inserted.has(part.toolCallId)) {
             reordered.push(resultMsg);
             inserted.add(part.toolCallId);
+            // Persist to DB right after the assistant message
+            if (msgId) {
+              await insertMessageAfter(sessionId, msgId, resultMsg);
+            } else {
+              await insertMessages(sessionId, [resultMsg]);
+            }
           }
         }
       }
@@ -561,6 +595,7 @@ async function resolvePendingToolCalls(
       for (const part of msg.content as Record<string, unknown>[]) {
         if (part.type === "tool-result" && typeof part.toolCallId === "string" && !inserted.has(part.toolCallId)) {
           reordered.push(msg);
+          await insertMessages(sessionId, [msg]);
         }
       }
     }

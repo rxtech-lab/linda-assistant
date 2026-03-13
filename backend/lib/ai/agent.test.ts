@@ -119,14 +119,13 @@ describe("cleanMessagesForModel", () => {
 
     const result = cleanMessagesForModel(messages);
 
-    // user + assistant + 2 injected tool-results
-    expect(result).toHaveLength(4);
+    // user + assistant + 1 tool message containing both injected results
+    expect(result).toHaveLength(3);
     expect(result[2].role).toBe("tool");
-    expect(result[3].role).toBe("tool");
 
-    const ids = [result[2], result[3]].map(
-      (m) => ((m.content as Record<string, unknown>[])[0] as Record<string, unknown>).toolCallId,
-    );
+    const parts = result[2].content as Record<string, unknown>[];
+    expect(parts).toHaveLength(2);
+    const ids = parts.map((p) => p.toolCallId);
     expect(ids).toContain("tc1");
     expect(ids).toContain("tc2");
   });

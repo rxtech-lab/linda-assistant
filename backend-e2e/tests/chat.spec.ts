@@ -25,7 +25,7 @@ test.beforeAll(async () => {
 });
 
 test.describe("Chat with tool calls", () => {
-  test.setTimeout(300_000); // 5 min per test — LLM responses can be slow
+  test.setTimeout(300_000);
 
   test("test 1: create document + approve send_email confirmation + continue chat", async () => {
     await clearChatHistory(assigneeId);
@@ -59,7 +59,8 @@ test.describe("Chat with tool calls", () => {
       expect(docToolCalls.length).toBeGreaterThanOrEqual(1);
 
       const docToolResults = stream.events.filter(
-        (e) => e.event === "tool-result" && e.data.toolName === "create_document",
+        (e) =>
+          e.event === "tool-result" && e.data.toolName === "create_document",
       );
       expect(docToolResults.length).toBeGreaterThanOrEqual(1);
 
@@ -251,7 +252,9 @@ test.describe("Chat with tool calls", () => {
       expect(toolCalls.length).toBeGreaterThanOrEqual(1);
 
       // Verify tool-result events happened
-      const toolResults = stream.events.filter((e) => e.event === "tool-result");
+      const toolResults = stream.events.filter(
+        (e) => e.event === "tool-result",
+      );
       expect(toolResults.length).toBeGreaterThanOrEqual(1);
 
       // Verify no confirmation was required
@@ -308,28 +311,8 @@ test.describe("Chat with tool calls", () => {
     }
   });
 
-  test("test 4: web search confirmation ignored + continue chat + re-search and confirm", async () => {
+  test("test 4: send email confirmation ignored + continue chat + re-send and confirm", async () => {
     await clearChatHistory(assigneeId);
-
-    // Set firecrawl tools to requires-confirmation
-    const assignee = await getAssignee(assigneeId);
-    const originalPermissions = [...assignee.toolPermissions];
-    const firecrawlTools = assignee.toolPermissions.filter((tp) =>
-      tp.toolName.startsWith("firecrawl_"),
-    );
-
-    if (firecrawlTools.length > 0) {
-      const updatedPermissions = assignee.toolPermissions.map((tp) => {
-        if (tp.toolName.startsWith("firecrawl_")) {
-          return { toolName: tp.toolName, permission: "manual-confirm" };
-        }
-        return tp;
-      });
-      await updateAssigneePermissions(assigneeId, updatedPermissions);
-      console.log(
-        `Set ${firecrawlTools.length} firecrawl tools to manual-confirm`,
-      );
-    }
 
     // Track whether we should confirm or ignore confirmations
     let shouldConfirm = false;
@@ -341,28 +324,24 @@ test.describe("Chat with tool calls", () => {
           if (shouldConfirm) {
             const pending = await listConfirmations();
             const c = pending.find(
-              (c) =>
-                c.toolName.startsWith("firecrawl_") &&
-                c.status === "pending",
+              (c) => c.toolName === "send_email" && c.status === "pending",
             );
             if (c) {
               await resolveConfirmation(c.id, "confirm");
               console.log(`Confirmed: ${c.toolName}`);
             }
           } else {
-            console.log(
-              `Ignoring confirmation for: ${evt.data.toolName}`,
-            );
+            console.log(`Ignoring confirmation for: ${evt.data.toolName}`);
           }
         }
       },
     });
 
     try {
-      // Step 1: Ask for web search — confirmation will be prompted but ignored
+      // Step 1: Ask to send email — confirmation will be prompted but ignored
       await sendMessage(
         assigneeId,
-        "Search the web for today's weather in Hong Kong",
+        "Send an email to nonexistent@invalid-domain-that-does-not-exist.example.com with subject 'Weather Report' and body 'What is the weather today?'",
       );
       // Backend won't send "done" while waiting for confirmation — wait for the confirmation event instead
       await stream.waitForEvent("confirmation_required");
@@ -374,10 +353,7 @@ test.describe("Chat with tool calls", () => {
       expect(firstConfirmations.length).toBeGreaterThanOrEqual(1);
 
       // Step 2: Ignore the confirmation and just keep chatting
-      await sendMessage(
-        assigneeId,
-        "Never mind, just tell me a joke instead",
-      );
+      await sendMessage(assigneeId, "Never mind, just tell me a joke instead");
       await stream.waitForDone();
 
       // Verify agent responded with text (no errors)
@@ -386,19 +362,17 @@ test.describe("Chat with tool calls", () => {
       );
       expect(textDeltasAfterIgnore.length).toBeGreaterThan(0);
 
-      // Step 3: Ask for web search again, this time we will confirm
+      // Step 3: Ask to send email again, this time we will confirm
       shouldConfirm = true;
       await sendMessage(
         assigneeId,
-        "Actually, search the web for today's weather in Hong Kong",
+        "Actually, send an email to nonexistent@invalid-domain-that-does-not-exist.example.com with subject 'Weather Report' and body 'What is the weather today?'",
       );
       await stream.waitForDone();
 
       // Verify tool result appeared after confirmation
       const toolResults = stream.events.filter(
-        (e) =>
-          e.event === "tool-result" &&
-          (e.data.toolName as string).startsWith("firecrawl_"),
+        (e) => e.event === "tool-result" && e.data.toolName === "send_email",
       );
       expect(toolResults.length).toBeGreaterThanOrEqual(1);
 
@@ -414,90 +388,165 @@ test.describe("Chat with tool calls", () => {
       const { messages } = await getChatHistory(assigneeId);
       expect(messages.length).toBeGreaterThanOrEqual(6);
 
-      // Verify the confirmed firecrawl tool-call has tool-result
+      // Verify the confirmed send_email tool-call has tool-result
       const allCalls = findAllToolCallParts(messages);
       const allResults = findAllToolResultParts(messages);
-      const confirmedFirecrawlCalls = allCalls.filter((part) => {
-        if (!(part.toolName as string).startsWith("firecrawl_")) return false;
-        const conf = part.confirmation as
-          | { status: string }
-          | undefined;
+      const confirmedEmailCalls = allCalls.filter((part) => {
+        if (part.toolName !== "send_email") return false;
+        const conf = part.confirmation as { status: string } | undefined;
         return conf?.status === "confirmed";
       });
-      expect(confirmedFirecrawlCalls.length).toBeGreaterThanOrEqual(1);
+      expect(confirmedEmailCalls.length).toBeGreaterThanOrEqual(1);
 
+      // Verify all tool-calls have matching tool-results
       const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
-      for (const call of confirmedFirecrawlCalls) {
+      for (const call of allCalls) {
         expect(resultIds.has(call.toolCallId as string)).toBe(true);
       }
 
       console.log(
-        `Test 4 passed: ${messages.length} messages, ignored then confirmed web search`,
+        `Test 4 passed: ${messages.length} messages, ignored then confirmed send email`,
       );
     } finally {
       stream.cancel();
-      if (firecrawlTools.length > 0) {
-        await updateAssigneePermissions(assigneeId, originalPermissions);
-        console.log("Restored original tool permissions");
-      }
     }
   });
 
-  test("test 5: web search confirmation + delete messages + re-search and confirm", async () => {
+  test("test 5: multiple send_email — confirm second, first gets rejected, continue chat", async () => {
     await clearChatHistory(assigneeId);
 
-    // Set firecrawl tools to requires-confirmation
-    const assignee = await getAssignee(assigneeId);
-    const originalPermissions = [...assignee.toolPermissions];
-    const firecrawlTools = assignee.toolPermissions.filter((tp) =>
-      tp.toolName.startsWith("firecrawl_"),
-    );
-
-    if (firecrawlTools.length > 0) {
-      const updatedPermissions = assignee.toolPermissions.map((tp) => {
-        if (tp.toolName.startsWith("firecrawl_")) {
-          return { toolName: tp.toolName, permission: "manual-confirm" };
-        }
-        return tp;
-      });
-      await updateAssigneePermissions(assigneeId, updatedPermissions);
-      console.log(
-        `Set ${firecrawlTools.length} firecrawl tools to manual-confirm`,
-      );
-    }
-
-    // Track whether we should confirm or ignore confirmations
-    let shouldConfirm = false;
+    // We'll track confirmation IDs as they arrive and only confirm the second one
+    const confirmationIds: Array<{ id: string; toolName: string }> = [];
+    let confirmSecond = false;
 
     const stream = consumeStream(assigneeId, {
       timeout: 180_000,
       onMessage: async (evt) => {
         if (evt.event === "confirmation_required") {
-          if (shouldConfirm) {
-            const pending = await listConfirmations();
-            const c = pending.find(
-              (c) =>
-                c.toolName.startsWith("firecrawl_") &&
-                c.status === "pending",
-            );
-            if (c) {
-              await resolveConfirmation(c.id, "confirm");
-              console.log(`Confirmed: ${c.toolName}`);
+          const pending = await listConfirmations();
+          const pendingSendEmails = pending.filter(
+            (c) => c.toolName === "send_email" && c.status === "pending",
+          );
+
+          for (const c of pendingSendEmails) {
+            if (!confirmationIds.find((x) => x.id === c.id)) {
+              confirmationIds.push({ id: c.id, toolName: c.toolName });
+              console.log(
+                `Received confirmation #${confirmationIds.length}: ${c.id}`,
+              );
             }
-          } else {
-            console.log(
-              `Ignoring confirmation for: ${evt.data.toolName}`,
-            );
+          }
+
+          // Once we have 2 pending confirmations, confirm the second and reject the first
+          if (confirmationIds.length >= 2 && !confirmSecond) {
+            confirmSecond = true;
+            // Confirm the second confirmation
+            await resolveConfirmation(confirmationIds[1]!.id, "confirm");
+            console.log(`Confirmed second: ${confirmationIds[1]!.id}`);
+            // Reject the first confirmation
+            await resolveConfirmation(confirmationIds[0]!.id, "reject");
+            console.log(`Rejected first: ${confirmationIds[0]!.id}`);
           }
         }
       },
     });
 
     try {
-      // Step 1: Ask for web search — confirmation will be prompted but ignored
+      // Step 1: Ask agent to send two emails in one request
       await sendMessage(
         assigneeId,
-        "Search the web for today's weather in Hong Kong",
+        "Send two separate emails: First, send an email to alice@invalid-domain-that-does-not-exist.example.com with subject 'Email 1' and body 'First email'. Second, send an email to bob@invalid-domain-that-does-not-exist.example.com with subject 'Email 2' and body 'Second email'.",
+      );
+      await stream.waitForDone();
+
+      // Verify we got at least 2 confirmation events
+      const confirmationEvents = stream.events.filter(
+        (e) => e.event === "confirmation_required",
+      );
+      expect(confirmationEvents.length).toBeGreaterThanOrEqual(2);
+
+      // Verify send_email tool results exist
+      const emailResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "send_email",
+      );
+      expect(emailResults.length).toBeGreaterThanOrEqual(2);
+
+      // Step 2: Send follow-up message and verify agent responds without error
+      await sendMessage(assigneeId, "What happened with those emails?");
+      await stream.waitForDone();
+
+      const textDeltas = stream.events.filter((e) => e.event === "text-delta");
+      expect(textDeltas.length).toBeGreaterThan(0);
+
+      // Step 3: Validate chat history
+      const { messages } = await getChatHistory(assigneeId);
+      expect(messages.length).toBeGreaterThanOrEqual(4);
+
+      // Verify we have both confirmed and rejected send_email tool calls
+      const emailCallParts = findToolCallParts(messages, "send_email");
+      expect(emailCallParts.length).toBeGreaterThanOrEqual(2);
+
+      const confirmedCalls = emailCallParts.filter((part) => {
+        const conf = part.confirmation as { status: string } | undefined;
+        return conf?.status === "confirmed";
+      });
+      const rejectedCalls = emailCallParts.filter((part) => {
+        const conf = part.confirmation as { status: string } | undefined;
+        return conf?.status === "rejected";
+      });
+      expect(confirmedCalls.length).toBeGreaterThanOrEqual(1);
+      expect(rejectedCalls.length).toBeGreaterThanOrEqual(1);
+
+      // Verify rejected tool-result has isError
+      const allResults = findAllToolResultParts(messages);
+      const rejectedToolCallIds = new Set(
+        rejectedCalls.map((c) => c.toolCallId as string),
+      );
+      const rejectedResults = allResults.filter((r) =>
+        rejectedToolCallIds.has(r.toolCallId as string),
+      );
+      expect(rejectedResults.length).toBeGreaterThanOrEqual(1);
+      for (const r of rejectedResults) {
+        expect(r.isError).toBe(true);
+      }
+
+      // Verify all tool-calls have matching tool-results
+      const allCalls = findAllToolCallParts(messages);
+      const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
+      for (const call of allCalls) {
+        expect(resultIds.has(call.toolCallId as string)).toBe(true);
+      }
+
+      // Verify follow-up exchange exists
+      const lastTwo = messages.slice(-2);
+      expect(lastTwo[0]?.role).toBe("user");
+      expect(lastTwo[1]?.role).toBe("assistant");
+
+      console.log(
+        `Test 5 passed: ${messages.length} messages, ${confirmedCalls.length} confirmed, ${rejectedCalls.length} rejected`,
+      );
+    } finally {
+      stream.cancel();
+    }
+  });
+
+  test("test 6: send email confirmation + delete messages + re-send and confirm", async () => {
+    await clearChatHistory(assigneeId);
+
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      onMessage: async (evt) => {
+        if (evt.event === "confirmation_required") {
+          console.log(`Ignoring confirmation for: ${evt.data.toolName}`);
+        }
+      },
+    });
+
+    try {
+      // Step 1: Ask to send email — confirmation will be prompted but ignored
+      await sendMessage(
+        assigneeId,
+        "Send an email to nonexistent@invalid-domain-that-does-not-exist.example.com with subject 'Weather Report' and body 'What is the weather today?'",
       );
       // Backend won't send "done" while waiting for confirmation — wait for the confirmation event instead
       await stream.waitForEvent("confirmation_required");
@@ -516,16 +565,13 @@ test.describe("Chat with tool calls", () => {
       console.log("Deleted all messages");
 
       // Step 4: Create a new stream after clearing history
-      shouldConfirm = true;
       const stream2 = consumeStream(assigneeId, {
         timeout: 180_000,
         onMessage: async (evt) => {
           if (evt.event === "confirmation_required") {
             const pending = await listConfirmations();
             const c = pending.find(
-              (c) =>
-                c.toolName.startsWith("firecrawl_") &&
-                c.status === "pending",
+              (c) => c.toolName === "send_email" && c.status === "pending",
             );
             if (c) {
               await resolveConfirmation(c.id, "confirm");
@@ -536,18 +582,16 @@ test.describe("Chat with tool calls", () => {
       });
 
       try {
-        // Step 5: Ask for web search again — this time confirm
+        // Step 5: Ask to send email again — this time confirm
         await sendMessage(
           assigneeId,
-          "Search the web for today's weather in Hong Kong and tell me the result",
+          "Send an email to nonexistent@invalid-domain-that-does-not-exist.example.com with subject 'Weather Report' and body 'What is the weather today?'",
         );
         await stream2.waitForDone();
 
         // Verify tool result appeared after confirmation
         const toolResults = stream2.events.filter(
-          (e) =>
-            e.event === "tool-result" &&
-            (e.data.toolName as string).startsWith("firecrawl_"),
+          (e) => e.event === "tool-result" && e.data.toolName === "send_email",
         );
         expect(toolResults.length).toBeGreaterThanOrEqual(1);
 
@@ -562,32 +606,26 @@ test.describe("Chat with tool calls", () => {
         // Should have: user message + assistant with tool-call + tool-result + text
         expect(messages.length).toBeGreaterThanOrEqual(2);
 
-        // Verify firecrawl tool-call with confirmed status has matching tool-result
+        // Verify all tool-calls have matching tool-results
         const allCalls = findAllToolCallParts(messages);
         const allResults = findAllToolResultParts(messages);
-        const firecrawlCalls = allCalls.filter((part) =>
-          (part.toolName as string).startsWith("firecrawl_"),
-        );
-        expect(firecrawlCalls.length).toBeGreaterThanOrEqual(1);
+        expect(allCalls.length).toBeGreaterThanOrEqual(1);
 
         const resultIds = new Set(
           allResults.map((r) => r.toolCallId as string),
         );
-        for (const call of firecrawlCalls) {
+        for (const call of allCalls) {
           expect(resultIds.has(call.toolCallId as string)).toBe(true);
         }
 
         console.log(
-          `Test 5 passed: ${messages.length} messages after delete + re-search`,
+          `Test 6 passed: ${messages.length} messages after delete + re-send email`,
         );
       } finally {
         stream2.cancel();
       }
     } finally {
-      if (firecrawlTools.length > 0) {
-        await updateAssigneePermissions(assigneeId, originalPermissions);
-        console.log("Restored original tool permissions");
-      }
+      // No permission cleanup needed — send_email requires confirmation by default
     }
   });
 });
