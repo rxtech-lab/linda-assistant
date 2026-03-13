@@ -27,6 +27,7 @@ export async function ensureOnboarded(): Promise<void> {
   const headers = authHeaders(token);
 
   // Check onboard status
+  console.log(`Checking onboard status (${BASE_URL}/api/onboard)...`);
   const res = await fetch(`${BASE_URL}/api/onboard`, { headers });
   const body = (await res.json()) as OnboardStatus;
 
@@ -44,7 +45,7 @@ export async function ensureOnboarded(): Promise<void> {
       body: JSON.stringify({
         name: "Linda",
         email: "linda@rxlab.app",
-        model: "google/gemini-3.1-flash-lite-preview",
+        model: "openai/gpt-oss-120b",
       }),
     });
 

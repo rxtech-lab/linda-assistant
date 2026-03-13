@@ -72,9 +72,13 @@ extension DisplayMessage {
         // Build a cross-message lookup of toolCallId → result output
         // Tool results live in separate "tool" role messages from their tool calls
         var resultOutputs: [String: AnyCodable] = [:]
+        var toolCallIdsWithResults: Set<String> = []
         for msg in messages {
             for (callId, output) in msg.toolResultOutputs {
                 resultOutputs[callId] = output
+            }
+            for callId in msg.toolResultStatuses.keys {
+                toolCallIdsWithResults.insert(callId)
             }
         }
 
@@ -88,7 +92,9 @@ extension DisplayMessage {
                 let status: ToolCallStatus
                 let errorMsg: String?
                 if tc.confirmation != nil {
-                    status = ToolCallStatus.from(confirmation: tc.confirmation)
+                    let hasResult = toolCallIdsWithResults.contains(tc.toolCallId)
+                        || resultOutputs[tc.toolCallId] != nil
+                    status = ToolCallStatus.from(confirmation: tc.confirmation, hasResult: hasResult)
                     errorMsg = nil
                 } else if tc.error != nil {
                     status = .failed

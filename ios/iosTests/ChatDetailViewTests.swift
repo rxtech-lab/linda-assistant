@@ -207,7 +207,17 @@ final class ToolCallStatusMappingTests: XCTestCase {
         XCTAssertEqual(ToolCallStatus.from(confirmation: nil), .completed)
     }
 
-    func testConfirmedStatus_returnsCompleted() {
+    func testConfirmedStatus_withResult_returnsCompleted() {
+        let confirmation = ToolCallConfirmation(id: "c1", status: "confirmed")
+        XCTAssertEqual(ToolCallStatus.from(confirmation: confirmation, hasResult: true), .completed)
+    }
+
+    func testConfirmedStatus_withoutResult_returnsStoppedNoResult() {
+        let confirmation = ToolCallConfirmation(id: "c1", status: "confirmed")
+        XCTAssertEqual(ToolCallStatus.from(confirmation: confirmation, hasResult: false), .stoppedNoResult)
+    }
+
+    func testConfirmedStatus_defaultHasResult_returnsCompleted() {
         let confirmation = ToolCallConfirmation(id: "c1", status: "confirmed")
         XCTAssertEqual(ToolCallStatus.from(confirmation: confirmation), .completed)
     }
@@ -391,6 +401,306 @@ final class StreamingCallbackTests: XCTestCase {
         XCTAssertEqual(messages[0].toolCalls[0].status, .failed)
         XCTAssertEqual(messages[0].toolCalls[0].errorMessage, "Task not found")
         XCTAssertEqual(messages[0].textContent, "Sorry, that failed.")
+    }
+}
+
+// MARK: - Test Case 11: Confirmed tool call without tool-result shows Stopped
+
+final class ConfirmedWithoutResultTests: XCTestCase {
+    /// Helper: decode a ChatMessage array from JSON string.
+    private func decodeMessages(_ json: String) throws -> [ChatMessage] {
+        try JSONDecoder().decode([ChatMessage].self, from: json.data(using: .utf8)!)
+    }
+
+    func testConfirmedToolCall_withoutToolResult_showsStopped() throws {
+        // Matches the bug scenario: send_email has confirmation.confirmed but no tool-result message
+        let json = """
+        [
+            {
+                "id": "msg-user",
+                "role": "user",
+                "content": [{"type": "text", "text": "Send email"}]
+            },
+            {
+                "id": "msg-create-doc",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool-call",
+                        "toolCallId": "call_create_doc",
+                        "toolName": "create_document",
+                        "input": {"title": "Hello World", "format": "markdown", "content": "hello"}
+                    }
+                ]
+            },
+            {
+                "id": "msg-create-doc-result",
+                "role": "tool",
+                "content": [
+                    {
+                        "type": "tool-result",
+                        "toolCallId": "call_create_doc",
+                        "toolName": "create_document",
+                        "output": {"type": "json", "value": {"documentId": "doc-1"}},
+                        "approveStatus": "auto-approved"
+                    }
+                ]
+            },
+            {
+                "id": "msg-send-email",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool-call",
+                        "toolCallId": "call_send_email",
+                        "toolName": "send_email",
+                        "input": {"to": "test@example.com", "subject": "hello", "body": "<p>hello</p>"},
+                        "confirmation": {"id": "conf-1", "status": "confirmed"}
+                    }
+                ]
+            }
+        ]
+        """
+        let messages = try decodeMessages(json)
+        let displayMessages = DisplayMessage.convert(from: messages, assigneeName: "Linda")
+
+        // Find the send_email tool call
+        let sendEmailMsg = displayMessages.first { msg in
+            msg.toolCalls.contains { $0.toolName == "send_email" }
+        }
+        XCTAssertNotNil(sendEmailMsg, "Should have a message with send_email tool call")
+
+        let sendEmailToolCall = sendEmailMsg!.toolCalls.first { $0.toolName == "send_email" }!
+        XCTAssertEqual(sendEmailToolCall.status, .stoppedNoResult, "Confirmed tool call without result should be .stoppedNoResult, not .completed")
+
+        // Verify the badge renders "Stopped" not "Completed"
+        let badge = ToolCallBadge(toolCall: sendEmailToolCall)
+        let texts = try badge.inspect().findAll(ViewType.Text.self).compactMap { try? $0.string() }
+        XCTAssertTrue(texts.contains("Stopped"), "Badge should show 'Stopped' for confirmed-but-no-result tool call. Got: \(texts)")
+        XCTAssertFalse(texts.contains("Completed"), "Badge should NOT show 'Completed'")
+
+        // Verify icon is stop.circle.fill, not checkmark
+        let images = try badge.inspect().findAll(ViewType.Image.self)
+        let systemNames = images.compactMap { try? $0.actualImage().name() }
+        XCTAssertTrue(systemNames.contains("stop.circle.fill"), "Should show stop icon")
+        XCTAssertFalse(systemNames.contains("checkmark.circle.fill"), "Should NOT show checkmark icon")
+    }
+
+    func testConfirmedToolCall_withToolResult_showsCompleted() throws {
+        // Same scenario but with a tool-result for send_email — should show Completed
+        let json = """
+        [
+            {
+                "id": "msg-user",
+                "role": "user",
+                "content": [{"type": "text", "text": "Send email"}]
+            },
+            {
+                "id": "msg-send-email",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool-call",
+                        "toolCallId": "call_send_email",
+                        "toolName": "send_email",
+                        "input": {"to": "test@example.com", "subject": "hello", "body": "<p>hello</p>"},
+                        "confirmation": {"id": "conf-1", "status": "confirmed"}
+                    }
+                ]
+            },
+            {
+                "id": "msg-send-email-result",
+                "role": "tool",
+                "content": [
+                    {
+                        "type": "tool-result",
+                        "toolCallId": "call_send_email",
+                        "toolName": "send_email",
+                        "output": {"type": "json", "value": {"emailId": "email-1"}},
+                        "approveStatus": "confirmed"
+                    }
+                ]
+            }
+        ]
+        """
+        let messages = try decodeMessages(json)
+        let displayMessages = DisplayMessage.convert(from: messages, assigneeName: "Linda")
+
+        let sendEmailToolCall = displayMessages
+            .flatMap(\.toolCalls)
+            .first { $0.toolName == "send_email" }!
+        XCTAssertEqual(sendEmailToolCall.status, .completed, "Confirmed tool call WITH result should be .completed")
+
+        // Verify badge shows "Completed"
+        let badge = ToolCallBadge(toolCall: sendEmailToolCall)
+        let texts = try badge.inspect().findAll(ViewType.Text.self).compactMap { try? $0.string() }
+        XCTAssertTrue(texts.contains("Completed"), "Badge should show 'Completed' when tool-result exists")
+
+        let images = try badge.inspect().findAll(ViewType.Image.self)
+        let systemNames = images.compactMap { try? $0.actualImage().name() }
+        XCTAssertTrue(systemNames.contains("checkmark.circle.fill"), "Should show checkmark icon")
+    }
+
+    func testMessageList_confirmedWithoutResult_rendersStoppedBadge() throws {
+        // End-to-end: JSON → DisplayMessage → MessageList → ToolCallBadge shows "Stopped"
+        let json = """
+        [
+            {
+                "id": "msg-user",
+                "role": "user",
+                "content": [{"type": "text", "text": "Write a hello world doc and send to qiwei@rxlab.app"}]
+            },
+            {
+                "id": "msg-create-doc",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool-call",
+                        "toolCallId": "call_create_doc",
+                        "toolName": "create_document",
+                        "input": {"title": "Hello World", "format": "markdown", "content": "hello"}
+                    }
+                ]
+            },
+            {
+                "id": "msg-create-doc-result",
+                "role": "tool",
+                "content": [
+                    {
+                        "type": "tool-result",
+                        "toolCallId": "call_create_doc",
+                        "toolName": "create_document",
+                        "output": {"type": "json", "value": {"documentId": "doc-1"}},
+                        "approveStatus": "auto-approved"
+                    }
+                ]
+            },
+            {
+                "id": "msg-send-email",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool-call",
+                        "toolCallId": "call_send_email",
+                        "toolName": "send_email",
+                        "input": {"to": "qiwei@rxlab.app", "subject": "hello", "body": "<p>hello</p>"},
+                        "confirmation": {"id": "conf-1", "status": "confirmed"}
+                    }
+                ]
+            }
+        ]
+        """
+        let messages = try decodeMessages(json)
+        let displayMessages = DisplayMessage.convert(from: messages, assigneeName: "Linda")
+        let sut = MessageList(messages: displayMessages)
+
+        // Find the send_email badge via accessibility identifier
+        let sendEmailBadge = try sut.inspect().find(viewWithAccessibilityIdentifier: "toolCallBadge-call_send_email")
+        XCTAssertNotNil(sendEmailBadge, "Should find send_email tool call badge in MessageList")
+
+        // Verify "Stopped" text is rendered inside the badge
+        let badgeTexts = try sendEmailBadge.findAll(ViewType.Text.self).compactMap { try? $0.string() }
+        XCTAssertTrue(badgeTexts.contains("send_email"), "Badge should show tool name")
+        XCTAssertTrue(badgeTexts.contains("Stopped"), "Badge should show 'Stopped' status. Got: \(badgeTexts)")
+        XCTAssertFalse(badgeTexts.contains("Completed"), "Badge should NOT show 'Completed'")
+
+        // Verify stop icon
+        let badgeImages = try sendEmailBadge.findAll(ViewType.Image.self)
+        let iconNames = badgeImages.compactMap { try? $0.actualImage().name() }
+        XCTAssertTrue(iconNames.contains("stop.circle.fill"), "Should render stop.circle.fill icon. Got: \(iconNames)")
+
+        // Also verify create_document rendered as DocumentToolCard (not ToolCallBadge)
+        let docCard = try sut.inspect().find(viewWithAccessibilityIdentifier: "messageListItem-msg-create-doc-0")
+        XCTAssertNotNil(docCard, "Should find create_document card in MessageList")
+    }
+
+    func testMessageList_confirmedWithResult_rendersCompletedBadge() throws {
+        // End-to-end: confirmed tool call WITH result renders "Completed" in MessageList
+        let json = """
+        [
+            {
+                "id": "msg-user",
+                "role": "user",
+                "content": [{"type": "text", "text": "Send email"}]
+            },
+            {
+                "id": "msg-send-email",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool-call",
+                        "toolCallId": "call_send_email",
+                        "toolName": "send_email",
+                        "input": {"to": "test@example.com", "subject": "hi", "body": "<p>hi</p>"},
+                        "confirmation": {"id": "conf-1", "status": "confirmed"}
+                    }
+                ]
+            },
+            {
+                "id": "msg-send-email-result",
+                "role": "tool",
+                "content": [
+                    {
+                        "type": "tool-result",
+                        "toolCallId": "call_send_email",
+                        "toolName": "send_email",
+                        "output": {"type": "json", "value": {"emailId": "email-1"}},
+                        "approveStatus": "confirmed"
+                    }
+                ]
+            }
+        ]
+        """
+        let messages = try decodeMessages(json)
+        let displayMessages = DisplayMessage.convert(from: messages, assigneeName: "Linda")
+        let sut = MessageList(messages: displayMessages)
+
+        // Find the send_email badge
+        let sendEmailBadge = try sut.inspect().find(viewWithAccessibilityIdentifier: "toolCallBadge-call_send_email")
+        let badgeTexts = try sendEmailBadge.findAll(ViewType.Text.self).compactMap { try? $0.string() }
+        XCTAssertTrue(badgeTexts.contains("Completed"), "Badge should show 'Completed' when tool-result exists. Got: \(badgeTexts)")
+
+        let badgeImages = try sendEmailBadge.findAll(ViewType.Image.self)
+        let iconNames = badgeImages.compactMap { try? $0.actualImage().name() }
+        XCTAssertTrue(iconNames.contains("checkmark.circle.fill"), "Should render checkmark icon. Got: \(iconNames)")
+    }
+
+    func testCreateDocument_noConfirmation_withResult_showsCompleted() throws {
+        // create_document has no confirmation field and has a tool-result — should show Completed
+        let json = """
+        [
+            {
+                "id": "msg-create",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool-call",
+                        "toolCallId": "call_create",
+                        "toolName": "create_document",
+                        "input": {"title": "Hello", "format": "markdown", "content": "world"}
+                    }
+                ]
+            },
+            {
+                "id": "msg-create-result",
+                "role": "tool",
+                "content": [
+                    {
+                        "type": "tool-result",
+                        "toolCallId": "call_create",
+                        "toolName": "create_document",
+                        "output": {"type": "json", "value": {"documentId": "doc-1"}},
+                        "approveStatus": "auto-approved"
+                    }
+                ]
+            }
+        ]
+        """
+        let messages = try decodeMessages(json)
+        let displayMessages = DisplayMessage.convert(from: messages, assigneeName: "Linda")
+
+        let toolCall = displayMessages.flatMap(\.toolCalls).first { $0.toolName == "create_document" }!
+        XCTAssertEqual(toolCall.status, .completed, "Auto-approved tool call with result should be .completed")
     }
 }
 
@@ -815,5 +1125,115 @@ final class MessageListRenderingOrderTests: XCTestCase {
         XCTAssertEqual(items[1], "messageListItem-msg-2-0") // tool call
         XCTAssertEqual(items[2], "messageListItem-msg-2-1") // text
         XCTAssertEqual(items[3], "messageListItem-msg-3-0")
+    }
+}
+
+// MARK: - Test Case 18: Streaming tool call with pendingConfirmation renders in MessageList
+
+final class StreamingConfirmationRenderTests: XCTestCase {
+    /// When the stream is paused for confirmation, the streaming message should still
+    /// appear in the message list with a "Needs Confirmation" badge.
+    /// This covers the bug where allMessages dropped streaming parts when isStreaming=false.
+    func testStreamingToolCall_pendingConfirmation_rendersBadge() throws {
+        // Simulate what allMessages produces when stream pauses for confirmation:
+        // a "streaming" message with a tool call in pendingConfirmation status
+        let messages = [
+            DisplayMessage(id: "msg-user", role: .user, parts: [.text(.plain("Send an email"))]),
+            DisplayMessage(
+                id: "streaming",
+                role: .assistant,
+                parts: [
+                    .tool(ToolCallInfo(
+                        toolCallId: "tc-send",
+                        toolName: "send_email",
+                        input: ["to": .string("test@example.com")],
+                        status: .pendingConfirmation
+                    )),
+                ],
+                assigneeName: "Linda"
+            ),
+        ]
+
+        let sut = MessageList(messages: messages)
+
+        // The tool call badge should render with "Needs Confirmation"
+        let badge = try sut.inspect().find(viewWithAccessibilityIdentifier: "toolCallBadge-tc-send")
+        XCTAssertNotNil(badge, "Should find pendingConfirmation badge in streaming message")
+
+        let texts = try badge.findAll(ViewType.Text.self).compactMap { try? $0.string() }
+        XCTAssertTrue(texts.contains("send_email"), "Badge should show tool name")
+        XCTAssertTrue(texts.contains("Needs Confirmation"), "Badge should show 'Needs Confirmation'. Got: \(texts)")
+
+        let images = try badge.findAll(ViewType.Image.self)
+        let iconNames = images.compactMap { try? $0.actualImage().name() }
+        XCTAssertTrue(iconNames.contains("exclamationmark.shield.fill"), "Should show shield icon for pendingConfirmation")
+    }
+
+    func testStreamingToolCall_pendingConfirmation_withPriorToolCalls_rendersAll() throws {
+        // Agent ran a tool, then paused for confirmation on a second tool
+        let messages = [
+            DisplayMessage(id: "msg-user", role: .user, parts: [.text(.plain("Create doc and send email"))]),
+            DisplayMessage(
+                id: "streaming",
+                role: .assistant,
+                parts: [
+                    .tool(ToolCallInfo(
+                        toolCallId: "tc-doc",
+                        toolName: "create_document",
+                        input: nil,
+                        status: .completed
+                    )),
+                    .tool(ToolCallInfo(
+                        toolCallId: "tc-email",
+                        toolName: "send_email",
+                        input: nil,
+                        status: .pendingConfirmation
+                    )),
+                ],
+                assigneeName: "Linda"
+            ),
+        ]
+
+        let sut = MessageList(messages: messages)
+
+        // Both tool calls should render
+        let items = try sut.inspect().findAll { view in
+            guard let aid = try? view.accessibilityIdentifier() else { return false }
+            return aid.starts(with: "messageListItem-streaming-")
+        }
+        XCTAssertEqual(items.count, 2, "Should render both tool calls in streaming message")
+
+        // Verify the confirmation badge specifically
+        let emailBadge = try sut.inspect().find(viewWithAccessibilityIdentifier: "toolCallBadge-tc-email")
+        let emailTexts = try emailBadge.findAll(ViewType.Text.self).compactMap { try? $0.string() }
+        XCTAssertTrue(emailTexts.contains("Needs Confirmation"), "Email tool should show 'Needs Confirmation'. Got: \(emailTexts)")
+    }
+
+    func testStreamingMessage_pendingConfirmation_andText_rendersAll() throws {
+        // Agent produced text + tool call before pausing for confirmation
+        let messages = [
+            DisplayMessage(
+                id: "streaming",
+                role: .assistant,
+                parts: [
+                    .text(.plain("I'll send that email now.")),
+                    .tool(ToolCallInfo(
+                        toolCallId: "tc-email",
+                        toolName: "send_email",
+                        input: nil,
+                        status: .pendingConfirmation
+                    )),
+                ],
+                assigneeName: "Linda"
+            ),
+        ]
+
+        let sut = MessageList(messages: messages)
+
+        let items = try sut.inspect().findAll { view in
+            guard let aid = try? view.accessibilityIdentifier() else { return false }
+            return aid.starts(with: "messageListItem-streaming-")
+        }
+        XCTAssertEqual(items.count, 2, "Should render both text bubble and confirmation badge")
     }
 }

@@ -58,6 +58,43 @@ export async function updateMessageContent(messageId: string, content: unknown):
   await db.update(messages).set({ content }).where(eq(messages.id, messageId));
 }
 
+/**
+ * Insert a message right after a target message (by ID) in the seq ordering.
+ * Shifts all subsequent messages' seq up by 1 to make room.
+ */
+export async function insertMessageAfter(
+  chatSessionId: string,
+  afterMessageId: string,
+  newMessage: ModelMessage,
+): Promise<void> {
+  const [target] = await db
+    .select({ seq: messages.seq })
+    .from(messages)
+    .where(and(eq(messages.chatSessionId, chatSessionId), eq(messages.id, afterMessageId)));
+
+  if (!target) {
+    await insertMessages(chatSessionId, [newMessage]);
+    return;
+  }
+
+  const insertSeq = target.seq + 1;
+
+  // Shift all messages at or after insertSeq up by 1
+  await db
+    .update(messages)
+    .set({ seq: sql`${messages.seq} + 1` })
+    .where(and(eq(messages.chatSessionId, chatSessionId), gte(messages.seq, insertSeq)));
+
+  const record = newMessage as Record<string, unknown>;
+  await db.insert(messages).values({
+    id: (record.id as string) || undefined,
+    chatSessionId,
+    seq: insertSeq,
+    role: newMessage.role,
+    content: newMessage.content as unknown,
+  });
+}
+
 /** Cursor-based pagination: return `limit` messages before a given ID (or from the end) */
 export async function getPagedMessages(
   chatSessionId: string,

@@ -38,6 +38,7 @@ async function handleTask(task: AgentTask): Promise<void> {
     await runAgent({
       sessionId,
       userId,
+      taskType: task.type,
       signal: controller.signal,
       onEvent: async (event, data) => {
         // Stop emitting events immediately after abort
@@ -46,6 +47,11 @@ async function handleTask(task: AgentTask): Promise<void> {
         // Collect text for push notification
         if (event === "text-delta" && typeof (data as Record<string, unknown>)?.text === "string") {
           responseText += (data as { text: string }).text;
+        }
+
+        // Log non-text events for debugging SSE delivery
+        if (event !== "text-delta") {
+          console.log(`[Worker] SSE event: session=${sessionId} event=${event}`);
         }
 
         // Publish to RabbitMQ for live SSE subscribers

@@ -66,6 +66,19 @@ struct AssigneeDetailView: View {
         .task {
             await viewModel.loadAssignee(id: assigneeId, apiClient: apiClient)
         }
+        .task {
+            await viewModel.subscribeToEvents(eventManager: eventManager, apiClient: apiClient)
+        }
+        .overlay(alignment: .center) {
+            if viewModel.isRefreshing {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("Updating")
+                }
+                .padding()
+                .glassEffect(in: .rect(cornerRadius: 24))
+            }
+        }
     }
 }
 

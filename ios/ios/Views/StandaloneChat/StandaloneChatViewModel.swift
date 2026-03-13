@@ -130,7 +130,7 @@ final class ChatTabViewModel {
 
     // MARK: - Document Loading
 
-    private func loadDocuments(assigneeId: String, apiClient: APIClient) async {
+    func loadDocuments(assigneeId: String, apiClient: APIClient) async {
         do {
             let response = try await apiClient.listChatDocuments(assigneeId: assigneeId)
             documents = response.data

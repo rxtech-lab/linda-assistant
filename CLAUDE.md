@@ -5,7 +5,7 @@
 All commands should be run via the `scripts/` folder from the project root.
 
 - `./scripts/backend-build.sh` — build the backend (runs `bun run build` in `backend/`)
-- `./scripts/backend-e2e.sh` — run backend E2E tests (kills port 3001 first, then runs Playwright)
+- `./scripts/backend-e2e.sh` — run backend E2E tests (kills port 3001 first, then runs Playwright) Note this is not `backend-e2e`'s test. Tests in `backend-e2e` is for production environment and this script is for local e2e environment.
 - `./scripts/ios-build.sh` — build the iOS app via xcodebuild (auto-detects simulator)
 - `./scripts/ios-test-plan.sh` — run iOS test plan
 - `./scripts/ios-update-openapi.sh` — sync OpenAPI spec to iOS package

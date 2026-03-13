@@ -1,9 +1,9 @@
 import { type ModelMessage, streamText } from "ai";
 import crypto from "crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { refreshAccessToken } from "@/lib/auth/refresh";
 import { db } from "@/lib/db";
-import { getActiveSessionMessages, insertMessages } from "@/lib/db/messages";
+import { getActiveSessionMessages, insertMessageAfter, insertMessages, updateMessageContent } from "@/lib/db/messages";
 import { assignees, chatSessions, confirmations } from "@/lib/db/schema";
 import { createMem0Client } from "@/lib/mem0/client";
 import { setStreamActive } from "@/lib/streaming/manager";
@@ -150,7 +150,7 @@ function normalizeToolResultOutput(output: unknown, hasIsError: boolean): Record
  * - Normalizes tool-result output to match SDK `outputSchema`
  * - Removes `isError` field (not in SDK schema)
  */
-function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
+export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
   const result: ModelMessage[] = [];
   for (const msg of messages) {
     const record = msg as Record<string, unknown>;
@@ -198,7 +198,107 @@ function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
       content: cleanedParts,
     } as unknown as ModelMessage);
   }
-  return result;
+  // Safety net: The AI SDK requires every tool-call to have a matching tool-result
+  // immediately after the assistant message. Tool-results may exist elsewhere in the
+  // array (e.g., appended at the end) or may be missing entirely. This pass:
+  // 1. Collects all tool-result parts into a lookup (removing them from their current position)
+  // 2. Rebuilds the array, placing tool-results right after their assistant messages
+  // 3. Injects synthetic results for any tool-calls that still have no result
+
+  // Step 1: Extract all tool-result parts into a map, keyed by toolCallId
+  // Also preserve providerMetadata from tool messages (needed for Gemini thought signatures)
+  const toolResultByCallId = new Map<string, Record<string, unknown>>();
+  const toolMsgMetadataByCallId = new Map<string, Record<string, unknown>>();
+  const toolResultMsgIndices = new Set<number>();
+  for (let i = 0; i < result.length; i++) {
+    const msg = result[i];
+    if (msg.role !== "tool" || !Array.isArray(msg.content)) continue;
+    const msgRecord = msg as Record<string, unknown>;
+    const parts = msg.content as Record<string, unknown>[];
+    for (const part of parts) {
+      if (part.type === "tool-result" && typeof part.toolCallId === "string") {
+        toolResultByCallId.set(part.toolCallId, part);
+        toolResultMsgIndices.add(i);
+        // Capture providerMetadata from the original tool message
+        if (msgRecord.providerMetadata || msgRecord.providerOptions) {
+          toolMsgMetadataByCallId.set(part.toolCallId, {
+            ...(msgRecord.providerMetadata ? { providerMetadata: msgRecord.providerMetadata } : {}),
+            ...(msgRecord.providerOptions ? { providerOptions: msgRecord.providerOptions } : {}),
+          });
+        }
+      }
+    }
+  }
+
+  // Step 2: Rebuild, inserting tool-results right after their assistant messages
+  const placedCallIds = new Set<string>();
+  const finalResult: ModelMessage[] = [];
+  for (let i = 0; i < result.length; i++) {
+    // Skip tool-result messages — they'll be re-inserted after their assistant messages
+    if (toolResultMsgIndices.has(i)) continue;
+
+    finalResult.push(result[i]);
+
+    // After each assistant message, place matching tool-results
+    const msg = result[i];
+    if (msg.role !== "assistant" || !Array.isArray(msg.content)) continue;
+
+    const neededResults: Record<string, unknown>[] = [];
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (part.type !== "tool-call" || typeof part.toolCallId !== "string") continue;
+      const toolCallId = part.toolCallId;
+      const toolName = (part.toolName as string) ?? "unknown";
+
+      const existingResult = toolResultByCallId.get(toolCallId);
+      if (existingResult) {
+        neededResults.push(existingResult);
+      } else {
+        console.warn(`[cleanMessagesForModel] Injecting missing tool-result for toolCallId=${toolCallId} toolName=${toolName}`);
+        neededResults.push({
+          type: "tool-result",
+          toolCallId,
+          toolName,
+          output: { type: "error-text", value: "Tool execution was interrupted" },
+        });
+      }
+      placedCallIds.add(toolCallId);
+    }
+
+    if (neededResults.length > 0) {
+      // Collect providerMetadata from the original tool messages for these results
+      const metadata: Record<string, unknown> = {};
+      for (const part of neededResults) {
+        const callId = part.toolCallId as string;
+        const meta = toolMsgMetadataByCallId.get(callId);
+        if (meta) Object.assign(metadata, meta);
+      }
+      finalResult.push({
+        role: "tool",
+        content: neededResults,
+        ...metadata,
+      } as unknown as ModelMessage);
+    }
+  }
+
+  // Step 3: Append any remaining tool-results that didn't match an assistant message
+  for (const i of toolResultMsgIndices) {
+    const msg = result[i];
+    if (!Array.isArray(msg.content)) continue;
+    const parts = msg.content as Record<string, unknown>[];
+    const unplaced = parts.filter(
+      (p) => p.type === "tool-result" && typeof p.toolCallId === "string" && !placedCallIds.has(p.toolCallId as string),
+    );
+    if (unplaced.length > 0) {
+      // Preserve providerMetadata from the original tool message
+      const msgRecord = msg as Record<string, unknown>;
+      const metadata: Record<string, unknown> = {};
+      if (msgRecord.providerMetadata) metadata.providerMetadata = msgRecord.providerMetadata;
+      if (msgRecord.providerOptions) metadata.providerOptions = msgRecord.providerOptions;
+      finalResult.push({ role: "tool", content: unplaced, ...metadata } as unknown as ModelMessage);
+    }
+  }
+
+  return finalResult;
 }
 
 export function buildSystemPrompt(
@@ -231,6 +331,7 @@ async function resolvePendingToolCalls(
   messages: ModelMessage[],
   tools: Record<string, unknown>,
   onEvent?: (event: string, data: unknown) => void | Promise<void>,
+  taskType?: "message" | "confirmation_resolved",
 ): Promise<{ messages: ModelMessage[]; persistCount: number }> {
   // Collect all tool-call IDs and tool-result IDs
   const toolCallIds = new Set<string>();
@@ -255,6 +356,14 @@ async function resolvePendingToolCalls(
 
   // Find unresolved: tool-calls without matching tool-results
   const unresolved = [...toolCallIds].filter((id) => !toolResultIds.has(id));
+
+  console.log(
+    `[resolvePendingToolCalls] session=${sessionId} toolCalls=${toolCallIds.size} toolResults=${toolResultIds.size} unresolved=${unresolved.length}` +
+      (unresolved.length > 0
+        ? ` ids=${unresolved.map((id) => `${id}(${toolCallInfo.get(id)?.toolName ?? "?"})`).join(",")}`
+        : ""),
+  );
+
   if (unresolved.length === 0) {
     return { messages, persistCount: 0 };
   }
@@ -263,50 +372,52 @@ async function resolvePendingToolCalls(
 
   const newMessages: ModelMessage[] = [];
 
-  for (const toolCallId of unresolved) {
-    const info = toolCallInfo.get(toolCallId);
-    if (!info) continue;
+  // When the user sent a new message (taskType="message"), don't execute any tools —
+  // just mark all unresolved tool calls as "cancelled" so the model sees a result
+  // and the frontend renders them as stopped.
+  if (taskType === "message") {
+    for (const toolCallId of unresolved) {
+      const info = toolCallInfo.get(toolCallId);
+      if (!info) continue;
 
-    // Query confirmations table for this tool call
-    const [confirmation] = await db
-      .select()
-      .from(confirmations)
-      .where(eq(confirmations.toolCallId, toolCallId));
+      console.log(`[agent] Cancelling unresolved tool: ${info.toolName} (toolCallId=${toolCallId}) — user sent new message`);
 
-    let resultMessage: ModelMessage;
+      // Update confirmation status to "cancelled" in DB if one exists
+      await db
+        .update(confirmations)
+        .set({
+          status: "cancelled",
+          resolvedAt: sql`(datetime('now'))`,
+        })
+        .where(eq(confirmations.toolCallId, toolCallId));
 
-    if (confirmation?.status === "confirmed") {
-      // Signal tool is now running before execution
-      await onEvent?.("tool-call", {
-        toolCallId,
-        toolName: info.toolName,
-        input: info.input,
-      });
-
-      // Execute the tool
-      const toolDef = tools[info.toolName] as
-        | { execute?: (input: unknown) => Promise<unknown> }
-        | undefined;
-
-      let output: unknown;
-      let isError = false;
-      try {
-        if (toolDef?.execute) {
-          output = await toolDef.execute(
-            typeof info.input === "string" ? JSON.parse(info.input) : info.input,
-          );
-        } else {
-          output = { error: "Tool not found or has no execute function" };
-          isError = true;
+      // Update the tool-call annotation in messages so it persists as "cancelled".
+      // Preserve existing confirmation ID if the tool-call already has one.
+      let existingConfirmationId = "";
+      for (const msg of cleaned) {
+        if (!Array.isArray(msg.content)) continue;
+        for (const part of msg.content as Record<string, unknown>[]) {
+          if (part.type === "tool-call" && part.toolCallId === toolCallId) {
+            const conf = part.confirmation as { id?: string } | undefined;
+            if (conf?.id) existingConfirmationId = conf.id;
+          }
         }
-      } catch (err) {
-        output = {
-          error: err instanceof Error ? err.message : String(err),
-        };
-        isError = true;
+      }
+      annotateToolCallConfirmation(cleaned, toolCallId, existingConfirmationId, "cancelled");
+
+      // Persist the updated annotation to DB
+      for (const msg of cleaned) {
+        if (!Array.isArray(msg.content)) continue;
+        for (const part of msg.content as Record<string, unknown>[]) {
+          if (part.type === "tool-call" && part.toolCallId === toolCallId) {
+            const record = msg as Record<string, unknown>;
+            if (record.id) await updateMessageContent(record.id as string, msg.content);
+          }
+        }
       }
 
-      resultMessage = {
+      // Inject a tool-result so the model can continue
+      const resultMessage = {
         id: crypto.randomUUID(),
         role: "tool" as const,
         content: [
@@ -314,40 +425,7 @@ async function resolvePendingToolCalls(
             type: "tool-result" as const,
             toolCallId,
             toolName: info.toolName,
-            output,
-            ...(isError ? { isError: true } : {}),
-          },
-        ],
-      } as unknown as ModelMessage;
-
-      // Emit tool-result event
-      const eventData: Record<string, unknown> = {
-        toolCallId,
-        toolName: info.toolName,
-        output,
-      };
-      if (isError) {
-        eventData.isError = true;
-        eventData.error =
-          typeof output === "object" &&
-          output !== null &&
-          "error" in (output as Record<string, unknown>)
-            ? String((output as Record<string, unknown>).error)
-            : "Unknown error";
-      }
-      await onEvent?.("tool-result", eventData);
-    } else if (confirmation?.status === "rejected") {
-      // Safety: rejection should already have a tool-result from resolveConfirmation,
-      // but create one if somehow missing
-      resultMessage = {
-        id: crypto.randomUUID(),
-        role: "tool" as const,
-        content: [
-          {
-            type: "tool-result" as const,
-            toolCallId,
-            toolName: info.toolName,
-            output: { error: "User rejected this action" },
+            output: { error: "User stopped this action" },
             isError: true,
           },
         ],
@@ -356,42 +434,195 @@ async function resolvePendingToolCalls(
       await onEvent?.("tool-result", {
         toolCallId,
         toolName: info.toolName,
-        output: { error: "User rejected this action" },
+        output: { error: "User stopped this action" },
         isError: true,
-        error: "User rejected this action",
+        error: "User stopped this action",
       });
-    } else {
-      // No confirmation found (orphaned from multi-tool step) or still pending
-      resultMessage = {
-        id: crypto.randomUUID(),
-        role: "tool" as const,
-        content: [
-          {
-            type: "tool-result" as const,
-            toolCallId,
-            toolName: info.toolName,
-            output: { error: "Tool execution interrupted" },
-            isError: true,
-          },
-        ],
-      } as unknown as ModelMessage;
 
-      await onEvent?.("tool-result", {
-        toolCallId,
-        toolName: info.toolName,
-        output: { error: "Tool execution interrupted" },
-        isError: true,
-        error: "Tool execution interrupted",
-      });
+      newMessages.push(resultMessage);
     }
+  } else {
+    // confirmation_resolved: execute confirmed tools, handle rejected/orphaned
+    for (const toolCallId of unresolved) {
+      const info = toolCallInfo.get(toolCallId);
+      if (!info) continue;
 
-    newMessages.push(resultMessage);
+      // Query confirmations table for this tool call
+      const [confirmation] = await db
+        .select()
+        .from(confirmations)
+        .where(eq(confirmations.toolCallId, toolCallId));
+
+      let resultMessage: ModelMessage;
+
+      if (confirmation?.status === "confirmed") {
+        // Signal tool is now running before execution
+        await onEvent?.("tool-call", {
+          toolCallId,
+          toolName: info.toolName,
+          input: info.input,
+        });
+
+        // Execute the tool
+        const toolDef = tools[info.toolName] as
+          | { execute?: (input: unknown) => Promise<unknown> }
+          | undefined;
+
+        let output: unknown;
+        let isError = false;
+        console.log(`[agent] Executing confirmed tool: ${info.toolName} (toolCallId=${toolCallId})`);
+        try {
+          if (toolDef?.execute) {
+            output = await toolDef.execute(
+              typeof info.input === "string" ? JSON.parse(info.input) : info.input,
+            );
+            console.log(`[agent] Tool ${info.toolName} completed successfully`);
+          } else {
+            output = { error: "Tool not found or has no execute function" };
+            isError = true;
+            console.error(`[agent] Tool ${info.toolName} not found or has no execute function`);
+          }
+        } catch (err) {
+          output = {
+            error: err instanceof Error ? err.message : String(err),
+          };
+          isError = true;
+          console.error(`[agent] Tool ${info.toolName} execution failed:`, err instanceof Error ? err.stack : err);
+        }
+
+        resultMessage = {
+          id: crypto.randomUUID(),
+          role: "tool" as const,
+          content: [
+            {
+              type: "tool-result" as const,
+              toolCallId,
+              toolName: info.toolName,
+              output,
+              ...(isError ? { isError: true } : {}),
+            },
+          ],
+        } as unknown as ModelMessage;
+
+        // Emit tool-result event
+        const eventData: Record<string, unknown> = {
+          toolCallId,
+          toolName: info.toolName,
+          output,
+        };
+        if (isError) {
+          eventData.isError = true;
+          eventData.error =
+            typeof output === "object" &&
+            output !== null &&
+            "error" in (output as Record<string, unknown>)
+              ? String((output as Record<string, unknown>).error)
+              : "Unknown error";
+        }
+        await onEvent?.("tool-result", eventData);
+      } else if (confirmation?.status === "rejected") {
+        // Safety: rejection should already have a tool-result from resolveConfirmation,
+        // but create one if somehow missing
+        resultMessage = {
+          id: crypto.randomUUID(),
+          role: "tool" as const,
+          content: [
+            {
+              type: "tool-result" as const,
+              toolCallId,
+              toolName: info.toolName,
+              output: { error: "User rejected this action" },
+              isError: true,
+            },
+          ],
+        } as unknown as ModelMessage;
+
+        await onEvent?.("tool-result", {
+          toolCallId,
+          toolName: info.toolName,
+          output: { error: "User rejected this action" },
+          isError: true,
+          error: "User rejected this action",
+        });
+      } else {
+        // No confirmation found (orphaned from multi-tool step) or still pending
+        resultMessage = {
+          id: crypto.randomUUID(),
+          role: "tool" as const,
+          content: [
+            {
+              type: "tool-result" as const,
+              toolCallId,
+              toolName: info.toolName,
+              output: { error: "Tool execution interrupted" },
+              isError: true,
+            },
+          ],
+        } as unknown as ModelMessage;
+
+        await onEvent?.("tool-result", {
+          toolCallId,
+          toolName: info.toolName,
+          output: { error: "Tool execution interrupted" },
+          isError: true,
+          error: "Tool execution interrupted",
+        });
+      }
+
+      newMessages.push(resultMessage);
+    }
   }
 
-  // Persist new tool-result messages and append to message array
+  // Insert each tool-result right after the assistant message containing its tool-call
+  // in BOTH the in-memory array and the database. The AI SDK requires tool-result messages
+  // immediately after the assistant message; appending at the end would break on next DB
+  // load when a user message sits between the assistant tool-call and the tool-result.
   if (newMessages.length > 0) {
-    await insertMessages(sessionId, newMessages);
-    cleaned = [...cleaned, ...newMessages];
+    // Build a map from toolCallId → tool-result message
+    const resultByToolCallId = new Map<string, ModelMessage>();
+    for (const msg of newMessages) {
+      if (!Array.isArray(msg.content)) continue;
+      for (const part of msg.content as Record<string, unknown>[]) {
+        if (part.type === "tool-result" && typeof part.toolCallId === "string") {
+          resultByToolCallId.set(part.toolCallId, msg);
+        }
+      }
+    }
+
+    // Insert tool-result messages right after their assistant messages (in-memory + DB)
+    const reordered: ModelMessage[] = [];
+    const inserted = new Set<string>();
+    for (const msg of cleaned) {
+      reordered.push(msg);
+      if (msg.role !== "assistant" || !Array.isArray(msg.content)) continue;
+      const msgId = (msg as Record<string, unknown>).id as string | undefined;
+      for (const part of msg.content as Record<string, unknown>[]) {
+        if (part.type === "tool-call" && typeof part.toolCallId === "string") {
+          const resultMsg = resultByToolCallId.get(part.toolCallId);
+          if (resultMsg && !inserted.has(part.toolCallId)) {
+            reordered.push(resultMsg);
+            inserted.add(part.toolCallId);
+            // Persist to DB right after the assistant message
+            if (msgId) {
+              await insertMessageAfter(sessionId, msgId, resultMsg);
+            } else {
+              await insertMessages(sessionId, [resultMsg]);
+            }
+          }
+        }
+      }
+    }
+    // Append any tool-results that didn't match an assistant message (shouldn't happen)
+    for (const msg of newMessages) {
+      if (!Array.isArray(msg.content)) continue;
+      for (const part of msg.content as Record<string, unknown>[]) {
+        if (part.type === "tool-result" && typeof part.toolCallId === "string" && !inserted.has(part.toolCallId)) {
+          reordered.push(msg);
+          await insertMessages(sessionId, [msg]);
+        }
+      }
+    }
+    cleaned = reordered;
   }
 
   return { messages: cleaned, persistCount: newMessages.length };
@@ -400,13 +631,14 @@ async function resolvePendingToolCalls(
 interface AgentRunOptions {
   sessionId: string;
   userId: string;
+  taskType?: "message" | "confirmation_resolved";
   onTextChunk?: (text: string) => void;
   onEvent?: (event: string, data: unknown) => void | Promise<void>;
   signal?: AbortSignal;
 }
 
 export async function runAgent(options: AgentRunOptions) {
-  const { sessionId, userId, onTextChunk, onEvent, signal } = options;
+  const { sessionId, userId, taskType, onTextChunk, onEvent, signal } = options;
 
   // Load session with messages
   const [session] = await db.select().from(chatSessions).where(eq(chatSessions.id, sessionId));
@@ -481,6 +713,35 @@ export async function runAgent(options: AgentRunOptions) {
     }
   }
 
+  console.log(`[agent] Starting agent run for session=${sessionId} model=${modelId} tools=${Object.keys(tools).join(",")}`);
+
+  // Cancel any stale pending confirmations from previous runs so they don't
+  // block the pendingCount check when new confirmations are created this run.
+  const staleConfirmations = await db
+    .select({ id: confirmations.id })
+    .from(confirmations)
+    .where(
+      and(
+        eq(confirmations.chatSessionId, sessionId),
+        eq(confirmations.status, "pending"),
+      ),
+    );
+  if (staleConfirmations.length > 0) {
+    await db
+      .update(confirmations)
+      .set({
+        status: "rejected",
+        resolvedAt: sql`(datetime('now'))`,
+      })
+      .where(
+        and(
+          eq(confirmations.chatSessionId, sessionId),
+          eq(confirmations.status, "pending"),
+        ),
+      );
+    console.log(`[agent] Cancelled ${staleConfirmations.length} stale pending confirmation(s) for session=${sessionId}: ${staleConfirmations.map((c) => c.id).join(", ")}`);
+  }
+
   await setStreamActive(sessionId, true);
 
   // Update session status
@@ -492,7 +753,7 @@ export async function runAgent(options: AgentRunOptions) {
   await onEvent?.("status", { status: "in_progress" });
 
   // Resolve any pending tool-calls from a previous confirmation pause
-  const preprocessed = await resolvePendingToolCalls(sessionId, messages, tools, onEvent);
+  const preprocessed = await resolvePendingToolCalls(sessionId, messages, tools, onEvent, taskType);
 
   let stepCount = 0;
   let currentMessages: ModelMessage[] = [...preprocessed.messages];
@@ -503,6 +764,7 @@ export async function runAgent(options: AgentRunOptions) {
       if (signal?.aborted) break;
 
       stepCount++;
+      console.log(`[agent] Step ${stepCount}/${MAX_STEPS} for session=${sessionId}`);
 
       // Compact history if approaching context limits (prepareStep equivalent)
       const compactionResult = await prepareMessages({
@@ -550,6 +812,7 @@ export async function runAgent(options: AgentRunOptions) {
             break;
           }
           case "tool-call": {
+            console.log(`[agent] Tool call: ${part.toolName} (toolCallId=${part.toolCallId})`, JSON.stringify("input" in part ? part.input : {}).slice(0, 500));
             await onEvent?.("tool-call", {
               id,
               toolCallId: part.toolCallId,
@@ -572,6 +835,9 @@ export async function runAgent(options: AgentRunOptions) {
             if (hasError) {
               eventData.isError = true;
               eventData.error = extractToolResultError(partRecord);
+              console.error(`[agent] Tool ${part.toolName} returned error (toolCallId=${part.toolCallId}):`, eventData.error);
+            } else {
+              console.log(`[agent] Tool ${part.toolName} completed (toolCallId=${part.toolCallId})`);
             }
             await onEvent?.("tool-result", eventData);
             if (signal?.aborted) break streamLoop;
@@ -600,6 +866,7 @@ export async function runAgent(options: AgentRunOptions) {
             };
             const errorStr =
               errorPart.error instanceof Error ? errorPart.error.message : String(errorPart.error);
+            console.error(`[agent] Tool error: ${errorPart.toolName} (toolCallId=${errorPart.toolCallId}):`, errorPart.error instanceof Error ? errorPart.error.stack : errorStr);
             await onEvent?.("tool-result", {
               id,
               toolCallId: errorPart.toolCallId,
@@ -612,6 +879,7 @@ export async function runAgent(options: AgentRunOptions) {
             break;
           }
           case "error": {
+            console.error(`[agent] Stream error:`, part.error);
             await onEvent?.("error", { id, error: String(part.error) });
             break;
           }
@@ -626,6 +894,8 @@ export async function runAgent(options: AgentRunOptions) {
         ...currentMessages,
         ...sanitizeMessages(responseMessages as ModelMessage[], id),
       ];
+
+      console.log(`[agent] Step ${stepCount} finished: reason=${finishReason} responseMessages=${responseMessages.length}`);
 
       if (finishReason === "tool-calls" && pendingApprovals.length > 0) {
         // SDK detected tools needing approval — create confirmations for ALL and pause
@@ -665,6 +935,9 @@ export async function runAgent(options: AgentRunOptions) {
 
         // Send a single grouped push notification for all confirmations
         await sendConfirmationGroupNotification(userId, sessionId, createdConfirmations);
+
+        // Emit status event so SSE clients know the agent is paused for confirmation
+        await onEvent?.("status", { status: "waiting_confirmation" });
 
         // Persist new messages and update session status
         await insertMessages(sessionId, currentMessages.slice(persistedCount));
@@ -740,6 +1013,7 @@ export async function runAgent(options: AgentRunOptions) {
 
     return { paused: false, reason: "completed" };
   } catch (error) {
+    console.error(`[agent] Agent run failed for session=${sessionId}:`, error instanceof Error ? error.stack : error);
     // Persist whatever we have and mark as stopped
     await insertMessages(sessionId, currentMessages.slice(persistedCount));
     persistedCount = currentMessages.length;
@@ -752,6 +1026,34 @@ export async function runAgent(options: AgentRunOptions) {
       .where(eq(chatSessions.id, sessionId));
 
     await setStreamActive(sessionId, false);
+
+    // Emit tool-result error events for any in-flight tool calls so the iOS app
+    // can transition from "Running..." to an error state
+    for (const msg of currentMessages) {
+      if (!Array.isArray(msg.content)) continue;
+      for (const part of msg.content as Record<string, unknown>[]) {
+        if (part.type === "tool-call" && typeof part.toolCallId === "string") {
+          // Check if this tool-call has a matching tool-result
+          const hasResult = currentMessages.some(
+            (m) =>
+              Array.isArray(m.content) &&
+              (m.content as Record<string, unknown>[]).some(
+                (p) => p.type === "tool-result" && p.toolCallId === part.toolCallId,
+              ),
+          );
+          if (!hasResult) {
+            await onEvent?.("tool-result", {
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              output: { error: "Agent encountered an error" },
+              isError: true,
+              error: "Agent encountered an error",
+            });
+          }
+        }
+      }
+    }
+
     await onEvent?.("error", { error: String(error) });
     throw error;
   }

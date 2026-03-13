@@ -237,7 +237,6 @@ jobs:
 
   e2e-k8s:
     name: E2E Tests (Kubernetes)
-    needs: build-images
     runs-on: blacksmith-4vcpu-ubuntu-2404
     if: github.event_name == 'pull_request'
     timeout-minutes: 30
