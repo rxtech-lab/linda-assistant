@@ -45,7 +45,7 @@ export async function ensureOnboarded(): Promise<void> {
       body: JSON.stringify({
         name: "Linda",
         email: "linda@rxlab.app",
-        model: "google/gemini-3.1-flash-lite-preview",
+        model: "openai/gpt-oss-120b",
       }),
     });
 

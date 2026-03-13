@@ -7,6 +7,7 @@ export const AVAILABLE_MODEL_IDS = [
   "google/gemini-3.1-pro-preview",
   "anthropic/claude-sonnet-4.6",
   "anthropic/claude-haiku-4.5",
+  "openai/gpt-oss-120b",
 ] as const;
 
 export const availableModelSchema = z.enum(AVAILABLE_MODEL_IDS);

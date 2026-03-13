@@ -206,6 +206,12 @@ export function consumeStream(
               const evt: StreamEvent = { event: currentEvent, data };
               events.push(evt);
 
+              if (currentEvent === "error") {
+                const errMsg = typeof data.message === "string" ? data.message : JSON.stringify(data);
+                rejectAll(new Error(`SSE error: ${errMsg}`));
+                return;
+              }
+
               if (currentEvent === "done") {
                 notifyDone();
               }

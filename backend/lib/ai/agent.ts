@@ -206,16 +206,26 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
   // 3. Injects synthetic results for any tool-calls that still have no result
 
   // Step 1: Extract all tool-result parts into a map, keyed by toolCallId
+  // Also preserve providerMetadata from tool messages (needed for Gemini thought signatures)
   const toolResultByCallId = new Map<string, Record<string, unknown>>();
+  const toolMsgMetadataByCallId = new Map<string, Record<string, unknown>>();
   const toolResultMsgIndices = new Set<number>();
   for (let i = 0; i < result.length; i++) {
     const msg = result[i];
     if (msg.role !== "tool" || !Array.isArray(msg.content)) continue;
+    const msgRecord = msg as Record<string, unknown>;
     const parts = msg.content as Record<string, unknown>[];
     for (const part of parts) {
       if (part.type === "tool-result" && typeof part.toolCallId === "string") {
         toolResultByCallId.set(part.toolCallId, part);
         toolResultMsgIndices.add(i);
+        // Capture providerMetadata from the original tool message
+        if (msgRecord.providerMetadata || msgRecord.providerOptions) {
+          toolMsgMetadataByCallId.set(part.toolCallId, {
+            ...(msgRecord.providerMetadata ? { providerMetadata: msgRecord.providerMetadata } : {}),
+            ...(msgRecord.providerOptions ? { providerOptions: msgRecord.providerOptions } : {}),
+          });
+        }
       }
     }
   }
@@ -255,9 +265,17 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
     }
 
     if (neededResults.length > 0) {
+      // Collect providerMetadata from the original tool messages for these results
+      const metadata: Record<string, unknown> = {};
+      for (const part of neededResults) {
+        const callId = part.toolCallId as string;
+        const meta = toolMsgMetadataByCallId.get(callId);
+        if (meta) Object.assign(metadata, meta);
+      }
       finalResult.push({
         role: "tool",
         content: neededResults,
+        ...metadata,
       } as unknown as ModelMessage);
     }
   }
@@ -271,7 +289,12 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
       (p) => p.type === "tool-result" && typeof p.toolCallId === "string" && !placedCallIds.has(p.toolCallId as string),
     );
     if (unplaced.length > 0) {
-      finalResult.push({ role: "tool", content: unplaced } as unknown as ModelMessage);
+      // Preserve providerMetadata from the original tool message
+      const msgRecord = msg as Record<string, unknown>;
+      const metadata: Record<string, unknown> = {};
+      if (msgRecord.providerMetadata) metadata.providerMetadata = msgRecord.providerMetadata;
+      if (msgRecord.providerOptions) metadata.providerOptions = msgRecord.providerOptions;
+      finalResult.push({ role: "tool", content: unplaced, ...metadata } as unknown as ModelMessage);
     }
   }
 
