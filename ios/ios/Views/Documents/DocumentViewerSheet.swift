@@ -54,6 +54,7 @@ struct DocumentViewerSheet: View {
                                     .frame(minHeight: 400)
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .overlay {
                         if isDownloading {
