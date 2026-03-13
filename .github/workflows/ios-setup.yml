@@ -46,6 +46,11 @@ on:
         required: false
         type: boolean
         default: false
+      start-backend:
+        description: 'Whether to start the backend and worker servers'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   run:
@@ -100,7 +105,15 @@ jobs:
           key: xcode-${{ runner.os }}-${{ hashFiles('ios/packages/AssistantCore/Package.swift') }}
           restore-keys: xcode-${{ runner.os }}-
 
+      - name: Install backend dependencies
+        run: bun install
+        working-directory: backend
+
+      - name: Generate openapi documentation
+        run: ./scripts/ios-update-openapi.sh
+
       - name: Start RabbitMQ
+        if: inputs.start-backend
         run: |
           brew install rabbitmq
           brew services start rabbitmq
@@ -116,14 +129,17 @@ jobs:
           rabbitmqctl set_permissions -p / linda ".*" ".*" ".*"
 
       - name: Start Backend Server
-        run: bun install && bun dev:e2e > ../backend.log 2>&1 &
+        if: inputs.start-backend
+        run: bun dev:e2e > ../backend.log 2>&1 &
         working-directory: backend
 
       - name: Start Worker Server
+        if: inputs.start-backend
         run: bun worker:e2e > ../worker.log 2>&1 &
         working-directory: backend
 
       - name: Wait for Backend Server
+        if: inputs.start-backend
         run: |
           echo "Waiting for backend server to start..."
           for i in {1..30}; do
@@ -137,6 +153,7 @@ jobs:
           exit 1
 
       - name: Wait for Worker Server
+        if: inputs.start-backend
         run: |
           echo "Waiting for worker server to start..."
           for i in {1..30}; do
@@ -148,9 +165,6 @@ jobs:
           done
           echo "Worker server did not start in time."
           exit 1
-
-      - name: Generate openapi documentation
-        run: ./scripts/ios-update-openapi.sh
 
       - name: Close interfering apps
         if: inputs.sdk == 'macosx'

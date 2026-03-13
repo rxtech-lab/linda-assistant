@@ -49,6 +49,7 @@ jobs:
       artifact-name: test-logs
       artifact-path: test.log
       upload-test-results: true
+      start-backend: true
     secrets: inherit
 
   test-macos:
@@ -65,4 +66,5 @@ jobs:
       artifact-name: macos-test-logs
       artifact-path: test.log
       upload-test-results: true
+      start-backend: true
     secrets: inherit

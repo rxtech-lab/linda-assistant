@@ -7,7 +7,7 @@ metadata:
 
 resources:
   - namespace.yaml
-  - secrets.yaml
+  # Do not include secrets.yaml in the kustomization to avoid accidentally applying it. Apply it manually with `kubectl apply -f k8s/secrets.yaml` after reviewing the contents.
   - configmap.yaml
   - frontend-deployment.yaml
   - frontend-service.yaml
