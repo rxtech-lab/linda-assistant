@@ -1,33 +1,31 @@
 #!/bin/bash
 # Update OpenAPI spec for AssistantCore iOS package
-# Default: http://localhost:3000/api/openapi
-# Override: Set OPENAPI_DOCUMENTATION_ENDPOINT environment variable
-# Example: OPENAPI_DOCUMENTATION_ENDPOINT=https://linda.rxlab.app/api/openapi ./scripts/ios-update-openapi.sh
+# Generates the OpenAPI spec from backend Zod schemas and copies it to the iOS package.
 
 set -e
 
-cd "$(dirname "$0")/.."
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-cd ./backend
-bun run openapi:generate
+BACKEND_DIR="$REPO_ROOT/backend"
+SOURCE_FILE="$BACKEND_DIR/public/openapi.json"
+TARGET_FILE="$REPO_ROOT/ios/packages/AssistantCore/Sources/AssistantCore/openapi.json"
 
-cd ..
+echo "Generating OpenAPI spec..."
+(cd "$BACKEND_DIR" && bun run openapi:generate)
 
-TARGET_FILE="./ios/packages/AssistantCore/Sources/AssistantCore/openapi.json"
+if [[ ! -f "$SOURCE_FILE" ]]; then
+    echo "Error: Generated OpenAPI spec not found at $SOURCE_FILE"
+    exit 1
+fi
 
 mkdir -p "$(dirname "$TARGET_FILE")"
+cp "$SOURCE_FILE" "$TARGET_FILE"
 
-ENDPOINT="${OPENAPI_DOCUMENTATION_ENDPOINT:-http://localhost:3000/openapi.json}"
-
-echo "Downloading OpenAPI spec from: $ENDPOINT"
-curl -sS -o "$TARGET_FILE" "$ENDPOINT"
-
-# Validate that the downloaded file is valid JSON
+# Validate that the file is valid JSON
 echo "Validating JSON..."
 if ! python3 -m json.tool "$TARGET_FILE" > /dev/null 2>&1; then
-    echo "Error: Downloaded file is not valid JSON"
-    echo "Contents of $TARGET_FILE:"
-    head -20 "$TARGET_FILE"
+    echo "Error: Generated file is not valid JSON"
     exit 1
 fi
 

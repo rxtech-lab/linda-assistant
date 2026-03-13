@@ -297,7 +297,7 @@ jobs:
             "ghcr.io/rxtech-lab/linda-celery=linda-celery:${IMAGE_TAG}"
 
       - name: Deploy to minikube cluster
-        run: kubectl apply -k k8s/
+        run: kubectl apply -k k8s/ && kubectl apply -f k8s/secrets.yaml
 
       - name: Wait for rollouts
         run: |

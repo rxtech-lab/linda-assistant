@@ -4,7 +4,7 @@
 # - Stamps app version from git tag (CI_TAG -> MARKETING_VERSION)
 # - Sets build number from CI_BUILD_NUMBER
 # - Decodes CI secrets into local config files (optional)
-# - Starts backend + regenerates OpenAPI client for iOS builds/tests
+# - Generates OpenAPI client for iOS builds/tests (no backend startup needed)
 
 set -euo pipefail
 
@@ -56,34 +56,8 @@ if ! command -v bun >/dev/null 2>&1; then
 fi
 
 if [[ -d "$REPO_ROOT/backend" ]]; then
-  echo "Starting backend in background for OpenAPI generation..."
-  (
-    cd "$REPO_ROOT/backend"
-    bun install
-    bun dev > "$REPO_ROOT/backend-xcode-cloud.log" 2>&1
-  ) &
-  BACKEND_PID=$!
-
-  cleanup() {
-    if [[ -n "${BACKEND_PID:-}" ]] && kill -0 "$BACKEND_PID" 2>/dev/null; then
-      kill "$BACKEND_PID" 2>/dev/null || true
-    fi
-  }
-  trap cleanup EXIT
-
-  echo "Waiting for backend (http://localhost:3000)..."
-  for _ in {1..60}; do
-    if curl -fsS http://localhost:3000 >/dev/null 2>&1; then
-      echo "Backend is ready"
-      break
-    fi
-    sleep 1
-  done
-
-  if ! curl -fsS http://localhost:3000 >/dev/null 2>&1; then
-    echo "Backend did not become ready in time"
-    exit 1
-  fi
+  echo "Installing backend dependencies..."
+  (cd "$REPO_ROOT/backend" && bun install)
 fi
 
 echo "Generating iOS OpenAPI client assets..."
