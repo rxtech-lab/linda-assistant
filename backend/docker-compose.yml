@@ -45,6 +45,10 @@ services:
     depends_on:
       - rabbitmq
       - redis
+  headless-chrome:
+    image: ghcr.io/rxtech-lab/headless-chrome-cjk:1.12.0
+    ports:
+      - "9222:9222"
   mem0:
     build:
       context: ../mem0
