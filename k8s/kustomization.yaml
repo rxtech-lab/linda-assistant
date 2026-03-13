@@ -28,3 +28,5 @@ images:
     newTag: latest
   - name: ghcr.io/rxtech-lab/linda-celery
     newTag: latest
+  - name: ghcr.io/rxtech-lab/headless-chrome-cjk
+    newTag: latest

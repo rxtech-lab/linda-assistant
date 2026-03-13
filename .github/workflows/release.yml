@@ -70,6 +70,35 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
+      - name: Start headless Chrome for PDF test
+        if: github.event_name != 'release' && matrix.image == 'linda-frontend'
+        run: |
+          docker run -d --name pdf-chrome \
+            -p 9222:9222 \
+            ghcr.io/rxtech-lab/headless-chrome-cjk:latest
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:9222/json/version > /dev/null 2>&1; then
+              echo "Chrome is ready"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Chrome failed to start"
+              docker logs pdf-chrome
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: PDF generation test (frontend)
+        if: github.event_name != 'release' && matrix.image == 'linda-frontend'
+        run: |
+          docker run --rm --network host \
+            -e CHROME_URL="ws://localhost:9222" \
+            --entrypoint bun \
+            ${{ matrix.image }}:test \
+            run scripts/test-pdf-generate.ts
+          docker rm -f pdf-chrome
+
       - name: Health check (mem0)
         if: github.event_name != 'release' && matrix.image == 'linda-mem0'
         run: |
