@@ -27,6 +27,7 @@ export async function ensureOnboarded(): Promise<void> {
   const headers = authHeaders(token);
 
   // Check onboard status
+  console.log(`Checking onboard status (${BASE_URL}/api/onboard)...`);
   const res = await fetch(`${BASE_URL}/api/onboard`, { headers });
   const body = (await res.json()) as OnboardStatus;
 

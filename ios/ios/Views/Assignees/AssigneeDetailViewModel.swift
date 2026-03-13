@@ -5,6 +5,7 @@ import SwiftUI
 final class AssigneeDetailViewModel {
     var assignee: Assignee?
     var isLoading = true
+    var isRefreshing = false
     var error: String?
 
     func loadAssignee(id: String, apiClient: APIClient) async {
@@ -25,6 +26,23 @@ final class AssigneeDetailViewModel {
             eventManager.emit(.assigneeDeleted(assignee.id))
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    func subscribeToEvents(eventManager: EventManager, apiClient: APIClient) async {
+        for await event in eventManager.stream {
+            switch event {
+                case let .assigneeUpdated(updated) where updated.id == assignee?.id:
+                    isRefreshing = true
+                    do {
+                        assignee = try await apiClient.getAssignee(id: updated.id)
+                    } catch {
+                        self.error = error.localizedDescription
+                    }
+                    isRefreshing = false
+                default:
+                    break
+            }
         }
     }
 

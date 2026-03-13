@@ -355,6 +355,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                     isStreaming = true
                 } else if payload.status == "stopped" {
                     finalizeResponse()
+                } else if payload.status == "waiting_confirmation" {
+                    // Agent paused for confirmation — stop streaming indicator
+                    // but keep streamingParts and pendingConfirmations visible
+                    isStreaming = false
                 }
 
             case let .unknown(data):

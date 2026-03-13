@@ -48,6 +48,11 @@ async function handleTask(task: AgentTask): Promise<void> {
           responseText += (data as { text: string }).text;
         }
 
+        // Log non-text events for debugging SSE delivery
+        if (event !== "text-delta") {
+          console.log(`[Worker] SSE event: session=${sessionId} event=${event}`);
+        }
+
         // Publish to RabbitMQ for live SSE subscribers
         await publishEvent({
           sessionId,

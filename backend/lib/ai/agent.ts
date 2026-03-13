@@ -198,6 +198,37 @@ function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
       content: cleanedParts,
     } as unknown as ModelMessage);
   }
+  // Safety net: ensure every tool-call has a matching tool-result after cleaning.
+  // This prevents AI_MissingToolResultsError when messages have orphaned tool-calls
+  // (e.g., from a previous crash mid-confirmation flow).
+  const allToolCallIds = new Set<string>();
+  const allToolResultIds = new Set<string>();
+  for (const msg of result) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (part.type === "tool-call" && typeof part.toolCallId === "string")
+        allToolCallIds.add(part.toolCallId);
+      if (part.type === "tool-result" && typeof part.toolCallId === "string")
+        allToolResultIds.add(part.toolCallId);
+    }
+  }
+  for (const id of allToolCallIds) {
+    if (!allToolResultIds.has(id)) {
+      console.warn(`[cleanMessagesForModel] Injecting missing tool-result for toolCallId=${id}`);
+      result.push({
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: id,
+            toolName: "unknown",
+            output: { type: "error-text", value: "Tool execution was interrupted" },
+          },
+        ],
+      } as unknown as ModelMessage);
+    }
+  }
+
   return result;
 }
 
@@ -255,6 +286,14 @@ async function resolvePendingToolCalls(
 
   // Find unresolved: tool-calls without matching tool-results
   const unresolved = [...toolCallIds].filter((id) => !toolResultIds.has(id));
+
+  console.log(
+    `[resolvePendingToolCalls] session=${sessionId} toolCalls=${toolCallIds.size} toolResults=${toolResultIds.size} unresolved=${unresolved.length}` +
+      (unresolved.length > 0
+        ? ` ids=${unresolved.map((id) => `${id}(${toolCallInfo.get(id)?.toolName ?? "?"})`).join(",")}`
+        : ""),
+  );
+
   if (unresolved.length === 0) {
     return { messages, persistCount: 0 };
   }
@@ -290,20 +329,24 @@ async function resolvePendingToolCalls(
 
       let output: unknown;
       let isError = false;
+      console.log(`[agent] Executing confirmed tool: ${info.toolName} (toolCallId=${toolCallId})`);
       try {
         if (toolDef?.execute) {
           output = await toolDef.execute(
             typeof info.input === "string" ? JSON.parse(info.input) : info.input,
           );
+          console.log(`[agent] Tool ${info.toolName} completed successfully`);
         } else {
           output = { error: "Tool not found or has no execute function" };
           isError = true;
+          console.error(`[agent] Tool ${info.toolName} not found or has no execute function`);
         }
       } catch (err) {
         output = {
           error: err instanceof Error ? err.message : String(err),
         };
         isError = true;
+        console.error(`[agent] Tool ${info.toolName} execution failed:`, err instanceof Error ? err.stack : err);
       }
 
       resultMessage = {
@@ -481,6 +524,8 @@ export async function runAgent(options: AgentRunOptions) {
     }
   }
 
+  console.log(`[agent] Starting agent run for session=${sessionId} model=${modelId} tools=${Object.keys(tools).join(",")}`);
+
   await setStreamActive(sessionId, true);
 
   // Update session status
@@ -503,6 +548,7 @@ export async function runAgent(options: AgentRunOptions) {
       if (signal?.aborted) break;
 
       stepCount++;
+      console.log(`[agent] Step ${stepCount}/${MAX_STEPS} for session=${sessionId}`);
 
       // Compact history if approaching context limits (prepareStep equivalent)
       const compactionResult = await prepareMessages({
@@ -550,6 +596,7 @@ export async function runAgent(options: AgentRunOptions) {
             break;
           }
           case "tool-call": {
+            console.log(`[agent] Tool call: ${part.toolName} (toolCallId=${part.toolCallId})`, JSON.stringify("input" in part ? part.input : {}).slice(0, 500));
             await onEvent?.("tool-call", {
               id,
               toolCallId: part.toolCallId,
@@ -572,6 +619,9 @@ export async function runAgent(options: AgentRunOptions) {
             if (hasError) {
               eventData.isError = true;
               eventData.error = extractToolResultError(partRecord);
+              console.error(`[agent] Tool ${part.toolName} returned error (toolCallId=${part.toolCallId}):`, eventData.error);
+            } else {
+              console.log(`[agent] Tool ${part.toolName} completed (toolCallId=${part.toolCallId})`);
             }
             await onEvent?.("tool-result", eventData);
             if (signal?.aborted) break streamLoop;
@@ -600,6 +650,7 @@ export async function runAgent(options: AgentRunOptions) {
             };
             const errorStr =
               errorPart.error instanceof Error ? errorPart.error.message : String(errorPart.error);
+            console.error(`[agent] Tool error: ${errorPart.toolName} (toolCallId=${errorPart.toolCallId}):`, errorPart.error instanceof Error ? errorPart.error.stack : errorStr);
             await onEvent?.("tool-result", {
               id,
               toolCallId: errorPart.toolCallId,
@@ -612,6 +663,7 @@ export async function runAgent(options: AgentRunOptions) {
             break;
           }
           case "error": {
+            console.error(`[agent] Stream error:`, part.error);
             await onEvent?.("error", { id, error: String(part.error) });
             break;
           }
@@ -626,6 +678,8 @@ export async function runAgent(options: AgentRunOptions) {
         ...currentMessages,
         ...sanitizeMessages(responseMessages as ModelMessage[], id),
       ];
+
+      console.log(`[agent] Step ${stepCount} finished: reason=${finishReason} responseMessages=${responseMessages.length}`);
 
       if (finishReason === "tool-calls" && pendingApprovals.length > 0) {
         // SDK detected tools needing approval — create confirmations for ALL and pause
@@ -665,6 +719,9 @@ export async function runAgent(options: AgentRunOptions) {
 
         // Send a single grouped push notification for all confirmations
         await sendConfirmationGroupNotification(userId, sessionId, createdConfirmations);
+
+        // Emit status event so SSE clients know the agent is paused for confirmation
+        await onEvent?.("status", { status: "waiting_confirmation" });
 
         // Persist new messages and update session status
         await insertMessages(sessionId, currentMessages.slice(persistedCount));
@@ -740,6 +797,7 @@ export async function runAgent(options: AgentRunOptions) {
 
     return { paused: false, reason: "completed" };
   } catch (error) {
+    console.error(`[agent] Agent run failed for session=${sessionId}:`, error instanceof Error ? error.stack : error);
     // Persist whatever we have and mark as stopped
     await insertMessages(sessionId, currentMessages.slice(persistedCount));
     persistedCount = currentMessages.length;
@@ -752,6 +810,34 @@ export async function runAgent(options: AgentRunOptions) {
       .where(eq(chatSessions.id, sessionId));
 
     await setStreamActive(sessionId, false);
+
+    // Emit tool-result error events for any in-flight tool calls so the iOS app
+    // can transition from "Running..." to an error state
+    for (const msg of currentMessages) {
+      if (!Array.isArray(msg.content)) continue;
+      for (const part of msg.content as Record<string, unknown>[]) {
+        if (part.type === "tool-call" && typeof part.toolCallId === "string") {
+          // Check if this tool-call has a matching tool-result
+          const hasResult = currentMessages.some(
+            (m) =>
+              Array.isArray(m.content) &&
+              (m.content as Record<string, unknown>[]).some(
+                (p) => p.type === "tool-result" && p.toolCallId === part.toolCallId,
+              ),
+          );
+          if (!hasResult) {
+            await onEvent?.("tool-result", {
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              output: { error: "Agent encountered an error" },
+              isError: true,
+              error: "Agent encountered an error",
+            });
+          }
+        }
+      }
+    }
+
     await onEvent?.("error", { error: String(error) });
     throw error;
   }

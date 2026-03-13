@@ -215,9 +215,12 @@ export async function buildToolSet(
       ),
     );
 
-    for (const result of mcpResults) {
+    for (let i = 0; i < mcpResults.length; i++) {
+      const result = mcpResults[i];
       if (result.status === "fulfilled") {
         Object.assign(filtered, result.value);
+      } else {
+        console.error(`[buildToolSet] MCP ${mcpConfigs[i].prefix} failed to load:`, result.reason);
       }
     }
   }

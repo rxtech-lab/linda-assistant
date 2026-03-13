@@ -131,6 +131,10 @@ export async function sendPushNotification(
         log(`device=${device.id} status=${response.status} ✓`);
       } else {
         console.error(`[push] device=${device.id} status=${response.status} error: ${response.body}`);
+        if (response.status === 410 || (response.status === 400 && response.body.includes("BadDeviceToken"))) {
+          await db.delete(devices).where(eq(devices.id, device.id));
+          log(`device=${device.id} token=${device.deviceToken.slice(0, 8)}... removed (${response.status === 410 ? "unregistered" : "bad token"})`);
+        }
       }
     }),
   );
