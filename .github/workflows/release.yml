@@ -18,6 +18,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      IMAGE_TAG: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || format('sha-{0}', github.sha) }}
     strategy:
       matrix:
         include:
@@ -65,7 +67,7 @@ jobs:
           target: ${{ matrix.target || '' }}
           push: false
           load: true
-          tags: ${{ matrix.image }}:test
+          tags: ${{ matrix.image }}:${{ env.IMAGE_TAG }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
@@ -95,7 +97,7 @@ jobs:
           docker run --rm --network host \
             -e CHROME_URL="ws://localhost:9222" \
             --entrypoint bun \
-            ${{ matrix.image }}:test \
+            ${{ matrix.image }}:${{ env.IMAGE_TAG }} \
             run scripts/test-pdf-generate.ts
           docker rm -f pdf-chrome
 
@@ -107,7 +109,7 @@ jobs:
           docker run -d --name mem0-test --network mem0-net -p 8000:8000 \
             -e OPENAI_API_KEY=sk-dummy \
             -e QDRANT_HOST=qdrant \
-            ${{ matrix.image }}:test
+            ${{ matrix.image }}:${{ env.IMAGE_TAG }}
           for i in $(seq 1 30); do
             if curl -sf http://localhost:8000/ > /dev/null 2>&1; then
               echo "Health check passed"
@@ -132,7 +134,7 @@ jobs:
             -e CELERY_REDIS_URL=redis://localhost:6379 \
             -e BACKEND_INTERNAL_URL=http://localhost:3000 \
             -e CELERY_ADMIN_KEY=test-key \
-            ${{ matrix.image }}:test
+            ${{ matrix.image }}:${{ env.IMAGE_TAG }}
           for i in $(seq 1 30); do
             if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
               echo "Health check passed"
@@ -232,3 +234,145 @@ jobs:
           kubectl get services -n linda
           echo "=== Ingress ==="
           kubectl get ingress -n linda
+
+  e2e-k8s:
+    name: E2E Tests (Kubernetes)
+    needs: build-images
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 30
+    env:
+      IMAGE_TAG: pr-${{ github.event.number }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker images (cache hit from build-images)
+        run: |
+          declare -A TARGETS=(
+            ["linda-frontend"]="runner"
+            ["linda-worker"]="worker"
+          )
+          declare -A CONTEXTS=(
+            ["linda-frontend"]="backend"
+            ["linda-worker"]="backend"
+            ["linda-mem0"]="mem0"
+            ["linda-celery"]="celery"
+          )
+          for IMAGE in linda-frontend linda-worker linda-mem0 linda-celery; do
+            TARGET_ARG=""
+            if [[ -n "${TARGETS[$IMAGE]:-}" ]]; then
+              TARGET_ARG="--target ${TARGETS[$IMAGE]}"
+            fi
+            docker buildx build \
+              ${TARGET_ARG} \
+              --load \
+              --tag "${IMAGE}:${IMAGE_TAG}" \
+              --cache-from type=gha,scope=${IMAGE} \
+              "${CONTEXTS[$IMAGE]}"
+          done
+
+      - name: Start minikube
+        uses: medyagh/setup-minikube@latest
+        with:
+          driver: docker
+
+      - name: Load images into minikube
+        run: |
+          minikube image load "linda-frontend:${IMAGE_TAG}"
+          minikube image load "linda-worker:${IMAGE_TAG}"
+          minikube image load "linda-mem0:${IMAGE_TAG}"
+          minikube image load "linda-celery:${IMAGE_TAG}"
+
+      - name: Decode secrets and configure kustomize
+        run: |
+          echo "${{ secrets.K8S_SECRETS_YAML_B64 }}" | base64 -d > k8s/secrets.yaml
+          cd k8s
+          kustomize edit set image \
+            "ghcr.io/rxtech-lab/linda-frontend=linda-frontend:${IMAGE_TAG}" \
+            "ghcr.io/rxtech-lab/linda-worker=linda-worker:${IMAGE_TAG}" \
+            "ghcr.io/rxtech-lab/linda-mem0=linda-mem0:${IMAGE_TAG}" \
+            "ghcr.io/rxtech-lab/linda-celery=linda-celery:${IMAGE_TAG}"
+
+      - name: Deploy to minikube cluster
+        run: kubectl apply -k k8s/
+
+      - name: Wait for rollouts
+        run: |
+          kubectl rollout status deployment/rabbitmq -n linda --timeout=300s
+          kubectl rollout status deployment/linda-frontend -n linda --timeout=300s
+          kubectl rollout status deployment/linda-worker -n linda --timeout=300s
+          kubectl rollout status deployment/mem0 -n linda --timeout=300s
+          kubectl rollout status deployment/linda-celery -n linda --timeout=300s
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Run database migrations
+        working-directory: backend
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.E2E_TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.E2E_TURSO_AUTH_TOKEN }}
+        run: |
+          bun install --frozen-lockfile
+          bun drizzle-kit push
+
+      - name: Port-forward frontend service
+        run: |
+          kubectl port-forward -n linda svc/linda-frontend-service 3000:3000 &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/api/health > /dev/null 2>&1; then
+              echo "Frontend is ready"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Frontend failed to respond"
+              kubectl logs -n linda -l app=linda-frontend --tail=50
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Decode E2E environment
+        run: echo "${{ secrets.E2E_ENV_B64 }}" | base64 -d > backend-e2e/.env
+
+      - name: Install E2E dependencies
+        working-directory: backend-e2e
+        run: bun install
+
+      - name: Install Playwright browsers
+        working-directory: backend-e2e
+        run: bunx playwright install chromium --with-deps
+
+      - name: Run E2E tests
+        working-directory: backend-e2e
+        run: bunx playwright test
+
+      - name: Debug on failure
+        if: failure()
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -n linda
+          echo "=== Pod Logs (frontend) ==="
+          kubectl logs -n linda -l app=linda-frontend --tail=100
+          echo "=== Pod Logs (worker) ==="
+          kubectl logs -n linda -l app=linda-worker --tail=50
+          echo "=== Pod Logs (mem0) ==="
+          kubectl logs -n linda -l app=mem0 --tail=50
+          echo "=== Pod Logs (celery) ==="
+          kubectl logs -n linda -l app=linda-celery --tail=50
+          echo "=== Pod Logs (rabbitmq) ==="
+          kubectl logs -n linda -l app=rabbitmq --tail=50
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report-k8s
+          path: backend-e2e/playwright-report/
+          retention-days: 7

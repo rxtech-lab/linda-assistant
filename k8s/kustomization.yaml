@@ -7,6 +7,7 @@ metadata:
 
 resources:
   - namespace.yaml
+  - secrets.yaml
   - configmap.yaml
   - frontend-deployment.yaml
   - frontend-service.yaml
@@ -27,6 +28,8 @@ images:
   - name: ghcr.io/rxtech-lab/linda-worker
     newTag: latest
   - name: ghcr.io/rxtech-lab/linda-celery
+    newTag: latest
+  - name: ghcr.io/rxtech-lab/linda-mem0
     newTag: latest
   - name: ghcr.io/rxtech-lab/headless-chrome-cjk
     newTag: latest

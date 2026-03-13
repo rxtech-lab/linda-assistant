@@ -22,3 +22,4 @@ backend/package-lock.json
 *.pid
 output/
 backend-e2e/auth-token.json
+backend-e2e/test-results/
