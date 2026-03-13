@@ -23,20 +23,31 @@ export async function streamWithReplay(
   let highestSeq = 0;
   const liveBuffer: AgentEvent[] = [];
 
+  console.log(`[Replay] session=${sessionId} status=${sessionStatus} starting`);
+
   // 1. Subscribe to RabbitMQ FIRST (buffer while replaying)
   const subscription = await subscribeToEvents(sessionId, (agentEvent) => {
     if (signal.aborted) return;
 
     if (replaying) {
+      console.log(
+        `[Replay] session=${sessionId} buffering live event=${agentEvent.event} seq=${agentEvent.seq}`,
+      );
       liveBuffer.push(agentEvent);
       return;
     }
 
     // Live mode: skip events already seen via cache replay
     if (typeof agentEvent.seq === "number" && agentEvent.seq <= highestSeq) {
+      console.log(
+        `[Replay] session=${sessionId} dedup seq=${agentEvent.seq} <= highestSeq=${highestSeq}`,
+      );
       return;
     }
 
+    console.log(
+      `[Replay] session=${sessionId} live event=${agentEvent.event} seq=${agentEvent.seq}`,
+    );
     send(agentEvent.event, agentEvent.data);
   });
 
@@ -47,11 +58,18 @@ export async function streamWithReplay(
   const chunks = await getStreamChunks(sessionId);
   let hasTerminal = false;
 
+  console.log(
+    `[Replay] session=${sessionId} chunks=${chunks.length} firstType=${chunks.length > 0 ? typeof chunks[0] : "n/a"}`,
+  );
+
   for (const raw of chunks) {
     if (signal.aborted) break;
 
     try {
-      const event: AgentEvent = JSON.parse(raw);
+      // @upstash/redis auto-deserializes JSON values, so lrange may return
+      // already-parsed objects instead of strings.
+      const event: AgentEvent =
+        typeof raw === "string" ? JSON.parse(raw) : (raw as AgentEvent);
       if (typeof event.seq === "number" && event.seq > highestSeq) {
         highestSeq = event.seq;
       }
@@ -60,13 +78,22 @@ export async function streamWithReplay(
       if (event.event === "done" || event.event === "error") {
         hasTerminal = true;
       }
-    } catch {
-      // Skip unparseable chunks
+    } catch (err) {
+      console.warn(
+        `[Replay] session=${sessionId} skipped chunk: typeof=${typeof raw} error=${err}`,
+      );
     }
   }
 
+  console.log(
+    `[Replay] session=${sessionId} replayed=${chunks.length} hasTerminal=${hasTerminal} highestSeq=${highestSeq}`,
+  );
+
   // 4. If agent already finished, close after replay
   if (hasTerminal) {
+    console.log(
+      `[Replay] session=${sessionId} terminal event found, closing after replay`,
+    );
     replaying = false;
     cleanup();
     return subscription;
@@ -74,6 +101,9 @@ export async function streamWithReplay(
 
   // 5. Flush buffered live events and switch to live mode
   replaying = false;
+  console.log(
+    `[Replay] session=${sessionId} switching to live mode, buffered=${liveBuffer.length}`,
+  );
 
   for (const agentEvent of liveBuffer) {
     if (signal.aborted) break;

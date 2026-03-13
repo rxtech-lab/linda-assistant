@@ -30,3 +30,7 @@ Existing event types: `assigneeCreated/Updated/Deleted`, `taskCreated/Updated/De
 # iOS SwiftUI Test with viewinspector
 
 Always use view inspector to inspect view and interact with view when user wants to write unit test on views. Do not create a new view for the test or just do some basic expect text tests. Need to use sut for real test and always use original view to test! Do not verify the state directly, use UI to verify! Use UI to verify! Just like a regular user who cannot see the states directly!
+
+# Backend e2e tests
+
+Backend-e2e folder not using IS_E2E env and using the production env to do the pre-production environment testing. All tests are running in the real environment. No mocking, all real!
