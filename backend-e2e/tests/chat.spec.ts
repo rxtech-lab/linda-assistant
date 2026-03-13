@@ -581,8 +581,13 @@ test.describe("Chat with tool calls", () => {
         (e) => e.event === "text-delta",
       );
       expect(replayTextDeltas.length).toBeGreaterThan(0);
+
+      // Build the full text from reconnected stream's text-delta events
+      const reconnectStreamText = replayTextDeltas
+        .map((e) => String(e.data.text ?? ""))
+        .join("");
       console.log(
-        `Reconnection received ${replayTextDeltas.length} text-delta events`,
+        `Reconnection received ${replayTextDeltas.length} text-delta events (${reconnectStreamText.length} chars)`,
       );
 
       // Step 5: Verify full chat history has the complete response
@@ -614,6 +619,9 @@ test.describe("Chat with tool calls", () => {
       const wordCount = fullText.trim().split(/\s+/).length;
       console.log(`Word count: ${wordCount}`);
       expect(wordCount).toBeGreaterThan(100);
+
+      // Verify reconnected stream content matches the final chat history content
+      expect(reconnectStreamText).toBe(fullText);
 
       // Step 6: Reconnect again after generation is fully done — should get replay but no NEW content
       stream2.cancel();
