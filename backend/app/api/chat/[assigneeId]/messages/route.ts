@@ -2,6 +2,7 @@ import { authenticate } from "@/lib/auth/middleware";
 import { db } from "@/lib/db";
 import { deleteSessionMessages, getPagedMessages } from "@/lib/db/messages";
 import { assignees, chatSessions, confirmations } from "@/lib/db/schema";
+import { clearStreamChunks, setStreamActive } from "@/lib/streaming/manager";
 import { errorJson, successJson } from "@/lib/utils/response";
 import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
@@ -119,5 +120,7 @@ export async function DELETE(
   await db
     .delete(confirmations)
     .where(eq(confirmations.chatSessionId, session.id));
+  await clearStreamChunks(session.id);
+  await setStreamActive(session.id, false);
   return successJson({ deleted: true });
 }

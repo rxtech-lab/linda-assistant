@@ -14,6 +14,7 @@ import {
   findToolResultParts,
   findAllToolCallParts,
   findAllToolResultParts,
+  type StreamEvent,
 } from "./chat.utils";
 
 let assigneeId: string;
@@ -521,6 +522,138 @@ test.describe("Chat with tool calls", () => {
       );
     } finally {
       stream.cancel();
+    }
+  });
+
+  test("test 7: stream recovery — disconnect after first chunk, reconnect and receive the rest", async () => {
+    await clearChatHistory(assigneeId);
+
+    // Step 1: Send message asking for ~200 words of plain text (no tool calls)
+    await sendMessage(
+      assigneeId,
+      "Write exactly 200 words about the history of the internet. Do not use any tools. Just write plain text.",
+    );
+
+    // Step 2: Connect to stream, wait for the first text-delta, then disconnect immediately
+    const firstChunkEvents: StreamEvent[] = [];
+    const stream1 = consumeStream(assigneeId, {
+      timeout: 60_000,
+      onMessage: async (evt) => {
+        if (evt.event === "text-delta") {
+          // Got the first text chunk — cancel immediately
+          firstChunkEvents.push(evt);
+          stream1.cancel();
+        }
+      },
+    });
+
+    // Wait for the first chunk to arrive and the stream to be cancelled
+    await new Promise<void>((resolve) => {
+      const check = setInterval(() => {
+        if (firstChunkEvents.length > 0) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 100);
+      setTimeout(() => {
+        clearInterval(check);
+        resolve();
+      }, 30_000);
+    });
+
+    expect(firstChunkEvents.length).toBeGreaterThan(0);
+    const firstChunkText = String(firstChunkEvents[0]!.data.text ?? "");
+    console.log(
+      `Received first chunk (${firstChunkText.length} chars), disconnecting...`,
+    );
+
+    // Step 3: Wait for more chunks to be cached in Redis while we're disconnected
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+
+    // Step 4: Reconnect — should replay cached events and continue with live events
+    const stream2 = consumeStream(assigneeId, { timeout: 120_000 });
+
+    try {
+      await stream2.waitForDone();
+
+      // Should have received text-delta events from the replay + live continuation
+      const replayTextDeltas = stream2.events.filter(
+        (e) => e.event === "text-delta",
+      );
+      expect(replayTextDeltas.length).toBeGreaterThan(0);
+      console.log(
+        `Reconnection received ${replayTextDeltas.length} text-delta events`,
+      );
+
+      // Step 5: Verify full chat history has the complete response
+      const { messages } = await getChatHistory(assigneeId);
+      expect(messages.length).toBeGreaterThanOrEqual(2);
+
+      const userMsg = messages.find((m) => m.role === "user");
+      expect(userMsg).toBeTruthy();
+
+      const assistantMsg = messages.find((m) => m.role === "assistant");
+      expect(assistantMsg).toBeTruthy();
+
+      // Extract full assistant text
+      let fullText = "";
+      if (typeof assistantMsg!.content === "string") {
+        fullText = assistantMsg!.content;
+      } else if (Array.isArray(assistantMsg!.content)) {
+        for (const part of assistantMsg!.content) {
+          if (part.type === "text" && typeof part.text === "string") {
+            fullText += part.text;
+          }
+        }
+      }
+
+      // The response should be substantial (200 words ~ 1000+ chars)
+      console.log(`Full assistant response: ${fullText.length} chars`);
+      expect(fullText.length).toBeGreaterThan(500);
+
+      const wordCount = fullText.trim().split(/\s+/).length;
+      console.log(`Word count: ${wordCount}`);
+      expect(wordCount).toBeGreaterThan(100);
+
+      // Step 6: Reconnect again after generation is fully done — should get replay but no NEW content
+      stream2.cancel();
+
+      const stream3 = consumeStream(assigneeId, { timeout: 30_000 });
+      try {
+        await stream3.waitForDone();
+
+        // Should receive replayed events (status + cached chunks + done) but no live text generation
+        const stream3DoneEvents = stream3.events.filter(
+          (e) => e.event === "done",
+        );
+        expect(stream3DoneEvents.length).toBe(1);
+
+        // Verify history hasn't changed — still the same complete response
+        const { messages: messagesAfterReconnect } =
+          await getChatHistory(assigneeId);
+        let reconnectText = "";
+        const reconnectAssistant = messagesAfterReconnect.find(
+          (m) => m.role === "assistant",
+        );
+        if (Array.isArray(reconnectAssistant?.content)) {
+          for (const part of reconnectAssistant!.content) {
+            if (part.type === "text" && typeof part.text === "string") {
+              reconnectText += part.text;
+            }
+          }
+        } else if (typeof reconnectAssistant?.content === "string") {
+          reconnectText = reconnectAssistant.content;
+        }
+        expect(reconnectText).toBe(fullText);
+
+        console.log(
+          `Test 7 passed: disconnected after first chunk, reconnected and got full response (${wordCount} words), post-done reconnect verified`,
+        );
+      } finally {
+        stream3.cancel();
+      }
+    } finally {
+      stream2.cancel();
     }
   });
 
