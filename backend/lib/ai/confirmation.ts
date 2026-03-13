@@ -89,6 +89,10 @@ export async function resolveConfirmation(
   action: "confirm" | "reject",
   options?: { alwaysAllow?: boolean },
 ) {
+  console.log(
+    `[resolveConfirmation] START id=${confirmationId} action=${action}`,
+  );
+
   const [confirmation] = await db
     .select()
     .from(confirmations)
@@ -98,6 +102,10 @@ export async function resolveConfirmation(
   if (confirmation.status !== "pending")
     throw new Error("Confirmation already resolved");
 
+  console.log(
+    `[resolveConfirmation] Found confirmation: session=${confirmation.chatSessionId} toolCallId=${confirmation.toolCallId} toolName=${confirmation.toolName}`,
+  );
+
   // Update confirmation status
   await db
     .update(confirmations)
@@ -106,6 +114,10 @@ export async function resolveConfirmation(
       resolvedAt: sql`(datetime('now'))`,
     })
     .where(eq(confirmations.id, confirmationId));
+
+  console.log(
+    `[resolveConfirmation] Updated confirmation status to ${action === "confirm" ? "confirmed" : "rejected"}`,
+  );
 
   // Load the chat session (only need metadata, not messages)
   const [session] = await db
@@ -125,6 +137,10 @@ export async function resolveConfirmation(
   const persistedMessages = await getActiveSessionMessages(
     confirmation.chatSessionId,
   );
+  console.log(
+    `[resolveConfirmation] Loaded ${persistedMessages.length} messages for annotation`,
+  );
+
   annotateToolCallConfirmation(
     persistedMessages,
     confirmation.toolCallId,
@@ -145,6 +161,10 @@ export async function resolveConfirmation(
       }
     }
   }
+
+  console.log(
+    `[resolveConfirmation] Annotated messages, about to handle reject/events`,
+  );
 
   // For rejection: insert a proper tool-result with isError so the SDK sees a complete
   // tool-call → tool-result pair and won't throw AI_MissingToolResultsError on resume.
@@ -183,6 +203,9 @@ export async function resolveConfirmation(
     });
   }
 
+  console.log(
+    `[resolveConfirmation] About to emit confirmation_resolved event`,
+  );
   // Emit per-confirmation resolved event so client can update UI immediately
   await publishEvent({
     sessionId: confirmation.chatSessionId,
@@ -207,8 +230,34 @@ export async function resolveConfirmation(
       ),
     );
 
+  console.log(
+    `[resolveConfirmation] pendingCount=${pendingCount} (type=${typeof pendingCount}) session=${confirmation.chatSessionId}`,
+  );
+
+  if (Number(pendingCount) > 0) {
+    const pendingRows = await db
+      .select({
+        id: confirmations.id,
+        toolCallId: confirmations.toolCallId,
+        toolName: confirmations.toolName,
+        createdAt: confirmations.createdAt,
+      })
+      .from(confirmations)
+      .where(
+        and(
+          eq(confirmations.chatSessionId, confirmation.chatSessionId),
+          eq(confirmations.status, "pending"),
+        ),
+      );
+    console.log(
+      `[resolveConfirmation] Pending confirmations:`,
+      JSON.stringify(pendingRows),
+    );
+  }
+
   // Only resume the agent when ALL confirmations have been resolved
-  if (pendingCount === 0) {
+  // Note: SQLite count(*) may return string; use == for loose comparison
+  if (pendingCount == 0) {
     await db
       .update(chatSessions)
       .set({
@@ -225,6 +274,9 @@ export async function resolveConfirmation(
       timestamp: Date.now(),
     });
 
+    console.log(
+      `[resolveConfirmation] All confirmations resolved, publishing task to resume agent`,
+    );
     // Signal agent to resume via queue
     await publishTask({
       sessionId: confirmation.chatSessionId,
@@ -232,6 +284,10 @@ export async function resolveConfirmation(
       type: "confirmation_resolved",
       timestamp: Date.now(),
     });
+  } else {
+    console.log(
+      `[resolveConfirmation] Still ${pendingCount} pending confirmations, NOT resuming agent`,
+    );
   }
 
   // Handle alwaysAllow — update assignee's toolPermissions to auto-confirm this tool
@@ -264,6 +320,9 @@ export async function resolveConfirmation(
     await syncTaskStatus(session.taskId);
   }
 
+  console.log(
+    `[resolveConfirmation] DONE id=${confirmationId} action=${action}`,
+  );
   return { action, confirmationId };
 }
 

@@ -38,6 +38,7 @@ async function handleTask(task: AgentTask): Promise<void> {
     await runAgent({
       sessionId,
       userId,
+      taskType: task.type,
       signal: controller.signal,
       onEvent: async (event, data) => {
         // Stop emitting events immediately after abort

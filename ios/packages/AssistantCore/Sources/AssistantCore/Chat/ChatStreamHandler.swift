@@ -491,6 +491,7 @@ public enum ToolCallStatus: Sendable, Equatable {
         switch status {
             case "rejected": return .rejected
             case "pending": return .pendingConfirmation
+            case "cancelled": return .stoppedNoResult
             default: return hasResult ? .completed : .stoppedNoResult
         }
     }

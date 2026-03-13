@@ -41,7 +41,9 @@ struct StreamableChatLayout<Header: View>: View {
     /// Combine historical messages with current streaming message.
     private var allMessages: [DisplayMessage] {
         var msgs = messages
-        if let handler = streamHandler, handler.isStreaming, !handler.streamingParts.isEmpty {
+        if let handler = streamHandler, !handler.streamingParts.isEmpty,
+           handler.isStreaming || !handler.pendingConfirmations.isEmpty
+        {
             msgs.append(DisplayMessage(
                 id: "streaming",
                 role: .assistant,

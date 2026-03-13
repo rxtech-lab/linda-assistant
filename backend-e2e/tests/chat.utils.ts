@@ -105,6 +105,8 @@ export interface StreamHandle {
   events: StreamEvent[];
   /** Wait for the next `done` event on the stream */
   waitForDone: () => Promise<void>;
+  /** Wait for the next occurrence of a specific event type */
+  waitForEvent: (eventType: string) => Promise<StreamEvent>;
   /** Close the SSE connection */
   cancel: () => void;
 }
@@ -124,6 +126,7 @@ export function consumeStream(
   const events: StreamEvent[] = [];
   let doneCount = 0;
   const doneWaiters: Array<{ target: number; resolve: () => void; reject: (err: Error) => void }> = [];
+  const eventWaiters: Array<{ eventType: string; resolve: (evt: StreamEvent) => void; reject: (err: Error) => void }> = [];
 
   const notifyDone = () => {
     doneCount++;
@@ -139,9 +142,24 @@ export function consumeStream(
     }
   };
 
+  const notifyEventWaiters = (evt: StreamEvent) => {
+    const resolved: number[] = [];
+    for (let i = 0; i < eventWaiters.length; i++) {
+      if (eventWaiters[i]!.eventType === evt.event) {
+        eventWaiters[i]!.resolve(evt);
+        resolved.push(i);
+      }
+    }
+    for (let i = resolved.length - 1; i >= 0; i--) {
+      eventWaiters.splice(resolved[i]!, 1);
+    }
+  };
+
   const rejectAll = (err: Error) => {
     for (const w of doneWaiters) w.reject(err);
     doneWaiters.length = 0;
+    for (const w of eventWaiters) w.reject(err);
+    eventWaiters.length = 0;
   };
 
   // Start reading SSE in background
@@ -191,6 +209,7 @@ export function consumeStream(
               if (currentEvent === "done") {
                 notifyDone();
               }
+              notifyEventWaiters(evt);
 
               if (options?.onMessage) {
                 await options.onMessage(evt);
@@ -221,6 +240,11 @@ export function consumeStream(
           return;
         }
         doneWaiters.push({ target, resolve, reject });
+      });
+    },
+    waitForEvent: (eventType: string) => {
+      return new Promise<StreamEvent>((resolve, reject) => {
+        eventWaiters.push({ eventType, resolve, reject });
       });
     },
     cancel: () => {

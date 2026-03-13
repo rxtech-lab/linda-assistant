@@ -1,9 +1,9 @@
 import { type ModelMessage, streamText } from "ai";
 import crypto from "crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { refreshAccessToken } from "@/lib/auth/refresh";
 import { db } from "@/lib/db";
-import { getActiveSessionMessages, insertMessages } from "@/lib/db/messages";
+import { getActiveSessionMessages, insertMessages, updateMessageContent } from "@/lib/db/messages";
 import { assignees, chatSessions, confirmations } from "@/lib/db/schema";
 import { createMem0Client } from "@/lib/mem0/client";
 import { setStreamActive } from "@/lib/streaming/manager";
@@ -279,6 +279,7 @@ async function resolvePendingToolCalls(
   messages: ModelMessage[],
   tools: Record<string, unknown>,
   onEvent?: (event: string, data: unknown) => void | Promise<void>,
+  taskType?: "message" | "confirmation_resolved",
 ): Promise<{ messages: ModelMessage[]; persistCount: number }> {
   // Collect all tool-call IDs and tool-result IDs
   const toolCallIds = new Set<string>();
@@ -319,54 +320,52 @@ async function resolvePendingToolCalls(
 
   const newMessages: ModelMessage[] = [];
 
-  for (const toolCallId of unresolved) {
-    const info = toolCallInfo.get(toolCallId);
-    if (!info) continue;
+  // When the user sent a new message (taskType="message"), don't execute any tools —
+  // just mark all unresolved tool calls as "cancelled" so the model sees a result
+  // and the frontend renders them as stopped.
+  if (taskType === "message") {
+    for (const toolCallId of unresolved) {
+      const info = toolCallInfo.get(toolCallId);
+      if (!info) continue;
 
-    // Query confirmations table for this tool call
-    const [confirmation] = await db
-      .select()
-      .from(confirmations)
-      .where(eq(confirmations.toolCallId, toolCallId));
+      console.log(`[agent] Cancelling unresolved tool: ${info.toolName} (toolCallId=${toolCallId}) — user sent new message`);
 
-    let resultMessage: ModelMessage;
+      // Update confirmation status to "cancelled" in DB if one exists
+      await db
+        .update(confirmations)
+        .set({
+          status: "cancelled",
+          resolvedAt: sql`(datetime('now'))`,
+        })
+        .where(eq(confirmations.toolCallId, toolCallId));
 
-    if (confirmation?.status === "confirmed") {
-      // Signal tool is now running before execution
-      await onEvent?.("tool-call", {
-        toolCallId,
-        toolName: info.toolName,
-        input: info.input,
-      });
-
-      // Execute the tool
-      const toolDef = tools[info.toolName] as
-        | { execute?: (input: unknown) => Promise<unknown> }
-        | undefined;
-
-      let output: unknown;
-      let isError = false;
-      console.log(`[agent] Executing confirmed tool: ${info.toolName} (toolCallId=${toolCallId})`);
-      try {
-        if (toolDef?.execute) {
-          output = await toolDef.execute(
-            typeof info.input === "string" ? JSON.parse(info.input) : info.input,
-          );
-          console.log(`[agent] Tool ${info.toolName} completed successfully`);
-        } else {
-          output = { error: "Tool not found or has no execute function" };
-          isError = true;
-          console.error(`[agent] Tool ${info.toolName} not found or has no execute function`);
+      // Update the tool-call annotation in messages so it persists as "cancelled".
+      // Preserve existing confirmation ID if the tool-call already has one.
+      let existingConfirmationId = "";
+      for (const msg of cleaned) {
+        if (!Array.isArray(msg.content)) continue;
+        for (const part of msg.content as Record<string, unknown>[]) {
+          if (part.type === "tool-call" && part.toolCallId === toolCallId) {
+            const conf = part.confirmation as { id?: string } | undefined;
+            if (conf?.id) existingConfirmationId = conf.id;
+          }
         }
-      } catch (err) {
-        output = {
-          error: err instanceof Error ? err.message : String(err),
-        };
-        isError = true;
-        console.error(`[agent] Tool ${info.toolName} execution failed:`, err instanceof Error ? err.stack : err);
+      }
+      annotateToolCallConfirmation(cleaned, toolCallId, existingConfirmationId, "cancelled");
+
+      // Persist the updated annotation to DB
+      for (const msg of cleaned) {
+        if (!Array.isArray(msg.content)) continue;
+        for (const part of msg.content as Record<string, unknown>[]) {
+          if (part.type === "tool-call" && part.toolCallId === toolCallId) {
+            const record = msg as Record<string, unknown>;
+            if (record.id) await updateMessageContent(record.id as string, msg.content);
+          }
+        }
       }
 
-      resultMessage = {
+      // Inject a tool-result so the model can continue
+      const resultMessage = {
         id: crypto.randomUUID(),
         role: "tool" as const,
         content: [
@@ -374,40 +373,7 @@ async function resolvePendingToolCalls(
             type: "tool-result" as const,
             toolCallId,
             toolName: info.toolName,
-            output,
-            ...(isError ? { isError: true } : {}),
-          },
-        ],
-      } as unknown as ModelMessage;
-
-      // Emit tool-result event
-      const eventData: Record<string, unknown> = {
-        toolCallId,
-        toolName: info.toolName,
-        output,
-      };
-      if (isError) {
-        eventData.isError = true;
-        eventData.error =
-          typeof output === "object" &&
-          output !== null &&
-          "error" in (output as Record<string, unknown>)
-            ? String((output as Record<string, unknown>).error)
-            : "Unknown error";
-      }
-      await onEvent?.("tool-result", eventData);
-    } else if (confirmation?.status === "rejected") {
-      // Safety: rejection should already have a tool-result from resolveConfirmation,
-      // but create one if somehow missing
-      resultMessage = {
-        id: crypto.randomUUID(),
-        role: "tool" as const,
-        content: [
-          {
-            type: "tool-result" as const,
-            toolCallId,
-            toolName: info.toolName,
-            output: { error: "User rejected this action" },
+            output: { error: "User stopped this action" },
             isError: true,
           },
         ],
@@ -416,42 +382,189 @@ async function resolvePendingToolCalls(
       await onEvent?.("tool-result", {
         toolCallId,
         toolName: info.toolName,
-        output: { error: "User rejected this action" },
+        output: { error: "User stopped this action" },
         isError: true,
-        error: "User rejected this action",
+        error: "User stopped this action",
       });
-    } else {
-      // No confirmation found (orphaned from multi-tool step) or still pending
-      resultMessage = {
-        id: crypto.randomUUID(),
-        role: "tool" as const,
-        content: [
-          {
-            type: "tool-result" as const,
-            toolCallId,
-            toolName: info.toolName,
-            output: { error: "Tool execution interrupted" },
-            isError: true,
-          },
-        ],
-      } as unknown as ModelMessage;
 
-      await onEvent?.("tool-result", {
-        toolCallId,
-        toolName: info.toolName,
-        output: { error: "Tool execution interrupted" },
-        isError: true,
-        error: "Tool execution interrupted",
-      });
+      newMessages.push(resultMessage);
     }
+  } else {
+    // confirmation_resolved: execute confirmed tools, handle rejected/orphaned
+    for (const toolCallId of unresolved) {
+      const info = toolCallInfo.get(toolCallId);
+      if (!info) continue;
 
-    newMessages.push(resultMessage);
+      // Query confirmations table for this tool call
+      const [confirmation] = await db
+        .select()
+        .from(confirmations)
+        .where(eq(confirmations.toolCallId, toolCallId));
+
+      let resultMessage: ModelMessage;
+
+      if (confirmation?.status === "confirmed") {
+        // Signal tool is now running before execution
+        await onEvent?.("tool-call", {
+          toolCallId,
+          toolName: info.toolName,
+          input: info.input,
+        });
+
+        // Execute the tool
+        const toolDef = tools[info.toolName] as
+          | { execute?: (input: unknown) => Promise<unknown> }
+          | undefined;
+
+        let output: unknown;
+        let isError = false;
+        console.log(`[agent] Executing confirmed tool: ${info.toolName} (toolCallId=${toolCallId})`);
+        try {
+          if (toolDef?.execute) {
+            output = await toolDef.execute(
+              typeof info.input === "string" ? JSON.parse(info.input) : info.input,
+            );
+            console.log(`[agent] Tool ${info.toolName} completed successfully`);
+          } else {
+            output = { error: "Tool not found or has no execute function" };
+            isError = true;
+            console.error(`[agent] Tool ${info.toolName} not found or has no execute function`);
+          }
+        } catch (err) {
+          output = {
+            error: err instanceof Error ? err.message : String(err),
+          };
+          isError = true;
+          console.error(`[agent] Tool ${info.toolName} execution failed:`, err instanceof Error ? err.stack : err);
+        }
+
+        resultMessage = {
+          id: crypto.randomUUID(),
+          role: "tool" as const,
+          content: [
+            {
+              type: "tool-result" as const,
+              toolCallId,
+              toolName: info.toolName,
+              output,
+              ...(isError ? { isError: true } : {}),
+            },
+          ],
+        } as unknown as ModelMessage;
+
+        // Emit tool-result event
+        const eventData: Record<string, unknown> = {
+          toolCallId,
+          toolName: info.toolName,
+          output,
+        };
+        if (isError) {
+          eventData.isError = true;
+          eventData.error =
+            typeof output === "object" &&
+            output !== null &&
+            "error" in (output as Record<string, unknown>)
+              ? String((output as Record<string, unknown>).error)
+              : "Unknown error";
+        }
+        await onEvent?.("tool-result", eventData);
+      } else if (confirmation?.status === "rejected") {
+        // Safety: rejection should already have a tool-result from resolveConfirmation,
+        // but create one if somehow missing
+        resultMessage = {
+          id: crypto.randomUUID(),
+          role: "tool" as const,
+          content: [
+            {
+              type: "tool-result" as const,
+              toolCallId,
+              toolName: info.toolName,
+              output: { error: "User rejected this action" },
+              isError: true,
+            },
+          ],
+        } as unknown as ModelMessage;
+
+        await onEvent?.("tool-result", {
+          toolCallId,
+          toolName: info.toolName,
+          output: { error: "User rejected this action" },
+          isError: true,
+          error: "User rejected this action",
+        });
+      } else {
+        // No confirmation found (orphaned from multi-tool step) or still pending
+        resultMessage = {
+          id: crypto.randomUUID(),
+          role: "tool" as const,
+          content: [
+            {
+              type: "tool-result" as const,
+              toolCallId,
+              toolName: info.toolName,
+              output: { error: "Tool execution interrupted" },
+              isError: true,
+            },
+          ],
+        } as unknown as ModelMessage;
+
+        await onEvent?.("tool-result", {
+          toolCallId,
+          toolName: info.toolName,
+          output: { error: "Tool execution interrupted" },
+          isError: true,
+          error: "Tool execution interrupted",
+        });
+      }
+
+      newMessages.push(resultMessage);
+    }
   }
 
-  // Persist new tool-result messages and append to message array
+  // Insert each tool-result right after the assistant message containing its tool-call.
+  // The AI SDK requires tool-result messages immediately after the assistant message;
+  // appending at the end would break when a user message sits between the assistant
+  // tool-call and the tool-result (e.g., user sent a new message while ignoring a confirmation).
   if (newMessages.length > 0) {
     await insertMessages(sessionId, newMessages);
-    cleaned = [...cleaned, ...newMessages];
+
+    // Build a map from toolCallId → tool-result message
+    const resultByToolCallId = new Map<string, ModelMessage>();
+    for (const msg of newMessages) {
+      if (!Array.isArray(msg.content)) continue;
+      for (const part of msg.content as Record<string, unknown>[]) {
+        if (part.type === "tool-result" && typeof part.toolCallId === "string") {
+          resultByToolCallId.set(part.toolCallId, msg);
+        }
+      }
+    }
+
+    // Insert tool-result messages right after their assistant messages
+    const reordered: ModelMessage[] = [];
+    const inserted = new Set<string>();
+    for (const msg of cleaned) {
+      reordered.push(msg);
+      if (msg.role !== "assistant" || !Array.isArray(msg.content)) continue;
+      for (const part of msg.content as Record<string, unknown>[]) {
+        if (part.type === "tool-call" && typeof part.toolCallId === "string") {
+          const resultMsg = resultByToolCallId.get(part.toolCallId);
+          if (resultMsg && !inserted.has(part.toolCallId)) {
+            reordered.push(resultMsg);
+            inserted.add(part.toolCallId);
+          }
+        }
+      }
+    }
+    // Append any tool-results that didn't match an assistant message (shouldn't happen)
+    for (const msg of newMessages) {
+      if (!Array.isArray(msg.content)) continue;
+      for (const part of msg.content as Record<string, unknown>[]) {
+        if (part.type === "tool-result" && typeof part.toolCallId === "string" && !inserted.has(part.toolCallId)) {
+          reordered.push(msg);
+        }
+      }
+    }
+    cleaned = reordered;
   }
 
   return { messages: cleaned, persistCount: newMessages.length };
@@ -460,13 +573,14 @@ async function resolvePendingToolCalls(
 interface AgentRunOptions {
   sessionId: string;
   userId: string;
+  taskType?: "message" | "confirmation_resolved";
   onTextChunk?: (text: string) => void;
   onEvent?: (event: string, data: unknown) => void | Promise<void>;
   signal?: AbortSignal;
 }
 
 export async function runAgent(options: AgentRunOptions) {
-  const { sessionId, userId, onTextChunk, onEvent, signal } = options;
+  const { sessionId, userId, taskType, onTextChunk, onEvent, signal } = options;
 
   // Load session with messages
   const [session] = await db.select().from(chatSessions).where(eq(chatSessions.id, sessionId));
@@ -543,6 +657,33 @@ export async function runAgent(options: AgentRunOptions) {
 
   console.log(`[agent] Starting agent run for session=${sessionId} model=${modelId} tools=${Object.keys(tools).join(",")}`);
 
+  // Cancel any stale pending confirmations from previous runs so they don't
+  // block the pendingCount check when new confirmations are created this run.
+  const staleConfirmations = await db
+    .select({ id: confirmations.id })
+    .from(confirmations)
+    .where(
+      and(
+        eq(confirmations.chatSessionId, sessionId),
+        eq(confirmations.status, "pending"),
+      ),
+    );
+  if (staleConfirmations.length > 0) {
+    await db
+      .update(confirmations)
+      .set({
+        status: "rejected",
+        resolvedAt: sql`(datetime('now'))`,
+      })
+      .where(
+        and(
+          eq(confirmations.chatSessionId, sessionId),
+          eq(confirmations.status, "pending"),
+        ),
+      );
+    console.log(`[agent] Cancelled ${staleConfirmations.length} stale pending confirmation(s) for session=${sessionId}: ${staleConfirmations.map((c) => c.id).join(", ")}`);
+  }
+
   await setStreamActive(sessionId, true);
 
   // Update session status
@@ -554,7 +695,7 @@ export async function runAgent(options: AgentRunOptions) {
   await onEvent?.("status", { status: "in_progress" });
 
   // Resolve any pending tool-calls from a previous confirmation pause
-  const preprocessed = await resolvePendingToolCalls(sessionId, messages, tools, onEvent);
+  const preprocessed = await resolvePendingToolCalls(sessionId, messages, tools, onEvent, taskType);
 
   let stepCount = 0;
   let currentMessages: ModelMessage[] = [...preprocessed.messages];

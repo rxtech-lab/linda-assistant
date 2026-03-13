@@ -3,7 +3,11 @@ import { db } from "@/lib/db";
 import { confirmations } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import { resolveConfirmationSchema, resolveResponseSchema, idParamSchema } from "@/lib/schemas";
+import {
+  resolveConfirmationSchema,
+  resolveResponseSchema,
+  idParamSchema,
+} from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
 import { resolveConfirmation } from "@/lib/ai/confirmation";
 
@@ -14,7 +18,10 @@ import { resolveConfirmation } from "@/lib/ai/confirmation";
  * @body resolveConfirmationSchema
  * @response resolveResponseSchema
  */
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -22,19 +29,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const body = await request.json();
   const parsed = resolveConfirmationSchema.safeParse(body);
   if (!parsed.success) return errorJson(parsed.error.message, 422);
+  console.log(
+    `[Confirmation] Confirmation parsed success: id=${id} action=${body.action} alwaysAllow=${body.alwaysAllow}`,
+  );
 
   // Verify confirmation belongs to user
   const [confirmation] = await db
     .select()
     .from(confirmations)
-    .where(and(eq(confirmations.id, id), eq(confirmations.userId, auth.userId)));
+    .where(
+      and(eq(confirmations.id, id), eq(confirmations.userId, auth.userId)),
+    );
 
   if (!confirmation) return errorJson("Confirmation not found", 404);
-  if (confirmation.status !== "pending") return errorJson("Confirmation already resolved", 409);
+  if (confirmation.status !== "pending")
+    return errorJson("Confirmation already resolved", 409);
 
   const result = await resolveConfirmation(id, parsed.data.action, {
     alwaysAllow: parsed.data.alwaysAllow,
   });
-
+  console.log(
+    `[Confirmation] Resolved: id=${id} action=${body.action} alwaysAllow=${body.alwaysAllow} result=${result}`,
+  );
   return successJson(result);
 }

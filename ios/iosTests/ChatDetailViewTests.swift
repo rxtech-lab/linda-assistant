@@ -1127,3 +1127,113 @@ final class MessageListRenderingOrderTests: XCTestCase {
         XCTAssertEqual(items[3], "messageListItem-msg-3-0")
     }
 }
+
+// MARK: - Test Case 18: Streaming tool call with pendingConfirmation renders in MessageList
+
+final class StreamingConfirmationRenderTests: XCTestCase {
+    /// When the stream is paused for confirmation, the streaming message should still
+    /// appear in the message list with a "Needs Confirmation" badge.
+    /// This covers the bug where allMessages dropped streaming parts when isStreaming=false.
+    func testStreamingToolCall_pendingConfirmation_rendersBadge() throws {
+        // Simulate what allMessages produces when stream pauses for confirmation:
+        // a "streaming" message with a tool call in pendingConfirmation status
+        let messages = [
+            DisplayMessage(id: "msg-user", role: .user, parts: [.text(.plain("Send an email"))]),
+            DisplayMessage(
+                id: "streaming",
+                role: .assistant,
+                parts: [
+                    .tool(ToolCallInfo(
+                        toolCallId: "tc-send",
+                        toolName: "send_email",
+                        input: ["to": .string("test@example.com")],
+                        status: .pendingConfirmation
+                    )),
+                ],
+                assigneeName: "Linda"
+            ),
+        ]
+
+        let sut = MessageList(messages: messages)
+
+        // The tool call badge should render with "Needs Confirmation"
+        let badge = try sut.inspect().find(viewWithAccessibilityIdentifier: "toolCallBadge-tc-send")
+        XCTAssertNotNil(badge, "Should find pendingConfirmation badge in streaming message")
+
+        let texts = try badge.findAll(ViewType.Text.self).compactMap { try? $0.string() }
+        XCTAssertTrue(texts.contains("send_email"), "Badge should show tool name")
+        XCTAssertTrue(texts.contains("Needs Confirmation"), "Badge should show 'Needs Confirmation'. Got: \(texts)")
+
+        let images = try badge.findAll(ViewType.Image.self)
+        let iconNames = images.compactMap { try? $0.actualImage().name() }
+        XCTAssertTrue(iconNames.contains("exclamationmark.shield.fill"), "Should show shield icon for pendingConfirmation")
+    }
+
+    func testStreamingToolCall_pendingConfirmation_withPriorToolCalls_rendersAll() throws {
+        // Agent ran a tool, then paused for confirmation on a second tool
+        let messages = [
+            DisplayMessage(id: "msg-user", role: .user, parts: [.text(.plain("Create doc and send email"))]),
+            DisplayMessage(
+                id: "streaming",
+                role: .assistant,
+                parts: [
+                    .tool(ToolCallInfo(
+                        toolCallId: "tc-doc",
+                        toolName: "create_document",
+                        input: nil,
+                        status: .completed
+                    )),
+                    .tool(ToolCallInfo(
+                        toolCallId: "tc-email",
+                        toolName: "send_email",
+                        input: nil,
+                        status: .pendingConfirmation
+                    )),
+                ],
+                assigneeName: "Linda"
+            ),
+        ]
+
+        let sut = MessageList(messages: messages)
+
+        // Both tool calls should render
+        let items = try sut.inspect().findAll { view in
+            guard let aid = try? view.accessibilityIdentifier() else { return false }
+            return aid.starts(with: "messageListItem-streaming-")
+        }
+        XCTAssertEqual(items.count, 2, "Should render both tool calls in streaming message")
+
+        // Verify the confirmation badge specifically
+        let emailBadge = try sut.inspect().find(viewWithAccessibilityIdentifier: "toolCallBadge-tc-email")
+        let emailTexts = try emailBadge.findAll(ViewType.Text.self).compactMap { try? $0.string() }
+        XCTAssertTrue(emailTexts.contains("Needs Confirmation"), "Email tool should show 'Needs Confirmation'. Got: \(emailTexts)")
+    }
+
+    func testStreamingMessage_pendingConfirmation_andText_rendersAll() throws {
+        // Agent produced text + tool call before pausing for confirmation
+        let messages = [
+            DisplayMessage(
+                id: "streaming",
+                role: .assistant,
+                parts: [
+                    .text(.plain("I'll send that email now.")),
+                    .tool(ToolCallInfo(
+                        toolCallId: "tc-email",
+                        toolName: "send_email",
+                        input: nil,
+                        status: .pendingConfirmation
+                    )),
+                ],
+                assigneeName: "Linda"
+            ),
+        ]
+
+        let sut = MessageList(messages: messages)
+
+        let items = try sut.inspect().findAll { view in
+            guard let aid = try? view.accessibilityIdentifier() else { return false }
+            return aid.starts(with: "messageListItem-streaming-")
+        }
+        XCTAssertEqual(items.count, 2, "Should render both text bubble and confirmation badge")
+    }
+}

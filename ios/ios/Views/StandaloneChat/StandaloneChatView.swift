@@ -103,6 +103,13 @@ struct ChatTabView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .onChange(of: viewModel.showingAssigneeSheet) { _, isShowing in
+            if isShowing, let assignee = viewModel.selectedAssignee {
+                Task {
+                    await viewModel.loadDocuments(assigneeId: assignee.id, apiClient: apiClient)
+                }
+            }
+        }
         .sheet(isPresented: $viewModel.showingAssigneeSheet) {
             ChatOptionsSheet(
                 assignees: viewModel.assignees,
