@@ -71,16 +71,26 @@ export async function generateDocumentPdf(
 </body>
 </html>`;
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    ...(process.env.PUPPETEER_EXECUTABLE_PATH
-      ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH }
-      : {}),
-  });
+  const chromeUrl = process.env.CHROME_URL;
+  if (!chromeUrl) throw new Error("CHROME_URL environment variable is required");
 
+  // Query Chrome's /json/version to get the full WebSocket debugger URL
+  const httpBase = chromeUrl.replace(/^ws:\/\//, "http://");
+  const versionRes = await fetch(`${httpBase}/json/version`);
+  const { webSocketDebuggerUrl } = (await versionRes.json()) as {
+    webSocketDebuggerUrl: string;
+  };
+  // Replace the advertised host (127.0.0.1) with the configured host
+  const chromeHost = new URL(httpBase).host;
+  const browserWSEndpoint = webSocketDebuggerUrl.replace(
+    /ws:\/\/[^/]+/,
+    `ws://${chromeHost}`,
+  );
+
+  const browser = await puppeteer.connect({ browserWSEndpoint });
+
+  const page = await browser.newPage();
   try {
-    const page = await browser.newPage();
     await page.setContent(fullHtml, { waitUntil: "networkidle0" });
     const pdfBuffer = await page.pdf({
       format: "A4",
@@ -90,6 +100,7 @@ export async function generateDocumentPdf(
 
     return { buffer: Buffer.from(pdfBuffer), title: doc.title };
   } finally {
-    await browser.close();
+    await page.close();
+    browser.disconnect();
   }
 }

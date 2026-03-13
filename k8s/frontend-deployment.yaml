@@ -67,6 +67,26 @@ spec:
             capabilities:
               drop:
                 - ALL
+        - name: headless-chrome
+          image: ghcr.io/rxtech-lab/headless-chrome-cjk:latest
+          ports:
+            - containerPort: 9222
+              protocol: TCP
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            capabilities:
+              drop:
+                - ALL
       securityContext:
         fsGroup: 1001
       restartPolicy: Always
