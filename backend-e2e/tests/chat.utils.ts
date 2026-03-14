@@ -111,10 +111,21 @@ export interface StreamHandle {
   cancel: () => void;
 }
 
+function streamLog(label?: string, ...args: unknown[]) {
+  if (label) {
+    console.log(`[${label}]`, ...args);
+  } else {
+    console.log(...args);
+  }
+}
+
 export function consumeStream(
   assigneeId: string,
   options?: {
     timeout?: number;
+    label?: string;
+    /** Automatically cancel the stream when a `done` event is received */
+    autoDisconnect?: boolean;
     onMessage?: (event: StreamEvent) => void | Promise<void>;
   },
 ): StreamHandle {
@@ -125,8 +136,16 @@ export function consumeStream(
 
   const events: StreamEvent[] = [];
   let doneCount = 0;
-  const doneWaiters: Array<{ target: number; resolve: () => void; reject: (err: Error) => void }> = [];
-  const eventWaiters: Array<{ eventType: string; resolve: (evt: StreamEvent) => void; reject: (err: Error) => void }> = [];
+  const doneWaiters: Array<{
+    target: number;
+    resolve: () => void;
+    reject: (err: Error) => void;
+  }> = [];
+  const eventWaiters: Array<{
+    eventType: string;
+    resolve: (evt: StreamEvent) => void;
+    reject: (err: Error) => void;
+  }> = [];
 
   const notifyDone = () => {
     doneCount++;
@@ -194,7 +213,7 @@ export function consumeStream(
         let currentData = "";
 
         for (const line of lines) {
-          console.log("SSE line:", line);
+          streamLog(options?.label, "SSE line:", line);
           if (line.startsWith("event: ")) {
             currentEvent = line.slice(7).trim();
           } else if (line.startsWith("data: ")) {
@@ -207,13 +226,21 @@ export function consumeStream(
               events.push(evt);
 
               if (currentEvent === "error") {
-                const errMsg = typeof data.message === "string" ? data.message : JSON.stringify(data);
+                const errMsg =
+                  typeof data.message === "string"
+                    ? data.message
+                    : JSON.stringify(data);
                 rejectAll(new Error(`SSE error: ${errMsg}`));
                 return;
               }
 
               if (currentEvent === "done") {
                 notifyDone();
+                if (options?.autoDisconnect) {
+                  controller.abort();
+                  clearTimeout(timer);
+                  return;
+                }
               }
               notifyEventWaiters(evt);
 
@@ -230,7 +257,7 @@ export function consumeStream(
       }
     } catch (err) {
       if (!controller.signal.aborted) {
-        console.error("Stream error:", err);
+        streamLog(options?.label, "Stream error:", err);
         rejectAll(err instanceof Error ? err : new Error(String(err)));
       }
     }
