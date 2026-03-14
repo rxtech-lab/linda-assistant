@@ -1,5 +1,8 @@
 import crypto from "crypto";
-import { subscribeToEvents, type EventSubscription } from "@/lib/queue/consumer";
+import {
+  subscribeToEvents,
+  type EventSubscription,
+} from "@/lib/queue/consumer";
 import type { AgentEvent } from "@/lib/queue/types";
 import { getStreamChunks } from "./manager";
 
@@ -54,7 +57,17 @@ export async function streamWithReplay(
   // 2. Send current session status
   send("status", { id: crypto.randomUUID(), status: sessionStatus });
 
-  // 3. Replay cached chunks from Redis
+  // 3. If session already stopped, skip replay — no cached chunks to replay.
+  //    Stay open in live mode so newly-sent messages are still delivered.
+  if (sessionStatus === "stopped") {
+    console.log(
+      `[Replay] session=${sessionId} already stopped, skipping replay but staying open`,
+    );
+    replaying = false;
+    return subscription;
+  }
+
+  // 4. Replay cached chunks from Redis
   const chunks = await getStreamChunks(sessionId);
   let hasTerminal = false;
 

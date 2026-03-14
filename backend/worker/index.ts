@@ -86,6 +86,9 @@ async function handleTask(task: AgentTask): Promise<void> {
     await commandSub?.close();
   }
 
+  // Clear cached stream chunks so late connectors don't replay stale events
+  await clearStreamChunks(sessionId);
+
   console.log(`[Worker] Task complete: session=${sessionId}`);
 }
 
