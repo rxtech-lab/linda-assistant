@@ -56,6 +56,12 @@ private struct OnboardingGate: View {
     @State private var isLoading = true
     @State private var loadError: String?
 
+    #if os(macOS)
+    @State private var showWelcomeSheet = false
+    @State private var showFormSheet = false
+    @State private var pendingFormSheet = false
+    #endif
+
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
     }
@@ -72,12 +78,43 @@ private struct OnboardingGate: View {
             }
         } else {
             AdaptiveRootView()
+                #if os(macOS)
+                .sheet(isPresented: $showWelcomeSheet, onDismiss: {
+                    if pendingFormSheet {
+                        pendingFormSheet = false
+                        showFormSheet = true
+                    }
+                }) {
+                    WelcomeSplashView(onContinue: {
+                        pendingFormSheet = true
+                        showWelcomeSheet = false
+                    })
+                    .frame(width: 500, height: 600)
+                    .interactiveDismissDisabled()
+                }
+                .sheet(isPresented: $showFormSheet) {
+                    ScrollView {
+                        OnboardingView(onComplete: {
+                            showFormSheet = false
+                            isOnboarded = true
+                        })
+                    }
+                    .frame(width: 500, height: 600)
+                    .interactiveDismissDisabled()
+                }
+                .onChange(of: showOnboarding) { _, show in
+                    if show {
+                        showWelcomeSheet = true
+                    }
+                }
+                #else
                 .sheet(isPresented: .constant(showOnboarding)) {
                     OnboardingSheetView(onComplete: {
                         isOnboarded = true
                     })
                     .interactiveDismissDisabled()
                 }
+                #endif
                 .task { await load() }
         }
     }

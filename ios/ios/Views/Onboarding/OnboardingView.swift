@@ -21,9 +21,9 @@ struct OnboardingView: View {
 
     private var submitButtonPlacement: ToolbarItemPlacement {
         #if os(iOS)
-        .bottomBar
+            .bottomBar
         #else
-        .confirmationAction
+            .confirmationAction
         #endif
     }
 
@@ -67,6 +67,7 @@ struct OnboardingView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                            .layoutPriority(1)
                             Spacer()
                             Picker("", selection: viewModel.bindingForTool(tool.name)) {
                                 Text("Auto").tag("auto-confirm")
@@ -75,52 +76,59 @@ struct OnboardingView: View {
                                 Text("Disabled").tag("disabled")
                             }
                             .labelsHidden()
+                            #if os(macOS)
+                                .pickerStyle(.menu)
+                                .fixedSize()
+                            #endif
                         }
                     }
                 }
             }
         }
-        .navigationTitle("Welcome to Linda")
-        .task {
-            await viewModel.loadModelsAndTools(apiClient: apiClient)
-        }
-        .toolbar {
-            ToolbarItem(placement: submitButtonPlacement) {
-                Button {
-                    Task {
-                        await viewModel.createAssignee(apiClient: apiClient, eventManager: eventManager)
-                        if viewModel.isComplete {
-                            onComplete()
+        .formStyle(.grouped)
+        #if os(iOS)
+            .navigationTitle("Welcome to Linda")
+        #endif
+            .task {
+                await viewModel.loadModelsAndTools(apiClient: apiClient)
+            }
+            .toolbar {
+                ToolbarItem(placement: submitButtonPlacement) {
+                    Button {
+                        Task {
+                            await viewModel.createAssignee(apiClient: apiClient, eventManager: eventManager)
+                            if viewModel.isComplete {
+                                onComplete()
+                            }
+                        }
+                    } label: {
+                        if viewModel.isSubmitting {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Text("Create Assistant")
+                                .frame(maxWidth: .infinity)
                         }
                     }
-                } label: {
-                    if viewModel.isSubmitting {
+                    .foregroundStyle(isSubmitButtonEnable ? Color.primaryButtonColor : Color.gray)
+                    .disabled(!isSubmitButtonEnable)
+                }
+            }
+            .overlay(alignment: .center) {
+                if viewModel.isLoadingModelsAndTools {
+                    VStack(spacing: 12) {
                         ProgressView()
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Text("Create Assistant")
-                            .frame(maxWidth: .infinity)
+                        Text("Loading settings")
                     }
+                    .padding()
+                    .glassEffect(in: .rect(cornerRadius: 24))
                 }
-                .foregroundStyle(isSubmitButtonEnable ? Color.primaryButtonColor : Color.gray)
-                .disabled(!isSubmitButtonEnable)
             }
-        }
-        .overlay(alignment: .center) {
-            if viewModel.isLoadingModelsAndTools {
-                VStack(spacing: 12) {
-                    ProgressView()
-                    Text("Loading settings")
-                }
-                .padding()
-                .glassEffect(in: .rect(cornerRadius: 24))
+            .alert("Error", isPresented: .constant(!isPreview && viewModel.error != nil)) {
+                Button("OK") { viewModel.error = nil }
+            } message: {
+                Text(viewModel.error ?? "")
             }
-        }
-        .alert("Error", isPresented: .constant(!isPreview && viewModel.error != nil)) {
-            Button("OK") { viewModel.error = nil }
-        } message: {
-            Text(viewModel.error ?? "")
-        }
     }
 }
 
