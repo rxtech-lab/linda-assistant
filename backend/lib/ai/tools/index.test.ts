@@ -36,7 +36,7 @@ mock.module("@/lib/db", () => ({
 const { buildToolSet } = await import("./index");
 
 // Document tools (update_document, create_document) are always included — not permission-gated
-const ALL_TOOL_NAMES = ["send_email", "search_emails", "create_task", "update_task", "update_document"];
+const ALL_TOOL_NAMES = ["send_email", "search_emails", "create_task", "update_task", "update_document", "get_current_time"];
 const ALL_TOOL_NAMES_WITH_SESSION = [...ALL_TOOL_NAMES, "create_document"];
 
 describe("buildToolSet", () => {
@@ -102,7 +102,7 @@ describe("buildToolSet", () => {
 
     const { tools } = await buildToolSet("user-1", "assignee-1", "test-token");
 
-    expect(Object.keys(tools).sort()).toEqual(["search_emails", "update_task", "update_document"].sort());
+    expect(Object.keys(tools).sort()).toEqual(["search_emails", "update_task", "update_document", "get_current_time"].sort());
   });
 
   test("filters out disabled tools", async () => {
@@ -127,7 +127,7 @@ describe("buildToolSet", () => {
 
     const { tools } = await buildToolSet("user-1", "assignee-1", "test-token");
 
-    expect(Object.keys(tools).sort()).toEqual(["search_emails", "update_task", "update_document"].sort());
+    expect(Object.keys(tools).sort()).toEqual(["search_emails", "update_task", "update_document", "get_current_time"].sort());
   });
 
   test("tools not in permission array are included (default manual-confirm)", async () => {

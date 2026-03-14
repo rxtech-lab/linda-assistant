@@ -16,6 +16,8 @@ resources:
   - rabbitmq-service.yaml
   - celery-deployment.yaml
   - celery-service.yaml
+  - chrome-deployment.yaml
+  - chrome-service.yaml
   - mem0-deployment.yaml
   - mem0-service.yaml
   - ingress.yaml

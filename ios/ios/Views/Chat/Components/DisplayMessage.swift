@@ -91,14 +91,14 @@ extension DisplayMessage {
             let historicalToolCalls = msg.toolCalls.map { tc -> ToolCallInfo in
                 let status: ToolCallStatus
                 let errorMsg: String?
-                if tc.confirmation != nil {
+                if tc.error != nil {
+                    status = .failed
+                    errorMsg = tc.error
+                } else if tc.confirmation != nil {
                     let hasResult = toolCallIdsWithResults.contains(tc.toolCallId)
                         || resultOutputs[tc.toolCallId] != nil
                     status = ToolCallStatus.from(confirmation: tc.confirmation, hasResult: hasResult)
                     errorMsg = nil
-                } else if tc.error != nil {
-                    status = .failed
-                    errorMsg = tc.error
                 } else {
                     status = .completed
                     errorMsg = nil

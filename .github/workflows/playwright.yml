@@ -141,6 +141,7 @@ jobs:
           kubectl rollout status deployment/linda-worker -n linda --timeout=300s
           kubectl rollout status deployment/mem0 -n linda --timeout=300s
           kubectl rollout status deployment/linda-celery -n linda --timeout=300s
+          kubectl rollout status deployment/headless-chrome -n linda --timeout=300s
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -187,28 +188,32 @@ jobs:
         working-directory: backend-e2e
         run: bunx playwright test
 
-      - name: Debug on failure
-        if: failure()
+      - name: Collect pod logs
+        if: always()
         run: |
-          echo "=== Pods ==="
-          kubectl get pods -n linda
-          echo "=== Pod Logs (frontend) ==="
-          kubectl logs -n linda -l app=linda-frontend --tail=100
-          echo "=== Pod Logs (worker) ==="
-          kubectl logs -n linda -l app=linda-worker --tail=50
-          echo "=== Pod Logs (mem0) ==="
-          kubectl logs -n linda -l app=mem0 --tail=50
-          echo "=== Pod Logs (celery) ==="
-          kubectl logs -n linda -l app=linda-celery --tail=50
-          echo "=== Pod Logs (rabbitmq) ==="
-          kubectl logs -n linda -l app=rabbitmq --tail=50
+          mkdir -p /tmp/k8s-logs
+          kubectl logs -n linda -l app=linda-frontend --tail=-1 > /tmp/k8s-logs/frontend.log 2>&1 || true
+          kubectl logs -n linda -l app=linda-worker --tail=-1 > /tmp/k8s-logs/worker.log 2>&1 || true
+          kubectl logs -n linda -l app=mem0 --tail=-1 > /tmp/k8s-logs/mem0.log 2>&1 || true
+          kubectl logs -n linda -l app=linda-celery --tail=-1 > /tmp/k8s-logs/celery.log 2>&1 || true
+          kubectl logs -n linda -l app=rabbitmq --tail=-1 > /tmp/k8s-logs/rabbitmq.log 2>&1 || true
+          kubectl logs -n linda -l app=headless-chrome --tail=-1 > /tmp/k8s-logs/chrome.log 2>&1 || true
+          kubectl get pods -n linda -o wide > /tmp/k8s-logs/pods.txt 2>&1 || true
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v7
-        if: failure()
+        if: always()
         with:
           name: playwright-report-k8s
           path: backend-e2e/playwright-report/
+          retention-days: 7
+
+      - name: Upload pod logs
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: k8s-pod-logs
+          path: /tmp/k8s-logs/
           retention-days: 7
 
   result:

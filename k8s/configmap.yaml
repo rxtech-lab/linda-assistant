@@ -11,4 +11,4 @@ data:
   MEM0_VECTOR_STORE_PROVIDER: "upstash_vector"
   CELERY_BASE_URL: "http://celery.linda.svc.cluster.local:8000"
   BACKEND_INTERNAL_URL: "http://frontend.linda.svc.cluster.local:3000"
-  CHROME_URL: "ws://localhost:9222"
+  CHROME_URL: "ws://headless-chrome.linda.svc.cluster.local:9222"

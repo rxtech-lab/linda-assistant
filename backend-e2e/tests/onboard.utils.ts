@@ -44,7 +44,7 @@ export async function ensureOnboarded(): Promise<void> {
       headers,
       body: JSON.stringify({
         name: "Linda",
-        email: "linda@rxlab.app",
+        email: "linda@assistant.rxlab.app",
         model: "openai/gpt-oss-120b",
       }),
     });
