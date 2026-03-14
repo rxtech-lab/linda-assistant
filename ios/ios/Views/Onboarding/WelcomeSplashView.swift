@@ -2,7 +2,11 @@ import AssistantCore
 import SwiftUI
 
 struct WelcomeSplashView: View {
+    #if os(iOS)
     let onComplete: () -> Void
+    #else
+    var onContinue: () -> Void = {}
+    #endif
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -62,6 +66,7 @@ struct WelcomeSplashView: View {
                 Spacer()
 
                 VStack(spacing: 12) {
+                    #if os(iOS)
                     NavigationLink {
                         OnboardingView(onComplete: onComplete)
                     } label: {
@@ -70,6 +75,16 @@ struct WelcomeSplashView: View {
                     }
                     .buttonStyle(.glass)
                     .controlSize(.large)
+                    #else
+                    Button {
+                        onContinue()
+                    } label: {
+                        Text("Continue")
+                            .fontWeight(.semibold)
+                    }
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
+                    #endif
                 }
             }
             .padding(.horizontal, 32)
@@ -79,11 +94,17 @@ struct WelcomeSplashView: View {
 }
 
 #Preview {
+    #if os(iOS)
     NavigationStack {
         WelcomeSplashView(onComplete: {})
     }
     .environment(AuthManager())
     .environment(EventManager())
+    #else
+    WelcomeSplashView(onContinue: {})
+        .environment(AuthManager())
+        .environment(EventManager())
+    #endif
 }
 
 private struct FeatureRow: View {
