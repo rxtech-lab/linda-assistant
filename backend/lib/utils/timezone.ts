@@ -7,8 +7,8 @@
  * - If sessionTimezone is not provided, treat as UTC.
  */
 export function convertRunsAtToUTC(runsAt: string, sessionTimezone?: string | null): string {
-  // Already has timezone offset (Z or ±HH:MM)
-  if (/Z$|[+-]\d{2}:\d{2}$/.test(runsAt)) {
+  // Already has timezone offset (Z or ±HH:MM), possibly with fractional seconds
+  if (/(\.\d+)?Z$|[+-]\d{2}:\d{2}$/.test(runsAt)) {
     return runsAt;
   }
 
@@ -64,7 +64,17 @@ export function convertRunsAtToUTC(runsAt: string, sessionTimezone?: string | nu
 /**
  * Convert a cron schedule from a user's timezone to UTC.
  * Only adjusts the hour field based on the timezone offset.
- * For complex cron expressions (ranges, lists in hour field), returns as-is.
+ *
+ * Returns the original expression unchanged when:
+ * - No sessionTimezone is provided (or null)
+ * - The timezone is UTC (no offset)
+ * - The expression is not a standard 5-field cron format
+ * - The hour field is not a simple integer (e.g. wildcards, ranges, lists like `*`, `9-17`, `9,12`)
+ * - An error occurs during conversion
+ *
+ * Note: Does not adjust the day-of-month field when hour conversion crosses midnight.
+ * For cron schedules near midnight boundaries in non-UTC timezones, consider specifying
+ * the schedule directly in UTC.
  */
 export function convertCronToUTC(cronSchedule: string, sessionTimezone?: string | null): string {
   if (!sessionTimezone) return cronSchedule;

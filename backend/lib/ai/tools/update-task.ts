@@ -88,9 +88,6 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
       }
       if (isCronEnabled !== undefined) {
         setValues.isCronEnabled = isCronEnabled;
-        if (isCronEnabled && !cronSchedule) {
-          // Enabling cron without new schedule — keep existing
-        }
         if (!isCronEnabled) {
           setValues.cronSchedule = null;
         }
