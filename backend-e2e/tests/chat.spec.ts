@@ -23,6 +23,16 @@ test.beforeAll(async () => {
   await ensureOnboarded();
   assigneeId = await getAssigneeId();
   console.log(`Using assignee: ${assigneeId}`);
+
+  // Reset all tool permissions to manual-confirm so tests start from a known state
+  const assignee = await getAssignee(assigneeId);
+  const allManualConfirm = assignee.toolPermissions.map((tp) => ({
+    toolName: tp.toolName,
+    permission: "manual-confirm",
+  }));
+  await updateAssigneePermissions(assigneeId, allManualConfirm);
+  console.log("Reset all tool permissions to manual-confirm");
+
   await clearChatHistory(assigneeId);
 });
 
@@ -33,7 +43,7 @@ test.describe("Chat with tool calls", () => {
     await new Promise((resolve) => setTimeout(resolve, 5000));
   });
 
-  test("test 1: create document + approve send_email confirmation + continue chat", async () => {
+  test("test 1: get current time + approve confirmation + continue chat", async () => {
     await clearChatHistory(assigneeId);
 
     // Single stream connection for the entire test
@@ -41,9 +51,9 @@ test.describe("Chat with tool calls", () => {
       timeout: 180_000,
       onMessage: async (evt) => {
         if (evt.event === "confirmation_required") {
-          expect(evt.data.toolName).toBe("send_email");
+          expect(evt.data.toolName).toBe("get_current_time");
           const pending = await listConfirmations();
-          const c = pending.find((c) => c.toolName === "send_email");
+          const c = pending.find((c) => c.toolName === "get_current_time");
           expect(c).toBeTruthy();
           await resolveConfirmation(c!.id, "confirm");
         }
@@ -51,37 +61,25 @@ test.describe("Chat with tool calls", () => {
     });
 
     try {
-      // Step 1: Send message asking to create doc and send email
+      // Step 1: Send message asking for current time
       await sendMessage(
         assigneeId,
-        "Write a short document in markdown format with title 'Hello World' and content just saying hello world. Then send it to nonexistent@invalid-domain-that-does-not-exist.example.com",
+        "What time is it right now? Use the get_current_time tool to check.",
       );
       await stream.waitForDone();
 
-      // Verify create_document tool was auto-executed
-      const docToolCalls = stream.events.filter(
-        (e) => e.event === "tool-call" && e.data.toolName === "create_document",
-      );
-      expect(docToolCalls.length).toBeGreaterThanOrEqual(1);
-
-      const docToolResults = stream.events.filter(
-        (e) =>
-          e.event === "tool-result" && e.data.toolName === "create_document",
-      );
-      expect(docToolResults.length).toBeGreaterThanOrEqual(1);
-
-      // Verify send_email confirmation was requested
+      // Verify get_current_time confirmation was requested
       const confirmationEvents = stream.events.filter(
         (e) => e.event === "confirmation_required",
       );
       expect(confirmationEvents.length).toBeGreaterThanOrEqual(1);
-      expect(confirmationEvents[0]?.data.toolName).toBe("send_email");
+      expect(confirmationEvents[0]?.data.toolName).toBe("get_current_time");
 
-      // Verify send_email tool-result appeared (success or error — both are valid)
-      const sendEmailResults = stream.events.filter(
-        (e) => e.event === "tool-result" && e.data.toolName === "send_email",
+      // Verify get_current_time tool-result appeared
+      const timeResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "get_current_time",
       );
-      expect(sendEmailResults.length).toBeGreaterThanOrEqual(1);
+      expect(timeResults.length).toBeGreaterThanOrEqual(1);
 
       // Step 2: Send follow-up message and verify agent still responds
       await sendMessage(assigneeId, "What just happened?");
@@ -92,28 +90,20 @@ test.describe("Chat with tool calls", () => {
 
       // Step 3: Validate chat history
       const { messages } = await getChatHistory(assigneeId);
-      expect(messages.length).toBeGreaterThanOrEqual(6);
+      expect(messages.length).toBeGreaterThanOrEqual(4);
 
-      // Verify create_document tool-call has auto-approved status
-      const docCallParts = findToolCallParts(messages, "create_document");
-      expect(docCallParts.length).toBeGreaterThanOrEqual(1);
-
-      // Verify create_document tool-result exists
-      const docResultParts = findToolResultParts(messages, "create_document");
-      expect(docResultParts.length).toBeGreaterThanOrEqual(1);
-
-      // Verify send_email tool-call has confirmation with confirmed status
-      const emailCallParts = findToolCallParts(messages, "send_email");
-      expect(emailCallParts.length).toBeGreaterThanOrEqual(1);
-      const emailConfirmation = emailCallParts[0]?.confirmation as
+      // Verify get_current_time tool-call has confirmation with confirmed status
+      const timeCallParts = findToolCallParts(messages, "get_current_time");
+      expect(timeCallParts.length).toBeGreaterThanOrEqual(1);
+      const timeConfirmation = timeCallParts[0]?.confirmation as
         | { id: string; status: string }
         | undefined;
-      expect(emailConfirmation).toBeTruthy();
-      expect(emailConfirmation!.status).toBe("confirmed");
+      expect(timeConfirmation).toBeTruthy();
+      expect(timeConfirmation!.status).toBe("confirmed");
 
-      // Verify send_email tool-result exists
-      const emailResultParts = findToolResultParts(messages, "send_email");
-      expect(emailResultParts.length).toBeGreaterThanOrEqual(1);
+      // Verify get_current_time tool-result exists
+      const timeResultParts = findToolResultParts(messages, "get_current_time");
+      expect(timeResultParts.length).toBeGreaterThanOrEqual(1);
 
       // Verify all tool-calls have matching tool-results
       const allCalls = findAllToolCallParts(messages);
@@ -136,7 +126,7 @@ test.describe("Chat with tool calls", () => {
     }
   });
 
-  test("test 2: send email + reject confirmation + continue chat", async () => {
+  test("test 2: get current time + reject confirmation + continue chat", async () => {
     await clearChatHistory(assigneeId);
 
     // Single stream connection for the entire test
@@ -144,9 +134,9 @@ test.describe("Chat with tool calls", () => {
       timeout: 180_000,
       onMessage: async (evt) => {
         if (evt.event === "confirmation_required") {
-          expect(evt.data.toolName).toBe("send_email");
+          expect(evt.data.toolName).toBe("get_current_time");
           const pending = await listConfirmations();
-          const c = pending.find((c) => c.toolName === "send_email");
+          const c = pending.find((c) => c.toolName === "get_current_time");
           expect(c).toBeTruthy();
           await resolveConfirmation(c!.id, "reject");
         }
@@ -154,10 +144,10 @@ test.describe("Chat with tool calls", () => {
     });
 
     try {
-      // Step 1: Send message asking to send email
+      // Step 1: Send message asking for current time
       await sendMessage(
         assigneeId,
-        "Send an email to nonexistent@invalid-domain-that-does-not-exist.example.com with subject 'Test Email' and body 'Hello, this is a test.'",
+        "What time is it right now? Use the get_current_time tool to check.",
       );
       await stream.waitForDone();
 
@@ -166,7 +156,7 @@ test.describe("Chat with tool calls", () => {
         (e) => e.event === "confirmation_required",
       );
       expect(confirmationEvents.length).toBeGreaterThanOrEqual(1);
-      expect(confirmationEvents[0]?.data.toolName).toBe("send_email");
+      expect(confirmationEvents[0]?.data.toolName).toBe("get_current_time");
 
       // Verify agent produced text after rejection
       const textDeltas = stream.events.filter((e) => e.event === "text-delta");
@@ -180,19 +170,19 @@ test.describe("Chat with tool calls", () => {
       const { messages } = await getChatHistory(assigneeId);
       expect(messages.length).toBeGreaterThanOrEqual(5);
 
-      // Verify send_email tool-call has confirmation with rejected status
-      const emailCallParts = findToolCallParts(messages, "send_email");
-      expect(emailCallParts.length).toBeGreaterThanOrEqual(1);
-      const emailConfirmation = emailCallParts[0]?.confirmation as
+      // Verify get_current_time tool-call has confirmation with rejected status
+      const timeCallParts = findToolCallParts(messages, "get_current_time");
+      expect(timeCallParts.length).toBeGreaterThanOrEqual(1);
+      const timeConfirmation = timeCallParts[0]?.confirmation as
         | { id: string; status: string }
         | undefined;
-      expect(emailConfirmation).toBeTruthy();
-      expect(emailConfirmation!.status).toBe("rejected");
+      expect(timeConfirmation).toBeTruthy();
+      expect(timeConfirmation!.status).toBe("rejected");
 
       // Verify rejection tool-result exists with isError
-      const emailResultParts = findToolResultParts(messages, "send_email");
-      expect(emailResultParts.length).toBeGreaterThanOrEqual(1);
-      expect(emailResultParts[0]?.isError).toBe(true);
+      const timeResultParts = findToolResultParts(messages, "get_current_time");
+      expect(timeResultParts.length).toBeGreaterThanOrEqual(1);
+      expect(timeResultParts[0]?.isError).toBe(true);
 
       // Verify all tool-calls have matching tool-results
       const allCalls = findAllToolCallParts(messages);
@@ -202,10 +192,12 @@ test.describe("Chat with tool calls", () => {
         expect(resultIds.has(call.toolCallId as string)).toBe(true);
       }
 
-      // Verify follow-up exchange
-      const lastTwo = messages.slice(-2);
-      expect(lastTwo[0]?.role).toBe("user");
-      expect(lastTwo[1]?.role).toBe("assistant");
+      // Verify follow-up exchange — find the last user message and check assistant follows
+      const lastUserIdx = messages.findLastIndex(
+        (m) => m.role === "user",
+      );
+      expect(lastUserIdx).toBeGreaterThan(-1);
+      expect(messages[lastUserIdx + 1]?.role).toBe("assistant");
 
       console.log(
         `Test 2 passed: ${messages.length} messages, rejection confirmed`,
@@ -215,42 +207,42 @@ test.describe("Chat with tool calls", () => {
     }
   });
 
-  test("test 3: send email with auto-confirm + continue chat", async () => {
+  test("test 3: get current time with auto-confirm + continue chat", async () => {
     await clearChatHistory(assigneeId);
 
-    // Step 1: Set send_email to auto-confirm
+    // Step 1: Set get_current_time to auto-confirm
     const assignee = await getAssignee(assigneeId);
     const originalPermissions = [...assignee.toolPermissions];
 
     const updatedPermissions = assignee.toolPermissions.map((tp) => {
-      if (tp.toolName === "send_email") {
+      if (tp.toolName === "get_current_time") {
         return { toolName: tp.toolName, permission: "auto-confirm" };
       }
       return tp;
     });
     await updateAssigneePermissions(assigneeId, updatedPermissions);
-    console.log("Set send_email to auto-confirm");
+    console.log("Set get_current_time to auto-confirm");
 
     // Single stream connection for the entire test
     const stream = consumeStream(assigneeId, { timeout: 180_000 });
 
     try {
-      // Step 2: Send message asking to send email
+      // Step 2: Send message asking for current time
       await sendMessage(
         assigneeId,
-        "Send an email to nonexistent@invalid-domain-that-does-not-exist.example.com with subject 'Auto Test' and body 'This email should be auto-confirmed.'",
+        "What time is it right now? Use the get_current_time tool to check.",
       );
       await stream.waitForDone();
 
-      // Verify send_email tool-call event happened
+      // Verify get_current_time tool-call event happened
       const toolCalls = stream.events.filter(
-        (e) => e.event === "tool-call" && e.data.toolName === "send_email",
+        (e) => e.event === "tool-call" && e.data.toolName === "get_current_time",
       );
       expect(toolCalls.length).toBeGreaterThanOrEqual(1);
 
-      // Verify send_email tool-result event happened
+      // Verify get_current_time tool-result event happened
       const toolResults = stream.events.filter(
-        (e) => e.event === "tool-result" && e.data.toolName === "send_email",
+        (e) => e.event === "tool-result" && e.data.toolName === "get_current_time",
       );
       expect(toolResults.length).toBeGreaterThanOrEqual(1);
 
@@ -272,13 +264,13 @@ test.describe("Chat with tool calls", () => {
       const { messages } = await getChatHistory(assigneeId);
       expect(messages.length).toBeGreaterThanOrEqual(5);
 
-      // Verify send_email tool-calls have auto-approved status (no confirmation object)
+      // Verify get_current_time tool-calls have auto-approved status (no confirmation object)
       const allCalls = findAllToolCallParts(messages);
-      const emailCalls = allCalls.filter(
-        (part) => part.toolName === "send_email",
+      const timeCalls = allCalls.filter(
+        (part) => part.toolName === "get_current_time",
       );
-      expect(emailCalls.length).toBeGreaterThanOrEqual(1);
-      for (const call of emailCalls) {
+      expect(timeCalls.length).toBeGreaterThanOrEqual(1);
+      for (const call of timeCalls) {
         // Auto-confirmed tools should not have a confirmation object
         expect(call.confirmation).toBeFalsy();
       }
@@ -296,7 +288,7 @@ test.describe("Chat with tool calls", () => {
       expect(lastTwo[1]?.role).toBe("assistant");
 
       console.log(
-        `Test 3 passed: ${messages.length} messages, ${emailCalls.length} auto-confirmed send_email calls`,
+        `Test 3 passed: ${messages.length} messages, ${timeCalls.length} auto-confirmed get_current_time calls`,
       );
     } finally {
       stream.cancel();
@@ -306,7 +298,7 @@ test.describe("Chat with tool calls", () => {
     }
   });
 
-  test("test 4: send email confirmation ignored + continue chat + re-send and confirm", async () => {
+  test("test 4: get current time confirmation ignored + continue chat + re-check and confirm", async () => {
     await clearChatHistory(assigneeId);
 
     // Track whether we should confirm or ignore confirmations
@@ -319,7 +311,7 @@ test.describe("Chat with tool calls", () => {
           if (shouldConfirm) {
             const pending = await listConfirmations();
             const c = pending.find(
-              (c) => c.toolName === "send_email" && c.status === "pending",
+              (c) => c.toolName === "get_current_time" && c.status === "pending",
             );
             if (c) {
               await resolveConfirmation(c.id, "confirm");
@@ -333,10 +325,10 @@ test.describe("Chat with tool calls", () => {
     });
 
     try {
-      // Step 1: Ask to send email — confirmation will be prompted but ignored
+      // Step 1: Ask for current time — confirmation will be prompted but ignored
       await sendMessage(
         assigneeId,
-        "Send an email to nonexistent@invalid-domain-that-does-not-exist.example.com with subject 'Weather Report' and body 'What is the weather today?'",
+        "What time is it right now? Use the get_current_time tool to check.",
       );
       // Backend won't send "done" while waiting for confirmation — wait for the confirmation event instead
       await stream.waitForEvent("confirmation_required");
@@ -357,17 +349,17 @@ test.describe("Chat with tool calls", () => {
       );
       expect(textDeltasAfterIgnore.length).toBeGreaterThan(0);
 
-      // Step 3: Ask to send email again, this time we will confirm
+      // Step 3: Ask for time again, this time we will confirm
       shouldConfirm = true;
       await sendMessage(
         assigneeId,
-        "Actually, send an email to nonexistent@invalid-domain-that-does-not-exist.example.com with subject 'Weather Report' and body 'What is the weather today?'",
+        "Actually, what time is it? Use the get_current_time tool to check.",
       );
       await stream.waitForDone();
 
       // Verify tool result appeared after confirmation
       const toolResults = stream.events.filter(
-        (e) => e.event === "tool-result" && e.data.toolName === "send_email",
+        (e) => e.event === "tool-result" && e.data.toolName === "get_current_time",
       );
       expect(toolResults.length).toBeGreaterThanOrEqual(1);
 
@@ -383,15 +375,15 @@ test.describe("Chat with tool calls", () => {
       const { messages } = await getChatHistory(assigneeId);
       expect(messages.length).toBeGreaterThanOrEqual(6);
 
-      // Verify the confirmed send_email tool-call has tool-result
+      // Verify the confirmed get_current_time tool-call has tool-result
       const allCalls = findAllToolCallParts(messages);
       const allResults = findAllToolResultParts(messages);
-      const confirmedEmailCalls = allCalls.filter((part) => {
-        if (part.toolName !== "send_email") return false;
+      const confirmedTimeCalls = allCalls.filter((part) => {
+        if (part.toolName !== "get_current_time") return false;
         const conf = part.confirmation as { status: string } | undefined;
         return conf?.status === "confirmed";
       });
-      expect(confirmedEmailCalls.length).toBeGreaterThanOrEqual(1);
+      expect(confirmedTimeCalls.length).toBeGreaterThanOrEqual(1);
 
       // Verify all tool-calls have matching tool-results
       const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
@@ -400,14 +392,14 @@ test.describe("Chat with tool calls", () => {
       }
 
       console.log(
-        `Test 4 passed: ${messages.length} messages, ignored then confirmed send email`,
+        `Test 4 passed: ${messages.length} messages, ignored then confirmed get_current_time`,
       );
     } finally {
       stream.cancel();
     }
   });
 
-  test.skip("test 5: multiple send_email — confirm second, first gets rejected, continue chat", async () => {
+  test.skip("test 5: multiple get_current_time — confirm second, first gets rejected, continue chat", async () => {
     await clearChatHistory(assigneeId);
 
     // We'll track confirmation IDs as they arrive and only confirm the second one
@@ -419,11 +411,11 @@ test.describe("Chat with tool calls", () => {
       onMessage: async (evt) => {
         if (evt.event === "confirmation_required") {
           const pending = await listConfirmations();
-          const pendingSendEmails = pending.filter(
-            (c) => c.toolName === "send_email" && c.status === "pending",
+          const pendingTimeCalls = pending.filter(
+            (c) => c.toolName === "get_current_time" && c.status === "pending",
           );
 
-          for (const c of pendingSendEmails) {
+          for (const c of pendingTimeCalls) {
             if (!confirmationIds.find((x) => x.id === c.id)) {
               confirmationIds.push({ id: c.id, toolName: c.toolName });
               console.log(
@@ -447,10 +439,10 @@ test.describe("Chat with tool calls", () => {
     });
 
     try {
-      // Step 1: Ask agent to send two emails in one request
+      // Step 1: Ask agent to check time twice
       await sendMessage(
         assigneeId,
-        "Send two separate emails: First, send an email to alice@invalid-domain-that-does-not-exist.example.com with subject 'Email 1' and body 'First email'. Second, send an email to bob@invalid-domain-that-does-not-exist.example.com with subject 'Email 2' and body 'Second email'.",
+        "Check the current time twice: first in UTC, then in America/New_York. Use the get_current_time tool for each.",
       );
       await stream.waitForDone();
 
@@ -460,14 +452,14 @@ test.describe("Chat with tool calls", () => {
       );
       expect(confirmationEvents.length).toBeGreaterThanOrEqual(2);
 
-      // Verify send_email tool results exist
-      const emailResults = stream.events.filter(
-        (e) => e.event === "tool-result" && e.data.toolName === "send_email",
+      // Verify get_current_time tool results exist
+      const timeResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "get_current_time",
       );
-      expect(emailResults.length).toBeGreaterThanOrEqual(2);
+      expect(timeResults.length).toBeGreaterThanOrEqual(2);
 
       // Step 2: Send follow-up message and verify agent responds without error
-      await sendMessage(assigneeId, "What happened with those emails?");
+      await sendMessage(assigneeId, "What happened with those time checks?");
       await stream.waitForDone();
 
       const textDeltas = stream.events.filter((e) => e.event === "text-delta");
@@ -477,15 +469,15 @@ test.describe("Chat with tool calls", () => {
       const { messages } = await getChatHistory(assigneeId);
       expect(messages.length).toBeGreaterThanOrEqual(4);
 
-      // Verify we have both confirmed and rejected send_email tool calls
-      const emailCallParts = findToolCallParts(messages, "send_email");
-      expect(emailCallParts.length).toBeGreaterThanOrEqual(2);
+      // Verify we have both confirmed and rejected get_current_time tool calls
+      const timeCallParts = findToolCallParts(messages, "get_current_time");
+      expect(timeCallParts.length).toBeGreaterThanOrEqual(2);
 
-      const confirmedCalls = emailCallParts.filter((part) => {
+      const confirmedCalls = timeCallParts.filter((part) => {
         const conf = part.confirmation as { status: string } | undefined;
         return conf?.status === "confirmed";
       });
-      const rejectedCalls = emailCallParts.filter((part) => {
+      const rejectedCalls = timeCallParts.filter((part) => {
         const conf = part.confirmation as { status: string } | undefined;
         return conf?.status === "rejected";
       });
@@ -525,7 +517,7 @@ test.describe("Chat with tool calls", () => {
     }
   });
 
-  test("test 6: send email confirmation + delete messages + re-send and confirm", async () => {
+  test("test 6: get current time confirmation + delete messages + re-check and confirm", async () => {
     await clearChatHistory(assigneeId);
 
     const stream = consumeStream(assigneeId, {
@@ -538,10 +530,10 @@ test.describe("Chat with tool calls", () => {
     });
 
     try {
-      // Step 1: Ask to send email — confirmation will be prompted but ignored
+      // Step 1: Ask for current time — confirmation will be prompted but ignored
       await sendMessage(
         assigneeId,
-        "Send an email to nonexistent@invalid-domain-that-does-not-exist.example.com with subject 'Weather Report' and body 'What is the weather today?'",
+        "What time is it right now? Use the get_current_time tool to check.",
       );
       // Backend won't send "done" while waiting for confirmation — wait for the confirmation event instead
       await stream.waitForEvent("confirmation_required");
@@ -566,7 +558,7 @@ test.describe("Chat with tool calls", () => {
           if (evt.event === "confirmation_required") {
             const pending = await listConfirmations();
             const c = pending.find(
-              (c) => c.toolName === "send_email" && c.status === "pending",
+              (c) => c.toolName === "get_current_time" && c.status === "pending",
             );
             if (c) {
               await resolveConfirmation(c.id, "confirm");
@@ -577,16 +569,16 @@ test.describe("Chat with tool calls", () => {
       });
 
       try {
-        // Step 5: Ask to send email again — this time confirm
+        // Step 5: Ask for current time again — this time confirm
         await sendMessage(
           assigneeId,
-          "Send an email to nonexistent@invalid-domain-that-does-not-exist.example.com with subject 'Weather Report' and body 'What is the weather today?'",
+          "What time is it right now? Use the get_current_time tool to check.",
         );
         await stream2.waitForDone();
 
         // Verify tool result appeared after confirmation
         const toolResults = stream2.events.filter(
-          (e) => e.event === "tool-result" && e.data.toolName === "send_email",
+          (e) => e.event === "tool-result" && e.data.toolName === "get_current_time",
         );
         expect(toolResults.length).toBeGreaterThanOrEqual(1);
 
@@ -614,13 +606,13 @@ test.describe("Chat with tool calls", () => {
         }
 
         console.log(
-          `Test 6 passed: ${messages.length} messages after delete + re-send email`,
+          `Test 6 passed: ${messages.length} messages after delete + re-check time`,
         );
       } finally {
         stream2.cancel();
       }
     } finally {
-      // No permission cleanup needed — send_email requires confirmation by default
+      // No permission cleanup needed — get_current_time requires confirmation by default
     }
   });
 

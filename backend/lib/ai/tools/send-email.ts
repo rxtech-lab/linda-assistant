@@ -32,35 +32,50 @@ export const sendEmailTool = (
     }),
     needsApproval,
     execute: async ({ to, subject, body, documentId }) => {
-      let attachments: Array<{ filename: string; content: Buffer }> | undefined;
+      try {
+        let attachments:
+          | Array<{ filename: string; content: Buffer }>
+          | undefined;
 
-      if (documentId) {
-        // Verify document ownership
-        const [doc] = await db
-          .select({ id: documents.id })
-          .from(documents)
-          .where(
-            and(eq(documents.id, documentId), eq(documents.userId, userId)),
-          );
+        if (documentId) {
+          // Verify document ownership
+          const [doc] = await db
+            .select({ id: documents.id })
+            .from(documents)
+            .where(
+              and(eq(documents.id, documentId), eq(documents.userId, userId)),
+            );
 
-        if (!doc) {
-          return { error: "Document not found" };
+          if (!doc) {
+            return { error: "Document not found" };
+          }
+
+          const { buffer, title } = await generateDocumentPdf(documentId);
+          const filename = sanitizeDocumentFilename(title);
+          attachments = [{ filename, content: buffer }];
         }
 
-        const { buffer, title } = await generateDocumentPdf(documentId);
-        const filename = sanitizeDocumentFilename(title);
-        attachments = [{ filename, content: buffer }];
+        const result = await resend.emails.send({
+          from: fromAddress,
+          to: [to],
+          subject,
+          html: body,
+          ...(attachments ? { attachments } : {}),
+        });
+
+        if (result.error) {
+          return {
+            error: `${result.error.name}: ${result.error.message}`,
+          };
+        }
+
+        return { sent: true, emailId: result.data?.id };
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Unknown error sending email";
+        console.error("[send_email] Error:", err);
+        return { error: message };
       }
-
-      const result = await resend.emails.send({
-        from: fromAddress,
-        to: [to],
-        subject,
-        html: body,
-        ...(attachments ? { attachments } : {}),
-      });
-
-      return { sent: true, emailId: result.data?.id };
     },
   });
 

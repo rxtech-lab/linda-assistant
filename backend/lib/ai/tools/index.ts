@@ -14,6 +14,10 @@ import { SEARCH_EMAILS_TOOL_NAME, searchEmailsTool } from "./search-emails";
 import { SEND_EMAIL_TOOL_NAME, sendEmailTool } from "./send-email";
 import { UPDATE_TASK_TOOL_NAME, updateTaskTool } from "./update-task";
 import {
+  GET_CURRENT_TIME_TOOL_NAME,
+  getCurrentTimeTool,
+} from "./get-current-time";
+import {
   UPDATE_DOCUMENT_TOOL_NAME,
   updateDocumentTool,
 } from "./update-document";
@@ -163,6 +167,10 @@ export async function buildToolSet(
       name: UPDATE_TASK_TOOL_NAME,
       create: (na: boolean) => updateTaskTool(userId, na),
     },
+    {
+      name: GET_CURRENT_TIME_TOOL_NAME,
+      create: (na: boolean) => getCurrentTimeTool(na),
+    },
   ];
 
   // Build permission-aware tools
@@ -231,6 +239,7 @@ export async function buildToolSet(
 export {
   CREATE_DOCUMENT_TOOL_NAME,
   CREATE_TASK_TOOL_NAME,
+  GET_CURRENT_TIME_TOOL_NAME,
   SEARCH_EMAILS_TOOL_NAME,
   SEND_EMAIL_TOOL_NAME,
   UPDATE_DOCUMENT_TOOL_NAME,

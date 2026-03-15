@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: linda-frontend
+  name: headless-chrome
   namespace: linda
   labels:
-    app: linda-frontend
+    app: headless-chrome
 spec:
   replicas: 1
   strategy:
@@ -14,49 +14,39 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      app: linda-frontend
+      app: headless-chrome
   template:
     metadata:
       labels:
-        app: linda-frontend
+        app: headless-chrome
     spec:
       containers:
-        - name: linda-frontend
-          image: ghcr.io/rxtech-lab/linda-frontend:latest
+        - name: headless-chrome
+          image: ghcr.io/rxtech-lab/headless-chrome-cjk:latest
           ports:
-            - containerPort: 3000
+            - containerPort: 9222
               protocol: TCP
-          env:
-            - name: PORT
-              value: "3000"
-            - name: HOSTNAME
-              value: "0.0.0.0"
-          envFrom:
-            - configMapRef:
-                name: linda-config
-            - secretRef:
-                name: linda-secrets
           resources:
             requests:
-              memory: "512Mi"
+              memory: "256Mi"
               cpu: "250m"
             limits:
-              memory: "1024Mi"
-              cpu: "1000m"
-          livenessProbe:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
             httpGet:
-              path: /api/health
-              port: 3000
-            initialDelaySeconds: 30
+              path: /json/version
+              port: 9222
+            initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
-          readinessProbe:
+          livenessProbe:
             httpGet:
-              path: /api/health
-              port: 3000
-            initialDelaySeconds: 5
-            periodSeconds: 5
+              path: /json/version
+              port: 9222
+            initialDelaySeconds: 10
+            periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
           securityContext:
