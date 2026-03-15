@@ -1,3 +1,4 @@
+import http from "node:http";
 import { db } from "@/lib/db";
 import { documents } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -65,15 +66,39 @@ export async function generateDocumentPdf(
   const chromeUrl = process.env.CHROME_URL;
   if (!chromeUrl) throw new Error("CHROME_URL environment variable is required");
 
-  // Query Chrome's /json/version to get the full WebSocket debugger URL
-  const httpBase = chromeUrl.replace(/^ws:\/\//, "http://");
-  const versionRes = await fetch(`${httpBase}/json/version`);
-  const { webSocketDebuggerUrl } = (await versionRes.json()) as {
-    webSocketDebuggerUrl: string;
-  };
-  // Replace the advertised host (127.0.0.1) with the configured host
-  const chromeHost = new URL(httpBase).host;
-  const browserWSEndpoint = webSocketDebuggerUrl.replace(/ws:\/\/[^/]+/, `ws://${chromeHost}`);
+  // Query Chrome's /json/version to get the full WebSocket debugger URL.
+  // Chrome rejects non-localhost Host headers on its HTTP API, and Bun's fetch
+  // silently ignores Host overrides (forbidden header). Use node:http instead.
+  const chromeHttpUrl = new URL(chromeUrl.replace(/^ws:\/\//, "http://"));
+  const { webSocketDebuggerUrl } = await new Promise<{ webSocketDebuggerUrl: string }>(
+    (resolve, reject) => {
+      const req = http.get(
+        {
+          hostname: chromeHttpUrl.hostname,
+          port: chromeHttpUrl.port,
+          path: "/json/version",
+          headers: { Host: "localhost" },
+        },
+        (res) => {
+          let body = "";
+          res.on("data", (chunk: Buffer) => (body += chunk.toString()));
+          res.on("end", () => {
+            try {
+              resolve(JSON.parse(body));
+            } catch {
+              reject(new Error(`Chrome /json/version returned invalid JSON: ${body}`));
+            }
+          });
+        },
+      );
+      req.on("error", reject);
+    },
+  );
+  // Replace the advertised host (localhost) with the configured host
+  const browserWSEndpoint = webSocketDebuggerUrl.replace(
+    /ws:\/\/[^/]+/,
+    `ws://${chromeHttpUrl.host}`,
+  );
 
   const browser = await puppeteer.connect({ browserWSEndpoint });
 
