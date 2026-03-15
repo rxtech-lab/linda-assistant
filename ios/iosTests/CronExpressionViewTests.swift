@@ -41,7 +41,7 @@ struct CronGUIStateTests {
     @Test func everyNMinutesWithCustomInterval() {
         var state = CronGUIState()
         state.frequency = .everyNMinutes
-        state.interval = -1  // Custom
+        state.interval = -1 // Custom
         state.customIntervalText = "7"
 
         #expect(state.toCronExpression() == "*/7 * * * *")
@@ -182,7 +182,7 @@ struct CronGUIStateTests {
         let state = CronGUIState.parse(from: "*/7 * * * *")
 
         #expect(state.frequency == .everyNMinutes)
-        #expect(state.interval == -1)  // Custom marker
+        #expect(state.interval == -1) // Custom marker
         #expect(state.customIntervalText == "7")
         #expect(state.effectiveInterval == 7)
     }
@@ -918,8 +918,4 @@ final class CronExpressionViewInteractionTests: XCTestCase {
 
         XCTAssertEqual(input, "7", "Custom field should show the parsed interval value")
     }
-
 }
-
-
-

@@ -340,12 +340,12 @@ final class StreamingCallbackTests: XCTestCase {
         XCTAssertEqual(messages.count, 1)
         // Single message with ordered parts: tool call first, text second
         XCTAssertEqual(messages[0].parts.count, 2)
-        if case .tool(let info) = messages[0].parts[0] {
+        if case let .tool(info) = messages[0].parts[0] {
             XCTAssertEqual(info.toolCallId, "tc-1")
         } else {
             XCTFail("First part should be tool call")
         }
-        if case .text(let content) = messages[0].parts[1] {
+        if case let .text(content) = messages[0].parts[1] {
             XCTAssertEqual(content.displayText, "Email sent.")
         } else {
             XCTFail("Second part should be text")
@@ -363,12 +363,12 @@ final class StreamingCallbackTests: XCTestCase {
 
         XCTAssertEqual(messages.count, 1)
         XCTAssertEqual(messages[0].parts.count, 2)
-        if case .text(let content) = messages[0].parts[0] {
+        if case let .text(content) = messages[0].parts[0] {
             XCTAssertEqual(content.displayText, "Let me send that.")
         } else {
             XCTFail("First part should be text")
         }
-        if case .tool(let info) = messages[0].parts[1] {
+        if case let .tool(info) = messages[0].parts[1] {
             XCTAssertEqual(info.toolCallId, "tc-1")
         } else {
             XCTFail("Second part should be tool call")
@@ -470,13 +470,20 @@ final class ConfirmedWithoutResultTests: XCTestCase {
         }
         XCTAssertNotNil(sendEmailMsg, "Should have a message with send_email tool call")
 
-        let sendEmailToolCall = sendEmailMsg!.toolCalls.first { $0.toolName == "send_email" }!
-        XCTAssertEqual(sendEmailToolCall.status, .stoppedNoResult, "Confirmed tool call without result should be .stoppedNoResult, not .completed")
+        let sendEmailToolCall = try XCTUnwrap(sendEmailMsg?.toolCalls.first { $0.toolName == "send_email" })
+        XCTAssertEqual(
+            sendEmailToolCall.status,
+            .stoppedNoResult,
+            "Confirmed tool call without result should be .stoppedNoResult, not .completed"
+        )
 
         // Verify the badge renders "Stopped" not "Completed"
         let badge = ToolCallBadge(toolCall: sendEmailToolCall)
         let texts = try badge.inspect().findAll(ViewType.Text.self).compactMap { try? $0.string() }
-        XCTAssertTrue(texts.contains("Stopped"), "Badge should show 'Stopped' for confirmed-but-no-result tool call. Got: \(texts)")
+        XCTAssertTrue(
+            texts.contains("Stopped"),
+            "Badge should show 'Stopped' for confirmed-but-no-result tool call. Got: \(texts)"
+        )
         XCTAssertFalse(texts.contains("Completed"), "Badge should NOT show 'Completed'")
 
         // Verify icon is stop.circle.fill, not checkmark
@@ -526,9 +533,9 @@ final class ConfirmedWithoutResultTests: XCTestCase {
         let messages = try decodeMessages(json)
         let displayMessages = DisplayMessage.convert(from: messages, assigneeName: "Linda")
 
-        let sendEmailToolCall = displayMessages
+        let sendEmailToolCall = try XCTUnwrap(displayMessages
             .flatMap(\.toolCalls)
-            .first { $0.toolName == "send_email" }!
+            .first { $0.toolName == "send_email" })
         XCTAssertEqual(sendEmailToolCall.status, .completed, "Confirmed tool call WITH result should be .completed")
 
         // Verify badge shows "Completed"
@@ -658,7 +665,10 @@ final class ConfirmedWithoutResultTests: XCTestCase {
         // Find the send_email badge
         let sendEmailBadge = try sut.inspect().find(viewWithAccessibilityIdentifier: "toolCallBadge-call_send_email")
         let badgeTexts = try sendEmailBadge.findAll(ViewType.Text.self).compactMap { try? $0.string() }
-        XCTAssertTrue(badgeTexts.contains("Completed"), "Badge should show 'Completed' when tool-result exists. Got: \(badgeTexts)")
+        XCTAssertTrue(
+            badgeTexts.contains("Completed"),
+            "Badge should show 'Completed' when tool-result exists. Got: \(badgeTexts)"
+        )
 
         let badgeImages = try sendEmailBadge.findAll(ViewType.Image.self)
         let iconNames = badgeImages.compactMap { try? $0.actualImage().name() }
@@ -699,7 +709,7 @@ final class ConfirmedWithoutResultTests: XCTestCase {
         let messages = try decodeMessages(json)
         let displayMessages = DisplayMessage.convert(from: messages, assigneeName: "Linda")
 
-        let toolCall = displayMessages.flatMap(\.toolCalls).first { $0.toolName == "create_document" }!
+        let toolCall = try XCTUnwrap(displayMessages.flatMap(\.toolCalls).first { $0.toolName == "create_document" })
         XCTAssertEqual(toolCall.status, .completed, "Auto-approved tool call with result should be .completed")
     }
 }
@@ -715,6 +725,7 @@ final class ToolCallErrorAnnotationTests: XCTestCase {
             toolName: "update_task",
             input: nil,
             confirmation: nil,
+            question: nil,
             error: "Task not found"
         )
 
@@ -742,6 +753,7 @@ final class ToolCallErrorAnnotationTests: XCTestCase {
             toolName: "create_task",
             input: nil,
             confirmation: nil,
+            question: nil,
             error: nil
         )
 
@@ -763,6 +775,7 @@ final class ToolCallErrorAnnotationTests: XCTestCase {
             toolName: "send_email",
             input: nil,
             confirmation: ToolCallConfirmation(id: "c1", status: "rejected"),
+            question: nil,
             error: nil
         )
 
@@ -792,7 +805,7 @@ final class DateDividerViewTests: XCTestCase {
     }
 
     func testDateDivider_showsYesterdayForYesterdaysDate() throws {
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: Date()))
         let sut = DateDividerView(date: yesterday)
 
         let texts = try sut.inspect().findAll(ViewType.Text.self)
@@ -810,7 +823,7 @@ final class DateDividerViewTests: XCTestCase {
     }
 
     func testDateDivider_hasAccessibilityIdentifierForYesterday() throws {
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: Date()))
         let sut = DateDividerView(date: yesterday)
 
         let found = try sut.inspect().find(viewWithAccessibilityIdentifier: "dateDivider-Yesterday")
@@ -821,13 +834,17 @@ final class DateDividerViewTests: XCTestCase {
         // Find a date within this week but not today or yesterday
         let calendar = Calendar.current
         var daysBack = 2
-        var testDate = calendar.date(byAdding: .day, value: -daysBack, to: Date())!
+        var testDate = try XCTUnwrap(calendar.date(byAdding: .day, value: -daysBack, to: Date()))
 
         // Skip if that lands on today or yesterday (edge case for start of week)
-        while calendar.isDateInToday(testDate) || calendar.isDateInYesterday(testDate) || !calendar.isDate(testDate, equalTo: Date(), toGranularity: .weekOfYear) {
+        while calendar.isDateInToday(testDate) || calendar.isDateInYesterday(testDate) || !calendar.isDate(
+            testDate,
+            equalTo: Date(),
+            toGranularity: .weekOfYear
+        ) {
             daysBack += 1
             if daysBack > 6 { return } // Skip test if we can't find a valid date
-            testDate = calendar.date(byAdding: .day, value: -daysBack, to: Date())!
+            testDate = try XCTUnwrap(calendar.date(byAdding: .day, value: -daysBack, to: Date()))
         }
 
         let sut = DateDividerView(date: testDate)
@@ -842,15 +859,27 @@ final class DateDividerViewTests: XCTestCase {
 
     func testDateDivider_showsMonthAndDayForOlderDate() throws {
         // Date from 2 months ago (definitely not in current week)
-        let oldDate = Calendar.current.date(byAdding: .month, value: -2, to: Date())!
+        let oldDate = try XCTUnwrap(Calendar.current.date(byAdding: .month, value: -2, to: Date()))
         let sut = DateDividerView(date: oldDate)
 
         let texts = try sut.inspect().findAll(ViewType.Text.self)
         let textStrings = texts.compactMap { try? $0.string() }
 
         // Should contain month name
-        let monthNames = ["January", "February", "March", "April", "May", "June",
-                          "July", "August", "September", "October", "November", "December"]
+        let monthNames = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ]
         let containsMonthName = textStrings.contains { text in
             monthNames.contains { text.contains($0) }
         }
@@ -859,7 +888,7 @@ final class DateDividerViewTests: XCTestCase {
 
     func testDateDivider_showsFullDateForDifferentYear() throws {
         // Date from last year
-        let lastYearDate = Calendar.current.date(byAdding: .year, value: -1, to: Date())!
+        let lastYearDate = try XCTUnwrap(Calendar.current.date(byAdding: .year, value: -1, to: Date()))
         let sut = DateDividerView(date: lastYearDate)
 
         let texts = try sut.inspect().findAll(ViewType.Text.self)
@@ -876,12 +905,18 @@ final class DateDividerViewTests: XCTestCase {
 
 final class MessageListDateDividerTests: XCTestCase {
     func testMessageList_showsDateDividerBetweenDifferentDays() throws {
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: Date()))
         let today = Date()
 
         let messages = [
             DisplayMessage(id: "1", role: .user, parts: [.text(.plain("Hello"))], timestamp: yesterday),
-            DisplayMessage(id: "2", role: .assistant, parts: [.text(.plain("Hi there!"))], assigneeName: "Avery", timestamp: today),
+            DisplayMessage(
+                id: "2",
+                role: .assistant,
+                parts: [.text(.plain("Hi there!"))],
+                assigneeName: "Avery",
+                timestamp: today
+            ),
         ]
 
         let sut = MessageList(messages: messages)
@@ -899,7 +934,13 @@ final class MessageListDateDividerTests: XCTestCase {
 
         let messages = [
             DisplayMessage(id: "1", role: .user, parts: [.text(.plain("Hello"))], timestamp: today),
-            DisplayMessage(id: "2", role: .assistant, parts: [.text(.plain("Hi!"))], assigneeName: "Avery", timestamp: today),
+            DisplayMessage(
+                id: "2",
+                role: .assistant,
+                parts: [.text(.plain("Hi!"))],
+                assigneeName: "Avery",
+                timestamp: today
+            ),
             DisplayMessage(id: "3", role: .user, parts: [.text(.plain("How are you?"))], timestamp: today),
         ]
 
@@ -1009,7 +1050,6 @@ final class ConfirmationSheetRemainingCountTests: XCTestCase {
 // MARK: - Test Case 17: MessageList rendering order (parts-based)
 
 final class MessageListRenderingOrderTests: XCTestCase {
-
     /// Helper: extract all messageListItem accessibility identifiers in order
     private func extractItemIds(from view: MessageList) throws -> [String] {
         let allViews = try view.inspect().findAll { view in
@@ -1166,7 +1206,10 @@ final class StreamingConfirmationRenderTests: XCTestCase {
 
         let images = try badge.findAll(ViewType.Image.self)
         let iconNames = images.compactMap { try? $0.actualImage().name() }
-        XCTAssertTrue(iconNames.contains("exclamationmark.shield.fill"), "Should show shield icon for pendingConfirmation")
+        XCTAssertTrue(
+            iconNames.contains("exclamationmark.shield.fill"),
+            "Should show shield icon for pendingConfirmation"
+        )
     }
 
     func testStreamingToolCall_pendingConfirmation_withPriorToolCalls_rendersAll() throws {
@@ -1206,7 +1249,10 @@ final class StreamingConfirmationRenderTests: XCTestCase {
         // Verify the confirmation badge specifically
         let emailBadge = try sut.inspect().find(viewWithAccessibilityIdentifier: "toolCallBadge-tc-email")
         let emailTexts = try emailBadge.findAll(ViewType.Text.self).compactMap { try? $0.string() }
-        XCTAssertTrue(emailTexts.contains("Needs Confirmation"), "Email tool should show 'Needs Confirmation'. Got: \(emailTexts)")
+        XCTAssertTrue(
+            emailTexts.contains("Needs Confirmation"),
+            "Email tool should show 'Needs Confirmation'. Got: \(emailTexts)"
+        )
     }
 
     func testStreamingMessage_pendingConfirmation_andText_rendersAll() throws {

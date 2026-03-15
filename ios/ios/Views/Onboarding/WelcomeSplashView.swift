@@ -3,9 +3,9 @@ import SwiftUI
 
 struct WelcomeSplashView: View {
     #if os(iOS)
-    let onComplete: () -> Void
+        let onComplete: () -> Void
     #else
-    var onContinue: () -> Void = {}
+        var onContinue: () -> Void = {}
     #endif
     @Environment(\.colorScheme) private var colorScheme
 
@@ -67,23 +67,23 @@ struct WelcomeSplashView: View {
 
                 VStack(spacing: 12) {
                     #if os(iOS)
-                    NavigationLink {
-                        OnboardingView(onComplete: onComplete)
-                    } label: {
-                        Text("Continue")
-                            .fontWeight(.semibold)
-                    }
-                    .buttonStyle(.glass)
-                    .controlSize(.large)
+                        NavigationLink {
+                            OnboardingView(onComplete: onComplete)
+                        } label: {
+                            Text("Continue")
+                                .fontWeight(.semibold)
+                        }
+                        .buttonStyle(.glass)
+                        .controlSize(.large)
                     #else
-                    Button {
-                        onContinue()
-                    } label: {
-                        Text("Continue")
-                            .fontWeight(.semibold)
-                    }
-                    .buttonStyle(.glass)
-                    .controlSize(.large)
+                        Button {
+                            onContinue()
+                        } label: {
+                            Text("Continue")
+                                .fontWeight(.semibold)
+                        }
+                        .buttonStyle(.glass)
+                        .controlSize(.large)
                     #endif
                 }
             }
@@ -95,15 +95,15 @@ struct WelcomeSplashView: View {
 
 #Preview {
     #if os(iOS)
-    NavigationStack {
-        WelcomeSplashView(onComplete: {})
-    }
-    .environment(AuthManager())
-    .environment(EventManager())
-    #else
-    WelcomeSplashView(onContinue: {})
+        NavigationStack {
+            WelcomeSplashView(onComplete: {})
+        }
         .environment(AuthManager())
         .environment(EventManager())
+    #else
+        WelcomeSplashView(onContinue: {})
+            .environment(AuthManager())
+            .environment(EventManager())
     #endif
 }
 

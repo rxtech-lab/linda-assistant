@@ -59,6 +59,9 @@ export async function startCeleryMock(port = 8099): Promise<CeleryMock> {
 
   return {
     port,
-    stop: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
+    stop: () =>
+      new Promise<void>((resolve, reject) =>
+        server.close((err) => (err ? reject(err) : resolve())),
+      ),
   };
 }

@@ -68,12 +68,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .where(eq(taskEmails.taskId, id)),
   ]);
 
-  const lastRunAt = sessions.length > 0
-    ? sessions.reduce((latest, s) =>
-        s.updatedAt && (!latest || s.updatedAt > latest) ? s.updatedAt : latest,
-        null as string | null,
-      )
-    : null;
+  const lastRunAt =
+    sessions.length > 0
+      ? sessions.reduce(
+          (latest, s) => (s.updatedAt && (!latest || s.updatedAt > latest) ? s.updatedAt : latest),
+          null as string | null,
+        )
+      : null;
 
   const nextRunAt =
     task.isCronEnabled && task.cronSchedule

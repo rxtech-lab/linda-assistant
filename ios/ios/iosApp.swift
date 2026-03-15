@@ -26,6 +26,7 @@ import SwiftUI
             print("Failed to register for remote notifications: \(error)")
         }
     }
+
 #elseif os(macOS)
     class AppDelegate: NSObject, NSApplicationDelegate {
         var pushManager: PushNotificationManager?

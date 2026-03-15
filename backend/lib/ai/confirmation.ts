@@ -8,11 +8,7 @@ import { sendPushNotification } from "@/lib/push";
 import { syncTaskStatus } from "@/lib/utils/task-status-sync";
 import { publishTask, publishEvent } from "@/lib/queue/producer";
 import { annotateToolCallConfirmation } from "./agent";
-import {
-  getActiveSessionMessages,
-  insertMessages,
-  updateMessageContent,
-} from "@/lib/db/messages";
+import { getActiveSessionMessages, insertMessages, updateMessageContent } from "@/lib/db/messages";
 
 interface CreateConfirmationParams {
   userId: string;
@@ -25,10 +21,7 @@ interface CreateConfirmationParams {
 }
 
 export async function createConfirmation(params: CreateConfirmationParams) {
-  const [confirmation] = await db
-    .insert(confirmations)
-    .values(params)
-    .returning();
+  const [confirmation] = await db.insert(confirmations).values(params).returning();
 
   if (!params.skipNotification) {
     // Send push notification (single confirmation path)
@@ -56,9 +49,7 @@ export async function sendConfirmationGroupNotification(
   if (items.length === 0) return;
 
   const isSingle = items.length === 1;
-  const title = isSingle
-    ? "Action Requires Confirmation"
-    : "Actions Require Confirmation";
+  const title = isSingle ? "Action Requires Confirmation" : "Actions Require Confirmation";
 
   const toolNames = items.map((i) => formatToolName(i.toolName));
   let body: string;
@@ -89,9 +80,7 @@ export async function resolveConfirmation(
   action: "confirm" | "reject",
   options?: { alwaysAllow?: boolean },
 ) {
-  console.log(
-    `[resolveConfirmation] START id=${confirmationId} action=${action}`,
-  );
+  console.log(`[resolveConfirmation] START id=${confirmationId} action=${action}`);
 
   const [confirmation] = await db
     .select()
@@ -99,8 +88,7 @@ export async function resolveConfirmation(
     .where(eq(confirmations.id, confirmationId));
 
   if (!confirmation) throw new Error("Confirmation not found");
-  if (confirmation.status !== "pending")
-    throw new Error("Confirmation already resolved");
+  if (confirmation.status !== "pending") throw new Error("Confirmation already resolved");
 
   console.log(
     `[resolveConfirmation] Found confirmation: session=${confirmation.chatSessionId} toolCallId=${confirmation.toolCallId} toolName=${confirmation.toolName}`,
@@ -134,12 +122,8 @@ export async function resolveConfirmation(
   const resolvedStatus = action === "confirm" ? "confirmed" : "rejected";
 
   // Load persisted messages, annotate the tool-call, then update the specific row
-  const persistedMessages = await getActiveSessionMessages(
-    confirmation.chatSessionId,
-  );
-  console.log(
-    `[resolveConfirmation] Loaded ${persistedMessages.length} messages for annotation`,
-  );
+  const persistedMessages = await getActiveSessionMessages(confirmation.chatSessionId);
+  console.log(`[resolveConfirmation] Loaded ${persistedMessages.length} messages for annotation`);
 
   annotateToolCallConfirmation(
     persistedMessages,
@@ -152,19 +136,14 @@ export async function resolveConfirmation(
   for (const msg of persistedMessages) {
     if (!Array.isArray(msg.content)) continue;
     for (const part of msg.content as Record<string, unknown>[]) {
-      if (
-        part.type === "tool-call" &&
-        part.toolCallId === confirmation.toolCallId
-      ) {
+      if (part.type === "tool-call" && part.toolCallId === confirmation.toolCallId) {
         const record = msg as Record<string, unknown>;
         await updateMessageContent(record.id as string, msg.content);
       }
     }
   }
 
-  console.log(
-    `[resolveConfirmation] Annotated messages, about to handle reject/events`,
-  );
+  console.log(`[resolveConfirmation] Annotated messages, about to handle reject/events`);
 
   // For rejection: insert a proper tool-result with isError so the SDK sees a complete
   // tool-call → tool-result pair and won't throw AI_MissingToolResultsError on resume.
@@ -203,9 +182,7 @@ export async function resolveConfirmation(
     });
   }
 
-  console.log(
-    `[resolveConfirmation] About to emit confirmation_resolved event`,
-  );
+  console.log(`[resolveConfirmation] About to emit confirmation_resolved event`);
   // Emit per-confirmation resolved event so client can update UI immediately
   await publishEvent({
     sessionId: confirmation.chatSessionId,
@@ -249,10 +226,7 @@ export async function resolveConfirmation(
           eq(confirmations.status, "pending"),
         ),
       );
-    console.log(
-      `[resolveConfirmation] Pending confirmations:`,
-      JSON.stringify(pendingRows),
-    );
+    console.log(`[resolveConfirmation] Pending confirmations:`, JSON.stringify(pendingRows));
   }
 
   // Only resume the agent when ALL confirmations have been resolved
@@ -297,8 +271,7 @@ export async function resolveConfirmation(
       .from(assignees)
       .where(eq(assignees.id, session.assigneeId));
 
-    const perms: ToolPermission[] =
-      (assignee?.toolPermissions as ToolPermission[]) ?? [];
+    const perms: ToolPermission[] = (assignee?.toolPermissions as ToolPermission[]) ?? [];
     const idx = perms.findIndex((tp) => tp.toolName === confirmation.toolName);
     if (idx >= 0) {
       perms[idx].permission = "auto-confirm";
@@ -320,9 +293,7 @@ export async function resolveConfirmation(
     await syncTaskStatus(session.taskId);
   }
 
-  console.log(
-    `[resolveConfirmation] DONE id=${confirmationId} action=${action}`,
-  );
+  console.log(`[resolveConfirmation] DONE id=${confirmationId} action=${action}`);
   return { action, confirmationId };
 }
 

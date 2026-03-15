@@ -24,10 +24,7 @@ export const s3Client = new Proxy({} as S3Client, {
   },
 });
 
-export async function getPresignedUploadUrl(
-  contentType: string,
-  prefix = "uploads",
-) {
+export async function getPresignedUploadUrl(contentType: string, prefix = "uploads") {
   const key = `${prefix}/${nanoid()}-${Date.now()}`;
   const command = new PutObjectCommand({
     Bucket: process.env.S3_BUCKET_NAME!,
@@ -38,11 +35,7 @@ export async function getPresignedUploadUrl(
   return { url, key };
 }
 
-export async function downloadAndUploadToS3(
-  url: string,
-  contentType: string,
-  filename: string,
-) {
+export async function downloadAndUploadToS3(url: string, contentType: string, filename: string) {
   const start = Date.now();
   const log = (step: string) =>
     console.log(`[s3:upload] ${filename} ${step} (+${Date.now() - start}ms)`);
@@ -51,9 +44,7 @@ export async function downloadAndUploadToS3(
   log("downloading from resend");
   const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
   if (!response.ok) {
-    throw new Error(
-      `Failed to download file from ${url}: ${response.statusText}`,
-    );
+    throw new Error(`Failed to download file from ${url}: ${response.statusText}`);
   }
 
   const buffer = Buffer.from(await response.arrayBuffer());
@@ -81,11 +72,7 @@ export async function downloadAndUploadToS3(
   return { url: getS3PublicUrl(key), contentHash };
 }
 
-export async function uploadBufferToS3(
-  buffer: Buffer,
-  contentType: string,
-  filename: string,
-) {
+export async function uploadBufferToS3(buffer: Buffer, contentType: string, filename: string) {
   const contentHash = createHash("sha256").update(buffer).digest("hex");
   const key = `email-inline-images/${nanoid()}-${filename}`;
 

@@ -13,7 +13,7 @@ export const createTransportMcp = async (
   if (process.env.IS_E2E?.toLowerCase() === "true") {
     return {};
   }
-  const mcpUrl = process.env.TRANSPORT_MCP_URL ;
+  const mcpUrl = process.env.TRANSPORT_MCP_URL;
   if (!mcpUrl) {
     throw new Error("TRANSPORT_MCP_URL is not defined");
   }

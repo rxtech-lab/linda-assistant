@@ -64,7 +64,7 @@ public enum KeychainHelper: Sendable {
         delete(key: AppConfig.refreshTokenKey, service: service)
         delete(key: AppConfig.idTokenKey, service: service)
         delete(key: "token_expires_at", service: service)
-        
+
         // Also try bulk delete by service
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

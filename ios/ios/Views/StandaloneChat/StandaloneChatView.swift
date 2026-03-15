@@ -85,7 +85,7 @@ struct ChatTabView: View {
                     }
                     .accessibilityIdentifier("assignee-button")
                     #if os(iOS)
-                    .buttonStyle(.plain)
+                        .buttonStyle(.plain)
                     #endif
                 }
             }

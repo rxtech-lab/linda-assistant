@@ -16,28 +16,15 @@ export async function GET(request: NextRequest) {
   if (auth instanceof Response) return auth;
 
   const deviceToken = request.nextUrl.searchParams.get("deviceToken");
-  console.log(
-    "Checking onboard status for user:",
-    auth.userId,
-    "with deviceToken:",
-    deviceToken,
-  );
+  console.log("Checking onboard status for user:", auth.userId, "with deviceToken:", deviceToken);
 
   const [assigneeResult, deviceResult] = await Promise.all([
-    db
-      .select({ count: count() })
-      .from(assignees)
-      .where(eq(assignees.userId, auth.userId)),
+    db.select({ count: count() }).from(assignees).where(eq(assignees.userId, auth.userId)),
     deviceToken
       ? db
           .select({ count: count() })
           .from(devices)
-          .where(
-            and(
-              eq(devices.userId, auth.userId),
-              eq(devices.deviceToken, deviceToken),
-            ),
-          )
+          .where(and(eq(devices.userId, auth.userId), eq(devices.deviceToken, deviceToken)))
       : Promise.resolve([{ count: 0 }]),
   ]);
 

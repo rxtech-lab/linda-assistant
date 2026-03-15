@@ -38,9 +38,7 @@ test.describe("Onboard API", () => {
     expect(body.device.check).toBe(false);
   });
 
-  test("unregistered deviceToken returns device.check false", async ({
-    request,
-  }) => {
+  test("unregistered deviceToken returns device.check false", async ({ request }) => {
     // Create an assignee first
     const createRes = await request.post("/api/assignees", {
       headers: freshUserHeaders,
@@ -51,10 +49,9 @@ test.describe("Onboard API", () => {
     });
     expect(createRes.status()).toBe(201);
 
-    const res = await request.get(
-      "/api/onboard?deviceToken=nonexistent-token",
-      { headers: freshUserHeaders },
-    );
+    const res = await request.get("/api/onboard?deviceToken=nonexistent-token", {
+      headers: freshUserHeaders,
+    });
     expect(res.status()).toBe(200);
     const body = await res.json();
     onboardResponseSchema.parse(body);
@@ -64,9 +61,7 @@ test.describe("Onboard API", () => {
     expect(body.device.check).toBe(false);
   });
 
-  test("registered deviceToken returns device.check true", async ({
-    request,
-  }) => {
+  test("registered deviceToken returns device.check true", async ({ request }) => {
     const headers = { "x-test-user-id": "e2e-onboard-device" };
     const deviceToken = "e2e-test-token-onboard";
 

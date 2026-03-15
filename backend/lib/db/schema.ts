@@ -22,9 +22,7 @@ export const assignees = sqliteTable("assignees", {
   email: text("email").notNull(),
   personality: text("personality"),
   model: text("model"),
-  toolPermissions: text("tool_permissions", { mode: "json" }).$type<
-    ToolPermission[]
-  >(),
+  toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
@@ -121,12 +119,37 @@ export const confirmations = sqliteTable("confirmations", {
   toolCallId: text("tool_call_id").notNull(),
   toolName: text("tool_name").notNull(),
   approvalId: text("approval_id").notNull(),
-  parameters: text("parameters", { mode: "json" }).$type<
-    Record<string, unknown>
-  >(),
+  parameters: text("parameters", { mode: "json" }).$type<Record<string, unknown>>(),
   status: text("status").default("pending"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   resolvedAt: text("resolved_at"),
+});
+
+export const questions = sqliteTable("questions", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull(),
+  chatSessionId: text("chat_session_id")
+    .notNull()
+    .references(() => chatSessions.id, { onDelete: "cascade" }),
+  toolCallId: text("tool_call_id").notNull(),
+  toolName: text("tool_name").notNull(),
+  approvalId: text("approval_id").notNull(),
+  questionsData: text("questions_data", { mode: "json" }).$type<
+    Array<{
+      title: string;
+      description?: string;
+      type: "boolean" | "multiple_choice" | "single_choice" | "fill_in_blank";
+      options?: Array<{ title: string; description?: string }>;
+    }>
+  >(),
+  answers: text("answers", { mode: "json" }).$type<
+    Array<{ questionIndex: number; answer: string | string[] | boolean }>
+  >(),
+  status: text("status").default("pending"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  answeredAt: text("answered_at"),
 });
 
 export const documents = sqliteTable("documents", {

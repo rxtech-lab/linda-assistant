@@ -4,20 +4,14 @@ import { documents } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { errorJson } from "@/lib/utils/response";
-import {
-  generateDocumentPdf,
-  sanitizeDocumentFilename,
-} from "@/lib/documents/pdf";
+import { generateDocumentPdf, sanitizeDocumentFilename } from "@/lib/documents/pdf";
 
 /**
  * @openapi
  * @operationId getDocumentPdf
  * @pathParams idParamSchema
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 

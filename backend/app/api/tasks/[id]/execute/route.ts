@@ -17,10 +17,7 @@ const executeResponseSchema = z.object({
  * @pathParams idParamSchema
  * @response executeResponseSchema
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const authHeader = request.headers.get("authorization");
   const adminKey = process.env.CELERY_ADMIN_KEY;
 

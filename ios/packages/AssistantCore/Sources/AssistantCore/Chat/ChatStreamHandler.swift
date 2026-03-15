@@ -12,12 +12,21 @@ public final class ChatStreamHandler: @unchecked Sendable {
     public private(set) var streamingParts: [MessagePart] = []
     public private(set) var pendingConfirmations: [ConfirmationPayload] = []
     /// The first unresolved confirmation in the queue (what the UI should show).
-    public var pendingConfirmation: ConfirmationPayload? { pendingConfirmations.first }
+    public var pendingConfirmation: ConfirmationPayload? {
+        pendingConfirmations.first
+    }
+
+    public private(set) var pendingQuestions: [QuestionPayload] = []
+    /// The first unresolved question in the queue (what the UI should show).
+    public var pendingQuestion: QuestionPayload? {
+        pendingQuestions.first
+    }
+
     public private(set) var error: String?
 
     /// Computed: extract tool calls from streaming parts (for confirmation lookup).
     public var streamingToolCalls: [ToolCallInfo] {
-        streamingParts.compactMap { if case .tool(let info) = $0 { return info } else { return nil } }
+        streamingParts.compactMap { if case let .tool(info) = $0 { info } else { nil } }
     }
 
     // Text buffering: accumulate chunks and flush on a 0.5s throttle
@@ -28,6 +37,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     public var onAssistantMessage: (@MainActor (_ parts: [MessagePart]) -> Void)?
     public var onReconnected: (@MainActor () async -> Void)?
     public var onConfirmationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
+    public var onQuestionAnswered: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
     public var onToolResult: (@MainActor (_ toolCallId: String, _ isError: Bool, _ errorMessage: String?) -> Void)?
     public var onUserMessage: (@MainActor (_ id: String, _ content: String) -> Void)?
 
@@ -59,6 +69,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
             self._textBuffer = ""
             self.streamingParts = []
             self.pendingConfirmations = []
+            self.pendingQuestions = []
             self.error = nil
             self.isStreaming = true
         }
@@ -144,6 +155,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
             self._textBuffer = ""
             self.streamingParts = []
             self.pendingConfirmations = []
+            self.pendingQuestions = []
             self.error = nil
             self.isStreaming = true
         }
@@ -175,6 +187,31 @@ public final class ChatStreamHandler: @unchecked Sendable {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    public func answerQuestion(questionId: String, action: String, answers: [[String: AnyCodable]]? = nil) async {
+        do {
+            let body = AnswerQuestion(action: action, answers: answers)
+            let response = try await apiClient.answerQuestion(id: questionId, body)
+            await MainActor.run {
+                pendingQuestions.removeAll { $0.questionId == questionId }
+            }
+            eventManager.emit(.questionAnswered(response.questionId, response.action))
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    public func setPendingQuestion(_ payload: QuestionPayload) {
+        if !pendingQuestions.contains(where: { $0.questionId == payload.questionId }) {
+            pendingQuestions.append(payload)
+        }
+    }
+
+    @MainActor
+    public func setPendingQuestions(_ payloads: [QuestionPayload]) {
+        pendingQuestions = payloads
     }
 
     @MainActor
@@ -258,11 +295,11 @@ public final class ChatStreamHandler: @unchecked Sendable {
             case let .toolCall(payload):
                 logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
                 if let index = streamingParts.firstIndex(where: {
-                    if case .tool(let info) = $0 { return info.toolCallId == payload.toolCallId }
+                    if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
                     return false
                 }) {
                     // Re-emitted after confirmation — update status back to running
-                    if case .tool(var info) = streamingParts[index] {
+                    if case var .tool(info) = streamingParts[index] {
                         info.status = .running
                         streamingParts[index] = .tool(info)
                     }
@@ -274,15 +311,16 @@ public final class ChatStreamHandler: @unchecked Sendable {
                         status: .running
                     )
                     streamingParts.append(.tool(info))
+                    eventManager.emit(.streamContentUpdated)
                 }
 
             case let .toolResult(payload):
                 logger.info("toolResult: toolCallId=\(payload.toolCallId), isError=\(payload.isError ?? false)")
                 if let index = streamingParts.firstIndex(where: {
-                    if case .tool(let info) = $0 { return info.toolCallId == payload.toolCallId }
+                    if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
                     return false
                 }) {
-                    if case .tool(var info) = streamingParts[index] {
+                    if case var .tool(info) = streamingParts[index] {
                         if payload.isError == true {
                             info.status = .failed
                             info.errorMessage = payload.error
@@ -301,10 +339,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 logger.info("confirmationRequired: \(payload.toolName) id=\(payload.confirmationId)")
                 // Update the corresponding tool call status so streaming badges show "Needs Confirmation"
                 if let index = streamingParts.firstIndex(where: {
-                    if case .tool(let info) = $0 { return info.toolCallId == payload.toolCallId }
+                    if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
                     return false
                 }) {
-                    if case .tool(var info) = streamingParts[index] {
+                    if case var .tool(info) = streamingParts[index] {
                         info.status = .pendingConfirmation
                         streamingParts[index] = .tool(info)
                     }
@@ -322,15 +360,50 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 pendingConfirmations.removeAll { $0.confirmationId == payload.confirmationId }
                 // Immediate feedback: update streaming tool call status
                 if let index = streamingParts.firstIndex(where: {
-                    if case .tool(let info) = $0 { return info.toolCallId == payload.toolCallId }
+                    if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
                     return false
                 }) {
-                    if case .tool(var info) = streamingParts[index] {
+                    if case var .tool(info) = streamingParts[index] {
                         info.status = payload.action == "rejected" ? .rejected : .running
                         streamingParts[index] = .tool(info)
                     }
                 }
                 onConfirmationResolved?(payload.toolCallId, payload.action)
+
+            case let .questionRequired(payload):
+                logger.info("questionRequired: \(payload.toolName) id=\(payload.questionId)")
+                // Update the corresponding tool call status
+                if let index = streamingParts.firstIndex(where: {
+                    if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
+                    return false
+                }) {
+                    if case var .tool(info) = streamingParts[index] {
+                        info.status = .pendingQuestion
+                        streamingParts[index] = .tool(info)
+                    }
+                }
+                // Avoid duplicates from SSE replay
+                if !pendingQuestions.contains(where: { $0.questionId == payload.questionId }) {
+                    pendingQuestions.append(payload)
+                }
+
+            case let .questionAnswered(payload):
+                logger
+                    .info(
+                        "questionAnswered: \(payload.toolName) id=\(payload.questionId) action=\(payload.action)"
+                    )
+                pendingQuestions.removeAll { $0.questionId == payload.questionId }
+                // Immediate feedback: update streaming tool call status
+                if let index = streamingParts.firstIndex(where: {
+                    if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
+                    return false
+                }) {
+                    if case var .tool(info) = streamingParts[index] {
+                        info.status = payload.action == "rejected" ? .rejected : .running
+                        streamingParts[index] = .tool(info)
+                    }
+                }
+                onQuestionAnswered?(payload.toolCallId, payload.action)
 
             case let .userMessage(payload):
                 logger.info("userMessage: id=\(payload.id), content=\(payload.content.prefix(50))")
@@ -355,9 +428,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
                     isStreaming = true
                 } else if payload.status == "stopped" {
                     finalizeResponse()
-                } else if payload.status == "waiting_confirmation" {
-                    // Agent paused for confirmation — stop streaming indicator
-                    // but keep streamingParts and pendingConfirmations visible
+                } else if payload.status == "waiting_confirmation" || payload.status == "waiting_question" {
+                    // Agent paused for confirmation/question — stop streaming indicator
+                    // but keep streamingParts and pendingConfirmations/pendingQuestions visible
                     isStreaming = false
                 }
 
@@ -372,7 +445,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
         _flushTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: self?.flushInterval ?? .milliseconds(500))
             guard let self, !Task.isCancelled else { return }
-            self.flushBuffer()
+            flushBuffer()
         }
     }
 
@@ -385,7 +458,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
             _textBuffer = ""
             // Append to last text part if it's streaming, otherwise create a new one
             if let lastIndex = streamingParts.indices.last,
-               case .text(.streaming(var chunks)) = streamingParts[lastIndex]
+               case var .text(.streaming(chunks)) = streamingParts[lastIndex]
             {
                 chunks.append(buffer)
                 streamingParts[lastIndex] = .text(.streaming(chunks))
@@ -409,7 +482,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
         if !streamingParts.isEmpty {
             // Convert streaming text parts to finalized plain text
             let finalizedParts = streamingParts.map { part -> MessagePart in
-                if case .text(let content) = part {
+                if case let .text(content) = part {
                     return .text(.plain(content.displayText))
                 }
                 return part
@@ -436,8 +509,8 @@ public enum TextPartContent: Sendable {
 
     public var displayText: String {
         switch self {
-        case .plain(let s): return s
-        case .streaming(let chunks): return chunks.joined()
+            case let .plain(s): s
+            case let .streaming(chunks): chunks.joined()
         }
     }
 }
@@ -480,6 +553,7 @@ public enum ToolCallStatus: Sendable, Equatable {
     case completed
     case failed
     case pendingConfirmation
+    case pendingQuestion
     case rejected
     case stoppedNoResult
 
@@ -491,6 +565,17 @@ public enum ToolCallStatus: Sendable, Equatable {
         switch status {
             case "rejected": return .rejected
             case "pending": return .pendingConfirmation
+            case "cancelled": return .stoppedNoResult
+            default: return hasResult ? .completed : .stoppedNoResult
+        }
+    }
+
+    /// Map a question status string to a ToolCallStatus.
+    public static func from(question: ToolCallQuestion?, hasResult: Bool = true) -> ToolCallStatus {
+        guard let status = question?.status else { return .completed }
+        switch status {
+            case "rejected": return .rejected
+            case "pending": return .pendingQuestion
             case "cancelled": return .stoppedNoResult
             default: return hasResult ? .completed : .stoppedNoResult
         }

@@ -32,10 +32,7 @@ async function resolveBrowserEndpoint(chromeUrl: string): Promise<string> {
       const info = JSON.parse(text) as { webSocketDebuggerUrl: string };
       // Replace the advertised host (127.0.0.1) with the configured host
       const chromeHost = new URL(httpBase).host;
-      return info.webSocketDebuggerUrl.replace(
-        /ws:\/\/[^/]+/,
-        `ws://${chromeHost}`,
-      );
+      return info.webSocketDebuggerUrl.replace(/ws:\/\/[^/]+/, `ws://${chromeHost}`);
     } catch {
       console.log(`Waiting for Chrome at ${url}... (attempt ${i + 1}/30)`);
       await new Promise((r) => setTimeout(r, 1000));

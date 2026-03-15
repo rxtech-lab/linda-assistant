@@ -29,6 +29,8 @@ export async function POST(request: NextRequest) {
     })
     .returning();
 
-  console.log(`[device] registered device=${upserted.id} token=${upserted.deviceToken.slice(0, 8)}... userId=${auth.userId}`);
+  console.log(
+    `[device] registered device=${upserted.id} token=${upserted.deviceToken.slice(0, 8)}... userId=${auth.userId}`,
+  );
   return successJson(upserted, 201);
 }

@@ -1,5 +1,5 @@
 //
-//  iosUITests.swift
+//  standaloneChatTests.swift
 //  iosUITests
 //
 //  Created by Qiwei Li on 2/7/26.
@@ -10,14 +10,18 @@ import XCTest
 final class StandaloneChatTests: XCTestCase {
     /// Waits for a message containing the specified text to appear
     /// On iOS, content is exposed via staticTexts with 'label' property
-    private func waitForMessageContaining(_ text: String, in app: XCUIApplication, timeout: TimeInterval) async throws -> Bool {
+    private func waitForMessageContaining(
+        _ text: String,
+        in app: XCUIApplication,
+        timeout: TimeInterval
+    ) async throws -> Bool {
         #if os(macOS)
-        // macOS cannot find the text
-        try await Task.sleep(for: .seconds(10))
-        return true
+            // macOS cannot find the text
+            try await Task.sleep(for: .seconds(10))
+            return true
         #else
-        let predicate = NSPredicate(format: "label CONTAINS %@", text)
-        return await app.staticTexts.matching(predicate).firstMatch.waitForExistence(timeout: timeout)
+            let predicate = NSPredicate(format: "label CONTAINS %@", text)
+            return await app.staticTexts.matching(predicate).firstMatch.waitForExistence(timeout: timeout)
         #endif
     }
 

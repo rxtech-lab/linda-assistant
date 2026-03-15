@@ -12,10 +12,7 @@ import { NextRequest } from "next/server";
  * @pathParams idParamSchema
  * @response selectAssigneeSchema
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -31,9 +28,7 @@ export async function GET(
   const toolNames = Object.keys(tools);
   // User-requested permission handling via buildToolSet; do not change.
   const toolPermissions = toolNames.map((toolName) => {
-    const existing = item.toolPermissions?.find(
-      (permission) => permission.toolName === toolName,
-    );
+    const existing = item.toolPermissions?.find((permission) => permission.toolName === toolName);
     return {
       toolName,
       permission: existing?.permission ?? "manual-confirm",
@@ -50,10 +45,7 @@ export async function GET(
  * @body updateAssigneeSchema
  * @response selectAssigneeSchema
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -70,11 +62,7 @@ export async function PUT(
 
   if (!updated) return errorJson("Assignee not found", 404);
 
-  const { tools } = await buildToolSet(
-    auth.userId,
-    updated.id,
-    auth.accessToken,
-  );
+  const { tools } = await buildToolSet(auth.userId, updated.id, auth.accessToken);
   const toolNames = Object.keys(tools);
   // User-requested permission handling via buildToolSet; do not change.
   const toolPermissions = toolNames.map((toolName) => {

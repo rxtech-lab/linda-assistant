@@ -68,7 +68,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       // Subscribe, replay cached events, then switch to live mode
       console.log(`[Stream] Subscribing to events for session=${id}`);
-      subscription = await streamWithReplay(id, session.status ?? "idle", send, cleanup, request.signal);
+      subscription = await streamWithReplay(
+        id,
+        session.status ?? "idle",
+        send,
+        cleanup,
+        request.signal,
+      );
     } catch (error) {
       if (!request.signal.aborted) {
         send("error", { id: crypto.randomUUID(), error: String(error) });

@@ -57,9 +57,9 @@ private struct OnboardingGate: View {
     @State private var loadError: String?
 
     #if os(macOS)
-    @State private var showWelcomeSheet = false
-    @State private var showFormSheet = false
-    @State private var pendingFormSheet = false
+        @State private var showWelcomeSheet = false
+        @State private var showFormSheet = false
+        @State private var pendingFormSheet = false
     #endif
 
     private var apiClient: APIClient {
@@ -78,7 +78,7 @@ private struct OnboardingGate: View {
             }
         } else {
             AdaptiveRootView()
-                #if os(macOS)
+            #if os(macOS)
                 .sheet(isPresented: $showWelcomeSheet, onDismiss: {
                     if pendingFormSheet {
                         pendingFormSheet = false
@@ -107,15 +107,15 @@ private struct OnboardingGate: View {
                         showWelcomeSheet = true
                     }
                 }
-                #else
+            #else
                 .sheet(isPresented: .constant(showOnboarding)) {
-                    OnboardingSheetView(onComplete: {
-                        isOnboarded = true
-                    })
-                    .interactiveDismissDisabled()
-                }
-                #endif
-                .task { await load() }
+                        OnboardingSheetView(onComplete: {
+                            isOnboarded = true
+                        })
+                        .interactiveDismissDisabled()
+                    }
+            #endif
+                    .task { await load() }
         }
     }
 

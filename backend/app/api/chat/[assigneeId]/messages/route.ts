@@ -32,9 +32,7 @@ export async function GET(
   const [assignee] = await db
     .select({ id: assignees.id })
     .from(assignees)
-    .where(
-      and(eq(assignees.id, assigneeId), eq(assignees.userId, auth.userId)),
-    );
+    .where(and(eq(assignees.id, assigneeId), eq(assignees.userId, auth.userId)));
 
   if (!assignee) return errorJson("Assignee not found", 404);
 
@@ -42,22 +40,13 @@ export async function GET(
   const [session] = await db
     .select({ id: chatSessions.id })
     .from(chatSessions)
-    .where(
-      and(
-        eq(chatSessions.assigneeId, assigneeId),
-        eq(chatSessions.userId, auth.userId),
-      ),
-    )
+    .where(and(eq(chatSessions.assigneeId, assigneeId), eq(chatSessions.userId, auth.userId)))
     .limit(1);
 
-  if (!session)
-    return errorJson("No chat session exists for this assignee", 404);
+  if (!session) return errorJson("No chat session exists for this assignee", 404);
 
   const url = new URL(request.url);
-  const limit = Math.min(
-    parseInt(url.searchParams.get("limit") || "100", 10) || 100,
-    100,
-  );
+  const limit = Math.min(parseInt(url.searchParams.get("limit") || "100", 10) || 100, 100);
   const before = url.searchParams.get("before") || undefined;
 
   try {
@@ -95,9 +84,7 @@ export async function DELETE(
   const [assignee] = await db
     .select({ id: assignees.id })
     .from(assignees)
-    .where(
-      and(eq(assignees.id, assigneeId), eq(assignees.userId, auth.userId)),
-    );
+    .where(and(eq(assignees.id, assigneeId), eq(assignees.userId, auth.userId)));
 
   if (!assignee) return errorJson("Assignee not found", 404);
 
@@ -105,21 +92,13 @@ export async function DELETE(
   const [session] = await db
     .select({ id: chatSessions.id })
     .from(chatSessions)
-    .where(
-      and(
-        eq(chatSessions.assigneeId, assigneeId),
-        eq(chatSessions.userId, auth.userId),
-      ),
-    )
+    .where(and(eq(chatSessions.assigneeId, assigneeId), eq(chatSessions.userId, auth.userId)))
     .limit(1);
 
-  if (!session)
-    return errorJson("No chat session exists for this assignee", 404);
+  if (!session) return errorJson("No chat session exists for this assignee", 404);
 
   await deleteSessionMessages(session.id);
-  await db
-    .delete(confirmations)
-    .where(eq(confirmations.chatSessionId, session.id));
+  await db.delete(confirmations).where(eq(confirmations.chatSessionId, session.id));
   await clearStreamChunks(session.id);
   await setStreamActive(session.id, false);
   return successJson({ deleted: true });

@@ -52,9 +52,18 @@ final class ChatDetailViewModel {
             guard let self else { return }
             updateToolCallStatus(toolCallId: toolCallId, action: action, in: &displayMessages)
         }
+        handler.onQuestionAnswered = { [weak self] toolCallId, action in
+            guard let self else { return }
+            updateToolCallStatus(toolCallId: toolCallId, action: action, in: &displayMessages)
+        }
         handler.onToolResult = { [weak self] toolCallId, isError, errorMessage in
             guard let self else { return }
-            updateToolCallResult(toolCallId: toolCallId, isError: isError, errorMessage: errorMessage, in: &displayMessages)
+            updateToolCallResult(
+                toolCallId: toolCallId,
+                isError: isError,
+                errorMessage: errorMessage,
+                in: &displayMessages
+            )
         }
         handler.onUserMessage = { [weak self] id, content in
             guard let self else { return }

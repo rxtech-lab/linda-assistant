@@ -20,7 +20,7 @@ struct DisplayMessage: Identifiable {
     /// Computed: joined text from all text parts.
     var textContent: String {
         parts.compactMap {
-            if case .text(let content) = $0 { return content.displayText }
+            if case let .text(content) = $0 { return content.displayText }
             return nil
         }.joined()
     }
@@ -29,7 +29,7 @@ struct DisplayMessage: Identifiable {
     var toolCalls: [ToolCallInfo] {
         get {
             parts.compactMap {
-                if case .tool(let info) = $0 { return info }
+                if case let .tool(info) = $0 { return info }
                 return nil
             }
         }
@@ -94,6 +94,11 @@ extension DisplayMessage {
                 if tc.error != nil {
                     status = .failed
                     errorMsg = tc.error
+                } else if tc.question != nil {
+                    let hasResult = toolCallIdsWithResults.contains(tc.toolCallId)
+                        || resultOutputs[tc.toolCallId] != nil
+                    status = ToolCallStatus.from(question: tc.question, hasResult: hasResult)
+                    errorMsg = nil
                 } else if tc.confirmation != nil {
                     let hasResult = toolCallIdsWithResults.contains(tc.toolCallId)
                         || resultOutputs[tc.toolCallId] != nil
@@ -136,7 +141,13 @@ extension DisplayMessage {
         DisplayMessage(
             id: "preview-user",
             role: .user,
-            parts: [.text(.plain("Can you help me understand how to implement authentication in my iOS app? I'm looking for best practices and security considerations."))]
+            parts: [
+                .text(
+                    .plain(
+                        "Can you help me understand how to implement authentication in my iOS app? I'm looking for best practices and security considerations."
+                    )
+                ),
+            ]
         )
     }
 

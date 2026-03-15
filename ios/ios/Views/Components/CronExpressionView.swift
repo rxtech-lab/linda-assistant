@@ -29,10 +29,10 @@ struct CronExpressionView: View {
             .accessibilityIdentifier("cron_mode_picker")
 
             switch selectedMode {
-            case .text:
-                textInputView
-            case .gui:
-                guiInputView
+                case .text:
+                    textInputView
+                case .gui:
+                    guiInputView
             }
 
             if !cronExpression.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -142,13 +142,13 @@ struct CronExpressionView: View {
                 if guiState.interval == -1 || !CronGUIState.minutePresets.contains(guiState.interval) {
                     HStack {
                         TextField("Minutes", text: $guiState.customIntervalText)
-                            #if os(iOS)
+                        #if os(iOS)
                             .keyboardType(.numberPad)
-                            #endif
+                        #endif
                             .frame(width: 60)
-                            #if os(iOS)
+                        #if os(iOS)
                             .textFieldStyle(.roundedBorder)
-                            #endif
+                        #endif
                             .accessibilityIdentifier("cron_custom_minutes_field")
                             .onChange(of: guiState.customIntervalText) { _, _ in
                                 cronExpression = guiState.toCronExpression()
@@ -216,16 +216,15 @@ struct CronExpressionView: View {
     }
 
     private func ordinal(_ n: Int) -> String {
-        let suffix: String
-        switch n % 100 {
-        case 11, 12, 13: suffix = "th"
-        default:
-            switch n % 10 {
-            case 1: suffix = "st"
-            case 2: suffix = "nd"
-            case 3: suffix = "rd"
-            default: suffix = "th"
-            }
+        let suffix = switch n % 100 {
+            case 11, 12, 13: "th"
+            default:
+                switch n % 10 {
+                    case 1: "st"
+                    case 2: "nd"
+                    case 3: "rd"
+                    default: "th"
+                }
         }
         return "\(n)\(suffix)"
     }
@@ -244,13 +243,13 @@ enum CronFrequency: String, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .everyMinute: "Every minute"
-        case .everyNMinutes: "Every N minutes"
-        case .everyHour: "Every hour"
-        case .everyNHours: "Every N hours"
-        case .daily: "Daily"
-        case .weekly: "Weekly"
-        case .monthly: "Monthly"
+            case .everyMinute: "Every minute"
+            case .everyNMinutes: "Every N minutes"
+            case .everyHour: "Every hour"
+            case .everyNHours: "Every N hours"
+            case .daily: "Daily"
+            case .weekly: "Weekly"
+            case .monthly: "Monthly"
         }
     }
 }
@@ -284,20 +283,20 @@ struct CronGUIState: Equatable {
 
     func toCronExpression() -> String {
         switch frequency {
-        case .everyMinute:
-            return "* * * * *"
-        case .everyNMinutes:
-            return "*/\(effectiveInterval) * * * *"
-        case .everyHour:
-            return "0 * * * *"
-        case .everyNHours:
-            return "0 */\(interval) * * *"
-        case .daily:
-            return "\(minute) \(hour) * * *"
-        case .weekly:
-            return "\(minute) \(hour) * * \(dayOfWeek)"
-        case .monthly:
-            return "\(minute) \(hour) \(dayOfMonth) * *"
+            case .everyMinute:
+                "* * * * *"
+            case .everyNMinutes:
+                "*/\(effectiveInterval) * * * *"
+            case .everyHour:
+                "0 * * * *"
+            case .everyNHours:
+                "0 */\(interval) * * *"
+            case .daily:
+                "\(minute) \(hour) * * *"
+            case .weekly:
+                "\(minute) \(hour) * * \(dayOfWeek)"
+            case .monthly:
+                "\(minute) \(hour) \(dayOfMonth) * *"
         }
     }
 
@@ -313,13 +312,13 @@ struct CronGUIState: Equatable {
         let dayOfWeekPart = String(parts[4])
 
         // Every minute
-        if minutePart == "*" && hourPart == "*" && dayOfMonthPart == "*" && dayOfWeekPart == "*" {
+        if minutePart == "*", hourPart == "*", dayOfMonthPart == "*", dayOfWeekPart == "*" {
             state.frequency = .everyMinute
             return state
         }
 
         // Every N minutes
-        if minutePart.hasPrefix("*/") && hourPart == "*" {
+        if minutePart.hasPrefix("*/"), hourPart == "*" {
             if let n = Int(minutePart.dropFirst(2)) {
                 state.frequency = .everyNMinutes
                 if Self.minutePresets.contains(n) {
@@ -333,13 +332,13 @@ struct CronGUIState: Equatable {
         }
 
         // Every hour
-        if minutePart == "0" && hourPart == "*" && dayOfMonthPart == "*" && dayOfWeekPart == "*" {
+        if minutePart == "0", hourPart == "*", dayOfMonthPart == "*", dayOfWeekPart == "*" {
             state.frequency = .everyHour
             return state
         }
 
         // Every N hours
-        if minutePart == "0" && hourPart.hasPrefix("*/") {
+        if minutePart == "0", hourPart.hasPrefix("*/") {
             if let n = Int(hourPart.dropFirst(2)) {
                 state.frequency = .everyNHours
                 state.interval = n
@@ -356,7 +355,7 @@ struct CronGUIState: Equatable {
         }
 
         // Weekly
-        if dayOfMonthPart == "*" && dayOfWeekPart != "*" {
+        if dayOfMonthPart == "*", dayOfWeekPart != "*" {
             if let d = Int(dayOfWeekPart) {
                 state.frequency = .weekly
                 state.dayOfWeek = d
@@ -365,7 +364,7 @@ struct CronGUIState: Equatable {
         }
 
         // Monthly
-        if dayOfMonthPart != "*" && dayOfWeekPart == "*" {
+        if dayOfMonthPart != "*", dayOfWeekPart == "*" {
             if let d = Int(dayOfMonthPart) {
                 state.frequency = .monthly
                 state.dayOfMonth = d

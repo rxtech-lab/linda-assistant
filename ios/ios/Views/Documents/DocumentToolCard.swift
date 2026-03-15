@@ -14,7 +14,7 @@ struct DocumentToolCard: View {
             return title
         }
         // Fallback to result
-        if case .object(let obj) = toolCall.result, let title = obj["title"]?.stringValue {
+        if case let .object(obj) = toolCall.result, let title = obj["title"]?.stringValue {
             return title
         }
         return "Untitled Document"
@@ -25,7 +25,7 @@ struct DocumentToolCard: View {
         if let format = toolCall.input?["format"]?.stringValue {
             return format
         }
-        if case .object(let obj) = toolCall.result, let format = obj["format"]?.stringValue {
+        if case let .object(obj) = toolCall.result, let format = obj["format"]?.stringValue {
             return format
         }
         return "markdown"
@@ -34,13 +34,13 @@ struct DocumentToolCard: View {
     /// Extract the document ID from the tool result.
     /// AI SDK v6 wraps output as `{ type: "json", value: { documentId: "..." } }`.
     private var documentId: String? {
-        if case .object(let obj) = toolCall.result {
+        if case let .object(obj) = toolCall.result {
             // Direct: { documentId: "..." }
             if let id = obj["documentId"]?.stringValue {
                 return id
             }
             // SDK-wrapped: { type: "json", value: { documentId: "..." } }
-            if case .object(let inner) = obj["value"], let id = inner["documentId"]?.stringValue {
+            if case let .object(inner) = obj["value"], let id = inner["documentId"]?.stringValue {
                 return id
             }
         }
@@ -57,41 +57,45 @@ struct DocumentToolCard: View {
 
     private var statusText: String {
         switch toolCall.status {
-        case .running:
-            isCreateTool ? "Creating..." : "Updating..."
-        case .completed:
-            isCreateTool ? "Created" : "Updated"
-        case .failed:
-            "Failed"
-        case .pendingConfirmation:
-            "Needs Confirmation"
-        case .rejected:
-            "Rejected"
-        case .stoppedNoResult:
-            "Stopped with no result"
+            case .running:
+                isCreateTool ? "Creating..." : "Updating..."
+            case .completed:
+                isCreateTool ? "Created" : "Updated"
+            case .failed:
+                "Failed"
+            case .pendingConfirmation:
+                "Needs Confirmation"
+            case .pendingQuestion:
+                "Needs Answer"
+            case .rejected:
+                "Rejected"
+            case .stoppedNoResult:
+                "Stopped with no result"
         }
     }
 
     private var statusIcon: String {
         switch toolCall.status {
-        case .running: "doc.text"
-        case .completed: "doc.text.fill"
-        case .failed: "xmark.circle.fill"
-        case .pendingConfirmation: "exclamationmark.shield.fill"
-        case .rejected: "nosign"
-        case .stoppedNoResult:
-            "stop.circle"
+            case .running: "doc.text"
+            case .completed: "doc.text.fill"
+            case .failed: "xmark.circle.fill"
+            case .pendingConfirmation: "exclamationmark.shield.fill"
+            case .pendingQuestion: "questionmark.circle.fill"
+            case .rejected: "nosign"
+            case .stoppedNoResult:
+                "stop.circle"
         }
     }
 
     private var statusColor: Color {
         switch toolCall.status {
-        case .running: .blue
-        case .completed: .green
-        case .failed, .rejected: .red
-        case .pendingConfirmation: .orange
-        case .stoppedNoResult:
-            .yellow
+            case .running: .blue
+            case .completed: .green
+            case .failed, .rejected: .red
+            case .pendingConfirmation: .orange
+            case .pendingQuestion: .purple
+            case .stoppedNoResult:
+                .yellow
         }
     }
 
@@ -153,16 +157,28 @@ private enum DocumentToolCardPreviewData {
     static let creating = ToolCallInfo(
         toolCallId: "preview-creating",
         toolName: "create_document",
-        input: ["title": .string("Q4 Analysis Report"), "format": .string("markdown"), "content": .string("# Report\n\nSample content...")],
+        input: [
+            "title": .string("Q4 Analysis Report"),
+            "format": .string("markdown"),
+            "content": .string("# Report\n\nSample content..."),
+        ],
         status: .running
     )
 
     static let created = ToolCallInfo(
         toolCallId: "preview-created",
         toolName: "create_document",
-        input: ["title": .string("Q4 Analysis Report"), "format": .string("markdown"), "content": .string("# Q4 Analysis Report\n\nThis is a comprehensive analysis...")],
+        input: [
+            "title": .string("Q4 Analysis Report"),
+            "format": .string("markdown"),
+            "content": .string("# Q4 Analysis Report\n\nThis is a comprehensive analysis..."),
+        ],
         status: .completed,
-        result: .object(["documentId": .string("doc-1"), "title": .string("Q4 Analysis Report"), "format": .string("markdown")])
+        result: .object([
+            "documentId": .string("doc-1"),
+            "title": .string("Q4 Analysis Report"),
+            "format": .string("markdown"),
+        ])
     )
 
     static let updated = ToolCallInfo(

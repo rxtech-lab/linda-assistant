@@ -39,9 +39,7 @@ export async function GET(request: NextRequest) {
   const itemsWithNextRun = items.map((task) => ({
     ...task,
     nextRunAt:
-      task.isCronEnabled && task.cronSchedule
-        ? getNextRunSeconds(task.cronSchedule)
-        : null,
+      task.isCronEnabled && task.cronSchedule ? getNextRunSeconds(task.cronSchedule) : null,
   }));
 
   return paginatedJson(itemsWithNextRun, countResult[0].count, limit, offset);

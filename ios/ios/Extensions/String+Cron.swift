@@ -4,7 +4,7 @@ extension String {
     /// Returns a human-readable description of a cron expression.
     /// Supports common patterns; falls back to "Custom schedule: <expr>" for complex cases.
     var cronDescription: String {
-        let parts = self.trimmingCharacters(in: .whitespaces).split(separator: " ", omittingEmptySubsequences: false)
+        let parts = trimmingCharacters(in: .whitespaces).split(separator: " ", omittingEmptySubsequences: false)
         guard parts.count == 5 else { return "Custom schedule: \(self)" }
 
         let minute = String(parts[0])
@@ -14,7 +14,7 @@ extension String {
         let dayOfWeek = String(parts[4])
 
         // Every minute
-        if minute == "*" && hour == "*" && dayOfMonth == "*" && month == "*" && dayOfWeek == "*" {
+        if minute == "*", hour == "*", dayOfMonth == "*", month == "*", dayOfWeek == "*" {
             return "Every minute"
         }
 
@@ -33,26 +33,26 @@ extension String {
         }
 
         // Hourly: 0 * * * *
-        if minute == "0" && hour == "*" && dayOfMonth == "*" && month == "*" && dayOfWeek == "*" {
+        if minute == "0", hour == "*", dayOfMonth == "*", month == "*", dayOfWeek == "*" {
             return "Every hour"
         }
 
         let timeStr = timeDescription(hour: hour, minute: minute)
 
         // Daily: M H * * *
-        if dayOfMonth == "*" && month == "*" && dayOfWeek == "*", let t = timeStr {
+        if dayOfMonth == "*", month == "*", dayOfWeek == "*", let t = timeStr {
             return "Daily at \(t)"
         }
 
         // Specific day of week: M H * * D
-        if dayOfMonth == "*" && month == "*" && dayOfWeek != "*", let t = timeStr {
+        if dayOfMonth == "*", month == "*", dayOfWeek != "*", let t = timeStr {
             if let dayName = weekdayName(dayOfWeek) {
                 return "Every \(dayName) at \(t)"
             }
         }
 
         // Monthly on specific day: M H D * *
-        if dayOfMonth != "*" && month == "*" && dayOfWeek == "*", let t = timeStr {
+        if dayOfMonth != "*", month == "*", dayOfWeek == "*", let t = timeStr {
             if let d = Int(dayOfMonth) {
                 return "Monthly on the \(ordinal(d)) at \(t)"
             }
@@ -76,16 +76,15 @@ extension String {
     }
 
     private func ordinal(_ n: Int) -> String {
-        let suffix: String
-        switch n % 100 {
-        case 11, 12, 13: suffix = "th"
-        default:
-            switch n % 10 {
-            case 1: suffix = "st"
-            case 2: suffix = "nd"
-            case 3: suffix = "rd"
-            default: suffix = "th"
-            }
+        let suffix = switch n % 100 {
+            case 11, 12, 13: "th"
+            default:
+                switch n % 10 {
+                    case 1: "st"
+                    case 2: "nd"
+                    case 3: "rd"
+                    default: "th"
+                }
         }
         return "\(n)\(suffix)"
     }

@@ -14,9 +14,7 @@ export async function publishTask(task: AgentTask): Promise<void> {
   ch.sendToQueue(AGENT_TASKS_QUEUE, Buffer.from(JSON.stringify(task)), {
     persistent: true,
   });
-  console.log(
-    `[Queue] Published task: session=${task.sessionId} type=${task.type}`,
-  );
+  console.log(`[Queue] Published task: session=${task.sessionId} type=${task.type}`);
 }
 
 export async function publishEvent(event: AgentEvent): Promise<void> {
@@ -29,11 +27,7 @@ export async function publishEvent(event: AgentEvent): Promise<void> {
 
   const ch = await createChannel();
   const routingKey = `session.${event.sessionId}`;
-  ch.publish(
-    AGENT_EVENTS_EXCHANGE,
-    routingKey,
-    Buffer.from(JSON.stringify(event)),
-  );
+  ch.publish(AGENT_EVENTS_EXCHANGE, routingKey, Buffer.from(JSON.stringify(event)));
 }
 
 export async function publishStopCommand(sessionId: string): Promise<void> {
@@ -44,10 +38,6 @@ export async function publishStopCommand(sessionId: string): Promise<void> {
     timestamp: Date.now(),
   };
   const routingKey = `session.${sessionId}`;
-  ch.publish(
-    AGENT_COMMANDS_EXCHANGE,
-    routingKey,
-    Buffer.from(JSON.stringify(command)),
-  );
+  ch.publish(AGENT_COMMANDS_EXCHANGE, routingKey, Buffer.from(JSON.stringify(command)));
   console.log(`[Queue] Published stop command: session=${sessionId}`);
 }

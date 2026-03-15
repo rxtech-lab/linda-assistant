@@ -41,9 +41,7 @@ describe("downloadAndUploadToS3", () => {
     const testContent = "test file content";
 
     // Mock fetch
-    const mockFetch = mock(() =>
-      Promise.resolve(createMockResponse(testContent)),
-    );
+    const mockFetch = mock(() => Promise.resolve(createMockResponse(testContent)));
     global.fetch = mockFetch as any;
 
     // Execute the upload
@@ -69,9 +67,7 @@ describe("downloadAndUploadToS3", () => {
     const testContent = "test file content";
 
     // Mock fetch
-    const mockFetch = mock(() =>
-      Promise.resolve(createMockResponse(testContent)),
-    );
+    const mockFetch = mock(() => Promise.resolve(createMockResponse(testContent)));
     global.fetch = mockFetch as any;
 
     // Make S3 upload fail
@@ -79,11 +75,7 @@ describe("downloadAndUploadToS3", () => {
 
     // Execute the upload and expect it to fail
     await expect(
-      downloadAndUploadToS3(
-        "https://example.com/file.pdf",
-        "application/pdf",
-        "test.pdf",
-      ),
+      downloadAndUploadToS3("https://example.com/file.pdf", "application/pdf", "test.pdf"),
     ).rejects.toThrow("S3 upload failed");
   });
 
@@ -98,11 +90,7 @@ describe("downloadAndUploadToS3", () => {
     global.fetch = mockFetch as any;
 
     await expect(
-      downloadAndUploadToS3(
-        "https://example.com/file.pdf",
-        "application/pdf",
-        "test.pdf",
-      ),
+      downloadAndUploadToS3("https://example.com/file.pdf", "application/pdf", "test.pdf"),
     ).rejects.toThrow("Failed to download file");
 
     // S3 should not have been called
@@ -120,11 +108,7 @@ describe("downloadAndUploadToS3", () => {
     global.fetch = mockFetch as any;
 
     await expect(
-      downloadAndUploadToS3(
-        "https://example.com/file.pdf",
-        "application/pdf",
-        "test.pdf",
-      ),
+      downloadAndUploadToS3("https://example.com/file.pdf", "application/pdf", "test.pdf"),
     ).rejects.toThrow("arrayBuffer failed");
 
     // S3 should not have been called

@@ -43,9 +43,9 @@ struct ConfirmationSheetView: View {
                     )
                     .ignoresSafeArea()
                 )
-#if os(iOS)
+                #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
-#endif
+                #endif
                 VStack {
                     HStack {
                         Spacer()
@@ -220,16 +220,16 @@ private extension ConfirmationSheetView {
 
         if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
             switch context.biometryType {
-            case .faceID:
-                return ("Confirm with Face ID", "faceid")
-            case .touchID:
-                return ("Confirm with Touch ID", "touchid")
-            case .opticID:
-                return ("Confirm with Optic ID", "opticid")
-            case .none:
-                return ("Confirm with Passcode", "lock")
-            @unknown default:
-                return ("Confirm", "checkmark.shield")
+                case .faceID:
+                    return ("Confirm with Face ID", "faceid")
+                case .touchID:
+                    return ("Confirm with Touch ID", "touchid")
+                case .opticID:
+                    return ("Confirm with Optic ID", "opticid")
+                case .none:
+                    return ("Confirm with Passcode", "lock")
+                @unknown default:
+                    return ("Confirm", "checkmark.shield")
             }
         } else {
             return ("Confirm with Passcode", "lock")

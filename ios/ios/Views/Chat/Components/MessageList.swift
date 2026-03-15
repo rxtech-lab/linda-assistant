@@ -51,27 +51,27 @@ struct MessageList: View {
 
                 ForEach(Array(msg.parts.enumerated()), id: \.offset) { partIndex, part in
                     switch part {
-                    case .text(let content):
-                        if !content.displayText.isEmpty {
-                            MessageBubble(message: msg)
-                                .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
-                        }
-                    case .tool(let toolCall):
-                        if Self.documentToolNames.contains(toolCall.toolName) {
-                            DocumentToolCard(toolCall: toolCall) { doc in
-                                onDocumentTap?(doc)
+                        case let .text(content):
+                            if !content.displayText.isEmpty {
+                                MessageBubble(message: msg)
+                                    .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                             }
-                            .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
-                        } else {
-                            ToolCallBadge(toolCall: toolCall) {
-                                if toolCall.status == .pendingConfirmation {
-                                    onConfirmationTap?()
-                                } else if toolCall.status != .running {
-                                    onToolCallTap?(toolCall)
+                        case let .tool(toolCall):
+                            if Self.documentToolNames.contains(toolCall.toolName) {
+                                DocumentToolCard(toolCall: toolCall) { doc in
+                                    onDocumentTap?(doc)
                                 }
+                                .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
+                            } else {
+                                ToolCallBadge(toolCall: toolCall) {
+                                    if toolCall.status == .pendingConfirmation {
+                                        onConfirmationTap?()
+                                    } else if toolCall.status != .running {
+                                        onToolCallTap?(toolCall)
+                                    }
+                                }
+                                .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                             }
-                            .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
-                        }
                     }
                 }
             }
