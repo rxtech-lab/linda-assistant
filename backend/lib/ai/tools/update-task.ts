@@ -3,15 +3,16 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { chatSessions, tasks } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { registerCronTask, updateCronTask, deleteCronTask, scheduleOnceTask } from "@/lib/celery/client";
+import {
+  registerCronTask,
+  updateCronTask,
+  deleteCronTask,
+  scheduleOnceTask,
+} from "@/lib/celery/client";
 import { convertCronToUTC, convertRunsAtToUTC } from "@/lib/utils/timezone";
 import { isValidCronExpression } from "@/lib/utils/cron";
 
-export const updateTaskTool = (
-  userId: string,
-  needsApproval: boolean,
-  sessionId?: string,
-) =>
+export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId?: string) =>
   tool({
     description:
       "Update an existing task's status, details, or scheduling. " +
@@ -35,10 +36,7 @@ export const updateTaskTool = (
         .describe(
           "Cron expression for recurring execution (e.g. '0 7 * * *'). Set to null to remove. Specify in the user's local timezone.",
         ),
-      isCronEnabled: z
-        .boolean()
-        .optional()
-        .describe("Enable or disable cron scheduling"),
+      isCronEnabled: z.boolean().optional().describe("Enable or disable cron scheduling"),
       runsAt: z
         .string()
         .optional()

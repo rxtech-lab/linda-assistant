@@ -7,11 +7,7 @@ import { eq } from "drizzle-orm";
 import { tool } from "ai";
 import { z } from "zod";
 
-export const createTaskTool = (
-  userId: string,
-  needsApproval: boolean,
-  sessionId?: string,
-) =>
+export const createTaskTool = (userId: string, needsApproval: boolean, sessionId?: string) =>
   tool({
     description:
       "Create a new task for the user. Can optionally set up a recurring cron schedule or a one-shot scheduled execution. " +
@@ -22,10 +18,7 @@ export const createTaskTool = (
       description: z.string().optional().describe("Task description"),
       tags: z.array(z.string()).optional().describe("Tags for categorization"),
       categories: z.array(z.string()).optional().describe("Task categories"),
-      assigneeId: z
-        .string()
-        .optional()
-        .describe("Assignee ID to link to this task"),
+      assigneeId: z.string().optional().describe("Assignee ID to link to this task"),
       cronSchedule: z
         .string()
         .optional()
@@ -64,9 +57,7 @@ export const createTaskTool = (
       const utcCronSchedule = cronSchedule
         ? convertCronToUTC(cronSchedule, sessionTimezone)
         : undefined;
-      const utcRunsAt = runsAt
-        ? convertRunsAtToUTC(runsAt, sessionTimezone)
-        : undefined;
+      const utcRunsAt = runsAt ? convertRunsAtToUTC(runsAt, sessionTimezone) : undefined;
 
       const isCronEnabled = !!utcCronSchedule;
       const status = isCronEnabled || utcRunsAt ? "running" : "pending";

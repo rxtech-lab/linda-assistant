@@ -307,7 +307,11 @@ export const selectChatSessionSchema = z.object({
   assigneeId: z.string().nullable().describe("Associated assignee ID"),
   title: z.string().nullable().describe("Session title"),
   status: z.string().nullable().describe("Current session status"),
-  timezone: z.string().nullable().optional().describe("IANA timezone of the user (e.g. 'America/New_York')"),
+  timezone: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("IANA timezone of the user (e.g. 'America/New_York')"),
   assignee: z
     .object({
       id: z.string().describe("Assignee ID"),
@@ -482,7 +486,9 @@ export const sendMessageSchema = z.object({
   timezone: z
     .string()
     .optional()
-    .describe("IANA timezone of the sender (e.g. 'America/New_York'), stored on the chat session for scheduling"),
+    .describe(
+      "IANA timezone of the sender (e.g. 'America/New_York'), stored on the chat session for scheduling",
+    ),
 });
 
 // ---- Onboard ----

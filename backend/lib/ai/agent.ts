@@ -626,14 +626,19 @@ async function resolvePendingToolCalls(
             }
           }
         }
-      } else if (confirmation?.status === "rejected" || questionRecord?.status === "rejected" || locationStatus === "rejected") {
+      } else if (
+        confirmation?.status === "rejected" ||
+        questionRecord?.status === "rejected" ||
+        locationStatus === "rejected"
+      ) {
         // Safety: rejection should already have a tool-result from resolveConfirmation/resolveQuestion,
         // but create one if somehow missing
-        const errorMsg = locationStatus === "rejected"
-          ? "User declined to share their location"
-          : questionRecord
-            ? "User rejected all questions"
-            : "User rejected this action";
+        const errorMsg =
+          locationStatus === "rejected"
+            ? "User declined to share their location"
+            : questionRecord
+              ? "User rejected all questions"
+              : "User rejected this action";
         resultMessage = {
           id: crypto.randomUUID(),
           role: "tool" as const,
