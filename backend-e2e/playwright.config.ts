@@ -3,8 +3,10 @@ import "dotenv/config";
 
 export default defineConfig({
   testDir: "./tests",
+  fullyParallel: true,
   timeout: 60_000,
-  retries: 2,
+  retries: 4,
+  workers: 4,
   webServer: {
     command: "bun oauth-server.ts",
     url: "http://localhost:3001/health",

@@ -1,4 +1,6 @@
 import AssistantCore
+import CoreLocation
+import MapKit
 import SwiftUI
 
 struct ToolCallDetailSheet: View {
@@ -7,43 +9,95 @@ struct ToolCallDetailSheet: View {
 
     private var statusIcon: String {
         switch toolCall.status {
-        case .completed: "checkmark.circle.fill"
-        case .failed: "xmark.circle.fill"
-        case .rejected: "nosign"
-        case .pendingConfirmation: "exclamationmark.shield.fill"
-        case .pendingQuestion: "questionmark.circle.fill"
-        case .running: "arrow.trianglehead.2.clockwise"
-        case .stoppedNoResult:
-            "stop.circle.fill"
+            case .completed: "checkmark.circle.fill"
+            case .failed: "xmark.circle.fill"
+            case .rejected: "nosign"
+            case .pendingConfirmation: "exclamationmark.shield.fill"
+            case .pendingQuestion: "questionmark.circle.fill"
+            case .pendingLocation: "location.fill"
+            case .running: "arrow.trianglehead.2.clockwise"
+            case .stoppedNoResult:
+                "stop.circle.fill"
         }
     }
 
     private var statusColor: Color {
         switch toolCall.status {
-        case .completed: .green
-        case .failed, .rejected: .red
-        case .pendingConfirmation: .orange
-        case .pendingQuestion: .purple
-        case .running: .blue
-        case .stoppedNoResult:
-            .gray
+            case .completed: .green
+            case .failed, .rejected: .red
+            case .pendingConfirmation: .orange
+            case .pendingQuestion: .purple
+            case .pendingLocation: .blue
+            case .running: .blue
+            case .stoppedNoResult:
+                .gray
         }
     }
 
     private var statusTitle: String {
         switch toolCall.status {
-        case .completed: "Completed"
-        case .failed: "Tool Failed"
-        case .rejected: "Rejected"
-        case .pendingConfirmation: "Needs Confirmation"
-        case .pendingQuestion: "Needs Answer"
-        case .running: "Running"
-        case .stoppedNoResult:
-            "Stopped"
+            case .completed: "Completed"
+            case .failed: "Tool Failed"
+            case .rejected: "Rejected"
+            case .pendingConfirmation: "Needs Confirmation"
+            case .pendingQuestion: "Needs Answer"
+            case .pendingLocation: "Needs Location"
+            case .running: "Running"
+            case .stoppedNoResult:
+                "Stopped"
         }
     }
 
     var body: some View {
+        if toolCall.toolName == "get_location" {
+            locationResultBody
+        } else {
+            defaultBody
+        }
+    }
+
+    private var locationResultBody: some View {
+        NavigationStack {
+            ZStack {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        locationResultHeader
+                        locationSection
+                    }
+                    .padding(.top, 20)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
+                }
+                .background(
+                    LinearGradient(
+                        colors: [
+                            (toolCall.status == .rejected ? Color.red : Color.blue).opacity(0.12),
+                            Color.clear,
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .ignoresSafeArea()
+                )
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var defaultBody: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
@@ -88,17 +142,17 @@ struct ToolCallDetailSheet: View {
             .background(Color(nsColor: .windowBackgroundColor))
             #endif
             #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
             #endif
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "xmark")
-                        }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
                     }
                 }
+            }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
@@ -166,6 +220,123 @@ private extension ToolCallDetailSheet {
     }
 }
 
+// MARK: - Location Section
+
+private extension ToolCallDetailSheet {
+    /// Extract latitude, longitude, accuracy from the tool result.
+    private var locationCoordinate: (latitude: Double, longitude: Double, accuracy: Double)? {
+        guard case let .object(dict) = toolCall.result else { return nil }
+
+        guard let lat = dict["latitude"]?.doubleValue,
+              let lon = dict["longitude"]?.doubleValue
+        else { return nil }
+
+        let acc = dict["accuracy"]?.doubleValue ?? 0
+        return (lat, lon, acc)
+    }
+
+    var locationResultHeader: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill((toolCall.status == .rejected ? Color.red : Color.blue).opacity(0.18))
+                    .frame(width: 88, height: 88)
+                Circle()
+                    .stroke((toolCall.status == .rejected ? Color.red : Color.blue).opacity(0.35), lineWidth: 1)
+                    .frame(width: 88, height: 88)
+                Image(systemName: toolCall.status == .rejected ? "location.slash.fill" : "location.fill")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(toolCall.status == .rejected ? .red : .blue)
+            }
+
+            VStack(spacing: 6) {
+                Text(toolCall.status == .rejected ? "Location Declined" : "Location Shared")
+                    .font(.title2.bold())
+                if let reason = toolCall.input?["reason"]?.description, !reason.isEmpty {
+                    Text(reason)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    var locationSection: some View {
+        if let coord = locationCoordinate {
+            Map(initialPosition: .region(MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: coord.latitude, longitude: coord.longitude),
+                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+            ))) {
+                Marker("You", coordinate: CLLocationCoordinate2D(
+                    latitude: coord.latitude,
+                    longitude: coord.longitude
+                ))
+            }
+            .frame(height: 200)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(Color.primary.opacity(0.08))
+            )
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Coordinates")
+                    .font(.headline)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Latitude")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 80, alignment: .leading)
+                        Text(String(format: "%.6f", coord.latitude))
+                            .font(.body.monospacedDigit())
+                    }
+                    HStack {
+                        Text("Longitude")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 80, alignment: .leading)
+                        Text(String(format: "%.6f", coord.longitude))
+                            .font(.body.monospacedDigit())
+                    }
+                    HStack {
+                        Text("Accuracy")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 80, alignment: .leading)
+                        Text(String(format: "%.0f m", coord.accuracy))
+                            .font(.body.monospacedDigit())
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.background)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(Color.primary.opacity(0.08))
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+        } else if toolCall.status == .rejected {
+            // Rejected — no coordinates to show
+            VStack(spacing: 12) {
+                Image(systemName: "location.slash")
+                    .font(.title)
+                    .foregroundStyle(.tertiary)
+                Text("Location was not shared")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 32)
+        }
+    }
+}
+
 // MARK: - Details Section
 
 private extension ToolCallDetailSheet {
@@ -200,11 +371,11 @@ private extension ToolCallDetailSheet {
             }
             .background {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    #if os(iOS)
+                #if os(iOS)
                     .fill(Color(.secondarySystemGroupedBackground))
-                    #else
+                #else
                     .fill(Color(nsColor: .controlBackgroundColor))
-                    #endif
+                #endif
             }
         }
     }
@@ -222,11 +393,11 @@ private extension ToolCallDetailSheet {
                 .padding(14)
                 .background {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        #if os(iOS)
+                    #if os(iOS)
                         .fill(Color(.secondarySystemGroupedBackground))
-                        #else
+                    #else
                         .fill(Color(nsColor: .controlBackgroundColor))
-                        #endif
+                    #endif
                 }
         }
     }
@@ -340,11 +511,11 @@ private extension ToolCallDetailSheet {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                #if os(iOS)
+            #if os(iOS)
                 .fill(Color(.secondarySystemGroupedBackground))
-                #else
+            #else
                 .fill(Color(nsColor: .controlBackgroundColor))
-                #endif
+            #endif
         }
     }
 
@@ -417,18 +588,18 @@ private extension ToolCallDetailSheet {
                     .font(.subheadline)
 
                 switch answer {
-                case let .string(str):
-                    Text(str)
-                        .font(.subheadline.weight(.medium))
-                case let .bool(b):
-                    Text(b ? "Yes" : "No")
-                        .font(.subheadline.weight(.medium))
-                case let .array(arr):
-                    Text(arr.compactMap { $0.stringValue }.joined(separator: ", "))
-                        .font(.subheadline.weight(.medium))
-                default:
-                    Text(answer.description)
-                        .font(.subheadline.weight(.medium))
+                    case let .string(str):
+                        Text(str)
+                            .font(.subheadline.weight(.medium))
+                    case let .bool(b):
+                        Text(b ? "Yes" : "No")
+                            .font(.subheadline.weight(.medium))
+                    case let .array(arr):
+                        Text(arr.compactMap(\.stringValue).joined(separator: ", "))
+                            .font(.subheadline.weight(.medium))
+                    default:
+                        Text(answer.description)
+                            .font(.subheadline.weight(.medium))
                 }
             }
             .padding(.horizontal, 12)
@@ -500,53 +671,180 @@ private func previewInput(_ questions: [AnyCodable]) -> [String: AnyCodable] {
 }
 
 #Preview("Pending - Boolean") {
-    let q = previewQuestion(["title": .string("Do you like pizza?"), "description": .string("We need to know for lunch planning"), "type": .string("boolean")])
-    ToolCallDetailSheet(toolCall: ToolCallInfo(toolCallId: "p1", toolName: "ask_question", input: previewInput([q]), status: .pendingQuestion))
+    let q = previewQuestion([
+        "title": .string("Do you like pizza?"),
+        "description": .string("We need to know for lunch planning"),
+        "type": .string("boolean"),
+    ])
+    ToolCallDetailSheet(toolCall: ToolCallInfo(
+        toolCallId: "p1",
+        toolName: "ask_question",
+        input: previewInput([q]),
+        status: .pendingQuestion
+    ))
 }
 
 #Preview("Pending - Fill in Blank") {
-    let q = previewQuestion(["title": .string("What is your favorite pizza?"), "description": .string("We'll use this for your next order"), "type": .string("fill_in_blank")])
-    ToolCallDetailSheet(toolCall: ToolCallInfo(toolCallId: "p2", toolName: "ask_question", input: previewInput([q]), status: .pendingQuestion))
+    let q = previewQuestion([
+        "title": .string("What is your favorite pizza?"),
+        "description": .string("We'll use this for your next order"),
+        "type": .string("fill_in_blank"),
+    ])
+    ToolCallDetailSheet(toolCall: ToolCallInfo(
+        toolCallId: "p2",
+        toolName: "ask_question",
+        input: previewInput([q]),
+        status: .pendingQuestion
+    ))
 }
 
 #Preview("Answered - Boolean") {
     let q = previewQuestion(["title": .string("Do you want notifications?"), "type": .string("boolean")])
     let a = previewAnswer(0, .bool(true))
-    ToolCallDetailSheet(toolCall: ToolCallInfo(toolCallId: "a1", toolName: "ask_question", input: previewInput([q]), status: .completed, result: .array([a])))
+    ToolCallDetailSheet(toolCall: ToolCallInfo(
+        toolCallId: "a1",
+        toolName: "ask_question",
+        input: previewInput([q]),
+        status: .completed,
+        result: .array([a])
+    ))
 }
 
 #Preview("Answered - Single Choice") {
-    let opts: [AnyCodable] = [previewOption("Light", "White background"), previewOption("Dark", "Dark background"), previewOption("Auto", "Follow system")]
-    let q = previewQuestion(["title": .string("Which theme do you prefer?"), "description": .string("This will be applied to your dashboard"), "type": .string("single_choice"), "options": .array(opts)])
+    let opts: [AnyCodable] = [
+        previewOption("Light", "White background"),
+        previewOption("Dark", "Dark background"),
+        previewOption("Auto", "Follow system"),
+    ]
+    let q = previewQuestion([
+        "title": .string("Which theme do you prefer?"),
+        "description": .string("This will be applied to your dashboard"),
+        "type": .string("single_choice"),
+        "options": .array(opts),
+    ])
     let a = previewAnswer(0, .string("Dark"))
-    ToolCallDetailSheet(toolCall: ToolCallInfo(toolCallId: "a2", toolName: "ask_question", input: previewInput([q]), status: .completed, result: .array([a])))
+    ToolCallDetailSheet(toolCall: ToolCallInfo(
+        toolCallId: "a2",
+        toolName: "ask_question",
+        input: previewInput([q]),
+        status: .completed,
+        result: .array([a])
+    ))
 }
 
 #Preview("Answered - Multiple Choice") {
-    let opts: [AnyCodable] = [previewOption("Slack", "Team messaging"), previewOption("GitHub", "Code hosting"), previewOption("Linear", "Issue tracking")]
-    let q = previewQuestion(["title": .string("Which integrations do you use?"), "description": .string("Select all that apply"), "type": .string("multiple_choice"), "options": .array(opts)])
+    let opts: [AnyCodable] = [
+        previewOption("Slack", "Team messaging"),
+        previewOption("GitHub", "Code hosting"),
+        previewOption("Linear", "Issue tracking"),
+    ]
+    let q = previewQuestion([
+        "title": .string("Which integrations do you use?"),
+        "description": .string("Select all that apply"),
+        "type": .string("multiple_choice"),
+        "options": .array(opts),
+    ])
     let a = previewAnswer(0, .array([.string("Slack"), .string("GitHub")]))
-    ToolCallDetailSheet(toolCall: ToolCallInfo(toolCallId: "a3", toolName: "ask_question", input: previewInput([q]), status: .completed, result: .array([a])))
+    ToolCallDetailSheet(toolCall: ToolCallInfo(
+        toolCallId: "a3",
+        toolName: "ask_question",
+        input: previewInput([q]),
+        status: .completed,
+        result: .array([a])
+    ))
 }
 
 #Preview("Answered - Fill in Blank") {
-    let q = previewQuestion(["title": .string("What's your preferred name?"), "description": .string("I'll use this when addressing you"), "type": .string("fill_in_blank")])
+    let q = previewQuestion([
+        "title": .string("What's your preferred name?"),
+        "description": .string("I'll use this when addressing you"),
+        "type": .string("fill_in_blank"),
+    ])
     let a = previewAnswer(0, .string("Alex"))
-    ToolCallDetailSheet(toolCall: ToolCallInfo(toolCallId: "a4", toolName: "ask_question", input: previewInput([q]), status: .completed, result: .array([a])))
+    ToolCallDetailSheet(toolCall: ToolCallInfo(
+        toolCallId: "a4",
+        toolName: "ask_question",
+        input: previewInput([q]),
+        status: .completed,
+        result: .array([a])
+    ))
 }
 
 #Preview("Answered - All Types Combined") {
     let q1 = previewQuestion(["title": .string("Do you want notifications?"), "type": .string("boolean")])
-    let themeOpts: [AnyCodable] = [previewOption("Light", "White background"), previewOption("Dark", "Dark background"), previewOption("Auto", "Follow system")]
-    let q2 = previewQuestion(["title": .string("Which theme?"), "description": .string("For your dashboard"), "type": .string("single_choice"), "options": .array(themeOpts)])
-    let featureOpts: [AnyCodable] = [previewOption("Email", "Send and receive"), previewOption("Tasks", "Track to-dos"), previewOption("Calendar", "Schedule events")]
-    let q3 = previewQuestion(["title": .string("Which features?"), "description": .string("Select all that apply"), "type": .string("multiple_choice"), "options": .array(featureOpts)])
+    let themeOpts: [AnyCodable] = [
+        previewOption("Light", "White background"),
+        previewOption("Dark", "Dark background"),
+        previewOption("Auto", "Follow system"),
+    ]
+    let q2 = previewQuestion([
+        "title": .string("Which theme?"),
+        "description": .string("For your dashboard"),
+        "type": .string("single_choice"),
+        "options": .array(themeOpts),
+    ])
+    let featureOpts: [AnyCodable] = [
+        previewOption("Email", "Send and receive"),
+        previewOption("Tasks", "Track to-dos"),
+        previewOption("Calendar", "Schedule events"),
+    ]
+    let q3 = previewQuestion([
+        "title": .string("Which features?"),
+        "description": .string("Select all that apply"),
+        "type": .string("multiple_choice"),
+        "options": .array(featureOpts),
+    ])
     let q4 = previewQuestion(["title": .string("What's your timezone?"), "type": .string("fill_in_blank")])
-    let answers: [AnyCodable] = [previewAnswer(0, .bool(true)), previewAnswer(1, .string("Dark")), previewAnswer(2, .array([.string("Email"), .string("Tasks")])), previewAnswer(3, .string("PST (UTC-8)"))]
-    ToolCallDetailSheet(toolCall: ToolCallInfo(toolCallId: "a5", toolName: "ask_question", input: previewInput([q1, q2, q3, q4]), status: .completed, result: .array(answers)))
+    let answers: [AnyCodable] = [
+        previewAnswer(0, .bool(true)),
+        previewAnswer(1, .string("Dark")),
+        previewAnswer(2, .array([.string("Email"), .string("Tasks")])),
+        previewAnswer(3, .string("PST (UTC-8)")),
+    ]
+    ToolCallDetailSheet(toolCall: ToolCallInfo(
+        toolCallId: "a5",
+        toolName: "ask_question",
+        input: previewInput([q1, q2, q3, q4]),
+        status: .completed,
+        result: .array(answers)
+    ))
+}
+
+#Preview("Location - Completed") {
+    ToolCallDetailSheet(
+        toolCall: ToolCallInfo(
+            toolCallId: "loc-1",
+            toolName: "get_location",
+            input: ["reason": .string("Finding nearby coffee shops")],
+            status: .completed,
+            result: .object([
+                "latitude": .double(37.33233141),
+                "longitude": .double(-122.0312186),
+                "accuracy": .int(5),
+            ])
+        )
+    )
+}
+
+#Preview("Location - Rejected") {
+    ToolCallDetailSheet(
+        toolCall: ToolCallInfo(
+            toolCallId: "loc-2",
+            toolName: "get_location",
+            input: ["reason": .string("Getting local weather")],
+            status: .rejected,
+            result: .object(["error": .string("User declined to share their location")])
+        )
+    )
 }
 
 #Preview("Rejected") {
     let q = previewQuestion(["title": .string("Do you want to proceed?"), "type": .string("boolean")])
-    ToolCallDetailSheet(toolCall: ToolCallInfo(toolCallId: "r1", toolName: "ask_question", input: previewInput([q]), status: .rejected, errorMessage: "User stopped this action"))
+    ToolCallDetailSheet(toolCall: ToolCallInfo(
+        toolCallId: "r1",
+        toolName: "ask_question",
+        input: previewInput([q]),
+        status: .rejected,
+        errorMessage: "User stopped this action"
+    ))
 }

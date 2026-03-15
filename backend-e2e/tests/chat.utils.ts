@@ -29,6 +29,39 @@ export async function getAssigneeId(): Promise<string> {
   return assignees.data[0]!.id;
 }
 
+export async function createAssignee(label: string): Promise<string> {
+  const token = loadToken();
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const res = await fetch(`${BASE_URL}/api/assignees`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({
+      name: label,
+      email: `test-${suffix}@test.rxlab.app`,
+      model: "openai/gpt-oss-120b",
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`POST /api/assignees failed (${res.status}): ${err}`);
+  }
+  const created = (await res.json()) as { id: string };
+  return created.id;
+}
+
+export async function deleteAssignee(assigneeId: string): Promise<void> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/assignees/${assigneeId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(
+      `DELETE /api/assignees/${assigneeId} failed (${res.status})`,
+    );
+  }
+}
+
 export async function getAssignee(assigneeId: string): Promise<{
   id: string;
   toolPermissions: Array<{ toolName: string; permission: string }>;
@@ -184,15 +217,26 @@ export function consumeStream(
   // Start reading SSE in background
   (async () => {
     try {
-      const res = await fetch(`${BASE_URL}/api/chat/${assigneeId}/stream`, {
-        headers: { Authorization: `Bearer ${token.access_token}` },
-        signal: controller.signal,
-      });
-
-      if (!res.ok) {
-        throw new Error(
-          `GET /api/chat/${assigneeId}/stream failed (${res.status})`,
-        );
+      // Retry on 404 — chat session may not exist yet for new assignees
+      let res: Response;
+      let retries = 0;
+      while (true) {
+        res = await fetch(`${BASE_URL}/api/chat/${assigneeId}/stream`, {
+          headers: { Authorization: `Bearer ${token.access_token}` },
+          signal: controller.signal,
+        });
+        if (res.status === 404 && retries < 20) {
+          retries++;
+          streamLog(options?.label, `Stream 404, retrying (${retries}/20)...`);
+          await new Promise((r) => setTimeout(r, 500));
+          continue;
+        }
+        if (!res.ok) {
+          throw new Error(
+            `GET /api/chat/${assigneeId}/stream failed (${res.status})`,
+          );
+        }
+        break;
       }
 
       const reader = res.body!.getReader();
@@ -220,35 +264,40 @@ export function consumeStream(
             currentData = line.slice(6);
           } else if (line === "" && currentEvent && currentData) {
             // End of SSE frame
+            let data: Record<string, unknown>;
             try {
-              const data = JSON.parse(currentData);
-              const evt: StreamEvent = { event: currentEvent, data };
-              events.push(evt);
-
-              if (currentEvent === "error") {
-                const errMsg =
-                  typeof data.message === "string"
-                    ? data.message
-                    : JSON.stringify(data);
-                rejectAll(new Error(`SSE error: ${errMsg}`));
-                return;
-              }
-
-              if (currentEvent === "done") {
-                notifyDone();
-                if (options?.autoDisconnect) {
-                  controller.abort();
-                  clearTimeout(timer);
-                  return;
-                }
-              }
-              notifyEventWaiters(evt);
-
-              if (options?.onMessage) {
-                await options.onMessage(evt);
-              }
+              data = JSON.parse(currentData);
             } catch {
               // Skip unparseable data (e.g. ping frames)
+              currentEvent = "";
+              currentData = "";
+              continue;
+            }
+
+            const evt: StreamEvent = { event: currentEvent, data };
+            events.push(evt);
+
+            if (currentEvent === "error") {
+              const errMsg =
+                typeof data.message === "string"
+                  ? data.message
+                  : JSON.stringify(data);
+              rejectAll(new Error(`SSE error: ${errMsg}`));
+              return;
+            }
+
+            if (currentEvent === "done") {
+              notifyDone();
+              if (options?.autoDisconnect) {
+                controller.abort();
+                clearTimeout(timer);
+                return;
+              }
+            }
+            notifyEventWaiters(evt);
+
+            if (options?.onMessage) {
+              await options.onMessage(evt);
             }
             currentEvent = "";
             currentData = "";
@@ -393,6 +442,32 @@ export async function answerQuestion(
   if (!res.ok) {
     throw new Error(
       `POST /api/questions/${id}/answer failed (${res.status}): ${await res.text()}`,
+    );
+  }
+}
+
+// ---- Location Response ----
+
+export async function sendLocationResponse(
+  toolCallId: string,
+  action: "confirm" | "reject",
+  data?: { latitude: number; longitude: number; accuracy?: number },
+): Promise<void> {
+  const token = loadToken();
+  const body: Record<string, unknown> = { toolCallId, action };
+  if (action === "confirm" && data) {
+    body.latitude = data.latitude;
+    body.longitude = data.longitude;
+    body.accuracy = data.accuracy ?? 0;
+  }
+  const res = await fetch(`${BASE_URL}/api/location-response`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `POST /api/location-response failed (${res.status}): ${await res.text()}`,
     );
   }
 }

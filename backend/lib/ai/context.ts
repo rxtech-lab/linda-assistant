@@ -3,7 +3,7 @@ import type { ModelMessage } from "ai";
 // ── Configuration ──────────────────────────────────────────────────────
 
 /** Shared context window for all models (in tokens). */
-export const CONTEXT_WINDOW = 50_000;
+export const CONTEXT_WINDOW = 75_000;
 
 /** Trigger compaction when estimated tokens exceed this ratio of CONTEXT_WINDOW. */
 export const COMPACTION_THRESHOLD = 0.75;

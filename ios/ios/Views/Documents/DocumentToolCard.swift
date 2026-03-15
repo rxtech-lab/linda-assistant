@@ -67,6 +67,8 @@ struct DocumentToolCard: View {
                 "Needs Confirmation"
             case .pendingQuestion:
                 "Needs Answer"
+            case .pendingLocation:
+                "Needs Location"
             case .rejected:
                 "Rejected"
             case .stoppedNoResult:
@@ -81,6 +83,7 @@ struct DocumentToolCard: View {
             case .failed: "xmark.circle.fill"
             case .pendingConfirmation: "exclamationmark.shield.fill"
             case .pendingQuestion: "questionmark.circle.fill"
+            case .pendingLocation: "location.fill"
             case .rejected: "nosign"
             case .stoppedNoResult:
                 "stop.circle"
@@ -94,6 +97,7 @@ struct DocumentToolCard: View {
             case .failed, .rejected: .red
             case .pendingConfirmation: .orange
             case .pendingQuestion: .purple
+            case .pendingLocation: .blue
             case .stoppedNoResult:
                 .yellow
         }

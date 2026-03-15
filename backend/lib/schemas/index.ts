@@ -436,6 +436,10 @@ export const sendMessageSchema = z.object({
     )
     .optional()
     .describe("File attachments"),
+  deviceToken: z
+    .string()
+    .optional()
+    .describe("APNs device token of the sending device, used for targeted silent push"),
 });
 
 // ---- Onboard ----
@@ -542,4 +546,23 @@ export const receivedResponseSchema = z.object({
 export const resolveResponseSchema = z.object({
   action: z.enum(["confirm", "reject"]).describe("Action taken"),
   confirmationId: z.string().describe("Confirmation ID that was resolved"),
+});
+
+// ---- Location Response ----
+
+export const locationResponseSchema = z.object({
+  toolCallId: z.string().describe("Tool call ID for the location request"),
+  action: z.enum(["confirm", "reject"]).describe("Whether to share or reject location"),
+  latitude: z.number().optional().describe("GPS latitude (required when action is confirm)"),
+  longitude: z.number().optional().describe("GPS longitude (required when action is confirm)"),
+  accuracy: z.number().optional().describe("Location accuracy in meters"),
+  alwaysAllow: z
+    .boolean()
+    .optional()
+    .describe("If true, update assignee permissions to auto-confirm get_location in the future"),
+});
+
+export const locationResponseResultSchema = z.object({
+  action: z.enum(["confirm", "reject"]).describe("Action taken"),
+  toolCallId: z.string().describe("Tool call ID that was resolved"),
 });

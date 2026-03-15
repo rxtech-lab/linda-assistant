@@ -75,7 +75,7 @@ struct QuestionSheetView: View {
             .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
             #endif
             #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
             #endif
         }
         .presentationDetents([.medium, .large])
@@ -213,27 +213,27 @@ private extension QuestionSheetView {
             // Answer input
             Group {
                 switch item.type {
-                case "boolean":
-                    booleanInput(index: index)
-                case "single_choice":
-                    singleChoiceInput(index: index, options: item.options ?? [])
-                case "multiple_choice":
-                    multipleChoiceInput(index: index, options: item.options ?? [])
-                case "fill_in_blank":
-                    fillInBlankInput(index: index)
-                default:
-                    fillInBlankInput(index: index)
+                    case "boolean":
+                        booleanInput(index: index)
+                    case "single_choice":
+                        singleChoiceInput(index: index, options: item.options ?? [])
+                    case "multiple_choice":
+                        multipleChoiceInput(index: index, options: item.options ?? [])
+                    case "fill_in_blank":
+                        fillInBlankInput(index: index)
+                    default:
+                        fillInBlankInput(index: index)
                 }
             }
             .padding(20)
         }
         .background {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                #if os(iOS)
+            #if os(iOS)
                 .fill(Color(.secondarySystemGroupedBackground))
-                #else
+            #else
                 .fill(Color(nsColor: .controlBackgroundColor))
-                #endif
+            #endif
         }
     }
 
@@ -281,21 +281,21 @@ private extension QuestionSheetView {
 
     func questionTypeIcon(_ type: String) -> String {
         switch type {
-        case "boolean": "hand.point.up.left.fill"
-        case "single_choice": "list.bullet"
-        case "multiple_choice": "checklist"
-        case "fill_in_blank": "text.cursor"
-        default: "text.cursor"
+            case "boolean": "hand.point.up.left.fill"
+            case "single_choice": "list.bullet"
+            case "multiple_choice": "checklist"
+            case "fill_in_blank": "text.cursor"
+            default: "text.cursor"
         }
     }
 
     func questionTypeLabel(_ type: String) -> String {
         switch type {
-        case "boolean": "Yes or No"
-        case "single_choice": "Choose one"
-        case "multiple_choice": "Select all"
-        case "fill_in_blank": "Free text"
-        default: "Free text"
+            case "boolean": "Yes or No"
+            case "single_choice": "Choose one"
+            case "multiple_choice": "Select all"
+            case "fill_in_blank": "Free text"
+            default: "Free text"
         }
     }
 
@@ -593,16 +593,16 @@ private extension QuestionSheetView {
             guard let answer = answers[index] else { continue }
             var entry: [String: AnyCodable] = ["questionIndex": .int(index)]
             switch answer {
-            case let .boolean(v):
-                entry["answer"] = .bool(v)
-            case let .singleChoice(v):
-                entry["answer"] = .string(v)
-            case let .multipleChoice(v):
-                entry["answer"] = .array(v.sorted().map { .string($0) })
-            case let .fillInBlank(v):
-                entry["answer"] = .string(v)
-            case let .customText(v):
-                entry["answer"] = .string(v)
+                case let .boolean(v):
+                    entry["answer"] = .bool(v)
+                case let .singleChoice(v):
+                    entry["answer"] = .string(v)
+                case let .multipleChoice(v):
+                    entry["answer"] = .array(v.sorted().map { .string($0) })
+                case let .fillInBlank(v):
+                    entry["answer"] = .string(v)
+                case let .customText(v):
+                    entry["answer"] = .string(v)
             }
             result.append(entry)
         }
@@ -632,11 +632,11 @@ private struct BooleanOptionButton: View {
             VStack(spacing: 10) {
                 ZStack {
                     Circle()
-                        #if os(iOS)
+                    #if os(iOS)
                         .fill(isSelected ? color.opacity(0.15) : Color(.tertiarySystemGroupedBackground))
-                        #else
+                    #else
                         .fill(isSelected ? color.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
-                        #endif
+                    #endif
                         .frame(width: 52, height: 52)
 
                     Image(systemName: systemImage)
@@ -672,15 +672,15 @@ private struct ChoiceOptionRow: View {
 
         var selectedIcon: String {
             switch self {
-            case .radio: "circle.inset.filled"
-            case .checkbox: "checkmark.square.fill"
+                case .radio: "circle.inset.filled"
+                case .checkbox: "checkmark.square.fill"
             }
         }
 
         var deselectedIcon: String {
             switch self {
-            case .radio: "circle"
-            case .checkbox: "square"
+                case .radio: "circle"
+                case .checkbox: "square"
             }
         }
     }

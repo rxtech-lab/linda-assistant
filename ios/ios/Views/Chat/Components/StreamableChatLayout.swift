@@ -24,6 +24,7 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var errorDismissTask: Task<Void, Never>?
     @State private var presentedConfirmation: ConfirmationPayload?
     @State private var presentedQuestion: QuestionPayload?
+    @State private var presentedLocation: LocationRequestPayload?
     @State private var scrollSubject = PassthroughSubject<Void, Never>()
     private var pendingConfirmationCount: Int {
         streamHandler?.pendingConfirmations.count ?? 0
@@ -33,12 +34,17 @@ struct StreamableChatLayout<Header: View>: View {
         streamHandler?.pendingQuestions.count ?? 0
     }
 
+    private var pendingLocationCount: Int {
+        streamHandler?.pendingLocations.count ?? 0
+    }
+
     private var showPendingIndicator: Bool {
         guard let handler = streamHandler,
               handler.isStreaming,
               handler.streamingParts.isEmpty,
               handler.pendingConfirmations.isEmpty,
               handler.pendingQuestions.isEmpty,
+              handler.pendingLocations.isEmpty,
               handler.error == nil
         else { return false }
         return true
@@ -48,7 +54,8 @@ struct StreamableChatLayout<Header: View>: View {
     private var allMessages: [DisplayMessage] {
         var msgs = messages
         if let handler = streamHandler, !handler.streamingParts.isEmpty,
-           handler.isStreaming || !handler.pendingConfirmations.isEmpty || !handler.pendingQuestions.isEmpty
+           handler.isStreaming || !handler.pendingConfirmations.isEmpty || !handler.pendingQuestions.isEmpty || !handler
+           .pendingLocations.isEmpty
         {
             msgs.append(DisplayMessage(
                 id: "streaming",
@@ -224,6 +231,39 @@ struct StreamableChatLayout<Header: View>: View {
                     presentedQuestion = question
                 }
             }
+            .overlay(alignment: .bottom) {
+                if pendingLocationCount > 0, pendingConfirmationCount == 0, pendingQuestionCount == 0 {
+                    PendingLocationBanner(count: pendingLocationCount) {
+                        if let location = streamHandler?.pendingLocation {
+                            presentedLocation = location
+                        }
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: pendingLocationCount)
+            .onChange(of: pendingLocationCount) {
+                // Dismiss sheet if the presented location was resolved
+                if let presented = presentedLocation,
+                   !(streamHandler?.pendingLocations
+                       .contains(where: { $0.toolCallId == presented.toolCallId }) ?? false)
+                {
+                    presentedLocation = nil
+                }
+                // Present next location if none is showing
+                if presentedLocation == nil,
+                   let location = streamHandler?.pendingLocation
+                {
+                    presentedLocation = location
+                }
+            }
+            .onAppear {
+                if presentedLocation == nil,
+                   let location = streamHandler?.pendingLocation
+                {
+                    presentedLocation = location
+                }
+            }
             .onChange(of: displayError) {
                 errorDismissTask?.cancel()
                 if displayError != nil {
@@ -313,6 +353,30 @@ struct StreamableChatLayout<Header: View>: View {
                 }
             )
         }
+        .sheet(item: $presentedLocation) { location in
+            LocationSheetView(
+                location: location,
+                onResolve: { action, latitude, longitude, accuracy, alwaysAllow in
+                    presentedLocation = nil
+                    Task {
+                        await streamHandler?.resolveLocation(
+                            toolCallId: location.toolCallId,
+                            action: action,
+                            latitude: latitude,
+                            longitude: longitude,
+                            accuracy: accuracy,
+                            alwaysAllow: alwaysAllow
+                        )
+                        if let next = streamHandler?.pendingLocation {
+                            try? await Task.sleep(for: .milliseconds(400))
+                            await MainActor.run {
+                                presentedLocation = next
+                            }
+                        }
+                    }
+                }
+            )
+        }
         .sheet(item: $selectedToolCall) { toolCall in
             ToolCallDetailSheet(toolCall: toolCall)
         }
@@ -389,6 +453,37 @@ private struct PendingQuestionBanner: View {
             .background(Color.purple)
             .clipShape(RoundedRectangle(cornerRadius: 14))
             .shadow(color: .purple.opacity(0.3), radius: 8, y: 4)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+    }
+}
+
+private struct PendingLocationBanner: View {
+    let count: Int
+    var onTap: () -> Void = {}
+
+    var body: some View {
+        Button {
+            onTap()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "location.fill")
+                    .foregroundStyle(.white)
+                Text("Location requested")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white)
+                Spacer()
+                Text("Share")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.blue)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .shadow(color: .blue.opacity(0.3), radius: 8, y: 4)
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)

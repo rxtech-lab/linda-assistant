@@ -10,6 +10,7 @@ struct ToolCallBadge: View {
             case .completed: "checkmark.circle.fill"
             case .pendingConfirmation: "exclamationmark.shield.fill"
             case .pendingQuestion: "questionmark.circle.fill"
+            case .pendingLocation: "location.fill"
             case .failed: "xmark.circle.fill"
             case .running: "arrow.trianglehead.2.clockwise"
             case .rejected: "nosign"
@@ -22,6 +23,7 @@ struct ToolCallBadge: View {
             case .completed: .green
             case .pendingConfirmation: .orange
             case .pendingQuestion: .purple
+            case .pendingLocation: .blue
             case .failed, .rejected: .red
             case .running: .blue
             case .stoppedNoResult: .orange
@@ -33,6 +35,7 @@ struct ToolCallBadge: View {
             case .completed: "Completed"
             case .pendingConfirmation: "Needs Confirmation"
             case .pendingQuestion: "Needs Answer"
+            case .pendingLocation: "Needs Location"
             case .failed: "Failed"
             case .running: "Running..."
             case .rejected: "Rejected"

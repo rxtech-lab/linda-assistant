@@ -229,6 +229,12 @@ public extension APIClient {
         try await request(path: "questions/\(id)/answer", method: "POST", body: body)
     }
 
+    // MARK: - Location
+
+    func sendLocationResponse(_ body: LocationResponse) async throws -> LocationResponseResult {
+        try await request(path: "location-response", method: "POST", body: body)
+    }
+
     // MARK: - Devices
 
     func registerDevice(_ body: RegisterDevice) async throws -> Device {

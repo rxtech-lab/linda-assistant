@@ -90,6 +90,7 @@ export const chatSessions = sqliteTable("chat_sessions", {
   status: text("status").default("starting"),
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
+  deviceToken: text("device_token"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });

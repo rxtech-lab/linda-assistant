@@ -16,6 +16,7 @@ final class ChatTabViewModel {
     var hasMoreMessages = false
     var error: String?
     var streamHandler: ChatStreamHandler?
+    var deviceToken: String?
     var showingAssigneeSheet = false
     var hasSession = false
 
@@ -62,7 +63,12 @@ final class ChatTabViewModel {
             }
 
             if let assignee = selectedAssignee {
-                setupStreamHandler(apiClient: apiClient, authManager: authManager, eventManager: eventManager)
+                setupStreamHandler(
+                    apiClient: apiClient,
+                    authManager: authManager,
+                    eventManager: eventManager,
+                    deviceToken: deviceToken
+                )
                 await loadMessages(assigneeId: assignee.id, apiClient: apiClient)
             }
         } catch is CancellationError {
@@ -177,13 +183,15 @@ final class ChatTabViewModel {
     private func setupStreamHandler(
         apiClient: APIClient,
         authManager: AuthManager,
-        eventManager: EventManager
+        eventManager: EventManager,
+        deviceToken: String? = nil
     ) {
         let handler = ChatStreamHandler(
             apiClient: apiClient,
             sseClient: SSEClient(authManager: authManager),
             eventManager: eventManager
         )
+        handler.deviceToken = deviceToken
         handler.onAssistantMessage = { [weak self] parts in
             guard let self else { return }
             appendAssistantMessages(
@@ -255,7 +263,12 @@ final class ChatTabViewModel {
         // If no session yet, set up stream handler and connect after sending
         let needsConnect = !hasSession
         if streamHandler == nil {
-            setupStreamHandler(apiClient: apiClient, authManager: authManager, eventManager: eventManager)
+            setupStreamHandler(
+                apiClient: apiClient,
+                authManager: authManager,
+                eventManager: eventManager,
+                deviceToken: deviceToken
+            )
         }
 
         let messageId = await streamHandler?.sendChatMessage(assigneeId: assignee.id, content: content)
@@ -301,7 +314,12 @@ final class ChatTabViewModel {
         hasSession = false
         isLoading = true
 
-        setupStreamHandler(apiClient: apiClient, authManager: authManager, eventManager: eventManager)
+        setupStreamHandler(
+            apiClient: apiClient,
+            authManager: authManager,
+            eventManager: eventManager,
+            deviceToken: deviceToken
+        )
         await loadMessages(assigneeId: assignee.id, apiClient: apiClient)
 
         isLoading = false

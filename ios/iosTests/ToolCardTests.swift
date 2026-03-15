@@ -165,6 +165,7 @@ final class SendEmailErrorToolCardTests: XCTestCase {
         XCTAssertNotNil(found)
     }
 }
+
 // MARK: - QuestionCardView Tests
 
 final class QuestionCardViewTests: XCTestCase {
@@ -667,4 +668,3 @@ final class QuestionSheetViewTests: XCTestCase {
         XCTAssertTrue(systemNames.contains("xmark.circle.fill"), "Should show close button icon")
     }
 }
-

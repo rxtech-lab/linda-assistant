@@ -159,16 +159,15 @@ jobs:
 
       - name: Archive macOS app
         run: |
-          set -o pipefail
           xcodebuild archive \
             -project ios/ios.xcodeproj \
             -scheme LindaAssistant \
             -configuration Release \
-            -destination "platform=macOS" \
+            -destination "platform=macOS,arch=arm64" \
             -archivePath output/output.xcarchive \
             -skipPackagePluginValidation \
             -skipMacroValidation \
-            OTHER_CODE_SIGN_FLAGS="--options=runtime --timestamp" | xcpretty
+            OTHER_CODE_SIGN_FLAGS="--options=runtime --timestamp"
 
       - name: Sign Sparkle artifacts
         if: github.event_name == 'release'

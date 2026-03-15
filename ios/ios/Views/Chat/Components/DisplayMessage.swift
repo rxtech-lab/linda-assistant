@@ -102,7 +102,12 @@ extension DisplayMessage {
                 } else if tc.confirmation != nil {
                     let hasResult = toolCallIdsWithResults.contains(tc.toolCallId)
                         || resultOutputs[tc.toolCallId] != nil
-                    status = ToolCallStatus.from(confirmation: tc.confirmation, hasResult: hasResult)
+                    // Location tool uses confirmation but should show location-specific status
+                    if tc.toolName == "get_location", tc.confirmation?.status == "pending" {
+                        status = .pendingLocation
+                    } else {
+                        status = ToolCallStatus.from(confirmation: tc.confirmation, hasResult: hasResult)
+                    }
                     errorMsg = nil
                 } else {
                     status = .completed

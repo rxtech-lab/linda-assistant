@@ -25,6 +25,14 @@ import SwiftUI
         ) {
             print("Failed to register for remote notifications: \(error)")
         }
+
+        func application(
+            _: UIApplication,
+            didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+            fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+        ) {
+            pushManager?.handleBackgroundNotification(userInfo: userInfo, completionHandler: completionHandler)
+        }
     }
 
 #elseif os(macOS)
