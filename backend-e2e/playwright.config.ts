@@ -18,9 +18,14 @@ export default defineConfig({
       testMatch: /auth\.setup\.ts/,
     },
     {
-      name: "e2e",
+      name: "queue",
       dependencies: ["auth-setup"],
-      testMatch: /.*\.spec\.ts/,
+      testMatch: /queue\.spec\.ts/,
+    },
+    {
+      name: "e2e",
+      dependencies: ["queue"],
+      testMatch: /(?!queue\.).*\.spec\.ts/,
     },
   ],
 });

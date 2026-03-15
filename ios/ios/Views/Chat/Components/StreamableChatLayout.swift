@@ -126,6 +126,13 @@ struct StreamableChatLayout<Header: View>: View {
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
+                    .onTapGesture {
+                        #if canImport(UIKit)
+                            UIApplication.shared.sendAction(
+                                #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+                            )
+                        #endif
+                    }
                     .defaultScrollAnchor(.bottom, for: .sizeChanges)
                     .onAppear {
                         DispatchQueue.main.async {
