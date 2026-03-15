@@ -111,6 +111,7 @@ export async function POST(
       status: "starting",
       accessToken: auth.accessToken,
       refreshToken: auth.refreshToken,
+      ...(parsed.data.deviceToken ? { deviceToken: parsed.data.deviceToken } : {}),
       updatedAt: sql`(datetime('now'))`,
     })
     .where(eq(chatSessions.id, session.id));

@@ -8,6 +8,7 @@ struct ChatTabView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(EventManager.self) private var eventManager
     @Environment(NavigationManager.self) private var navigationManager
+    @Environment(PushNotificationManager.self) private var pushManager
     @State private var viewModel = ChatTabViewModel()
     @State private var selectedDocumentItem: DocumentSheetItem?
 
@@ -151,6 +152,7 @@ struct ChatTabView: View {
             DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
         }
         .task {
+            viewModel.deviceToken = pushManager.deviceToken
             await viewModel.load(
                 apiClient: apiClient,
                 authManager: authManager,

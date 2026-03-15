@@ -81,30 +81,72 @@ func updateToolCallResult(
     }
 }
 
-/// Scan messages for ALL pending confirmations and set them on the stream handler.
+/// Scan messages for ALL pending confirmations, locations, and questions, then set them on the stream handler.
 @MainActor
 func extractPendingConfirmations(
     from messages: [ChatMessage],
     streamHandler: ChatStreamHandler?
 ) {
     var payloads: [ConfirmationPayload] = []
+    var locationPayloads: [LocationRequestPayload] = []
     for msg in messages {
         for tc in msg.toolCalls where tc.confirmation?.status == "pending" {
-            let payload = ConfirmationPayload(
-                confirmationId: tc.confirmation!.id,
-                toolCallId: tc.toolCallId,
-                toolName: tc.toolName,
-                parameters: tc.input
-            )
-            logger
-                .info(
-                    "extractPendingConfirmations: found pending id=\(payload.confirmationId), toolName=\(payload.toolName)"
+            // Location tool uses needsApproval but should show the location sheet, not the confirmation sheet
+            if tc.toolName == "get_location" {
+                let reason = tc.input?["reason"]?.description
+                let isAutoConfirm = tc.isAutoConfirm ?? tc.confirmation?.isAutoConfirm ?? false
+                logger.info("extractPendingLocations: found pending toolCallId=\(tc.toolCallId) isAutoConfirm=\(isAutoConfirm)")
+
+                if isAutoConfirm {
+                    // Auto-confirm: silently get location and respond without showing sheet
+                    let toolCallId = tc.toolCallId
+                    Task {
+                        let locationService = LocationService()
+                        do {
+                            let location = try await locationService.requestLocation()
+                            await streamHandler?.resolveLocation(
+                                toolCallId: toolCallId,
+                                action: "confirm",
+                                latitude: location.latitude,
+                                longitude: location.longitude,
+                                accuracy: location.accuracy
+                            )
+                        } catch {
+                            logger.error("Auto-confirm location from history failed: \(error)")
+                            await streamHandler?.resolveLocation(
+                                toolCallId: toolCallId,
+                                action: "reject"
+                            )
+                        }
+                    }
+                } else {
+                    let payload = LocationRequestPayload(
+                        toolCallId: tc.toolCallId,
+                        toolName: tc.toolName,
+                        reason: reason
+                    )
+                    locationPayloads.append(payload)
+                }
+            } else {
+                let payload = ConfirmationPayload(
+                    confirmationId: tc.confirmation!.id,
+                    toolCallId: tc.toolCallId,
+                    toolName: tc.toolName,
+                    parameters: tc.input
                 )
-            payloads.append(payload)
+                logger
+                    .info(
+                        "extractPendingConfirmations: found pending id=\(payload.confirmationId), toolName=\(payload.toolName)"
+                    )
+                payloads.append(payload)
+            }
         }
     }
     if !payloads.isEmpty {
         streamHandler?.setPendingConfirmations(payloads)
+    }
+    if !locationPayloads.isEmpty {
+        streamHandler?.setPendingLocations(locationPayloads)
     }
 
     // Also extract pending questions

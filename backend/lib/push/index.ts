@@ -164,3 +164,55 @@ export async function sendPushNotification(
 
   return results;
 }
+
+/**
+ * Send a silent/background push notification to a specific device token.
+ * Used for auto-confirm location requests where the app responds in the background.
+ */
+export async function sendSilentPushNotification(
+  deviceToken: string,
+  data: Record<string, string>,
+) {
+  const log = (msg: string) => console.log(`[push:silent] ${msg}`);
+
+  if (process.env.IS_E2E) {
+    log("skipped (E2E mode)");
+    return;
+  }
+
+  const token = await getApnsToken();
+  const bundleId = process.env.APNS_BUNDLE_ID!;
+  const isProduction = process.env.APNS_ENVIRONMENT === "production";
+  const host = isProduction ? "https://api.push.apple.com" : "https://api.sandbox.push.apple.com";
+
+  log(`token=${deviceToken.slice(0, 8)}... type=${data.type ?? "unknown"}`);
+
+  const apnsPayload = JSON.stringify({
+    aps: {
+      "content-available": 1,
+    },
+    ...data,
+  });
+
+  const path = `/3/device/${deviceToken}`;
+  const response = await sendHttp2Request(
+    host,
+    path,
+    {
+      authorization: `bearer ${token}`,
+      "apns-topic": bundleId,
+      "apns-push-type": "background",
+      "apns-priority": "5",
+      "content-type": "application/json",
+    },
+    apnsPayload,
+  );
+
+  if (response.status === 200) {
+    log(`status=${response.status} ✓`);
+  } else {
+    console.error(`[push:silent] status=${response.status} error: ${response.body}`);
+  }
+
+  return response;
+}

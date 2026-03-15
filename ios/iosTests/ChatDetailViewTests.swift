@@ -208,27 +208,27 @@ final class ToolCallStatusMappingTests: XCTestCase {
     }
 
     func testConfirmedStatus_withResult_returnsCompleted() {
-        let confirmation = ToolCallConfirmation(id: "c1", status: "confirmed")
+        let confirmation = ToolCallConfirmation(id: "c1", status: "confirmed", isAutoConfirm: nil)
         XCTAssertEqual(ToolCallStatus.from(confirmation: confirmation, hasResult: true), .completed)
     }
 
     func testConfirmedStatus_withoutResult_returnsStoppedNoResult() {
-        let confirmation = ToolCallConfirmation(id: "c1", status: "confirmed")
+        let confirmation = ToolCallConfirmation(id: "c1", status: "confirmed", isAutoConfirm: nil)
         XCTAssertEqual(ToolCallStatus.from(confirmation: confirmation, hasResult: false), .stoppedNoResult)
     }
 
     func testConfirmedStatus_defaultHasResult_returnsCompleted() {
-        let confirmation = ToolCallConfirmation(id: "c1", status: "confirmed")
+        let confirmation = ToolCallConfirmation(id: "c1", status: "confirmed", isAutoConfirm: nil)
         XCTAssertEqual(ToolCallStatus.from(confirmation: confirmation), .completed)
     }
 
     func testRejectedStatus_returnsRejected() {
-        let confirmation = ToolCallConfirmation(id: "c2", status: "rejected")
+        let confirmation = ToolCallConfirmation(id: "c2", status: "rejected", isAutoConfirm: nil)
         XCTAssertEqual(ToolCallStatus.from(confirmation: confirmation), .rejected)
     }
 
     func testPendingStatus_returnsPendingConfirmation() {
-        let confirmation = ToolCallConfirmation(id: "c3", status: "pending")
+        let confirmation = ToolCallConfirmation(id: "c3", status: "pending", isAutoConfirm: nil)
         XCTAssertEqual(ToolCallStatus.from(confirmation: confirmation), .pendingConfirmation)
     }
 }
@@ -726,7 +726,8 @@ final class ToolCallErrorAnnotationTests: XCTestCase {
             input: nil,
             confirmation: nil,
             question: nil,
-            error: "Task not found"
+            error: "Task not found",
+            isAutoConfirm: nil
         )
 
         // Simulate the ViewModel logic
@@ -754,7 +755,8 @@ final class ToolCallErrorAnnotationTests: XCTestCase {
             input: nil,
             confirmation: nil,
             question: nil,
-            error: nil
+            error: nil,
+            isAutoConfirm: nil
         )
 
         let status: ToolCallStatus = if tc.confirmation != nil {
@@ -774,9 +776,10 @@ final class ToolCallErrorAnnotationTests: XCTestCase {
             toolCallId: "tc-conf",
             toolName: "send_email",
             input: nil,
-            confirmation: ToolCallConfirmation(id: "c1", status: "rejected"),
+            confirmation: ToolCallConfirmation(id: "c1", status: "rejected", isAutoConfirm: nil),
             question: nil,
-            error: nil
+            error: nil,
+            isAutoConfirm: nil
         )
 
         let status: ToolCallStatus = if tc.confirmation != nil {

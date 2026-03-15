@@ -122,6 +122,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .update(chatSessions)
     .set({
       status: "starting",
+      ...(parsed.data.deviceToken ? { deviceToken: parsed.data.deviceToken } : {}),
       updatedAt: sql`(datetime('now'))`,
     })
     .where(eq(chatSessions.id, id));

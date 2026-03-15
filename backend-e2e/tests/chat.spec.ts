@@ -1,13 +1,12 @@
-import { test, expect } from "@playwright/test";
+import { test as base, expect } from "@playwright/test";
 import { ensureOnboarded } from "./onboard.utils";
 import {
-  getAssigneeId,
+  createAssignee,
+  deleteAssignee,
   getAssignee,
-  clearChatHistory,
   sendMessage,
   consumeStream,
   getChatHistory,
-  listConfirmations,
   resolveConfirmation,
   updateAssigneePermissions,
   findToolCallParts,
@@ -16,48 +15,44 @@ import {
   findAllToolResultParts,
   listQuestions,
   answerQuestion,
+  sendLocationResponse,
+  clearChatHistory,
   type StreamEvent,
 } from "./chat.utils";
 
-let assigneeId: string;
+// Fixture: each test gets its own assignee, deleted after test
+const test = base.extend<{ assigneeId: string }>({
+  assigneeId: async ({}, use, testInfo) => {
+    await ensureOnboarded();
+    const id = await createAssignee(`e2e-${testInfo.testId}`);
+    console.log(`Created assignee ${id} for: ${testInfo.title}`);
 
-test.beforeAll(async () => {
-  await ensureOnboarded();
-  assigneeId = await getAssigneeId();
-  console.log(`Using assignee: ${assigneeId}`);
+    // Reset all tool permissions to manual-confirm
+    const assignee = await getAssignee(id);
+    const allManualConfirm = assignee.toolPermissions.map((tp) => ({
+      toolName: tp.toolName,
+      permission: "manual-confirm",
+    }));
+    await updateAssigneePermissions(id, allManualConfirm);
 
-  // Reset all tool permissions to manual-confirm so tests start from a known state
-  const assignee = await getAssignee(assigneeId);
-  const allManualConfirm = assignee.toolPermissions.map((tp) => ({
-    toolName: tp.toolName,
-    permission: "manual-confirm",
-  }));
-  await updateAssigneePermissions(assigneeId, allManualConfirm);
-  console.log("Reset all tool permissions to manual-confirm");
+    await use(id);
 
-  await clearChatHistory(assigneeId);
+    await deleteAssignee(id);
+    console.log(`Deleted assignee ${id}`);
+  },
 });
 
-test.describe("Chat with tool calls", () => {
+test.describe.serial("Confirmation flow", () => {
   test.setTimeout(300_000);
 
-  test.afterEach(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-  });
-
-  test("test 1: get current time + approve confirmation + continue chat", async () => {
-    await clearChatHistory(assigneeId);
-
+  test("test 1: get current time + approve confirmation + continue chat", async ({ assigneeId }) => {
     // Single stream connection for the entire test
     const stream = consumeStream(assigneeId, {
       timeout: 180_000,
       onMessage: async (evt) => {
         if (evt.event === "confirmation_required") {
           expect(evt.data.toolName).toBe("get_current_time");
-          const pending = await listConfirmations();
-          const c = pending.find((c) => c.toolName === "get_current_time");
-          expect(c).toBeTruthy();
-          await resolveConfirmation(c!.id, "confirm");
+          await resolveConfirmation(evt.data.confirmationId as string, "confirm");
         }
       },
     });
@@ -98,14 +93,13 @@ test.describe("Chat with tool calls", () => {
       const { messages } = await getChatHistory(assigneeId);
       expect(messages.length).toBeGreaterThanOrEqual(4);
 
-      // Verify get_current_time tool-call has confirmation with confirmed status
+      // Verify a get_current_time tool-call has confirmation with confirmed status
       const timeCallParts = findToolCallParts(messages, "get_current_time");
       expect(timeCallParts.length).toBeGreaterThanOrEqual(1);
-      const timeConfirmation = timeCallParts[0]?.confirmation as
-        | { id: string; status: string }
-        | undefined;
-      expect(timeConfirmation).toBeTruthy();
-      expect(timeConfirmation!.status).toBe("confirmed");
+      const confirmedCall = timeCallParts.find((p) => p.confirmation);
+      expect(confirmedCall).toBeTruthy();
+      const timeConfirmation = confirmedCall!.confirmation as { id: string; status: string };
+      expect(timeConfirmation.status).toBe("confirmed");
 
       // Verify get_current_time tool-result exists
       const timeResultParts = findToolResultParts(messages, "get_current_time");
@@ -132,19 +126,14 @@ test.describe("Chat with tool calls", () => {
     }
   });
 
-  test("test 2: get current time + reject confirmation + continue chat", async () => {
-    await clearChatHistory(assigneeId);
-
+  test("test 2: get current time + reject confirmation + continue chat", async ({ assigneeId }) => {
     // Single stream connection for the entire test
     const stream = consumeStream(assigneeId, {
       timeout: 180_000,
       onMessage: async (evt) => {
         if (evt.event === "confirmation_required") {
           expect(evt.data.toolName).toBe("get_current_time");
-          const pending = await listConfirmations();
-          const c = pending.find((c) => c.toolName === "get_current_time");
-          expect(c).toBeTruthy();
-          await resolveConfirmation(c!.id, "reject");
+          await resolveConfirmation(evt.data.confirmationId as string, "reject");
         }
       },
     });
@@ -176,23 +165,24 @@ test.describe("Chat with tool calls", () => {
       const { messages } = await getChatHistory(assigneeId);
       expect(messages.length).toBeGreaterThanOrEqual(5);
 
-      // Verify get_current_time tool-call has confirmation with rejected status
+      // Verify a get_current_time tool-call has confirmation with rejected status
       const timeCallParts = findToolCallParts(messages, "get_current_time");
       expect(timeCallParts.length).toBeGreaterThanOrEqual(1);
-      const timeConfirmation = timeCallParts[0]?.confirmation as
-        | { id: string; status: string }
-        | undefined;
-      expect(timeConfirmation).toBeTruthy();
-      expect(timeConfirmation!.status).toBe("rejected");
+      const rejectedCall = timeCallParts.find((p) => p.confirmation);
+      expect(rejectedCall).toBeTruthy();
+      const timeConfirmation = rejectedCall!.confirmation as { id: string; status: string };
+      expect(timeConfirmation.status).toBe("rejected");
 
-      // Verify rejection tool-result exists with isError
-      const timeResultParts = findToolResultParts(messages, "get_current_time");
-      expect(timeResultParts.length).toBeGreaterThanOrEqual(1);
-      expect(timeResultParts[0]?.isError).toBe(true);
+      // Verify the rejected tool-call's tool-result has isError
+      const allResults = findAllToolResultParts(messages);
+      const rejectedResult = allResults.find(
+        (r) => r.toolCallId === rejectedCall!.toolCallId,
+      );
+      expect(rejectedResult).toBeTruthy();
+      expect(rejectedResult!.isError).toBe(true);
 
       // Verify all tool-calls have matching tool-results
       const allCalls = findAllToolCallParts(messages);
-      const allResults = findAllToolResultParts(messages);
       const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
       for (const call of allCalls) {
         expect(resultIds.has(call.toolCallId as string)).toBe(true);
@@ -211,13 +201,9 @@ test.describe("Chat with tool calls", () => {
     }
   });
 
-  test("test 3: get current time with auto-confirm + continue chat", async () => {
-    await clearChatHistory(assigneeId);
-
-    // Step 1: Set get_current_time to auto-confirm
+  test("test 3: get current time with auto-confirm + continue chat", async ({ assigneeId }) => {
+    // Set get_current_time to auto-confirm
     const assignee = await getAssignee(assigneeId);
-    const originalPermissions = [...assignee.toolPermissions];
-
     const updatedPermissions = assignee.toolPermissions.map((tp) => {
       if (tp.toolName === "get_current_time") {
         return { toolName: tp.toolName, permission: "auto-confirm" };
@@ -301,15 +287,10 @@ test.describe("Chat with tool calls", () => {
       );
     } finally {
       stream.cancel();
-      // Cleanup: restore original permissions
-      await updateAssigneePermissions(assigneeId, originalPermissions);
-      console.log("Restored original tool permissions");
     }
   });
 
-  test("test 4: get current time confirmation ignored + continue chat + re-check and confirm", async () => {
-    await clearChatHistory(assigneeId);
-
+  test("test 4: get current time confirmation ignored + continue chat + re-check and confirm", async ({ assigneeId }) => {
     // Track whether we should confirm or ignore confirmations
     let shouldConfirm = false;
 
@@ -318,15 +299,8 @@ test.describe("Chat with tool calls", () => {
       onMessage: async (evt) => {
         if (evt.event === "confirmation_required") {
           if (shouldConfirm) {
-            const pending = await listConfirmations();
-            const c = pending.find(
-              (c) =>
-                c.toolName === "get_current_time" && c.status === "pending",
-            );
-            if (c) {
-              await resolveConfirmation(c.id, "confirm");
-              console.log(`Confirmed: ${c.toolName}`);
-            }
+            await resolveConfirmation(evt.data.confirmationId as string, "confirm");
+            console.log(`Confirmed: ${evt.data.toolName}`);
           } else {
             console.log(`Ignoring confirmation for: ${evt.data.toolName}`);
           }
@@ -413,9 +387,7 @@ test.describe("Chat with tool calls", () => {
     }
   });
 
-  test.skip("test 5: multiple get_current_time — confirm second, first gets rejected, continue chat", async () => {
-    await clearChatHistory(assigneeId);
-
+  test.skip("test 5: multiple get_current_time — confirm second, first gets rejected, continue chat", async ({ assigneeId }) => {
     // We'll track confirmation IDs as they arrive and only confirm the second one
     const confirmationIds: Array<{ id: string; toolName: string }> = [];
     let confirmSecond = false;
@@ -424,27 +396,17 @@ test.describe("Chat with tool calls", () => {
       timeout: 180_000,
       onMessage: async (evt) => {
         if (evt.event === "confirmation_required") {
-          const pending = await listConfirmations();
-          const pendingTimeCalls = pending.filter(
-            (c) => c.toolName === "get_current_time" && c.status === "pending",
+          const cId = evt.data.confirmationId as string;
+          confirmationIds.push({ id: cId, toolName: evt.data.toolName as string });
+          console.log(
+            `Received confirmation #${confirmationIds.length}: ${cId}`,
           );
-
-          for (const c of pendingTimeCalls) {
-            if (!confirmationIds.find((x) => x.id === c.id)) {
-              confirmationIds.push({ id: c.id, toolName: c.toolName });
-              console.log(
-                `Received confirmation #${confirmationIds.length}: ${c.id}`,
-              );
-            }
-          }
 
           // Once we have 2 pending confirmations, confirm the second and reject the first
           if (confirmationIds.length >= 2 && !confirmSecond) {
             confirmSecond = true;
-            // Confirm the second confirmation
             await resolveConfirmation(confirmationIds[1]!.id, "confirm");
             console.log(`Confirmed second: ${confirmationIds[1]!.id}`);
-            // Reject the first confirmation
             await resolveConfirmation(confirmationIds[0]!.id, "reject");
             console.log(`Rejected first: ${confirmationIds[0]!.id}`);
           }
@@ -535,9 +497,7 @@ test.describe("Chat with tool calls", () => {
     }
   });
 
-  test("test 6: get current time confirmation + delete messages + re-check and confirm", async () => {
-    await clearChatHistory(assigneeId);
-
+  test("test 6: get current time confirmation + delete messages + re-check and confirm", async ({ assigneeId }) => {
     const stream = consumeStream(assigneeId, {
       timeout: 180_000,
       onMessage: async (evt) => {
@@ -574,15 +534,8 @@ test.describe("Chat with tool calls", () => {
         timeout: 180_000,
         onMessage: async (evt) => {
           if (evt.event === "confirmation_required") {
-            const pending = await listConfirmations();
-            const c = pending.find(
-              (c) =>
-                c.toolName === "get_current_time" && c.status === "pending",
-            );
-            if (c) {
-              await resolveConfirmation(c.id, "confirm");
-              console.log(`Confirmed after delete: ${c.toolName}`);
-            }
+            await resolveConfirmation(evt.data.confirmationId as string, "confirm");
+            console.log(`Confirmed after delete: ${evt.data.toolName}`);
           }
         },
       });
@@ -635,10 +588,12 @@ test.describe("Chat with tool calls", () => {
       // No permission cleanup needed — get_current_time requires confirmation by default
     }
   });
+});
 
-  test("test 7: stream recovery — two listeners, one disconnects and reconnects, both match history", async () => {
-    await clearChatHistory(assigneeId);
+test.describe.serial("Stream behavior", () => {
+  test.setTimeout(300_000);
 
+  test("test 7: stream recovery — two listeners, one disconnects and reconnects, both match history", async ({ assigneeId }) => {
     // Step 1: Send message asking for ~200 words of plain text (no tool calls)
     await sendMessage(
       assigneeId,
@@ -770,9 +725,7 @@ test.describe("Chat with tool calls", () => {
     streamBReconnect.cancel();
   });
 
-  test("test 8: no stream listener — poll DB until assistant replies, then connect and receive nothing", async () => {
-    await clearChatHistory(assigneeId);
-
+  test("test 8: no stream listener — poll DB until assistant replies, then connect and receive nothing", async ({ assigneeId }) => {
     // Step 1: Send message but do NOT listen to the stream
     await sendMessage(
       assigneeId,
@@ -828,10 +781,12 @@ test.describe("Chat with tool calls", () => {
       stream.cancel();
     }
   });
+});
 
-  test("test 9: ask question + answer + follow up", async () => {
-    await clearChatHistory(assigneeId);
+test.describe.serial("Question tool", () => {
+  test.setTimeout(300_000);
 
+  test("test 9: ask question + answer + follow up", async ({ assigneeId }) => {
     const stream = consumeStream(assigneeId, {
       timeout: 180_000,
       onMessage: async (evt) => {
@@ -924,9 +879,7 @@ test.describe("Chat with tool calls", () => {
     }
   });
 
-  test("test 10: ask question + reject + follow up", async () => {
-    await clearChatHistory(assigneeId);
-
+  test("test 10: ask question + reject + follow up", async ({ assigneeId }) => {
     const stream = consumeStream(assigneeId, {
       timeout: 180_000,
       onMessage: async (evt) => {
@@ -1004,9 +957,7 @@ test.describe("Chat with tool calls", () => {
     }
   });
 
-  test("test 11: ask question + user skips + keeps chatting = auto reject", async () => {
-    await clearChatHistory(assigneeId);
-
+  test("test 11: ask question + user skips + keeps chatting = auto reject", async ({ assigneeId }) => {
     const stream = consumeStream(assigneeId, {
       timeout: 180_000,
       onMessage: async (evt) => {
@@ -1076,6 +1027,323 @@ test.describe("Chat with tool calls", () => {
 
       console.log(
         `Test 11 passed: ${messages.length} messages, ask_question auto-rejected after skip`,
+      );
+    } finally {
+      stream.cancel();
+    }
+  });
+});
+
+test.describe.serial("Location tool", () => {
+  test.setTimeout(300_000);
+
+  test("test 12: get location + share + follow up", async ({ assigneeId }) => {
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      onMessage: async (evt) => {
+        if (evt.event === "location_required") {
+          console.log(`Location required: ${evt.data.toolCallId}`);
+          await sendLocationResponse(evt.data.toolCallId as string, "confirm", {
+            latitude: 37.7749,
+            longitude: -122.4194,
+            accuracy: 10,
+          });
+          console.log(`Shared location for: ${evt.data.toolCallId}`);
+        }
+      },
+    });
+
+    try {
+      // Step 1: Send message that triggers get_location
+      await sendMessage(
+        assigneeId,
+        "Use get_location tool to find my coordinates. Do not use the ask_question tool.",
+      );
+      await stream.waitForDone();
+
+      // Verify location_required event was emitted
+      const locationEvents = stream.events.filter(
+        (e) => e.event === "location_required",
+      );
+      expect(locationEvents.length).toBeGreaterThanOrEqual(1);
+
+      // Verify tool-result appeared after sharing location
+      const toolResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "get_location",
+      );
+      expect(toolResults.length).toBeGreaterThanOrEqual(1);
+
+      // Verify agent produced text after receiving location
+      const textDeltas = stream.events.filter((e) => e.event === "text-delta");
+      expect(textDeltas.length).toBeGreaterThan(0);
+
+      // Step 2: Send follow-up
+      await sendMessage(
+        assigneeId,
+        "What coordinates did I share? Do not use any tools.",
+      );
+      await stream.waitForDone();
+
+      // Step 3: Validate chat history
+      const { messages } = await getChatHistory(assigneeId);
+      expect(messages.length).toBeGreaterThanOrEqual(4);
+
+      // Verify get_location tool-call has confirmation with confirmed status
+      const locationCallParts = findToolCallParts(messages, "get_location");
+      expect(locationCallParts.length).toBeGreaterThanOrEqual(1);
+      const locationConfirmation = locationCallParts[0]?.confirmation as
+        | { id: string; status: string }
+        | undefined;
+      expect(locationConfirmation).toBeTruthy();
+      expect(locationConfirmation!.status).toBe("confirmed");
+
+      // Verify get_location tool-result exists
+      const locationResultParts = findToolResultParts(messages, "get_location");
+      expect(locationResultParts.length).toBeGreaterThanOrEqual(1);
+
+      // Verify all tool-calls have matching tool-results
+      const allCalls = findAllToolCallParts(messages);
+      const allResults = findAllToolResultParts(messages);
+      const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
+      for (const call of allCalls) {
+        expect(resultIds.has(call.toolCallId as string)).toBe(true);
+      }
+
+      console.log(
+        `Test 12 passed: ${messages.length} messages, get_location shared`,
+      );
+    } finally {
+      stream.cancel();
+    }
+  });
+
+  test("test 13: get location + reject + follow up", async ({ assigneeId }) => {
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      onMessage: async (evt) => {
+        if (evt.event === "location_required") {
+          console.log(`Location required, rejecting: ${evt.data.toolCallId}`);
+          await sendLocationResponse(evt.data.toolCallId as string, "reject");
+          console.log(`Rejected location for: ${evt.data.toolCallId}`);
+        }
+      },
+    });
+
+    try {
+      // Step 1: Send message that triggers get_location
+      await sendMessage(
+        assigneeId,
+        "Use the get_location tool to get my location. Do not use the ask_question tool. If location is rejected, do not retry - just acknowledge and move on.",
+      );
+      await stream.waitForDone();
+
+      // Verify location_required event was emitted
+      const locationEvents = stream.events.filter(
+        (e) => e.event === "location_required",
+      );
+      expect(locationEvents.length).toBeGreaterThanOrEqual(1);
+
+      // Verify agent produced text after rejection
+      const textDeltas = stream.events.filter((e) => e.event === "text-delta");
+      expect(textDeltas.length).toBeGreaterThan(0);
+
+      // Step 2: Send follow-up
+      await sendMessage(assigneeId, "OK thanks. Do not use any tools.");
+      await stream.waitForDone();
+
+      // Step 3: Validate chat history
+      const { messages } = await getChatHistory(assigneeId);
+      expect(messages.length).toBeGreaterThanOrEqual(5);
+
+      // Verify get_location tool-call has confirmation with rejected status
+      const locationCallParts = findToolCallParts(messages, "get_location");
+      expect(locationCallParts.length).toBeGreaterThanOrEqual(1);
+      const locationConfirmation = locationCallParts[0]?.confirmation as
+        | { id: string; status: string }
+        | undefined;
+      expect(locationConfirmation).toBeTruthy();
+      expect(locationConfirmation!.status).toBe("rejected");
+
+      // Verify rejection tool-result exists with isError
+      const locationResultParts = findToolResultParts(messages, "get_location");
+      expect(locationResultParts.length).toBeGreaterThanOrEqual(1);
+      expect(locationResultParts[0]?.isError).toBe(true);
+
+      // Verify all tool-calls have matching tool-results
+      const allCalls = findAllToolCallParts(messages);
+      const allResults = findAllToolResultParts(messages);
+      const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
+      for (const call of allCalls) {
+        expect(resultIds.has(call.toolCallId as string)).toBe(true);
+      }
+
+      // Verify follow-up exchange
+      const lastUserIdx = messages.findLastIndex((m) => m.role === "user");
+      expect(lastUserIdx).toBeGreaterThan(-1);
+      expect(messages[lastUserIdx + 1]?.role).toBe("assistant");
+
+      console.log(
+        `Test 13 passed: ${messages.length} messages, get_location rejected`,
+      );
+    } finally {
+      stream.cancel();
+    }
+  });
+
+  test("test 15: get location with auto-confirm permission", async ({ assigneeId }) => {
+    // Set get_location to auto-confirm
+    const assignee = await getAssignee(assigneeId);
+    const updatedPermissions = assignee.toolPermissions.map((tp) => {
+      if (tp.toolName === "get_location") {
+        return { toolName: tp.toolName, permission: "auto-confirm" };
+      }
+      return tp;
+    });
+    await updateAssigneePermissions(assigneeId, updatedPermissions);
+    console.log("Set get_location to auto-confirm");
+
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      onMessage: async (evt) => {
+        if (evt.event === "location_required") {
+          console.log(
+            `Location required (isAutoConfirm=${evt.data.isAutoConfirm}): ${evt.data.toolCallId}`,
+          );
+          // Even with auto-confirm, we still need to respond with coordinates
+          await sendLocationResponse(evt.data.toolCallId as string, "confirm", {
+            latitude: 40.7128,
+            longitude: -74.006,
+            accuracy: 5,
+          });
+          console.log(`Shared location for: ${evt.data.toolCallId}`);
+        }
+      },
+    });
+
+    try {
+      // Step 1: Send message that triggers get_location
+      await sendMessage(
+        assigneeId,
+        "Use the get_location tool to find my coordinates. Do not use the ask_question tool.",
+      );
+      await stream.waitForDone();
+
+      // Verify location_required event was emitted with isAutoConfirm=true
+      const locationEvents = stream.events.filter(
+        (e) => e.event === "location_required",
+      );
+      expect(locationEvents.length).toBeGreaterThanOrEqual(1);
+      expect(locationEvents[0]?.data.isAutoConfirm).toBe(true);
+
+      // Verify tool-result appeared
+      const toolResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "get_location",
+      );
+      expect(toolResults.length).toBeGreaterThanOrEqual(1);
+
+      // Verify agent produced text after receiving location
+      const textDeltas = stream.events.filter((e) => e.event === "text-delta");
+      expect(textDeltas.length).toBeGreaterThan(0);
+
+      // Step 2: Validate chat history
+      const { messages } = await getChatHistory(assigneeId);
+      expect(messages.length).toBeGreaterThanOrEqual(2);
+
+      // Verify get_location tool-call has isAutoConfirm=true in history
+      const locationCallParts = findToolCallParts(messages, "get_location");
+      expect(locationCallParts.length).toBeGreaterThanOrEqual(1);
+      expect(locationCallParts[0]?.isAutoConfirm).toBe(true);
+
+      // Verify get_location tool-result exists
+      const locationResultParts = findToolResultParts(messages, "get_location");
+      expect(locationResultParts.length).toBeGreaterThanOrEqual(1);
+
+      // Verify all tool-calls have matching tool-results
+      const allCalls = findAllToolCallParts(messages);
+      const allResults = findAllToolResultParts(messages);
+      const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
+      for (const call of allCalls) {
+        expect(resultIds.has(call.toolCallId as string)).toBe(true);
+      }
+
+      console.log(
+        `Test 15 passed: ${messages.length} messages, get_location auto-confirm`,
+      );
+    } finally {
+      stream.cancel();
+    }
+  });
+
+  test("test 14: get location + user skips + keeps chatting = auto reject", async ({ assigneeId }) => {
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      onMessage: async (evt) => {
+        if (evt.event === "location_required") {
+          console.log(`Location required but ignoring: ${evt.data.toolCallId}`);
+        }
+      },
+    });
+
+    try {
+      // Step 1: Send message that triggers get_location
+      await sendMessage(
+        assigneeId,
+        "Use the get_location tool to find my coordinates. Do not use the ask_question tool.",
+      );
+      // Backend won't send "done" while waiting for location — wait for the location event
+      await stream.waitForEvent("location_required");
+
+      // Verify location was requested
+      const locationEvents = stream.events.filter(
+        (e) => e.event === "location_required",
+      );
+      expect(locationEvents.length).toBeGreaterThanOrEqual(1);
+
+      // Step 2: Ignore the location request and just keep chatting
+      await sendMessage(
+        assigneeId,
+        "Never mind, just tell me a joke instead. Do not use any tools.",
+      );
+      await stream.waitForDone();
+
+      // Verify agent responded with text (no errors)
+      const textDeltas = stream.events.filter((e) => e.event === "text-delta");
+      expect(textDeltas.length).toBeGreaterThan(0);
+
+      // Step 3: Validate chat history
+      const { messages } = await getChatHistory(assigneeId);
+      expect(messages.length).toBeGreaterThanOrEqual(4);
+
+      // Verify get_location tool-call has confirmation with cancelled status (auto-cancelled when user skips)
+      const locationCallParts = findToolCallParts(messages, "get_location");
+      expect(locationCallParts.length).toBeGreaterThanOrEqual(1);
+      const locationConfirmation = locationCallParts[0]?.confirmation as
+        | { id: string; status: string }
+        | undefined;
+      expect(locationConfirmation).toBeTruthy();
+      expect(locationConfirmation!.status).toBe("cancelled");
+
+      // Verify rejection tool-result exists with isError
+      const locationResultParts = findToolResultParts(messages, "get_location");
+      expect(locationResultParts.length).toBeGreaterThanOrEqual(1);
+      expect(locationResultParts[0]?.isError).toBe(true);
+
+      // Verify all tool-calls have matching tool-results
+      const allCalls = findAllToolCallParts(messages);
+      const allResults = findAllToolResultParts(messages);
+      const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
+      for (const call of allCalls) {
+        expect(resultIds.has(call.toolCallId as string)).toBe(true);
+      }
+
+      // Verify follow-up exchange — find the last user message and check assistant responds after it
+      const lastUserIdx = messages.findLastIndex((m) => m.role === "user");
+      expect(lastUserIdx).toBeGreaterThan(-1);
+      const afterLastUser = messages.slice(lastUserIdx + 1);
+      expect(afterLastUser.some((m) => m.role === "assistant")).toBe(true);
+
+      console.log(
+        `Test 14 passed: ${messages.length} messages, get_location auto-rejected after skip`,
       );
     } finally {
       stream.cancel();

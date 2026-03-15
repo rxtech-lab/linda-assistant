@@ -11,16 +11,20 @@ import {
 } from "@/lib/db/messages";
 import { assignees, chatSessions, confirmations, questions } from "@/lib/db/schema";
 import { createMem0Client } from "@/lib/mem0/client";
+import { redis } from "@/lib/redis";
 import { setStreamActive } from "@/lib/streaming/manager";
 import { extractTextFromMessage, prepareMessages } from "./compaction";
 import { createConfirmation, sendConfirmationGroupNotification } from "./confirmation";
+import { createLocationRequest } from "./location";
 import { createQuestion, sendQuestionGroupNotification } from "./question";
 import { ASK_QUESTION_TOOL_NAME } from "./tools/ask-question";
+import { GET_LOCATION_TOOL_NAME } from "./tools/get-location";
 import { getModelProvider } from "./model";
 import { availableModelSchema, DEFAULT_MODEL } from "./models";
 import { buildToolSet } from "./tools";
+import { resolvePermission, loadAssigneePermissions } from "./tools/permission";
 
-const MAX_STEPS = 10;
+const MAX_STEPS = 20;
 
 /** Annotate a tool-call content part with confirmation info */
 export function annotateToolCallConfirmation(
@@ -28,12 +32,13 @@ export function annotateToolCallConfirmation(
   toolCallId: string,
   confirmationId: string,
   status: string,
+  extra?: Record<string, unknown>,
 ): void {
   for (const msg of messages) {
     if (!Array.isArray(msg.content)) continue;
     for (const part of msg.content as Record<string, unknown>[]) {
       if (part.type === "tool-call" && part.toolCallId === toolCallId) {
-        part.confirmation = { id: confirmationId, status };
+        part.confirmation = { id: confirmationId, status, ...extra };
         return;
       }
     }
@@ -130,7 +135,7 @@ function sanitizeMessages(messages: ModelMessage[], messageId?: string): ModelMe
 }
 
 /** Custom annotation keys added to content parts for frontend/persistence (not for the model) */
-const CUSTOM_ANNOTATIONS = ["confirmation", "question", "error", "approveStatus"];
+const CUSTOM_ANNOTATIONS = ["confirmation", "question", "error", "approveStatus", "isAutoConfirm"];
 
 /** Recognized output types in the AI SDK v6 outputSchema discriminated union */
 const VALID_OUTPUT_TYPES = new Set(["text", "json", "execution-denied", "error-text", "content"]);
@@ -351,9 +356,13 @@ export function buildSystemPrompt(
 Do NOT overuse it for trivial or obvious decisions. Only ask when the answer genuinely affects the outcome.
 If the user rejects your questions, do NOT retry with the same or similar questions. Acknowledge the rejection and proceed without that information, using reasonable defaults or skipping the action.`;
 
-  if (!assignee) return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}`;
-  if (assignee.personality) return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}`;
-  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}`;
+  const locationGuidance = `\nUse the get_location tool when you need the user's current GPS coordinates — for example, to find nearby places, get local weather, provide directions, or give location-based recommendations. The user will be asked to share their location and may decline. Do NOT request location unless it is clearly relevant to the user's request.`;
+
+  if (!assignee)
+    return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}`;
+  if (assignee.personality)
+    return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}`;
+  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}`;
 }
 
 /**
@@ -368,7 +377,7 @@ async function resolvePendingToolCalls(
   messages: ModelMessage[],
   tools: Record<string, unknown>,
   onEvent?: (event: string, data: unknown) => void | Promise<void>,
-  taskType?: "message" | "confirmation_resolved" | "question_resolved",
+  taskType?: "message" | "confirmation_resolved" | "question_resolved" | "location_resolved",
 ): Promise<{ messages: ModelMessage[]; persistCount: number }> {
   // Collect all tool-call IDs and tool-result IDs
   const toolCallIds = new Set<string>();
@@ -511,9 +520,23 @@ async function resolvePendingToolCalls(
         ? await db.select().from(questions).where(eq(questions.toolCallId, toolCallId))
         : [undefined];
 
+      // If no confirmation or question found, check Redis for location request
+      let locationStatus: string | null = null;
+      if (!confirmation && !questionRecord) {
+        const raw = await redis.get(`location:request:${toolCallId}`);
+        if (raw) {
+          const locReq = typeof raw === "string" ? JSON.parse(raw) : raw;
+          locationStatus = locReq.status;
+        }
+      }
+
       let resultMessage: ModelMessage;
 
-      if (confirmation?.status === "confirmed" || questionRecord?.status === "answered") {
+      if (
+        confirmation?.status === "confirmed" ||
+        questionRecord?.status === "answered" ||
+        locationStatus === "confirmed"
+      ) {
         // Signal tool is now running before execution
         await onEvent?.("tool-call", {
           toolCallId,
@@ -584,12 +607,33 @@ async function resolvePendingToolCalls(
               : "Unknown error";
         }
         await onEvent?.("tool-result", eventData);
-      } else if (confirmation?.status === "rejected" || questionRecord?.status === "rejected") {
+
+        // Safety net: ensure the tool-call annotation reflects the resolved status.
+        // resolveConfirmation/resolveLocationRequest may have failed to annotate if
+        // messages weren't yet persisted when the resolution was processed.
+        if (questionRecord) {
+          annotateToolCallQuestion(cleaned, toolCallId, questionRecord.id, "answered");
+        } else {
+          const confId = confirmation?.id ?? toolCallId;
+          annotateToolCallConfirmation(cleaned, toolCallId, confId, "confirmed");
+        }
+        for (const msg of cleaned) {
+          if (!Array.isArray(msg.content)) continue;
+          for (const part of msg.content as Record<string, unknown>[]) {
+            if (part.type === "tool-call" && part.toolCallId === toolCallId) {
+              const record = msg as Record<string, unknown>;
+              if (record.id) await updateMessageContent(record.id as string, msg.content);
+            }
+          }
+        }
+      } else if (confirmation?.status === "rejected" || questionRecord?.status === "rejected" || locationStatus === "rejected") {
         // Safety: rejection should already have a tool-result from resolveConfirmation/resolveQuestion,
         // but create one if somehow missing
-        const errorMsg = questionRecord
-          ? "User rejected all questions"
-          : "User rejected this action";
+        const errorMsg = locationStatus === "rejected"
+          ? "User declined to share their location"
+          : questionRecord
+            ? "User rejected all questions"
+            : "User rejected this action";
         resultMessage = {
           id: crypto.randomUUID(),
           role: "tool" as const,
@@ -611,6 +655,23 @@ async function resolvePendingToolCalls(
           isError: true,
           error: errorMsg,
         });
+
+        // Safety net: ensure the tool-call annotation reflects rejected status
+        if (questionRecord) {
+          annotateToolCallQuestion(cleaned, toolCallId, questionRecord.id, "rejected");
+        } else {
+          const confId = confirmation?.id ?? toolCallId;
+          annotateToolCallConfirmation(cleaned, toolCallId, confId, "rejected");
+        }
+        for (const msg of cleaned) {
+          if (!Array.isArray(msg.content)) continue;
+          for (const part of msg.content as Record<string, unknown>[]) {
+            if (part.type === "tool-call" && part.toolCallId === toolCallId) {
+              const record = msg as Record<string, unknown>;
+              if (record.id) await updateMessageContent(record.id as string, msg.content);
+            }
+          }
+        }
       } else {
         // No confirmation/question found (orphaned from multi-tool step) or still pending
         resultMessage = {
@@ -702,7 +763,7 @@ async function resolvePendingToolCalls(
 interface AgentRunOptions {
   sessionId: string;
   userId: string;
-  taskType?: "message" | "confirmation_resolved" | "question_resolved";
+  taskType?: "message" | "confirmation_resolved" | "question_resolved" | "location_resolved";
   onTextChunk?: (text: string) => void;
   onEvent?: (event: string, data: unknown) => void | Promise<void>;
   signal?: AbortSignal;
@@ -994,16 +1055,27 @@ export async function runAgent(options: AgentRunOptions) {
       );
 
       if (finishReason === "tool-calls" && pendingApprovals.length > 0) {
-        // Separate question approvals from confirmation approvals
+        // Separate question, location, and confirmation approvals
         const questionApprovals = pendingApprovals.filter(
           (a) => a.toolCall.toolName === ASK_QUESTION_TOOL_NAME,
         );
+        const locationApprovals = pendingApprovals.filter(
+          (a) => a.toolCall.toolName === GET_LOCATION_TOOL_NAME,
+        );
         const confirmationApprovals = pendingApprovals.filter(
-          (a) => a.toolCall.toolName !== ASK_QUESTION_TOOL_NAME,
+          (a) =>
+            a.toolCall.toolName !== ASK_QUESTION_TOOL_NAME &&
+            a.toolCall.toolName !== GET_LOCATION_TOOL_NAME,
         );
 
-        // Handle question approvals
+        // Handle question approvals (create records + annotate in-memory, no events yet)
         const createdQuestions: Array<{ questionId: string; questionCount: number }> = [];
+        const questionEvents: Array<{
+          questionId: string;
+          toolCallId: string;
+          toolName: string;
+          questions: unknown;
+        }> = [];
         for (const approval of questionApprovals) {
           const input = (approval.toolCall.input ?? {}) as Record<string, unknown>;
           const questionsData = (input.questions ?? []) as Array<{
@@ -1036,7 +1108,7 @@ export async function runAgent(options: AgentRunOptions) {
             "pending",
           );
 
-          await onEvent?.("question_required", {
+          questionEvents.push({
             questionId: question.id,
             toolCallId: approval.toolCall.toolCallId,
             toolName: approval.toolCall.toolName,
@@ -1044,8 +1116,76 @@ export async function runAgent(options: AgentRunOptions) {
           });
         }
 
-        // Handle confirmation approvals
+        // Handle location approvals (create records + annotate in-memory, no events yet)
+        let hasLocationRequest = false;
+        const locationEvents: Array<{
+          toolCallId: string;
+          toolName: string;
+          reason: unknown;
+          isAutoConfirm: boolean;
+        }> = [];
+        for (const approval of locationApprovals) {
+          const input = (approval.toolCall.input ?? {}) as Record<string, unknown>;
+
+          // Check assignee permission for auto-confirm vs manual-confirm
+          const [session] = await db
+            .select({ assigneeId: chatSessions.assigneeId })
+            .from(chatSessions)
+            .where(eq(chatSessions.id, sessionId));
+          const toolPermissions = session?.assigneeId
+            ? await loadAssigneePermissions(session.assigneeId)
+            : null;
+          const perm = resolvePermission(GET_LOCATION_TOOL_NAME, toolPermissions);
+          const isAutoConfirm = perm === "auto-confirm";
+
+          await createLocationRequest({
+            userId,
+            chatSessionId: sessionId,
+            toolCallId: approval.toolCall.toolCallId,
+            toolName: approval.toolCall.toolName,
+            approvalId: approval.approvalId,
+            reason: input.reason as string | undefined,
+            isAutoConfirm,
+          });
+
+          // Annotate the tool-call content part
+          annotateToolCallConfirmation(
+            currentMessages,
+            approval.toolCall.toolCallId,
+            approval.toolCall.toolCallId,
+            "pending",
+          );
+
+          // Also store isAutoConfirm directly on the tool-call part for history reload
+          if (isAutoConfirm) {
+            for (const msg of currentMessages) {
+              if (!Array.isArray(msg.content)) continue;
+              for (const part of msg.content as Record<string, unknown>[]) {
+                if (part.type === "tool-call" && part.toolCallId === approval.toolCall.toolCallId) {
+                  part.isAutoConfirm = true;
+                }
+              }
+            }
+          }
+
+          locationEvents.push({
+            toolCallId: approval.toolCall.toolCallId,
+            toolName: approval.toolCall.toolName,
+            reason: input.reason,
+            isAutoConfirm,
+          });
+
+          hasLocationRequest = true;
+        }
+
+        // Handle confirmation approvals (create records + annotate in-memory, no events yet)
         const createdConfirmations: Array<{ confirmationId: string; toolName: string }> = [];
+        const confirmationEvents: Array<{
+          confirmationId: string;
+          toolCallId: string;
+          toolName: string;
+          parameters: unknown;
+        }> = [];
         for (const approval of confirmationApprovals) {
           const confirmation = await createConfirmation({
             userId,
@@ -1070,12 +1210,29 @@ export async function runAgent(options: AgentRunOptions) {
             "pending",
           );
 
-          await onEvent?.("confirmation_required", {
+          confirmationEvents.push({
             confirmationId: confirmation.id,
             toolCallId: approval.toolCall.toolCallId,
             toolName: approval.toolCall.toolName,
             parameters: approval.toolCall.input,
           });
+        }
+
+        // Persist messages BEFORE emitting events so that resolveConfirmation/
+        // resolveLocationRequest/resolveQuestion can find the tool-call messages
+        // in the DB when they try to annotate them with confirmed/rejected status.
+        await insertMessages(sessionId, currentMessages.slice(persistedCount));
+        persistedCount = currentMessages.length;
+
+        // Now emit all events — handlers can safely read messages from DB
+        for (const evt of questionEvents) {
+          await onEvent?.("question_required", evt);
+        }
+        for (const evt of locationEvents) {
+          await onEvent?.("location_required", evt);
+        }
+        for (const evt of confirmationEvents) {
+          await onEvent?.("confirmation_required", evt);
         }
 
         // Send grouped push notifications
@@ -1087,15 +1244,12 @@ export async function runAgent(options: AgentRunOptions) {
         }
 
         // Emit status event so SSE clients know the agent is paused
-        const waitingStatus =
-          createdQuestions.length > 0 && createdConfirmations.length === 0
+        const waitingStatus = hasLocationRequest
+          ? "waiting_location"
+          : createdQuestions.length > 0 && createdConfirmations.length === 0
             ? "waiting_question"
             : "waiting_confirmation";
         await onEvent?.("status", { status: waitingStatus });
-
-        // Persist new messages and update session status
-        await insertMessages(sessionId, currentMessages.slice(persistedCount));
-        persistedCount = currentMessages.length;
         await db
           .update(chatSessions)
           .set({
@@ -1107,7 +1261,11 @@ export async function runAgent(options: AgentRunOptions) {
         await setStreamActive(sessionId, false);
         return {
           paused: true,
-          reason: createdQuestions.length > 0 ? "question_required" : "confirmation_required",
+          reason: hasLocationRequest
+            ? "location_required"
+            : createdQuestions.length > 0
+              ? "question_required"
+              : "confirmation_required",
         };
       }
 

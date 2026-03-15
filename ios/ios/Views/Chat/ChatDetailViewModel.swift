@@ -22,7 +22,13 @@ final class ChatDetailViewModel {
         error = nil
     }
 
-    func loadSession(id: String, apiClient: APIClient, authManager: AuthManager, eventManager: EventManager) async {
+    func loadSession(
+        id: String,
+        apiClient: APIClient,
+        authManager: AuthManager,
+        eventManager: EventManager,
+        deviceToken: String? = nil
+    ) async {
         logger.info("loadSession started for id=\(id)")
         isLoading = true
         error = nil
@@ -33,6 +39,7 @@ final class ChatDetailViewModel {
             sseClient: SSEClient(authManager: authManager),
             eventManager: eventManager
         )
+        handler.deviceToken = deviceToken
         handler.onAssistantMessage = { [weak self] parts in
             guard let self else { return }
             logger.info("onAssistantMessage received, parts=\(parts.count)")

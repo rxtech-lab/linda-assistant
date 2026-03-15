@@ -22,7 +22,16 @@ public final class ChatStreamHandler: @unchecked Sendable {
         pendingQuestions.first
     }
 
+    public private(set) var pendingLocations: [LocationRequestPayload] = []
+    /// The first unresolved location request in the queue (what the UI should show).
+    public var pendingLocation: LocationRequestPayload? {
+        pendingLocations.first
+    }
+
     public private(set) var error: String?
+
+    /// Device token for the current device, used to identify which device sent the last message.
+    public var deviceToken: String?
 
     /// Computed: extract tool calls from streaming parts (for confirmation lookup).
     public var streamingToolCalls: [ToolCallInfo] {
@@ -38,6 +47,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     public var onReconnected: (@MainActor () async -> Void)?
     public var onConfirmationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
     public var onQuestionAnswered: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
+    public var onLocationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
     public var onToolResult: (@MainActor (_ toolCallId: String, _ isError: Bool, _ errorMessage: String?) -> Void)?
     public var onUserMessage: (@MainActor (_ id: String, _ content: String) -> Void)?
 
@@ -70,13 +80,17 @@ public final class ChatStreamHandler: @unchecked Sendable {
             self.streamingParts = []
             self.pendingConfirmations = []
             self.pendingQuestions = []
+            self.pendingLocations = []
             self.error = nil
             self.isStreaming = true
         }
         eventManager.emit(.streamContentUpdated)
 
         do {
-            let response = try await apiClient.sendChatMessage(assigneeId: assigneeId, SendMessage(content: content))
+            let response = try await apiClient.sendChatMessage(
+                assigneeId: assigneeId,
+                SendMessage(content: content, deviceToken: deviceToken)
+            )
             logger.info("sendChatMessage: API call succeeded")
             return response.messageId
         } catch {
@@ -156,13 +170,17 @@ public final class ChatStreamHandler: @unchecked Sendable {
             self.streamingParts = []
             self.pendingConfirmations = []
             self.pendingQuestions = []
+            self.pendingLocations = []
             self.error = nil
             self.isStreaming = true
         }
         eventManager.emit(.streamContentUpdated)
 
         do {
-            let response = try await apiClient.sendMessage(sessionId: sessionId, SendMessage(content: content))
+            let response = try await apiClient.sendMessage(
+                sessionId: sessionId,
+                SendMessage(content: content, deviceToken: deviceToken)
+            )
             logger.info("sendMessage: API call succeeded")
             return response.messageId
         } catch {
@@ -200,6 +218,45 @@ public final class ChatStreamHandler: @unchecked Sendable {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    public func resolveLocation(
+        toolCallId: String,
+        action: String,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        accuracy: Double? = nil,
+        alwaysAllow: Bool = false
+    ) async {
+        do {
+            let body = LocationResponse(
+                toolCallId: toolCallId,
+                action: action,
+                latitude: latitude,
+                longitude: longitude,
+                accuracy: accuracy,
+                alwaysAllow: alwaysAllow ? true : nil
+            )
+            let response = try await apiClient.sendLocationResponse(body)
+            await MainActor.run {
+                pendingLocations.removeAll { $0.toolCallId == toolCallId }
+            }
+            eventManager.emit(.locationResolved(response.toolCallId, response.action))
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    public func setPendingLocation(_ payload: LocationRequestPayload) {
+        if !pendingLocations.contains(where: { $0.toolCallId == payload.toolCallId }) {
+            pendingLocations.append(payload)
+        }
+    }
+
+    @MainActor
+    public func setPendingLocations(_ payloads: [LocationRequestPayload]) {
+        pendingLocations = payloads
     }
 
     @MainActor
@@ -405,6 +462,68 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 }
                 onQuestionAnswered?(payload.toolCallId, payload.action)
 
+            case let .locationRequired(payload):
+                logger.info("locationRequired: \(payload.toolName) toolCallId=\(payload.toolCallId) isAutoConfirm=\(String(describing: payload.isAutoConfirm))")
+                logger.info("locationRequired raw payload: toolName=\(payload.toolName) reason=\(payload.reason ?? "nil") isAutoConfirm=\(String(describing: payload.isAutoConfirm))")
+                // Update the corresponding tool call status
+                if let index = streamingParts.firstIndex(where: {
+                    if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
+                    return false
+                }) {
+                    if case var .tool(info) = streamingParts[index] {
+                        info.status = .pendingLocation
+                        streamingParts[index] = .tool(info)
+                    }
+                }
+
+                if payload.isAutoConfirm == true {
+                    // Auto-confirm: silently get location and respond without showing sheet
+                    let toolCallId = payload.toolCallId
+                    Task { [weak self] in
+                        guard let self else { return }
+                        let locationService = LocationService()
+                        do {
+                            let location = try await locationService.requestLocation()
+                            await self.resolveLocation(
+                                toolCallId: toolCallId,
+                                action: "confirm",
+                                latitude: location.latitude,
+                                longitude: location.longitude,
+                                accuracy: location.accuracy
+                            )
+                        } catch {
+                            logger.error("Auto-confirm location failed: \(error)")
+                            await self.resolveLocation(
+                                toolCallId: toolCallId,
+                                action: "reject"
+                            )
+                        }
+                    }
+                } else {
+                    // Manual: show location sheet
+                    if !pendingLocations.contains(where: { $0.toolCallId == payload.toolCallId }) {
+                        pendingLocations.append(payload)
+                    }
+                }
+
+            case let .locationResolved(payload):
+                logger
+                    .info(
+                        "locationResolved: \(payload.toolName) toolCallId=\(payload.toolCallId) action=\(payload.action)"
+                    )
+                pendingLocations.removeAll { $0.toolCallId == payload.toolCallId }
+                // Immediate feedback: update streaming tool call status
+                if let index = streamingParts.firstIndex(where: {
+                    if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
+                    return false
+                }) {
+                    if case var .tool(info) = streamingParts[index] {
+                        info.status = payload.action == "rejected" ? .rejected : .running
+                        streamingParts[index] = .tool(info)
+                    }
+                }
+                onLocationResolved?(payload.toolCallId, payload.action)
+
             case let .userMessage(payload):
                 logger.info("userMessage: id=\(payload.id), content=\(payload.content.prefix(50))")
                 onUserMessage?(payload.id, payload.content)
@@ -428,7 +547,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
                     isStreaming = true
                 } else if payload.status == "stopped" {
                     finalizeResponse()
-                } else if payload.status == "waiting_confirmation" || payload.status == "waiting_question" {
+                } else if payload.status == "waiting_confirmation" || payload.status == "waiting_question" || payload
+                    .status == "waiting_location"
+                {
                     // Agent paused for confirmation/question — stop streaming indicator
                     // but keep streamingParts and pendingConfirmations/pendingQuestions visible
                     isStreaming = false
@@ -554,6 +675,7 @@ public enum ToolCallStatus: Sendable, Equatable {
     case failed
     case pendingConfirmation
     case pendingQuestion
+    case pendingLocation
     case rejected
     case stoppedNoResult
 

@@ -12,6 +12,7 @@ import { SEND_EMAIL_TOOL_NAME, sendEmailTool } from "./send-email";
 import { UPDATE_TASK_TOOL_NAME, updateTaskTool } from "./update-task";
 import { GET_CURRENT_TIME_TOOL_NAME, getCurrentTimeTool } from "./get-current-time";
 import { ASK_QUESTION_TOOL_NAME, askQuestionTool } from "./ask-question";
+import { GET_LOCATION_TOOL_NAME, getLocationTool } from "./get-location";
 import { UPDATE_DOCUMENT_TOOL_NAME, updateDocumentTool } from "./update-document";
 import { createFilesMcp } from "./mcps/files";
 import { createFirecrawlMcp } from "./mcps/firecrawl";
@@ -154,6 +155,10 @@ export async function buildToolSet(
       name: ASK_QUESTION_TOOL_NAME,
       create: (_na: boolean) => askQuestionTool(),
     },
+    {
+      name: GET_LOCATION_TOOL_NAME,
+      create: (_na: boolean) => getLocationTool(),
+    },
   ];
 
   // Build permission-aware tools
@@ -217,6 +222,7 @@ export {
   CREATE_DOCUMENT_TOOL_NAME,
   CREATE_TASK_TOOL_NAME,
   GET_CURRENT_TIME_TOOL_NAME,
+  GET_LOCATION_TOOL_NAME,
   SEARCH_EMAILS_TOOL_NAME,
   SEND_EMAIL_TOOL_NAME,
   UPDATE_DOCUMENT_TOOL_NAME,

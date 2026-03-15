@@ -5,7 +5,7 @@ export const AGENT_COMMANDS_EXCHANGE = "agent-commands";
 export interface AgentTask {
   sessionId: string;
   userId: string;
-  type: "message" | "confirmation_resolved" | "question_resolved";
+  type: "message" | "confirmation_resolved" | "question_resolved" | "location_resolved";
   timestamp: number;
 }
 

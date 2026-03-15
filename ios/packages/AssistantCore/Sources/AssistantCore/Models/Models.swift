@@ -264,9 +264,11 @@ public struct CreateChatSession: Codable, Sendable {
 
 public struct SendMessage: Codable, Sendable {
     public let content: String
+    public let deviceToken: String?
 
-    public init(content: String) {
+    public init(content: String, deviceToken: String? = nil) {
         self.content = content
+        self.deviceToken = deviceToken
     }
 }
 
@@ -313,7 +315,8 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
                     input: part.input,
                     confirmation: part.confirmation,
                     question: part.question,
-                    error: part.error
+                    error: part.error,
+                    isAutoConfirm: part.isAutoConfirm
                 )
             }
             var statuses: [String: String] = [:]
@@ -349,6 +352,7 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
 public struct ToolCallConfirmation: Codable, Sendable {
     public let id: String
     public let status: String
+    public let isAutoConfirm: Bool?
 }
 
 public struct ToolCallQuestion: Codable, Sendable {
@@ -367,6 +371,7 @@ public struct ChatToolCall: Codable, Sendable, Identifiable {
     public let confirmation: ToolCallConfirmation?
     public let question: ToolCallQuestion?
     public let error: String?
+    public let isAutoConfirm: Bool?
 }
 
 private struct ContentPart: Codable {
@@ -380,6 +385,7 @@ private struct ContentPart: Codable {
     let question: ToolCallQuestion?
     let approveStatus: String?
     let error: String?
+    let isAutoConfirm: Bool?
 }
 
 // MARK: - Chat Messages Response (assignee-scoped)
@@ -484,6 +490,38 @@ public struct AnswerQuestion: Codable, Sendable {
 public struct AnswerQuestionResponse: Codable, Sendable {
     public let action: String
     public let questionId: String
+}
+
+// MARK: - Location Response
+
+public struct LocationResponse: Codable, Sendable {
+    public let toolCallId: String
+    public let action: String
+    public let latitude: Double?
+    public let longitude: Double?
+    public let accuracy: Double?
+    public let alwaysAllow: Bool?
+
+    public init(
+        toolCallId: String,
+        action: String,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        accuracy: Double? = nil,
+        alwaysAllow: Bool? = nil
+    ) {
+        self.toolCallId = toolCallId
+        self.action = action
+        self.latitude = latitude
+        self.longitude = longitude
+        self.accuracy = accuracy
+        self.alwaysAllow = alwaysAllow
+    }
+}
+
+public struct LocationResponseResult: Codable, Sendable {
+    public let action: String
+    public let toolCallId: String
 }
 
 // MARK: - Device

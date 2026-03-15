@@ -11,6 +11,8 @@ public enum SSEEventType: String, Sendable {
     case confirmationResolved = "confirmation_resolved"
     case questionRequired = "question_required"
     case questionAnswered = "question_answered"
+    case locationRequired = "location_required"
+    case locationResolved = "location_resolved"
     case userMessage = "user-message"
     case compacting
     case error
@@ -76,6 +78,18 @@ public struct SSEEvent: Sendable {
                 if let payload = try? decoder.decode(QuestionAnsweredPayload.self, from: jsonData) {
                     return .questionAnswered(payload)
                 }
+            case .locationRequired:
+                if let rawString = String(data: jsonData, encoding: .utf8) {
+                    print("[SSE DEBUG] locationRequired raw JSON: \(rawString)")
+                }
+                if let payload = try? decoder.decode(LocationRequestPayload.self, from: jsonData) {
+                    print("[SSE DEBUG] locationRequired decoded isAutoConfirm=\(String(describing: payload.isAutoConfirm))")
+                    return .locationRequired(payload)
+                }
+            case .locationResolved:
+                if let payload = try? decoder.decode(LocationResolvedPayload.self, from: jsonData) {
+                    return .locationResolved(payload)
+                }
             case .userMessage:
                 if let payload = try? decoder.decode(UserMessagePayload.self, from: jsonData) {
                     return .userMessage(payload)
@@ -113,6 +127,8 @@ public enum SSEMessage: Sendable {
     case confirmationResolved(ConfirmationResolvedPayload)
     case questionRequired(QuestionPayload)
     case questionAnswered(QuestionAnsweredPayload)
+    case locationRequired(LocationRequestPayload)
+    case locationResolved(LocationResolvedPayload)
     case userMessage(UserMessagePayload)
     case compacting(CompactingPayload)
     case error(SSEErrorPayload)
@@ -228,7 +244,8 @@ public extension QuestionPayload {
                     guard case let .object(optDict) = opt,
                           case let .string(optTitle) = optDict["title"]
                     else { return nil }
-                    let optDesc: String? = optDict["description"].flatMap { if case let .string(d) = $0 { d } else { nil } }
+                    let optDesc: String? = optDict["description"]
+                        .flatMap { if case let .string(d) = $0 { d } else { nil } }
                     return QuestionOptionItem(title: optTitle, description: optDesc)
                 }
             }
@@ -252,6 +269,30 @@ public struct QuestionAnsweredPayload: Codable, Sendable {
     public let toolCallId: String
     public let toolName: String
     public let action: String // "answered" or "rejected"
+}
+
+public struct LocationRequestPayload: Codable, Sendable, Identifiable {
+    public var id: String {
+        toolCallId
+    }
+
+    public let toolCallId: String
+    public let toolName: String
+    public let reason: String?
+    public let isAutoConfirm: Bool?
+
+    public init(toolCallId: String, toolName: String, reason: String?, isAutoConfirm: Bool? = nil) {
+        self.toolCallId = toolCallId
+        self.toolName = toolName
+        self.reason = reason
+        self.isAutoConfirm = isAutoConfirm
+    }
+}
+
+public struct LocationResolvedPayload: Codable, Sendable {
+    public let toolCallId: String
+    public let toolName: String
+    public let action: String
 }
 
 public struct UserMessagePayload: Codable, Sendable {

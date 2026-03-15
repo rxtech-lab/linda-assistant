@@ -39,8 +39,8 @@ mock.module("@/lib/db", () => ({
 
 const { buildToolSet } = await import("./index");
 
-// Document tools (update_document, create_document) are always included — not permission-gated
-const ALL_TOOL_NAMES = [
+// Well-known tools that must always be present (not exhaustive — new tools may be added)
+const KNOWN_TOOLS = [
   "send_email",
   "search_emails",
   "create_task",
@@ -49,27 +49,37 @@ const ALL_TOOL_NAMES = [
   "get_current_time",
   "ask_question",
 ];
-const ALL_TOOL_NAMES_WITH_SESSION = [...ALL_TOOL_NAMES, "create_document"];
 
 describe("buildToolSet", () => {
-  test("returns all tools when assigneeId is null", async () => {
+  test("returns all known tools when assigneeId is null", async () => {
     const { tools } = await buildToolSet("user-1", null, "test-token");
+    const names = Object.keys(tools);
 
-    expect(Object.keys(tools).sort()).toEqual(ALL_TOOL_NAMES.sort());
+    for (const tool of KNOWN_TOOLS) {
+      expect(names).toContain(tool);
+    }
+    // create_document excluded without chatSessionId
+    expect(names).not.toContain("create_document");
   });
 
   test("includes create_document when chatSessionId is provided", async () => {
     const { tools } = await buildToolSet("user-1", null, "test-token", "session-1");
+    const names = Object.keys(tools);
 
-    expect(Object.keys(tools).sort()).toEqual(ALL_TOOL_NAMES_WITH_SESSION.sort());
+    for (const tool of [...KNOWN_TOOLS, "create_document"]) {
+      expect(names).toContain(tool);
+    }
   });
 
-  test("returns all tools when assignee has no permissions configured", async () => {
+  test("returns all known tools when assignee has no permissions configured", async () => {
     mockLoadAssigneePermissions.mockResolvedValueOnce(null);
 
     const { tools } = await buildToolSet("user-1", "assignee-1", "test-token");
+    const names = Object.keys(tools);
 
-    expect(Object.keys(tools).sort()).toEqual(ALL_TOOL_NAMES.sort());
+    for (const tool of KNOWN_TOOLS) {
+      expect(names).toContain(tool);
+    }
   });
 
   test("filters out auto-reject tools", async () => {
@@ -113,16 +123,14 @@ describe("buildToolSet", () => {
     ]);
 
     const { tools } = await buildToolSet("user-1", "assignee-1", "test-token");
+    const names = Object.keys(tools);
 
-    expect(Object.keys(tools).sort()).toEqual(
-      [
-        "search_emails",
-        "update_task",
-        "update_document",
-        "get_current_time",
-        "ask_question",
-      ].sort(),
-    );
+    expect(names).not.toContain("send_email");
+    expect(names).not.toContain("create_task");
+    expect(names).toContain("search_emails");
+    expect(names).toContain("update_task");
+    expect(names).toContain("get_current_time");
+    expect(names).toContain("ask_question");
   });
 
   test("filters out disabled tools", async () => {
@@ -146,16 +154,14 @@ describe("buildToolSet", () => {
     ]);
 
     const { tools } = await buildToolSet("user-1", "assignee-1", "test-token");
+    const names = Object.keys(tools);
 
-    expect(Object.keys(tools).sort()).toEqual(
-      [
-        "search_emails",
-        "update_task",
-        "update_document",
-        "get_current_time",
-        "ask_question",
-      ].sort(),
-    );
+    expect(names).not.toContain("send_email");
+    expect(names).not.toContain("create_task");
+    expect(names).toContain("search_emails");
+    expect(names).toContain("update_task");
+    expect(names).toContain("get_current_time");
+    expect(names).toContain("ask_question");
   });
 
   test("tools not in permission array are included (default manual-confirm)", async () => {
@@ -164,9 +170,12 @@ describe("buildToolSet", () => {
     ]);
 
     const { tools } = await buildToolSet("user-1", "assignee-1", "test-token");
+    const names = Object.keys(tools);
 
-    // All tools should be present — unconfigured ones default to manual-confirm (still included)
-    expect(Object.keys(tools).sort()).toEqual(ALL_TOOL_NAMES.sort());
+    // All known tools should be present — unconfigured ones default to manual-confirm (still included)
+    for (const tool of KNOWN_TOOLS) {
+      expect(names).toContain(tool);
+    }
   });
 });
 

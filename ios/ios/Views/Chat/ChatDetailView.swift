@@ -8,6 +8,7 @@ struct ChatDetailView: View {
     let sessionId: String
     @Environment(AuthManager.self) private var authManager
     @Environment(EventManager.self) private var eventManager
+    @Environment(PushNotificationManager.self) private var pushManager
     @State private var viewModel = ChatDetailViewModel()
 
     private var apiClient: APIClient {
@@ -43,7 +44,8 @@ struct ChatDetailView: View {
                 id: sessionId,
                 apiClient: apiClient,
                 authManager: authManager,
-                eventManager: eventManager
+                eventManager: eventManager,
+                deviceToken: pushManager.deviceToken
             )
         }
         .onAppear {

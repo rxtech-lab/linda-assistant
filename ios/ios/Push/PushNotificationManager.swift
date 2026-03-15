@@ -1,6 +1,20 @@
 import AssistantCore
+import CoreLocation
 import OSLog
 import SwiftUI
+#if canImport(UIKit)
+    import UIKit
+    typealias BackgroundFetchResult = UIBackgroundFetchResult
+#elseif canImport(AppKit)
+    import AppKit
+
+    /// macOS equivalent of UIBackgroundFetchResult for cross-platform compatibility
+    enum BackgroundFetchResult {
+        case newData
+        case noData
+        case failed
+    }
+#endif
 import UserNotifications
 
 private let logger = Logger(subsystem: "lindaAssistant", category: "PushNotification")
@@ -10,6 +24,7 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
     var deviceToken: String?
     private var apiClient: APIClient?
     private var didRegister = false
+    private let locationService = LocationService()
 
     func requestPermission() {
         // Register for remote notifications first — this fetches the device token
@@ -71,6 +86,56 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
         } catch {
             didRegister = false
             logger.error("Failed to register device token: \(error)")
+        }
+    }
+
+    /// Handle silent/background push notifications for auto-confirm location requests.
+    func handleBackgroundNotification(
+        userInfo: [AnyHashable: Any],
+        completionHandler: @escaping (BackgroundFetchResult) -> Void
+    ) {
+        guard let type = userInfo["type"] as? String, type == "location_request",
+              let toolCallId = userInfo["toolCallId"] as? String
+        else {
+            completionHandler(.noData)
+            return
+        }
+
+        logger.info("Background location request: toolCallId=\(toolCallId)")
+
+        Task {
+            guard let apiClient else {
+                logger.error("No API client for background location response")
+                completionHandler(.failed)
+                return
+            }
+
+            do {
+                let location = try await locationService.requestLocation()
+                logger.info("Background location acquired: \(location.latitude), \(location.longitude)")
+
+                let body = LocationResponse(
+                    toolCallId: toolCallId,
+                    action: "confirm",
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    accuracy: location.accuracy
+                )
+                _ = try await apiClient.sendLocationResponse(body)
+                logger.info("Background location response sent successfully")
+                completionHandler(.newData)
+            } catch {
+                logger.error("Background location failed: \(error)")
+                // Send rejection if location is unavailable
+                do {
+                    let body = LocationResponse(toolCallId: toolCallId, action: "reject")
+                    _ = try await apiClient.sendLocationResponse(body)
+                    logger.info("Background location rejection sent")
+                } catch {
+                    logger.error("Failed to send location rejection: \(error)")
+                }
+                completionHandler(.failed)
+            }
         }
     }
 }

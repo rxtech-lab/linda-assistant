@@ -14,6 +14,7 @@ public enum AppEvent: Sendable {
     case documentDeleted(String)
     case confirmationResolved(String, String)
     case questionAnswered(String, String)
+    case locationResolved(String, String)
     case streamContentUpdated
     case error(message: String)
 }

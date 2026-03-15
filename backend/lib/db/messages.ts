@@ -200,10 +200,19 @@ export async function deleteSessionMessages(chatSessionId: string): Promise<void
 }
 
 function rowToModelMessage(row: typeof messages.$inferSelect): ModelMessage {
+  let content = row.content as ModelMessage["content"];
+
+  // Strip reasoning parts from assistant messages — they're internal AI traces
+  if (row.role === "assistant" && Array.isArray(content)) {
+    content = (content as Array<{ type: string }>).filter(
+      (part) => part.type !== "reasoning",
+    ) as typeof content;
+  }
+
   return {
     id: row.id,
     role: row.role as ModelMessage["role"],
-    content: row.content as ModelMessage["content"],
+    content,
     seq: row.seq,
     isCompacted: row.isCompacted,
   } as ModelMessage;
