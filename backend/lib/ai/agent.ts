@@ -3,12 +3,19 @@ import crypto from "crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { refreshAccessToken } from "@/lib/auth/refresh";
 import { db } from "@/lib/db";
-import { getActiveSessionMessages, insertMessageAfter, insertMessages, updateMessageContent } from "@/lib/db/messages";
-import { assignees, chatSessions, confirmations } from "@/lib/db/schema";
+import {
+  getActiveSessionMessages,
+  insertMessageAfter,
+  insertMessages,
+  updateMessageContent,
+} from "@/lib/db/messages";
+import { assignees, chatSessions, confirmations, questions } from "@/lib/db/schema";
 import { createMem0Client } from "@/lib/mem0/client";
 import { setStreamActive } from "@/lib/streaming/manager";
 import { extractTextFromMessage, prepareMessages } from "./compaction";
 import { createConfirmation, sendConfirmationGroupNotification } from "./confirmation";
+import { createQuestion, sendQuestionGroupNotification } from "./question";
+import { ASK_QUESTION_TOOL_NAME } from "./tools/ask-question";
 import { getModelProvider } from "./model";
 import { availableModelSchema, DEFAULT_MODEL } from "./models";
 import { buildToolSet } from "./tools";
@@ -27,6 +34,24 @@ export function annotateToolCallConfirmation(
     for (const part of msg.content as Record<string, unknown>[]) {
       if (part.type === "tool-call" && part.toolCallId === toolCallId) {
         part.confirmation = { id: confirmationId, status };
+        return;
+      }
+    }
+  }
+}
+
+/** Annotate a tool-call content part with question info */
+export function annotateToolCallQuestion(
+  messages: ModelMessage[],
+  toolCallId: string,
+  questionId: string,
+  status: string,
+): void {
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (part.type === "tool-call" && part.toolCallId === toolCallId) {
+        part.question = { id: questionId, status };
         return;
       }
     }
@@ -105,7 +130,7 @@ function sanitizeMessages(messages: ModelMessage[], messageId?: string): ModelMe
 }
 
 /** Custom annotation keys added to content parts for frontend/persistence (not for the model) */
-const CUSTOM_ANNOTATIONS = ["confirmation", "error", "approveStatus"];
+const CUSTOM_ANNOTATIONS = ["confirmation", "question", "error", "approveStatus"];
 
 /** Recognized output types in the AI SDK v6 outputSchema discriminated union */
 const VALID_OUTPUT_TYPES = new Set(["text", "json", "execution-denied", "error-text", "content"]);
@@ -253,7 +278,9 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
       if (existingResult) {
         neededResults.push(existingResult);
       } else {
-        console.warn(`[cleanMessagesForModel] Injecting missing tool-result for toolCallId=${toolCallId} toolName=${toolName}`);
+        console.warn(
+          `[cleanMessagesForModel] Injecting missing tool-result for toolCallId=${toolCallId} toolName=${toolName}`,
+        );
         neededResults.push({
           type: "tool-result",
           toolCallId,
@@ -286,7 +313,10 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
     if (!Array.isArray(msg.content)) continue;
     const parts = msg.content as Record<string, unknown>[];
     const unplaced = parts.filter(
-      (p) => p.type === "tool-result" && typeof p.toolCallId === "string" && !placedCallIds.has(p.toolCallId as string),
+      (p) =>
+        p.type === "tool-result" &&
+        typeof p.toolCallId === "string" &&
+        !placedCallIds.has(p.toolCallId as string),
     );
     if (unplaced.length > 0) {
       // Preserve providerMetadata from the original tool message
@@ -314,9 +344,16 @@ export function buildSystemPrompt(
 
   const documentGuidance = `\nWhen your response would be very long (e.g., reports, analyses, comprehensive guides), or when the user explicitly asks for a document/report, use the create_document tool instead of writing it inline. Always prefer markdown format unless the user specifically requests HTML. Do NOT include the title as a heading in the document content — the title is displayed separately by the viewer. After creating a document, do NOT repeat the document content in your response — just confirm you created it and provide a brief summary of what it contains.`;
 
-  if (!assignee) return `You are a helpful personal assistant.${dateLine}${documentGuidance}`;
-  if (assignee.personality) return `${assignee.personality}${dateLine}${documentGuidance}`;
-  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}`;
+  const questionGuidance = `\nUse the ask_question tool to gather user input before proceeding in these situations:
+- Before taking important or irreversible actions (e.g., sending emails, deleting data, making external API calls) — ask the user to confirm the details are correct.
+- When you are unsure about the user's intent, preferences, or requirements — ask clarifying questions rather than guessing.
+- When a task has multiple valid approaches and the best choice depends on user preference.
+Do NOT overuse it for trivial or obvious decisions. Only ask when the answer genuinely affects the outcome.
+If the user rejects your questions, do NOT retry with the same or similar questions. Acknowledge the rejection and proceed without that information, using reasonable defaults or skipping the action.`;
+
+  if (!assignee) return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}`;
+  if (assignee.personality) return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}`;
+  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}`;
 }
 
 /**
@@ -331,7 +368,7 @@ async function resolvePendingToolCalls(
   messages: ModelMessage[],
   tools: Record<string, unknown>,
   onEvent?: (event: string, data: unknown) => void | Promise<void>,
-  taskType?: "message" | "confirmation_resolved",
+  taskType?: "message" | "confirmation_resolved" | "question_resolved",
 ): Promise<{ messages: ModelMessage[]; persistCount: number }> {
   // Collect all tool-call IDs and tool-result IDs
   const toolCallIds = new Set<string>();
@@ -380,9 +417,11 @@ async function resolvePendingToolCalls(
       const info = toolCallInfo.get(toolCallId);
       if (!info) continue;
 
-      console.log(`[agent] Cancelling unresolved tool: ${info.toolName} (toolCallId=${toolCallId}) — user sent new message`);
+      console.log(
+        `[agent] Cancelling unresolved tool: ${info.toolName} (toolCallId=${toolCallId}) — user sent new message`,
+      );
 
-      // Update confirmation status to "cancelled" in DB if one exists
+      // Update confirmation or question status to "cancelled" in DB if one exists
       await db
         .update(confirmations)
         .set({
@@ -390,20 +429,34 @@ async function resolvePendingToolCalls(
           resolvedAt: sql`(datetime('now'))`,
         })
         .where(eq(confirmations.toolCallId, toolCallId));
+      await db
+        .update(questions)
+        .set({
+          status: "rejected",
+          answeredAt: sql`(datetime('now'))`,
+        })
+        .where(eq(questions.toolCallId, toolCallId));
 
       // Update the tool-call annotation in messages so it persists as "cancelled".
-      // Preserve existing confirmation ID if the tool-call already has one.
+      // Check for both confirmation and question annotations.
       let existingConfirmationId = "";
+      let existingQuestionId = "";
       for (const msg of cleaned) {
         if (!Array.isArray(msg.content)) continue;
         for (const part of msg.content as Record<string, unknown>[]) {
           if (part.type === "tool-call" && part.toolCallId === toolCallId) {
             const conf = part.confirmation as { id?: string } | undefined;
             if (conf?.id) existingConfirmationId = conf.id;
+            const quest = part.question as { id?: string } | undefined;
+            if (quest?.id) existingQuestionId = quest.id;
           }
         }
       }
-      annotateToolCallConfirmation(cleaned, toolCallId, existingConfirmationId, "cancelled");
+      if (existingQuestionId) {
+        annotateToolCallQuestion(cleaned, toolCallId, existingQuestionId, "rejected");
+      } else {
+        annotateToolCallConfirmation(cleaned, toolCallId, existingConfirmationId, "cancelled");
+      }
 
       // Persist the updated annotation to DB
       for (const msg of cleaned) {
@@ -442,7 +495,7 @@ async function resolvePendingToolCalls(
       newMessages.push(resultMessage);
     }
   } else {
-    // confirmation_resolved: execute confirmed tools, handle rejected/orphaned
+    // confirmation_resolved / question_resolved: execute confirmed/answered tools, handle rejected/orphaned
     for (const toolCallId of unresolved) {
       const info = toolCallInfo.get(toolCallId);
       if (!info) continue;
@@ -453,9 +506,14 @@ async function resolvePendingToolCalls(
         .from(confirmations)
         .where(eq(confirmations.toolCallId, toolCallId));
 
+      // If no confirmation found, check questions table (for ask_question tool)
+      const [questionRecord] = !confirmation
+        ? await db.select().from(questions).where(eq(questions.toolCallId, toolCallId))
+        : [undefined];
+
       let resultMessage: ModelMessage;
 
-      if (confirmation?.status === "confirmed") {
+      if (confirmation?.status === "confirmed" || questionRecord?.status === "answered") {
         // Signal tool is now running before execution
         await onEvent?.("tool-call", {
           toolCallId,
@@ -465,16 +523,19 @@ async function resolvePendingToolCalls(
 
         // Execute the tool
         const toolDef = tools[info.toolName] as
-          | { execute?: (input: unknown) => Promise<unknown> }
+          | { execute?: (input: unknown, options: Record<string, unknown>) => Promise<unknown> }
           | undefined;
 
         let output: unknown;
         let isError = false;
-        console.log(`[agent] Executing confirmed tool: ${info.toolName} (toolCallId=${toolCallId})`);
+        console.log(
+          `[agent] Executing ${confirmation ? "confirmed" : "answered"} tool: ${info.toolName} (toolCallId=${toolCallId})`,
+        );
         try {
           if (toolDef?.execute) {
             output = await toolDef.execute(
               typeof info.input === "string" ? JSON.parse(info.input) : info.input,
+              { toolCallId },
             );
             console.log(`[agent] Tool ${info.toolName} completed successfully`);
           } else {
@@ -487,7 +548,10 @@ async function resolvePendingToolCalls(
             error: err instanceof Error ? err.message : String(err),
           };
           isError = true;
-          console.error(`[agent] Tool ${info.toolName} execution failed:`, err instanceof Error ? err.stack : err);
+          console.error(
+            `[agent] Tool ${info.toolName} execution failed:`,
+            err instanceof Error ? err.stack : err,
+          );
         }
 
         resultMessage = {
@@ -520,9 +584,12 @@ async function resolvePendingToolCalls(
               : "Unknown error";
         }
         await onEvent?.("tool-result", eventData);
-      } else if (confirmation?.status === "rejected") {
-        // Safety: rejection should already have a tool-result from resolveConfirmation,
+      } else if (confirmation?.status === "rejected" || questionRecord?.status === "rejected") {
+        // Safety: rejection should already have a tool-result from resolveConfirmation/resolveQuestion,
         // but create one if somehow missing
+        const errorMsg = questionRecord
+          ? "User rejected all questions"
+          : "User rejected this action";
         resultMessage = {
           id: crypto.randomUUID(),
           role: "tool" as const,
@@ -531,7 +598,7 @@ async function resolvePendingToolCalls(
               type: "tool-result" as const,
               toolCallId,
               toolName: info.toolName,
-              output: { error: "User rejected this action" },
+              output: { error: errorMsg },
               isError: true,
             },
           ],
@@ -540,12 +607,12 @@ async function resolvePendingToolCalls(
         await onEvent?.("tool-result", {
           toolCallId,
           toolName: info.toolName,
-          output: { error: "User rejected this action" },
+          output: { error: errorMsg },
           isError: true,
-          error: "User rejected this action",
+          error: errorMsg,
         });
       } else {
-        // No confirmation found (orphaned from multi-tool step) or still pending
+        // No confirmation/question found (orphaned from multi-tool step) or still pending
         resultMessage = {
           id: crypto.randomUUID(),
           role: "tool" as const,
@@ -616,7 +683,11 @@ async function resolvePendingToolCalls(
     for (const msg of newMessages) {
       if (!Array.isArray(msg.content)) continue;
       for (const part of msg.content as Record<string, unknown>[]) {
-        if (part.type === "tool-result" && typeof part.toolCallId === "string" && !inserted.has(part.toolCallId)) {
+        if (
+          part.type === "tool-result" &&
+          typeof part.toolCallId === "string" &&
+          !inserted.has(part.toolCallId)
+        ) {
           reordered.push(msg);
           await insertMessages(sessionId, [msg]);
         }
@@ -631,7 +702,7 @@ async function resolvePendingToolCalls(
 interface AgentRunOptions {
   sessionId: string;
   userId: string;
-  taskType?: "message" | "confirmation_resolved";
+  taskType?: "message" | "confirmation_resolved" | "question_resolved";
   onTextChunk?: (text: string) => void;
   onEvent?: (event: string, data: unknown) => void | Promise<void>;
   signal?: AbortSignal;
@@ -713,19 +784,16 @@ export async function runAgent(options: AgentRunOptions) {
     }
   }
 
-  console.log(`[agent] Starting agent run for session=${sessionId} model=${modelId} tools=${Object.keys(tools).join(",")}`);
+  console.log(
+    `[agent] Starting agent run for session=${sessionId} model=${modelId} tools=${Object.keys(tools).join(",")}`,
+  );
 
   // Cancel any stale pending confirmations from previous runs so they don't
   // block the pendingCount check when new confirmations are created this run.
   const staleConfirmations = await db
     .select({ id: confirmations.id })
     .from(confirmations)
-    .where(
-      and(
-        eq(confirmations.chatSessionId, sessionId),
-        eq(confirmations.status, "pending"),
-      ),
-    );
+    .where(and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.status, "pending")));
   if (staleConfirmations.length > 0) {
     await db
       .update(confirmations)
@@ -733,13 +801,28 @@ export async function runAgent(options: AgentRunOptions) {
         status: "rejected",
         resolvedAt: sql`(datetime('now'))`,
       })
-      .where(
-        and(
-          eq(confirmations.chatSessionId, sessionId),
-          eq(confirmations.status, "pending"),
-        ),
-      );
-    console.log(`[agent] Cancelled ${staleConfirmations.length} stale pending confirmation(s) for session=${sessionId}: ${staleConfirmations.map((c) => c.id).join(", ")}`);
+      .where(and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.status, "pending")));
+    console.log(
+      `[agent] Cancelled ${staleConfirmations.length} stale pending confirmation(s) for session=${sessionId}: ${staleConfirmations.map((c) => c.id).join(", ")}`,
+    );
+  }
+
+  // Cancel stale pending questions
+  const staleQuestions = await db
+    .select({ id: questions.id })
+    .from(questions)
+    .where(and(eq(questions.chatSessionId, sessionId), eq(questions.status, "pending")));
+  if (staleQuestions.length > 0) {
+    await db
+      .update(questions)
+      .set({
+        status: "rejected",
+        answeredAt: sql`(datetime('now'))`,
+      })
+      .where(and(eq(questions.chatSessionId, sessionId), eq(questions.status, "pending")));
+    console.log(
+      `[agent] Cancelled ${staleQuestions.length} stale pending question(s) for session=${sessionId}: ${staleQuestions.map((q) => q.id).join(", ")}`,
+    );
   }
 
   await setStreamActive(sessionId, true);
@@ -812,7 +895,10 @@ export async function runAgent(options: AgentRunOptions) {
             break;
           }
           case "tool-call": {
-            console.log(`[agent] Tool call: ${part.toolName} (toolCallId=${part.toolCallId})`, JSON.stringify("input" in part ? part.input : {}).slice(0, 500));
+            console.log(
+              `[agent] Tool call: ${part.toolName} (toolCallId=${part.toolCallId})`,
+              JSON.stringify("input" in part ? part.input : {}).slice(0, 500),
+            );
             await onEvent?.("tool-call", {
               id,
               toolCallId: part.toolCallId,
@@ -835,9 +921,14 @@ export async function runAgent(options: AgentRunOptions) {
             if (hasError) {
               eventData.isError = true;
               eventData.error = extractToolResultError(partRecord);
-              console.error(`[agent] Tool ${part.toolName} returned error (toolCallId=${part.toolCallId}):`, eventData.error);
+              console.error(
+                `[agent] Tool ${part.toolName} returned error (toolCallId=${part.toolCallId}):`,
+                eventData.error,
+              );
             } else {
-              console.log(`[agent] Tool ${part.toolName} completed (toolCallId=${part.toolCallId})`);
+              console.log(
+                `[agent] Tool ${part.toolName} completed (toolCallId=${part.toolCallId})`,
+              );
             }
             await onEvent?.("tool-result", eventData);
             if (signal?.aborted) break streamLoop;
@@ -866,7 +957,10 @@ export async function runAgent(options: AgentRunOptions) {
             };
             const errorStr =
               errorPart.error instanceof Error ? errorPart.error.message : String(errorPart.error);
-            console.error(`[agent] Tool error: ${errorPart.toolName} (toolCallId=${errorPart.toolCallId}):`, errorPart.error instanceof Error ? errorPart.error.stack : errorStr);
+            console.error(
+              `[agent] Tool error: ${errorPart.toolName} (toolCallId=${errorPart.toolCallId}):`,
+              errorPart.error instanceof Error ? errorPart.error.stack : errorStr,
+            );
             await onEvent?.("tool-result", {
               id,
               toolCallId: errorPart.toolCallId,
@@ -895,13 +989,64 @@ export async function runAgent(options: AgentRunOptions) {
         ...sanitizeMessages(responseMessages as ModelMessage[], id),
       ];
 
-      console.log(`[agent] Step ${stepCount} finished: reason=${finishReason} responseMessages=${responseMessages.length}`);
+      console.log(
+        `[agent] Step ${stepCount} finished: reason=${finishReason} responseMessages=${responseMessages.length}`,
+      );
 
       if (finishReason === "tool-calls" && pendingApprovals.length > 0) {
-        // SDK detected tools needing approval — create confirmations for ALL and pause
-        const createdConfirmations: Array<{ confirmationId: string; toolName: string }> = [];
+        // Separate question approvals from confirmation approvals
+        const questionApprovals = pendingApprovals.filter(
+          (a) => a.toolCall.toolName === ASK_QUESTION_TOOL_NAME,
+        );
+        const confirmationApprovals = pendingApprovals.filter(
+          (a) => a.toolCall.toolName !== ASK_QUESTION_TOOL_NAME,
+        );
 
-        for (const approval of pendingApprovals) {
+        // Handle question approvals
+        const createdQuestions: Array<{ questionId: string; questionCount: number }> = [];
+        for (const approval of questionApprovals) {
+          const input = (approval.toolCall.input ?? {}) as Record<string, unknown>;
+          const questionsData = (input.questions ?? []) as Array<{
+            title: string;
+            description?: string;
+            type: "boolean" | "multiple_choice" | "single_choice" | "fill_in_blank";
+            options?: Array<{ title: string; description?: string }>;
+          }>;
+
+          const question = await createQuestion({
+            userId,
+            chatSessionId: sessionId,
+            toolCallId: approval.toolCall.toolCallId,
+            toolName: approval.toolCall.toolName,
+            approvalId: approval.approvalId,
+            questionsData,
+            skipNotification: true,
+          });
+
+          createdQuestions.push({
+            questionId: question.id,
+            questionCount: questionsData.length,
+          });
+
+          // Annotate the tool-call content part with question info
+          annotateToolCallQuestion(
+            currentMessages,
+            approval.toolCall.toolCallId,
+            question.id,
+            "pending",
+          );
+
+          await onEvent?.("question_required", {
+            questionId: question.id,
+            toolCallId: approval.toolCall.toolCallId,
+            toolName: approval.toolCall.toolName,
+            questions: questionsData,
+          });
+        }
+
+        // Handle confirmation approvals
+        const createdConfirmations: Array<{ confirmationId: string; toolName: string }> = [];
+        for (const approval of confirmationApprovals) {
           const confirmation = await createConfirmation({
             userId,
             chatSessionId: sessionId,
@@ -933,11 +1078,20 @@ export async function runAgent(options: AgentRunOptions) {
           });
         }
 
-        // Send a single grouped push notification for all confirmations
-        await sendConfirmationGroupNotification(userId, sessionId, createdConfirmations);
+        // Send grouped push notifications
+        if (createdConfirmations.length > 0) {
+          await sendConfirmationGroupNotification(userId, sessionId, createdConfirmations);
+        }
+        if (createdQuestions.length > 0) {
+          await sendQuestionGroupNotification(userId, sessionId, createdQuestions);
+        }
 
-        // Emit status event so SSE clients know the agent is paused for confirmation
-        await onEvent?.("status", { status: "waiting_confirmation" });
+        // Emit status event so SSE clients know the agent is paused
+        const waitingStatus =
+          createdQuestions.length > 0 && createdConfirmations.length === 0
+            ? "waiting_question"
+            : "waiting_confirmation";
+        await onEvent?.("status", { status: waitingStatus });
 
         // Persist new messages and update session status
         await insertMessages(sessionId, currentMessages.slice(persistedCount));
@@ -945,13 +1099,16 @@ export async function runAgent(options: AgentRunOptions) {
         await db
           .update(chatSessions)
           .set({
-            status: "waiting_confirmation",
+            status: waitingStatus,
             updatedAt: sql`(datetime('now'))`,
           })
           .where(eq(chatSessions.id, sessionId));
 
         await setStreamActive(sessionId, false);
-        return { paused: true, reason: "confirmation_required" };
+        return {
+          paused: true,
+          reason: createdQuestions.length > 0 ? "question_required" : "confirmation_required",
+        };
       }
 
       if (finishReason === "tool-calls") {
@@ -1013,7 +1170,10 @@ export async function runAgent(options: AgentRunOptions) {
 
     return { paused: false, reason: "completed" };
   } catch (error) {
-    console.error(`[agent] Agent run failed for session=${sessionId}:`, error instanceof Error ? error.stack : error);
+    console.error(
+      `[agent] Agent run failed for session=${sessionId}:`,
+      error instanceof Error ? error.stack : error,
+    );
     // Persist whatever we have and mark as stopped
     await insertMessages(sessionId, currentMessages.slice(persistedCount));
     persistedCount = currentMessages.length;

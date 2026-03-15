@@ -20,7 +20,9 @@ test.describe("Tools API", () => {
     for (const tool of body) {
       expect(tool.name).toBeTruthy();
       expect(tool.description).toBeTruthy();
-      expect(["auto-confirm", "manual-confirm", "auto-reject", "disabled"]).toContain(tool.defaultPermission);
+      expect(["auto-confirm", "manual-confirm", "auto-reject", "disabled"]).toContain(
+        tool.defaultPermission,
+      );
     }
   });
 

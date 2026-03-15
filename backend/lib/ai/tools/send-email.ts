@@ -4,16 +4,9 @@ import { db } from "@/lib/db";
 import { documents } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { resend } from "@/lib/resend";
-import {
-  generateDocumentPdf,
-  sanitizeDocumentFilename,
-} from "@/lib/documents/pdf";
+import { generateDocumentPdf, sanitizeDocumentFilename } from "@/lib/documents/pdf";
 
-export const sendEmailTool = (
-  fromAddress: string,
-  userId: string,
-  needsApproval: boolean,
-) =>
+export const sendEmailTool = (fromAddress: string, userId: string, needsApproval: boolean) =>
   tool({
     description:
       "Send an email on behalf of the assignee. This action may require user confirmation before execution. Can optionally attach a document as a PDF.",
@@ -21,30 +14,20 @@ export const sendEmailTool = (
       to: z.string().email().describe("Recipient email address"),
       subject: z.string().describe("Email subject line"),
       body: z.string().describe("Email body in HTML format"),
-      replyToEmailId: z
-        .string()
-        .optional()
-        .describe("ID of the email being replied to"),
-      documentId: z
-        .string()
-        .optional()
-        .describe("ID of a document to attach as PDF"),
+      replyToEmailId: z.string().optional().describe("ID of the email being replied to"),
+      documentId: z.string().optional().describe("ID of a document to attach as PDF"),
     }),
     needsApproval,
     execute: async ({ to, subject, body, documentId }) => {
       try {
-        let attachments:
-          | Array<{ filename: string; content: Buffer }>
-          | undefined;
+        let attachments: Array<{ filename: string; content: Buffer }> | undefined;
 
         if (documentId) {
           // Verify document ownership
           const [doc] = await db
             .select({ id: documents.id })
             .from(documents)
-            .where(
-              and(eq(documents.id, documentId), eq(documents.userId, userId)),
-            );
+            .where(and(eq(documents.id, documentId), eq(documents.userId, userId)));
 
           if (!doc) {
             return { error: "Document not found" };
@@ -71,8 +54,7 @@ export const sendEmailTool = (
 
         return { sent: true, emailId: result.data?.id };
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Unknown error sending email";
+        const message = err instanceof Error ? err.message : "Unknown error sending email";
         console.error("[send_email] Error:", err);
         return { error: message };
       }

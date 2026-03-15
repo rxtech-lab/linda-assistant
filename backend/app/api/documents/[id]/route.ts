@@ -3,11 +3,7 @@ import { db } from "@/lib/db";
 import { documents } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import {
-  selectDocumentSchema,
-  deletedResponseSchema,
-  idParamSchema,
-} from "@/lib/schemas";
+import { selectDocumentSchema, deletedResponseSchema, idParamSchema } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
 
 /**
@@ -16,10 +12,7 @@ import { successJson, errorJson } from "@/lib/utils/response";
  * @pathParams idParamSchema
  * @response selectDocumentSchema
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 

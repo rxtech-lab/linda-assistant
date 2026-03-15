@@ -15,7 +15,7 @@ enum DotEnv {
         let fileManager = FileManager.default
         var envPath: String?
 
-        if let path = path {
+        if let path {
             envPath = path
         } else {
             // Try common locations relative to the test bundle
@@ -43,7 +43,7 @@ enum DotEnv {
             }
         }
 
-        guard let envPath = envPath else {
+        guard let envPath else {
             NSLog("⚠️ DotEnv: No .env file found")
             return [:]
         }
@@ -96,7 +96,7 @@ enum DotEnv {
     /// Gets a value from the .env file, falling back to process environment
     static func get(_ key: String, from envVars: [String: String]? = nil) -> String? {
         // First check .env file values if provided
-        if let envVars = envVars, let value = envVars[key] {
+        if let envVars, let value = envVars[key] {
             return value
         }
 

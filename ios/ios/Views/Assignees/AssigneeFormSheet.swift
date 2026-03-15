@@ -150,7 +150,9 @@ struct AssigneeFormSheet: View {
         defer { isLoadingFormData = false }
 
         do {
-            let assigneeId: String? = { if case let .edit(id) = mode { return id }; return nil }()
+            let assigneeId: String? = { if case let .edit(id) = mode { return id }
+                return nil
+            }()
             let formData = try await apiClient.getAssigneeFormSchema(id: assigneeId)
             availableModels = formData.models
             availableTools = formData.tools

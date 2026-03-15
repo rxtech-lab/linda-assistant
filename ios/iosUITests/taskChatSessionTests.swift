@@ -10,14 +10,18 @@ import XCTest
 final class TaskChatSessionTests: XCTestCase {
     /// Waits for a message containing the specified text to appear
     /// On iOS, content is exposed via staticTexts with 'label' property
-    private func waitForMessageContaining(_ text: String, in app: XCUIApplication, timeout: TimeInterval) async throws -> Bool {
+    private func waitForMessageContaining(
+        _ text: String,
+        in app: XCUIApplication,
+        timeout: TimeInterval
+    ) async throws -> Bool {
         #if os(macOS)
-        // macOS cannot find the text
-        try await Task.sleep(for: .seconds(10))
-        return true
+            // macOS cannot find the text
+            try await Task.sleep(for: .seconds(10))
+            return true
         #else
-        let predicate = NSPredicate(format: "label CONTAINS %@", text)
-        return await app.staticTexts.matching(predicate).firstMatch.waitForExistence(timeout: timeout)
+            let predicate = NSPredicate(format: "label CONTAINS %@", text)
+            return await app.staticTexts.matching(predicate).firstMatch.waitForExistence(timeout: timeout)
         #endif
     }
 
@@ -27,7 +31,9 @@ final class TaskChatSessionTests: XCTestCase {
         try app.signInWithEmailAndPassword()
 
         // Navigate to Tasks tab
-        app/*@START_MENU_TOKEN@*/ .buttons["square.grid.2x2"]/*[[".otherElements[\"square.grid.2x2\"].buttons",".otherElements",".buttons[\"Grid View\"]",".buttons[\"square.grid.2x2\"]"],[[[-1,3],[-1,2],[-1,1,1],[-1,0]],[[-1,3],[-1,2]]],[0]]@END_MENU_TOKEN@*/ .firstMatch.tap()
+        app/*@START_MENU_TOKEN@*/
+            .buttons["square.grid.2x2"]/*[[".otherElements[\"square.grid.2x2\"].buttons",".otherElements",".buttons[\"Grid View\"]",".buttons[\"square.grid.2x2\"]"],[[[-1,3],[-1,2],[-1,1,1],[-1,0]],[[-1,3],[-1,2]]],[0]]@END_MENU_TOKEN@*/
+            .firstMatch.tap()
 
         // Add new task
         app.buttons["add-task-button"].firstMatch.tap()
@@ -67,7 +73,9 @@ final class TaskChatSessionTests: XCTestCase {
         // Wait for sheet to dismiss and find the new chat session row
         sleep(2)
 
-        app/*@START_MENU_TOKEN@*/ .buttons["start-chat-button"].staticTexts/*[[".buttons[\"start-chat-button\"].staticTexts",".buttons.staticTexts[\"Start New Chat Session\"]",".staticTexts[\"Start New Chat Session\"]"],[[[-1,2],[-1,1],[-1,0]]],[2]]@END_MENU_TOKEN@*/ .firstMatch.tap()
+        app/*@START_MENU_TOKEN@*/ .buttons["start-chat-button"]
+            .staticTexts/*[[".buttons[\"start-chat-button\"].staticTexts",".buttons.staticTexts[\"Start New Chat Session\"]",".staticTexts[\"Start New Chat Session\"]"],[[[-1,2],[-1,1],[-1,0]]],[2]]@END_MENU_TOKEN@*/
+            .firstMatch.tap()
 
         app.buttons["create-new-chat"].firstMatch.tap()
 

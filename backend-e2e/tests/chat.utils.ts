@@ -352,6 +352,51 @@ export async function resolveConfirmation(
   }
 }
 
+// ---- Questions ----
+
+interface Question {
+  id: string;
+  toolName: string;
+  toolCallId: string;
+  status: string;
+  questionsData: Array<{
+    title: string;
+    description?: string;
+    type: string;
+    options?: Array<{ title: string; description?: string }>;
+  }>;
+  [key: string]: unknown;
+}
+
+export async function listQuestions(): Promise<Question[]> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/questions`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(`GET /api/questions failed (${res.status})`);
+  return res.json() as any;
+}
+
+export async function answerQuestion(
+  id: string,
+  action: "answer" | "reject",
+  answers?: Array<{ questionIndex: number; answer: string | string[] | boolean }>,
+): Promise<void> {
+  const token = loadToken();
+  const body: Record<string, unknown> = { action };
+  if (answers) body.answers = answers;
+  const res = await fetch(`${BASE_URL}/api/questions/${id}/answer`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `POST /api/questions/${id}/answer failed (${res.status}): ${await res.text()}`,
+    );
+  }
+}
+
 // ---- Utility: find parts in messages ----
 
 export function findToolCallParts(

@@ -4,23 +4,15 @@ import { assignees } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { createInvoiceMcp } from "./mcps/invoice";
 import { CREATE_TASK_TOOL_NAME, createTaskTool } from "./create-task";
-import {
-  CREATE_DOCUMENT_TOOL_NAME,
-  createDocumentTool,
-} from "./create-document";
+import { CREATE_DOCUMENT_TOOL_NAME, createDocumentTool } from "./create-document";
 import { getActiveSessionMessages } from "@/lib/db/messages";
 import { loadAssigneePermissions, resolvePermission } from "./permission";
 import { SEARCH_EMAILS_TOOL_NAME, searchEmailsTool } from "./search-emails";
 import { SEND_EMAIL_TOOL_NAME, sendEmailTool } from "./send-email";
 import { UPDATE_TASK_TOOL_NAME, updateTaskTool } from "./update-task";
-import {
-  GET_CURRENT_TIME_TOOL_NAME,
-  getCurrentTimeTool,
-} from "./get-current-time";
-import {
-  UPDATE_DOCUMENT_TOOL_NAME,
-  updateDocumentTool,
-} from "./update-document";
+import { GET_CURRENT_TIME_TOOL_NAME, getCurrentTimeTool } from "./get-current-time";
+import { ASK_QUESTION_TOOL_NAME, askQuestionTool } from "./ask-question";
+import { UPDATE_DOCUMENT_TOOL_NAME, updateDocumentTool } from "./update-document";
 import { createFilesMcp } from "./mcps/files";
 import { createFirecrawlMcp } from "./mcps/firecrawl";
 import { createTransportMcp } from "./mcps/transport";
@@ -62,10 +54,7 @@ async function loadMcpTools(
 
     // Build needsApproval map based on permissions
     for (const toolName of Object.keys(rawTools)) {
-      const perm = resolvePermission(
-        `${config.prefix}${toolName}`,
-        toolPermissions,
-      );
+      const perm = resolvePermission(`${config.prefix}${toolName}`, toolPermissions);
       if (perm === "auto-reject" || perm === "disabled") continue;
       needsApproval[toolName] = perm === "manual-confirm";
     }
@@ -76,20 +65,14 @@ async function loadMcpTools(
     // Prefix tool names and filter out auto-rejected tools
     const prefixed: Record<string, unknown> = {};
     for (const [toolName, tool] of Object.entries(mcpTools)) {
-      const perm = resolvePermission(
-        `${config.prefix}${toolName}`,
-        toolPermissions,
-      );
+      const perm = resolvePermission(`${config.prefix}${toolName}`, toolPermissions);
       if (perm === "auto-reject" || perm === "disabled") continue;
       prefixed[`${config.prefix}${toolName}`] = tool as unknown;
     }
 
     return prefixed;
   } catch (error) {
-    console.warn(
-      `[loadMcpTools] Failed to load ${config.prefix} MCP tools:`,
-      error,
-    );
+    console.warn(`[loadMcpTools] Failed to load ${config.prefix} MCP tools:`, error);
     return {};
   }
 }
@@ -110,18 +93,14 @@ export async function buildToolSet(
   chatSessionId?: string,
 ): Promise<ToolSetResult> {
   const isE2E = process.env.IS_E2E?.toLowerCase() === "true";
-  const toolPermissions = assigneeId
-    ? await loadAssigneePermissions(assigneeId)
-    : null;
+  const toolPermissions = assigneeId ? await loadAssigneePermissions(assigneeId) : null;
 
   // In E2E mode, parse [TOOL:name:auto] patterns from the latest user message
   // to dynamically override specific tools' needsApproval to false
   const autoConfirmOverrides = new Set<string>();
   if (isE2E && chatSessionId) {
     const messages = await getActiveSessionMessages(chatSessionId);
-    const lastUserMsg = [...messages]
-      .reverse()
-      .find((m: any) => m.role === "user");
+    const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
     if (lastUserMsg && Array.isArray((lastUserMsg as any).content)) {
       const text = ((lastUserMsg as any).content as any[])
         .filter((c) => c.type === "text")
@@ -171,6 +150,10 @@ export async function buildToolSet(
       name: GET_CURRENT_TIME_TOOL_NAME,
       create: (na: boolean) => getCurrentTimeTool(na),
     },
+    {
+      name: ASK_QUESTION_TOOL_NAME,
+      create: (_na: boolean) => askQuestionTool(),
+    },
   ];
 
   // Build permission-aware tools
@@ -178,19 +161,14 @@ export async function buildToolSet(
   for (const { name, create } of toolDefs) {
     const perm = resolvePermission(name, toolPermissions);
     if (perm === "auto-reject" || perm === "disabled") continue;
-    const needsApproval = autoConfirmOverrides.has(name)
-      ? false
-      : perm === "manual-confirm";
+    const needsApproval = autoConfirmOverrides.has(name) ? false : perm === "manual-confirm";
     filtered[name] = create(needsApproval);
   }
 
   // Document tools — never require confirmation
   filtered[UPDATE_DOCUMENT_TOOL_NAME] = updateDocumentTool(userId);
   if (chatSessionId) {
-    filtered[CREATE_DOCUMENT_TOOL_NAME] = createDocumentTool(
-      userId,
-      chatSessionId,
-    );
+    filtered[CREATE_DOCUMENT_TOOL_NAME] = createDocumentTool(userId, chatSessionId);
   }
 
   // Skip MCP tools in E2E test mode (no valid OAuth tokens for external services)
@@ -218,9 +196,7 @@ export async function buildToolSet(
 
     // Load all MCP tools in parallel
     const mcpResults = await Promise.allSettled(
-      mcpConfigs.map((mcpConfig) =>
-        loadMcpTools(mcpConfig, accessToken, toolPermissions),
-      ),
+      mcpConfigs.map((mcpConfig) => loadMcpTools(mcpConfig, accessToken, toolPermissions)),
     );
 
     for (let i = 0; i < mcpResults.length; i++) {
@@ -237,6 +213,7 @@ export async function buildToolSet(
 }
 
 export {
+  ASK_QUESTION_TOOL_NAME,
   CREATE_DOCUMENT_TOOL_NAME,
   CREATE_TASK_TOOL_NAME,
   GET_CURRENT_TIME_TOOL_NAME,

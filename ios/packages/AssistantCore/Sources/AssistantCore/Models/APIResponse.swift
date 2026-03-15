@@ -62,5 +62,5 @@ public enum PermissionLevel: String, CaseIterable, Sendable {
     case autoConfirm = "auto-confirm"
     case manualConfirm = "manual-confirm"
     case autoReject = "auto-reject"
-    case disabled = "disabled"
+    case disabled
 }

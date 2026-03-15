@@ -14,6 +14,8 @@ import {
   findToolResultParts,
   findAllToolCallParts,
   findAllToolResultParts,
+  listQuestions,
+  answerQuestion,
   type StreamEvent,
 } from "./chat.utils";
 
@@ -64,7 +66,7 @@ test.describe("Chat with tool calls", () => {
       // Step 1: Send message asking for current time
       await sendMessage(
         assigneeId,
-        "What time is it right now? Use the get_current_time tool to check.",
+        "What time is it right now? Use the get_current_time tool to check. Do not use the ask_question tool.",
       );
       await stream.waitForDone();
 
@@ -77,12 +79,16 @@ test.describe("Chat with tool calls", () => {
 
       // Verify get_current_time tool-result appeared
       const timeResults = stream.events.filter(
-        (e) => e.event === "tool-result" && e.data.toolName === "get_current_time",
+        (e) =>
+          e.event === "tool-result" && e.data.toolName === "get_current_time",
       );
       expect(timeResults.length).toBeGreaterThanOrEqual(1);
 
       // Step 2: Send follow-up message and verify agent still responds
-      await sendMessage(assigneeId, "What just happened?");
+      await sendMessage(
+        assigneeId,
+        "What just happened? Do not use any tools.",
+      );
       await stream.waitForDone();
 
       const textDeltas = stream.events.filter((e) => e.event === "text-delta");
@@ -147,7 +153,7 @@ test.describe("Chat with tool calls", () => {
       // Step 1: Send message asking for current time
       await sendMessage(
         assigneeId,
-        "What time is it right now? Use the get_current_time tool to check.",
+        "What time is it right now? Use the get_current_time tool to check. Do not use the ask_question tool.",
       );
       await stream.waitForDone();
 
@@ -163,7 +169,7 @@ test.describe("Chat with tool calls", () => {
       expect(textDeltas.length).toBeGreaterThan(0);
 
       // Step 2: Send follow-up and verify agent responds
-      await sendMessage(assigneeId, "OK thanks");
+      await sendMessage(assigneeId, "OK thanks. Do not use any tools.");
       await stream.waitForDone();
 
       // Step 3: Validate chat history
@@ -193,9 +199,7 @@ test.describe("Chat with tool calls", () => {
       }
 
       // Verify follow-up exchange — find the last user message and check assistant follows
-      const lastUserIdx = messages.findLastIndex(
-        (m) => m.role === "user",
-      );
+      const lastUserIdx = messages.findLastIndex((m) => m.role === "user");
       expect(lastUserIdx).toBeGreaterThan(-1);
       expect(messages[lastUserIdx + 1]?.role).toBe("assistant");
 
@@ -230,19 +234,21 @@ test.describe("Chat with tool calls", () => {
       // Step 2: Send message asking for current time
       await sendMessage(
         assigneeId,
-        "What time is it right now? Use the get_current_time tool to check.",
+        "What time is it right now? Use the get_current_time tool to check. Do not use the ask_question tool.",
       );
       await stream.waitForDone();
 
       // Verify get_current_time tool-call event happened
       const toolCalls = stream.events.filter(
-        (e) => e.event === "tool-call" && e.data.toolName === "get_current_time",
+        (e) =>
+          e.event === "tool-call" && e.data.toolName === "get_current_time",
       );
       expect(toolCalls.length).toBeGreaterThanOrEqual(1);
 
       // Verify get_current_time tool-result event happened
       const toolResults = stream.events.filter(
-        (e) => e.event === "tool-result" && e.data.toolName === "get_current_time",
+        (e) =>
+          e.event === "tool-result" && e.data.toolName === "get_current_time",
       );
       expect(toolResults.length).toBeGreaterThanOrEqual(1);
 
@@ -257,7 +263,10 @@ test.describe("Chat with tool calls", () => {
       expect(textDeltas.length).toBeGreaterThan(0);
 
       // Step 3: Send follow-up and verify agent responds
-      await sendMessage(assigneeId, "What just happened?");
+      await sendMessage(
+        assigneeId,
+        "What just happened? Do not use any tools.",
+      );
       await stream.waitForDone();
 
       // Step 4: Validate chat history
@@ -311,7 +320,8 @@ test.describe("Chat with tool calls", () => {
           if (shouldConfirm) {
             const pending = await listConfirmations();
             const c = pending.find(
-              (c) => c.toolName === "get_current_time" && c.status === "pending",
+              (c) =>
+                c.toolName === "get_current_time" && c.status === "pending",
             );
             if (c) {
               await resolveConfirmation(c.id, "confirm");
@@ -328,7 +338,7 @@ test.describe("Chat with tool calls", () => {
       // Step 1: Ask for current time — confirmation will be prompted but ignored
       await sendMessage(
         assigneeId,
-        "What time is it right now? Use the get_current_time tool to check.",
+        "What time is it right now? Use the get_current_time tool to check. Do not use the ask_question tool.",
       );
       // Backend won't send "done" while waiting for confirmation — wait for the confirmation event instead
       await stream.waitForEvent("confirmation_required");
@@ -340,7 +350,10 @@ test.describe("Chat with tool calls", () => {
       expect(firstConfirmations.length).toBeGreaterThanOrEqual(1);
 
       // Step 2: Ignore the confirmation and just keep chatting
-      await sendMessage(assigneeId, "Never mind, just tell me a joke instead");
+      await sendMessage(
+        assigneeId,
+        "Never mind, just tell me a joke instead. Do not use any tools.",
+      );
       await stream.waitForDone();
 
       // Verify agent responded with text (no errors)
@@ -353,13 +366,14 @@ test.describe("Chat with tool calls", () => {
       shouldConfirm = true;
       await sendMessage(
         assigneeId,
-        "Actually, what time is it? Use the get_current_time tool to check.",
+        "Actually, what time is it? Use the get_current_time tool to check. Do not use the ask_question tool.",
       );
       await stream.waitForDone();
 
       // Verify tool result appeared after confirmation
       const toolResults = stream.events.filter(
-        (e) => e.event === "tool-result" && e.data.toolName === "get_current_time",
+        (e) =>
+          e.event === "tool-result" && e.data.toolName === "get_current_time",
       );
       expect(toolResults.length).toBeGreaterThanOrEqual(1);
 
@@ -442,7 +456,7 @@ test.describe("Chat with tool calls", () => {
       // Step 1: Ask agent to check time twice
       await sendMessage(
         assigneeId,
-        "Check the current time twice: first in UTC, then in America/New_York. Use the get_current_time tool for each.",
+        "Check the current time twice: first in UTC, then in America/New_York. Use the get_current_time tool for each. Do not use the ask_question tool.",
       );
       await stream.waitForDone();
 
@@ -454,12 +468,16 @@ test.describe("Chat with tool calls", () => {
 
       // Verify get_current_time tool results exist
       const timeResults = stream.events.filter(
-        (e) => e.event === "tool-result" && e.data.toolName === "get_current_time",
+        (e) =>
+          e.event === "tool-result" && e.data.toolName === "get_current_time",
       );
       expect(timeResults.length).toBeGreaterThanOrEqual(2);
 
       // Step 2: Send follow-up message and verify agent responds without error
-      await sendMessage(assigneeId, "What happened with those time checks?");
+      await sendMessage(
+        assigneeId,
+        "What happened with those time checks? Do not use any tools.",
+      );
       await stream.waitForDone();
 
       const textDeltas = stream.events.filter((e) => e.event === "text-delta");
@@ -533,7 +551,7 @@ test.describe("Chat with tool calls", () => {
       // Step 1: Ask for current time — confirmation will be prompted but ignored
       await sendMessage(
         assigneeId,
-        "What time is it right now? Use the get_current_time tool to check.",
+        "What time is it right now? Use the get_current_time tool to check. Do not use the ask_question tool.",
       );
       // Backend won't send "done" while waiting for confirmation — wait for the confirmation event instead
       await stream.waitForEvent("confirmation_required");
@@ -558,7 +576,8 @@ test.describe("Chat with tool calls", () => {
           if (evt.event === "confirmation_required") {
             const pending = await listConfirmations();
             const c = pending.find(
-              (c) => c.toolName === "get_current_time" && c.status === "pending",
+              (c) =>
+                c.toolName === "get_current_time" && c.status === "pending",
             );
             if (c) {
               await resolveConfirmation(c.id, "confirm");
@@ -572,13 +591,14 @@ test.describe("Chat with tool calls", () => {
         // Step 5: Ask for current time again — this time confirm
         await sendMessage(
           assigneeId,
-          "What time is it right now? Use the get_current_time tool to check.",
+          "What time is it right now? Use the get_current_time tool to check. Do not use the ask_question tool.",
         );
         await stream2.waitForDone();
 
         // Verify tool result appeared after confirmation
         const toolResults = stream2.events.filter(
-          (e) => e.event === "tool-result" && e.data.toolName === "get_current_time",
+          (e) =>
+            e.event === "tool-result" && e.data.toolName === "get_current_time",
         );
         expect(toolResults.length).toBeGreaterThanOrEqual(1);
 
@@ -622,7 +642,7 @@ test.describe("Chat with tool calls", () => {
     // Step 1: Send message asking for ~200 words of plain text (no tool calls)
     await sendMessage(
       assigneeId,
-      "Write exactly 200 words about the history of the internet. Do not use any tools. Just write plain text.",
+      "Write exactly 300 words about the history of the internet. Do not use any tools including ask_question. Just write plain text.",
     );
 
     // Step 2: Connect TWO listeners simultaneously
@@ -670,16 +690,23 @@ test.describe("Chat with tool calls", () => {
     );
 
     // Step 3: Wait a bit, then reconnect listener B mid-generation (not after A finishes)
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    await new Promise((resolve) => setTimeout(resolve, 20));
 
     const streamBReconnect = consumeStream(assigneeId, {
       timeout: 120_000,
       label: "Listener B Reconnect",
     });
 
-    // Step 4: Wait for both listener A and reconnected B to finish
+    // Step 4: Wait for reconnected B to finish (may get "done" if still generating, or "status: stopped" if already done)
     console.log(`Waiting for both listeners to finish...`);
-    await Promise.all([streamBReconnect.waitForDone()]);
+    await Promise.race([
+      streamBReconnect.waitForDone(),
+      streamBReconnect.waitForEvent("status").then((evt) => {
+        if (evt.data.status === "stopped") return;
+        // If not stopped, fall through to waitForDone
+        return streamBReconnect.waitForDone();
+      }),
+    ]);
 
     const streamATextDeltas = streamA.events.filter(
       (e) => e.event === "text-delta",
@@ -696,7 +723,6 @@ test.describe("Chat with tool calls", () => {
     const streamBTextDeltas = streamBReconnect.events.filter(
       (e) => e.event === "text-delta",
     );
-    expect(streamBTextDeltas.length).toBeGreaterThan(0);
 
     const streamBText = streamBTextDeltas
       .map((e) => String(e.data.text ?? ""))
@@ -733,6 +759,7 @@ test.describe("Chat with tool calls", () => {
 
     // Step 6: Both streams' content must match the chat history
     expect(streamAText).toBe(fullText);
+    expect(streamBTextDeltas.length).toBeGreaterThan(0);
     expect(streamBText).toBe(fullText);
 
     console.log(
@@ -749,7 +776,7 @@ test.describe("Chat with tool calls", () => {
     // Step 1: Send message but do NOT listen to the stream
     await sendMessage(
       assigneeId,
-      "Reply with only the word 'hello' and nothing else.",
+      "Reply with only the word 'hello' and nothing else. Do not use any tools.",
     );
     console.log("Message sent, not listening to stream");
 
@@ -797,6 +824,259 @@ test.describe("Chat with tool calls", () => {
       expect(textDeltas.length).toBe(0);
 
       console.log("Test 8 passed: no stream events after generation completed");
+    } finally {
+      stream.cancel();
+    }
+  });
+
+  test("test 9: ask question + answer + follow up", async () => {
+    await clearChatHistory(assigneeId);
+
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      onMessage: async (evt) => {
+        if (evt.event === "question_required") {
+          console.log(`Question required: ${evt.data.questionId}`);
+          const pending = await listQuestions();
+          const q = pending.find(
+            (q) => q.toolName === "ask_question" && q.status === "pending",
+          );
+          expect(q).toBeTruthy();
+          expect(q!.questionsData).toBeTruthy();
+          expect(q!.questionsData.length).toBeGreaterThanOrEqual(1);
+
+          // Answer all questions
+          const answers = q!.questionsData.map(
+            (qd: { type: string }, i: number) => ({
+              questionIndex: i,
+              answer:
+                qd.type === "boolean"
+                  ? true
+                  : qd.type === "single_choice" || qd.type === "multiple_choice"
+                    ? "Option A"
+                    : "Test answer",
+            }),
+          );
+          await answerQuestion(q!.id, "answer", answers);
+          console.log(`Answered question: ${q!.id}`);
+        }
+      },
+    });
+
+    try {
+      // Step 1: Send message that triggers ask_question
+      await sendMessage(
+        assigneeId,
+        "Ask me a question using the ask_question tool. Ask a single boolean question: 'Do you like coffee?'",
+      );
+      await stream.waitForDone();
+
+      // Verify question_required event was emitted
+      const questionEvents = stream.events.filter(
+        (e) => e.event === "question_required",
+      );
+      expect(questionEvents.length).toBeGreaterThanOrEqual(1);
+
+      // Verify tool-result appeared after answering
+      const toolResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "ask_question",
+      );
+      expect(toolResults.length).toBeGreaterThanOrEqual(1);
+
+      // Verify agent produced text after receiving answers
+      const textDeltas = stream.events.filter((e) => e.event === "text-delta");
+      expect(textDeltas.length).toBeGreaterThan(0);
+
+      // Step 2: Send follow-up
+      await sendMessage(assigneeId, "What did I answer? Do not use any tools.");
+      await stream.waitForDone();
+
+      // Step 3: Validate chat history
+      const { messages } = await getChatHistory(assigneeId);
+      expect(messages.length).toBeGreaterThanOrEqual(4);
+
+      // Verify ask_question tool-call has question annotation with answered status
+      const questionCallParts = findToolCallParts(messages, "ask_question");
+      expect(questionCallParts.length).toBeGreaterThanOrEqual(1);
+      const questionAnnotation = questionCallParts[0]?.question as
+        | { id: string; status: string }
+        | undefined;
+      expect(questionAnnotation).toBeTruthy();
+      expect(questionAnnotation!.status).toBe("answered");
+
+      // Verify ask_question tool-result exists
+      const questionResultParts = findToolResultParts(messages, "ask_question");
+      expect(questionResultParts.length).toBeGreaterThanOrEqual(1);
+
+      // Verify all tool-calls have matching tool-results
+      const allCalls = findAllToolCallParts(messages);
+      const allResults = findAllToolResultParts(messages);
+      const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
+      for (const call of allCalls) {
+        expect(resultIds.has(call.toolCallId as string)).toBe(true);
+      }
+
+      console.log(
+        `Test 9 passed: ${messages.length} messages, ask_question answered`,
+      );
+    } finally {
+      stream.cancel();
+    }
+  });
+
+  test("test 10: ask question + reject + follow up", async () => {
+    await clearChatHistory(assigneeId);
+
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      onMessage: async (evt) => {
+        if (evt.event === "question_required") {
+          console.log(`Question required, rejecting: ${evt.data.questionId}`);
+          const pending = await listQuestions();
+          const q = pending.find(
+            (q) => q.toolName === "ask_question" && q.status === "pending",
+          );
+          expect(q).toBeTruthy();
+          await answerQuestion(q!.id, "reject");
+          console.log(`Rejected question: ${q!.id}`);
+        }
+      },
+    });
+
+    try {
+      // Step 1: Send message that triggers ask_question
+      await sendMessage(
+        assigneeId,
+        "Ask me a question using the ask_question tool. Ask a single boolean question: 'Do you like tea?' If the question is rejected, do not retry - just acknowledge the rejection and move on.",
+      );
+      await stream.waitForDone();
+
+      // Verify question_required event was emitted
+      const questionEvents = stream.events.filter(
+        (e) => e.event === "question_required",
+      );
+      expect(questionEvents.length).toBeGreaterThanOrEqual(1);
+
+      // Verify agent produced text after rejection (acknowledging the rejection)
+      const textDeltas = stream.events.filter((e) => e.event === "text-delta");
+      expect(textDeltas.length).toBeGreaterThan(0);
+
+      // Step 2: Send follow-up
+      await sendMessage(assigneeId, "OK thanks. Do not use any tools.");
+      await stream.waitForDone();
+
+      // Step 3: Validate chat history
+      const { messages } = await getChatHistory(assigneeId);
+      expect(messages.length).toBeGreaterThanOrEqual(5);
+
+      // Verify ask_question tool-call has question annotation with rejected status
+      const questionCallParts = findToolCallParts(messages, "ask_question");
+      expect(questionCallParts.length).toBeGreaterThanOrEqual(1);
+      const questionAnnotation = questionCallParts[0]?.question as
+        | { id: string; status: string }
+        | undefined;
+      expect(questionAnnotation).toBeTruthy();
+      expect(questionAnnotation!.status).toBe("rejected");
+
+      // Verify rejection tool-result exists with isError
+      const questionResultParts = findToolResultParts(messages, "ask_question");
+      expect(questionResultParts.length).toBeGreaterThanOrEqual(1);
+      expect(questionResultParts[0]?.isError).toBe(true);
+
+      // Verify all tool-calls have matching tool-results
+      const allCalls = findAllToolCallParts(messages);
+      const allResults = findAllToolResultParts(messages);
+      const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
+      for (const call of allCalls) {
+        expect(resultIds.has(call.toolCallId as string)).toBe(true);
+      }
+
+      // Verify follow-up exchange
+      const lastUserIdx = messages.findLastIndex((m) => m.role === "user");
+      expect(lastUserIdx).toBeGreaterThan(-1);
+      expect(messages[lastUserIdx + 1]?.role).toBe("assistant");
+
+      console.log(
+        `Test 10 passed: ${messages.length} messages, ask_question rejected`,
+      );
+    } finally {
+      stream.cancel();
+    }
+  });
+
+  test("test 11: ask question + user skips + keeps chatting = auto reject", async () => {
+    await clearChatHistory(assigneeId);
+
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      onMessage: async (evt) => {
+        if (evt.event === "question_required") {
+          console.log(`Question required but ignoring: ${evt.data.questionId}`);
+        }
+      },
+    });
+
+    try {
+      // Step 1: Send message that triggers ask_question
+      await sendMessage(
+        assigneeId,
+        "Ask me a question using the ask_question tool. Ask a single boolean question: 'Do you like pizza?'",
+      );
+      // Backend won't send "done" while waiting for question — wait for the question event
+      await stream.waitForEvent("question_required");
+
+      // Verify question was requested
+      const questionEvents = stream.events.filter(
+        (e) => e.event === "question_required",
+      );
+      expect(questionEvents.length).toBeGreaterThanOrEqual(1);
+
+      // Step 2: Ignore the question and just keep chatting
+      await sendMessage(
+        assigneeId,
+        "Never mind, just tell me a joke instead. Do not use any tools.",
+      );
+      await stream.waitForDone();
+
+      // Verify agent responded with text (no errors)
+      const textDeltas = stream.events.filter((e) => e.event === "text-delta");
+      expect(textDeltas.length).toBeGreaterThan(0);
+
+      // Step 3: Validate chat history
+      const { messages } = await getChatHistory(assigneeId);
+      expect(messages.length).toBeGreaterThanOrEqual(4);
+
+      // Verify ask_question tool-call has question annotation with rejected status (auto-rejected)
+      const questionCallParts = findToolCallParts(messages, "ask_question");
+      expect(questionCallParts.length).toBeGreaterThanOrEqual(1);
+      const questionAnnotation = questionCallParts[0]?.question as
+        | { id: string; status: string }
+        | undefined;
+      expect(questionAnnotation).toBeTruthy();
+      expect(questionAnnotation!.status).toBe("rejected");
+
+      // Verify rejection tool-result exists with isError
+      const questionResultParts = findToolResultParts(messages, "ask_question");
+      expect(questionResultParts.length).toBeGreaterThanOrEqual(1);
+      expect(questionResultParts[0]?.isError).toBe(true);
+
+      // Verify all tool-calls have matching tool-results
+      const allCalls = findAllToolCallParts(messages);
+      const allResults = findAllToolResultParts(messages);
+      const resultIds = new Set(allResults.map((r) => r.toolCallId as string));
+      for (const call of allCalls) {
+        expect(resultIds.has(call.toolCallId as string)).toBe(true);
+      }
+
+      // Verify follow-up exchange — find the last user message and check assistant responds after it
+      const lastUserIdx = messages.findLastIndex((m) => m.role === "user");
+      expect(lastUserIdx).toBeGreaterThan(-1);
+      const afterLastUser = messages.slice(lastUserIdx + 1);
+      expect(afterLastUser.some((m) => m.role === "assistant")).toBe(true);
+
+      console.log(
+        `Test 11 passed: ${messages.length} messages, ask_question auto-rejected after skip`,
+      );
     } finally {
       stream.cancel();
     }

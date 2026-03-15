@@ -1,8 +1,5 @@
 import crypto from "crypto";
-import {
-  subscribeToEvents,
-  type EventSubscription,
-} from "@/lib/queue/consumer";
+import { subscribeToEvents, type EventSubscription } from "@/lib/queue/consumer";
 import type { AgentEvent } from "@/lib/queue/types";
 import { getStreamChunks } from "./manager";
 
@@ -60,9 +57,7 @@ export async function streamWithReplay(
   // 3. If session already stopped, skip replay — no cached chunks to replay.
   //    Stay open in live mode so newly-sent messages are still delivered.
   if (sessionStatus === "stopped") {
-    console.log(
-      `[Replay] session=${sessionId} already stopped, skipping replay but staying open`,
-    );
+    console.log(`[Replay] session=${sessionId} already stopped, skipping replay but staying open`);
     replaying = false;
     return subscription;
   }
@@ -81,8 +76,7 @@ export async function streamWithReplay(
     try {
       // @upstash/redis auto-deserializes JSON values, so lrange may return
       // already-parsed objects instead of strings.
-      const event: AgentEvent =
-        typeof raw === "string" ? JSON.parse(raw) : (raw as AgentEvent);
+      const event: AgentEvent = typeof raw === "string" ? JSON.parse(raw) : (raw as AgentEvent);
       if (typeof event.seq === "number" && event.seq > highestSeq) {
         highestSeq = event.seq;
       }
@@ -104,9 +98,7 @@ export async function streamWithReplay(
 
   // 4. If agent already finished, close after replay
   if (hasTerminal) {
-    console.log(
-      `[Replay] session=${sessionId} terminal event found, closing after replay`,
-    );
+    console.log(`[Replay] session=${sessionId} terminal event found, closing after replay`);
     replaying = false;
     cleanup();
     return subscription;

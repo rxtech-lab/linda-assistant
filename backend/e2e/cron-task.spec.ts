@@ -67,7 +67,12 @@ test.describe("Cron Task Scheduling", () => {
   test("updating cron schedule calls Celery update", async ({ request }) => {
     // Create task with cron
     const createRes = await request.post("/api/tasks", {
-      data: { title: "Update Cron Task", assigneeId, cronSchedule: "0 9 * * *", isCronEnabled: true },
+      data: {
+        title: "Update Cron Task",
+        assigneeId,
+        cronSchedule: "0 9 * * *",
+        isCronEnabled: true,
+      },
     });
     const task = await createRes.json();
     await resetCeleryCalls();
@@ -90,7 +95,12 @@ test.describe("Cron Task Scheduling", () => {
   test("disabling cron removes Celery entry", async ({ request }) => {
     // Create task with cron
     const createRes = await request.post("/api/tasks", {
-      data: { title: "Disable Cron Task", assigneeId, cronSchedule: "* * * * *", isCronEnabled: true },
+      data: {
+        title: "Disable Cron Task",
+        assigneeId,
+        cronSchedule: "* * * * *",
+        isCronEnabled: true,
+      },
     });
     const task = await createRes.json();
     await resetCeleryCalls();
@@ -102,14 +112,21 @@ test.describe("Cron Task Scheduling", () => {
     expect(res.ok()).toBeTruthy();
 
     const calls = await getCeleryCalls();
-    const deleteCall = calls.find((c) => c.method === "DELETE" && c.path === `/schedules/${task.id}`);
+    const deleteCall = calls.find(
+      (c) => c.method === "DELETE" && c.path === `/schedules/${task.id}`,
+    );
     expect(deleteCall).toBeTruthy();
   });
 
   test("deleting a cron task removes Celery entry", async ({ request }) => {
     // Create task with cron
     const createRes = await request.post("/api/tasks", {
-      data: { title: "Delete Cron Task", assigneeId, cronSchedule: "* * * * *", isCronEnabled: true },
+      data: {
+        title: "Delete Cron Task",
+        assigneeId,
+        cronSchedule: "* * * * *",
+        isCronEnabled: true,
+      },
     });
     const task = await createRes.json();
     await resetCeleryCalls();
@@ -118,7 +135,9 @@ test.describe("Cron Task Scheduling", () => {
     expect(res.ok()).toBeTruthy();
 
     const calls = await getCeleryCalls();
-    const deleteCall = calls.find((c) => c.method === "DELETE" && c.path === `/schedules/${task.id}`);
+    const deleteCall = calls.find(
+      (c) => c.method === "DELETE" && c.path === `/schedules/${task.id}`,
+    );
     expect(deleteCall).toBeTruthy();
   });
 

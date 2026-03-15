@@ -9,9 +9,7 @@ export const searchEmailsTool = (userId: string, needsApproval: boolean) =>
     description: "Search through the user's email inbox by keyword",
     needsApproval,
     inputSchema: z.object({
-      query: z
-        .string()
-        .describe("Search query to match against subject, body, or sender"),
+      query: z.string().describe("Search query to match against subject, body, or sender"),
       limit: z.number().default(10).describe("Maximum number of results"),
     }),
     execute: async ({ query, limit }) => {

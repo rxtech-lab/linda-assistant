@@ -32,9 +32,7 @@ export async function GET(
   const [assignee] = await db
     .select({ id: assignees.id })
     .from(assignees)
-    .where(
-      and(eq(assignees.id, assigneeId), eq(assignees.userId, auth.userId)),
-    );
+    .where(and(eq(assignees.id, assigneeId), eq(assignees.userId, auth.userId)));
 
   if (!assignee) return errorJson("Assignee not found", 404);
 
@@ -42,12 +40,7 @@ export async function GET(
   const [session] = await db
     .select({ id: chatSessions.id })
     .from(chatSessions)
-    .where(
-      and(
-        eq(chatSessions.assigneeId, assigneeId),
-        eq(chatSessions.userId, auth.userId),
-      ),
-    )
+    .where(and(eq(chatSessions.assigneeId, assigneeId), eq(chatSessions.userId, auth.userId)))
     .limit(1);
 
   if (!session) return successJson({ data: [] });
@@ -55,12 +48,7 @@ export async function GET(
   const items = await db
     .select()
     .from(documents)
-    .where(
-      and(
-        eq(documents.userId, auth.userId),
-        eq(documents.chatSessionId, session.id),
-      ),
-    )
+    .where(and(eq(documents.userId, auth.userId), eq(documents.chatSessionId, session.id)))
     .orderBy(desc(documents.createdAt));
 
   return successJson({ data: items });

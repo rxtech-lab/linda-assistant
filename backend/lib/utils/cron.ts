@@ -23,7 +23,10 @@ export function getNextRunSeconds(expr: string, lastRunAt?: Date | null): number
     const now = new Date(Date.now());
 
     if (lastRunAt) {
-      const afterLastRun = cronParser.parseExpression(expr, { currentDate: lastRunAt }).next().toDate();
+      const afterLastRun = cronParser
+        .parseExpression(expr, { currentDate: lastRunAt })
+        .next()
+        .toDate();
       if (afterLastRun > now) {
         return Math.floor((afterLastRun.getTime() - now.getTime()) / 1000);
       }

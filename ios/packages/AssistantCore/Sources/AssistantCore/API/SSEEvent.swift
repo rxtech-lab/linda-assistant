@@ -9,6 +9,8 @@ public enum SSEEventType: String, Sendable {
     case toolResult = "tool-result"
     case confirmationRequired = "confirmation_required"
     case confirmationResolved = "confirmation_resolved"
+    case questionRequired = "question_required"
+    case questionAnswered = "question_answered"
     case userMessage = "user-message"
     case compacting
     case error
@@ -66,6 +68,14 @@ public struct SSEEvent: Sendable {
                 if let payload = try? decoder.decode(ConfirmationResolvedPayload.self, from: jsonData) {
                     return .confirmationResolved(payload)
                 }
+            case .questionRequired:
+                if let payload = try? decoder.decode(QuestionPayload.self, from: jsonData) {
+                    return .questionRequired(payload)
+                }
+            case .questionAnswered:
+                if let payload = try? decoder.decode(QuestionAnsweredPayload.self, from: jsonData) {
+                    return .questionAnswered(payload)
+                }
             case .userMessage:
                 if let payload = try? decoder.decode(UserMessagePayload.self, from: jsonData) {
                     return .userMessage(payload)
@@ -101,6 +111,8 @@ public enum SSEMessage: Sendable {
     case toolResult(ToolResultPayload)
     case confirmationRequired(ConfirmationPayload)
     case confirmationResolved(ConfirmationResolvedPayload)
+    case questionRequired(QuestionPayload)
+    case questionAnswered(QuestionAnsweredPayload)
     case userMessage(UserMessagePayload)
     case compacting(CompactingPayload)
     case error(SSEErrorPayload)
@@ -130,7 +142,10 @@ public struct ToolResultPayload: Codable, Sendable {
 }
 
 public struct ConfirmationPayload: Codable, Sendable, Identifiable {
-    public var id: String { confirmationId }
+    public var id: String {
+        confirmationId
+    }
+
     public let confirmationId: String
     public let toolCallId: String
     public let toolName: String
@@ -149,6 +164,94 @@ public struct ConfirmationResolvedPayload: Codable, Sendable {
     public let toolCallId: String
     public let toolName: String
     public let action: String
+}
+
+public struct QuestionOptionItem: Codable, Sendable, Hashable {
+    public let title: String
+    public let description: String?
+
+    public init(title: String, description: String?) {
+        self.title = title
+        self.description = description
+    }
+}
+
+public struct QuestionItem: Codable, Sendable, Hashable {
+    public let title: String
+    public let description: String?
+    public let type: String // "boolean", "multiple_choice", "single_choice", "fill_in_blank"
+    public let options: [QuestionOptionItem]?
+
+    public init(title: String, description: String?, type: String, options: [QuestionOptionItem]?) {
+        self.title = title
+        self.description = description
+        self.type = type
+        self.options = options
+    }
+}
+
+public struct QuestionPayload: Codable, Sendable, Identifiable {
+    public var id: String {
+        questionId
+    }
+
+    public let questionId: String
+    public let toolCallId: String
+    public let toolName: String
+    public let questions: [QuestionItem]
+
+    public init(questionId: String, toolCallId: String, toolName: String, questions: [QuestionItem]) {
+        self.questionId = questionId
+        self.toolCallId = toolCallId
+        self.toolName = toolName
+        self.questions = questions
+    }
+}
+
+public extension QuestionPayload {
+    /// Reconstruct a QuestionPayload from a ToolCallInfo's input data.
+    /// Used when the pending question is not in the SSE queue but the tool call has the data.
+    static func from(toolCall: ToolCallInfo) -> QuestionPayload? {
+        guard let questionsValue = toolCall.input?["questions"],
+              case let .array(questionsArray) = questionsValue
+        else { return nil }
+
+        let items: [QuestionItem] = questionsArray.compactMap { value -> QuestionItem? in
+            guard case let .object(dict) = value,
+                  case let .string(title) = dict["title"]
+            else { return nil }
+            let desc: String? = dict["description"].flatMap { if case let .string(d) = $0 { d } else { nil } }
+            let type: String = dict["type"].flatMap { if case let .string(t) = $0 { t } else { nil } } ?? "fill_in_blank"
+            let options: [QuestionOptionItem]? = dict["options"].flatMap { optVal -> [QuestionOptionItem]? in
+                guard case let .array(optArray) = optVal else { return nil }
+                return optArray.compactMap { opt -> QuestionOptionItem? in
+                    guard case let .object(optDict) = opt,
+                          case let .string(optTitle) = optDict["title"]
+                    else { return nil }
+                    let optDesc: String? = optDict["description"].flatMap { if case let .string(d) = $0 { d } else { nil } }
+                    return QuestionOptionItem(title: optTitle, description: optDesc)
+                }
+            }
+            return QuestionItem(title: title, description: desc, type: type, options: options)
+        }
+
+        guard !items.isEmpty else { return nil }
+
+        // Use toolCallId as questionId fallback since we don't have the real one
+        return QuestionPayload(
+            questionId: toolCall.toolCallId,
+            toolCallId: toolCall.toolCallId,
+            toolName: toolCall.toolName,
+            questions: items
+        )
+    }
+}
+
+public struct QuestionAnsweredPayload: Codable, Sendable {
+    public let questionId: String
+    public let toolCallId: String
+    public let toolName: String
+    public let action: String // "answered" or "rejected"
 }
 
 public struct UserMessagePayload: Codable, Sendable {

@@ -312,6 +312,7 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
                     toolName: toolName,
                     input: part.input,
                     confirmation: part.confirmation,
+                    question: part.question,
                     error: part.error
                 )
             }
@@ -350,6 +351,11 @@ public struct ToolCallConfirmation: Codable, Sendable {
     public let status: String
 }
 
+public struct ToolCallQuestion: Codable, Sendable {
+    public let id: String
+    public let status: String
+}
+
 public struct ChatToolCall: Codable, Sendable, Identifiable {
     public var id: String {
         toolCallId
@@ -359,6 +365,7 @@ public struct ChatToolCall: Codable, Sendable, Identifiable {
     public let toolName: String
     public let input: [String: AnyCodable]?
     public let confirmation: ToolCallConfirmation?
+    public let question: ToolCallQuestion?
     public let error: String?
 }
 
@@ -370,6 +377,7 @@ private struct ContentPart: Codable {
     let input: [String: AnyCodable]?
     let output: AnyCodable?
     let confirmation: ToolCallConfirmation?
+    let question: ToolCallQuestion?
     let approveStatus: String?
     let error: String?
 }
@@ -446,6 +454,36 @@ public struct ResolveConfirmation: Codable, Sendable {
 public struct ResolveResponse: Codable, Sendable {
     public let action: String
     public let confirmationId: String
+}
+
+// MARK: - Questions
+
+public struct Question: Codable, Identifiable, Sendable {
+    public let id: String
+    public let userId: String
+    public let chatSessionId: String
+    public let toolCallId: String
+    public let toolName: String
+    public let approvalId: String
+    public let questionsData: [QuestionItem]?
+    public let answers: [[String: AnyCodable]]?
+    public let status: String?
+    public let createdAt: String?
+}
+
+public struct AnswerQuestion: Codable, Sendable {
+    public let action: String
+    public let answers: [[String: AnyCodable]]?
+
+    public init(action: String, answers: [[String: AnyCodable]]? = nil) {
+        self.action = action
+        self.answers = answers
+    }
+}
+
+public struct AnswerQuestionResponse: Codable, Sendable {
+    public let action: String
+    public let questionId: String
 }
 
 // MARK: - Device

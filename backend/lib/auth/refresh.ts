@@ -24,10 +24,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
     });
 
     if (!response.ok) {
-      console.warn(
-        "[refreshAccessToken] Failed to refresh token:",
-        response.status,
-      );
+      console.warn("[refreshAccessToken] Failed to refresh token:", response.status);
       return null;
     }
 

@@ -133,9 +133,15 @@ export default async function globalSetup() {
     celeryMock.stderr?.on("data", (data: Buffer) => {
       process.stderr.write(`[celery-mock:err] ${data.toString()}`);
     });
-    celeryMock.on("error", (err) => { clearTimeout(timeout); reject(err); });
+    celeryMock.on("error", (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
     celeryMock.on("exit", (code) => {
-      if (code !== null && code !== 0) { clearTimeout(timeout); reject(new Error(`Celery mock exited with code ${code}`)); }
+      if (code !== null && code !== 0) {
+        clearTimeout(timeout);
+        reject(new Error(`Celery mock exited with code ${code}`));
+      }
     });
   });
 

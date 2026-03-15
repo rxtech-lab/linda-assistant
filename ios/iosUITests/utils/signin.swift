@@ -18,7 +18,11 @@ extension XCUIApplication {
         let testEmail = DotEnv.get("TEST_EMAIL", from: envVars) ?? "test@rxlab.app"
         NSLog("🔐 Using test email: \(testEmail)")
         guard let testPassword = DotEnv.get("TEST_PASSWORD", from: envVars) else {
-            throw NSError(domain: "SigninError", code: 1, userInfo: [NSLocalizedDescriptionKey: "TEST_PASSWORD not found in .env file or environment"])
+            throw NSError(
+                domain: "SigninError",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "TEST_PASSWORD not found in .env file or environment"]
+            )
         }
         NSLog("🔐 Using test password: \(testPassword)")
 
@@ -49,7 +53,13 @@ extension XCUIApplication {
             // Use a longer timeout — cold CI simulators can take a while for Safari to render the page
             let emailFieldExists = emailField.waitForExistence(timeout: 60)
             guard emailFieldExists else {
-                throw NSError(domain: "SigninError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Email field did not appear in OAuth page — Safari may not have loaded in time"])
+                throw NSError(
+                    domain: "SigninError",
+                    code: 2,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "Email field did not appear in OAuth page — Safari may not have loaded in time",
+                    ]
+                )
             }
             NSLog("✅ Email field found, entering credentials...")
             logger.info("✅ Email field found, entering credentials...")
@@ -79,7 +89,7 @@ extension XCUIApplication {
             let emailFieldExists = emailField.waitForExistence(timeout: 30)
             XCTAssertTrue(emailFieldExists, "Failed to sign in and reach dashboard")
 
-            let passwordField = self.secureTextFields["Enter your password"].firstMatch
+            let passwordField = secureTextFields["Enter your password"].firstMatch
 
             emailField.click()
             emailField.typeText(testEmail)

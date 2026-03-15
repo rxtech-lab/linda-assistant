@@ -40,7 +40,7 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
         self.apiClient = apiClient
         logger.info("Waiting for device token from APNs...")
         // Wait briefly for APNs to deliver the device token (typically <500ms on real devices)
-        for _ in 0..<20 where deviceToken == nil {
+        for _ in 0 ..< 20 where deviceToken == nil {
             try? await Task.sleep(for: .milliseconds(100))
         }
         if deviceToken == nil {
@@ -57,7 +57,10 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
 
     private func sendRegistrationIfReady() async {
         guard let token = deviceToken, let apiClient, !didRegister else {
-            logger.debug("Registration not ready — token: \(self.deviceToken != nil), apiClient: \(self.apiClient != nil), didRegister: \(self.didRegister)")
+            logger
+                .debug(
+                    "Registration not ready — token: \(self.deviceToken != nil), apiClient: \(self.apiClient != nil), didRegister: \(self.didRegister)"
+                )
             return
         }
         didRegister = true

@@ -26,12 +26,7 @@ export async function GET(request: NextRequest) {
   const items = await db
     .select()
     .from(documents)
-    .where(
-      and(
-        eq(documents.userId, auth.userId),
-        eq(documents.chatSessionId, chatSessionId),
-      ),
-    )
+    .where(and(eq(documents.userId, auth.userId), eq(documents.chatSessionId, chatSessionId)))
     .orderBy(desc(documents.createdAt));
 
   return successJson({ data: items });

@@ -41,15 +41,11 @@ describe("stripMarkdown", () => {
   });
 
   test("converts links to plain text", () => {
-    expect(stripMarkdown("[click here](https://example.com)")).toBe(
-      "click here",
-    );
+    expect(stripMarkdown("[click here](https://example.com)")).toBe("click here");
   });
 
   test("converts images to alt text", () => {
-    expect(stripMarkdown("![logo](https://example.com/logo.png)")).toBe(
-      "logo",
-    );
+    expect(stripMarkdown("![logo](https://example.com/logo.png)")).toBe("logo");
   });
 
   test("removes blockquote markers", () => {
@@ -57,9 +53,7 @@ describe("stripMarkdown", () => {
   });
 
   test("removes unordered list markers", () => {
-    expect(stripMarkdown("- item one\n- item two")).toBe(
-      "item one\nitem two",
-    );
+    expect(stripMarkdown("- item one\n- item two")).toBe("item one\nitem two");
     expect(stripMarkdown("* item")).toBe("item");
     expect(stripMarkdown("+ item")).toBe("item");
   });
@@ -75,8 +69,7 @@ describe("stripMarkdown", () => {
   test("handles mixed markdown", () => {
     const input =
       "## Summary\n\nHere is **bold** and *italic* with a [link](http://x.com).\n\n- item 1\n- item 2";
-    const expected =
-      "Summary\n\nHere is bold and italic with a link.\n\nitem 1\nitem 2";
+    const expected = "Summary\n\nHere is bold and italic with a link.\n\nitem 1\nitem 2";
     expect(stripMarkdown(input)).toBe(expected);
   });
 

@@ -30,15 +30,8 @@ export const selectAssigneeSchema = z.object({
 export const insertAssigneeSchema = z.object({
   name: z.string().min(1).max(100).describe("Display name"),
   email: z.string().email().describe("Email address"),
-  personality: z
-    .string()
-    .max(2000)
-    .optional()
-    .describe("System prompt personality"),
-  model: availableModelSchema
-    .catch(DEFAULT_MODEL)
-    .optional()
-    .describe("AI model to use"),
+  personality: z.string().max(2000).optional().describe("System prompt personality"),
+  model: availableModelSchema.catch(DEFAULT_MODEL).optional().describe("AI model to use"),
   toolPermissions: z
     .array(toolPermissionSchema)
     .optional()
@@ -68,53 +61,29 @@ export const selectEmailSchema = z.object({
   htmlBody: z.string().nullable().describe("Email HTML body"),
   receivedAt: z.string().describe("When the email was received"),
   isRead: z.boolean().nullable().describe("Whether the email has been read"),
-  attachments: z
-    .array(emailAttachmentSchema)
-    .nullable()
-    .describe("Email attachments"),
+  attachments: z.array(emailAttachmentSchema).nullable().describe("Email attachments"),
   metadata: z.record(z.unknown()).nullable().describe("Additional metadata"),
 });
 
 export const insertEmailSchema = z.object({
   emailId: z.string().describe("Unique email ID"),
-  assigneeId: z
-    .string()
-    .nullable()
-    .optional()
-    .describe("Assigned assistant ID"),
+  assigneeId: z.string().nullable().optional().describe("Assigned assistant ID"),
   fromEmail: z.string().email().describe("Sender email address"),
   fromName: z.string().nullable().optional().describe("Sender display name"),
   toEmail: z.string().email().describe("Recipient email address"),
-  subject: z
-    .string()
-    .max(500)
-    .nullable()
-    .optional()
-    .describe("Email subject line"),
+  subject: z.string().max(500).nullable().optional().describe("Email subject line"),
   textBody: z.string().nullable().optional().describe("Email plain text body"),
   htmlBody: z.string().nullable().optional().describe("Email HTML body"),
   receivedAt: z.string().describe("When the email was received"),
   isRead: z.boolean().optional().describe("Whether the email has been read"),
-  attachments: z
-    .array(emailAttachmentSchema)
-    .nullable()
-    .optional()
-    .describe("Email attachments"),
-  metadata: z
-    .record(z.unknown())
-    .nullable()
-    .optional()
-    .describe("Additional metadata"),
+  attachments: z.array(emailAttachmentSchema).nullable().optional().describe("Email attachments"),
+  metadata: z.record(z.unknown()).nullable().optional().describe("Additional metadata"),
 });
 
 export const updateEmailSchema = z.object({
   isRead: z.boolean().optional().describe("Whether the email has been read"),
   metadata: z.record(z.unknown()).optional().describe("Additional metadata"),
-  assigneeId: z
-    .string()
-    .optional()
-    .nullable()
-    .describe("Assigned assistant ID"),
+  assigneeId: z.string().optional().nullable().describe("Assigned assistant ID"),
 });
 
 // ---- Resend Webhook ----
@@ -126,11 +95,7 @@ export const resendWebhookAttachmentSchema = z.object({
   content_id: z.string().optional().describe("Content ID for inline images"),
   content_disposition: z.string().nullable().optional().describe("Content disposition"),
   size: z.number().optional().describe("File size in bytes"),
-  url: z
-    .string()
-    .url()
-    .optional()
-    .describe("Temporary download URL from Resend"),
+  url: z.string().url().optional().describe("Temporary download URL from Resend"),
 });
 
 export const resendEmailReceivedDataSchema = z.object({
@@ -143,10 +108,7 @@ export const resendEmailReceivedDataSchema = z.object({
   text: z.string().nullable().optional().describe("Plain text body content"),
   message_id: z.string().describe("Message identifier"),
   headers: z.record(z.unknown()).optional().describe("Email headers"),
-  attachments: z
-    .array(resendWebhookAttachmentSchema)
-    .optional()
-    .describe("Email attachments"),
+  attachments: z.array(resendWebhookAttachmentSchema).optional().describe("Email attachments"),
 });
 
 export const resendWebhookPayloadSchema = z.object({
@@ -167,7 +129,13 @@ export const selectTaskSchema = z.object({
   categories: z.array(z.string()).nullable().describe("Category labels"),
   cronSchedule: z.string().nullable().describe("Cron expression e.g. '0 9 * * *'"),
   isCronEnabled: z.boolean().nullable().describe("Whether cron scheduling is active"),
-  nextRunAt: z.number().nullable().optional().describe("Seconds from now until next scheduled run (null if cron disabled or no schedule, omitted on write responses)"),
+  nextRunAt: z
+    .number()
+    .nullable()
+    .optional()
+    .describe(
+      "Seconds from now until next scheduled run (null if cron disabled or no schedule, omitted on write responses)",
+    ),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
@@ -175,11 +143,7 @@ export const selectTaskSchema = z.object({
 export const insertTaskSchema = z.object({
   assigneeId: z.string().optional().nullable().describe("Linked assignee ID"),
   title: z.string().min(1).max(200).describe("Task title"),
-  description: z
-    .string()
-    .max(5000)
-    .optional()
-    .describe("Detailed task description"),
+  description: z.string().max(5000).optional().describe("Detailed task description"),
   tags: z.array(z.string()).optional().describe("Freeform tags"),
   categories: z.array(z.string()).optional().describe("Category labels"),
   cronSchedule: z
@@ -240,10 +204,7 @@ const toolCallPartSchema = z.object({
   confirmation: toolCallConfirmationSchema
     .optional()
     .describe("Confirmation info if this tool call requires manual approval"),
-  error: z
-    .string()
-    .optional()
-    .describe("Error message if the tool call failed"),
+  error: z.string().optional().describe("Error message if the tool call failed"),
 });
 
 const toolResultPartSchema = z.object({
@@ -254,27 +215,18 @@ const toolResultPartSchema = z.object({
   approveStatus: z
     .enum(["auto-approved", "confirmed", "rejected"])
     .optional()
-    .describe(
-      "Approval status — present for tools that went through the permission system",
-    ),
-  isError: z
-    .boolean()
-    .optional()
-    .describe("Whether this tool result is an error"),
+    .describe("Approval status — present for tools that went through the permission system"),
+  isError: z.boolean().optional().describe("Whether this tool result is an error"),
 });
 
 const toolApprovalRequestPartSchema = z.object({
-  type: z
-    .literal("tool-approval-request")
-    .describe("Tool approval request part"),
+  type: z.literal("tool-approval-request").describe("Tool approval request part"),
   approvalId: z.string().describe("Unique approval request ID"),
   toolCallId: z.string().describe("Tool call that requires approval"),
 });
 
 const toolApprovalResponsePartSchema = z.object({
-  type: z
-    .literal("tool-approval-response")
-    .describe("Tool approval response part"),
+  type: z.literal("tool-approval-response").describe("Tool approval response part"),
   approvalId: z.string().describe("Matching approval request ID"),
   approved: z.boolean().describe("Whether the tool call was approved"),
   reason: z.string().optional().describe("Reason for denial"),
@@ -292,14 +244,10 @@ const contentPartSchema = z.discriminatedUnion("type", [
 
 export const chatMessageSchema = z.object({
   id: z.string().optional().describe("Unique message identifier"),
-  role: z
-    .enum(["system", "user", "assistant", "tool"])
-    .describe("Message role"),
+  role: z.enum(["system", "user", "assistant", "tool"]).describe("Message role"),
   content: z
     .union([z.string(), z.array(contentPartSchema)])
-    .describe(
-      "Message content — string for simple text, array of parts for rich content",
-    ),
+    .describe("Message content — string for simple text, array of parts for rich content"),
   seq: z
     .number()
     .optional()
@@ -307,7 +255,9 @@ export const chatMessageSchema = z.object({
   isCompacted: z
     .boolean()
     .optional()
-    .describe("Whether the message has been compacted (summarized for AI context). Compacted messages are preserved for user history but not sent to the AI agent."),
+    .describe(
+      "Whether the message has been compacted (summarized for AI context). Compacted messages are preserved for user history but not sent to the AI agent.",
+    ),
 });
 
 // ---- Chat Sessions ----
@@ -327,10 +277,7 @@ export const selectChatSessionSchema = z.object({
     .nullable()
     .optional()
     .describe("Resolved assignee info"),
-  messages: z
-    .array(z.any())
-    .optional()
-    .describe("Session messages (included in detail view)"),
+  messages: z.array(z.any()).optional().describe("Session messages (included in detail view)"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
@@ -339,24 +286,16 @@ export const selectMessageSchema = z.object({
   id: z.string().describe("Unique message identifier"),
   chatSessionId: z.string().describe("Parent chat session ID"),
   seq: z.number().describe("0-based ordering within session"),
-  role: z
-    .enum(["system", "user", "assistant", "tool"])
-    .describe("Message role"),
+  role: z.enum(["system", "user", "assistant", "tool"]).describe("Message role"),
   content: z
     .union([z.string(), z.array(contentPartSchema), z.null()])
-    .describe(
-      "Message content — string for simple text, array of parts for rich content",
-    ),
+    .describe("Message content — string for simple text, array of parts for rich content"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
 });
 
 export const insertChatSessionSchema = z.object({
   taskId: z.string().nullable().optional().describe("Associated task ID"),
-  assigneeId: z
-    .string()
-    .nullable()
-    .optional()
-    .describe("Associated assignee ID"),
+  assigneeId: z.string().nullable().optional().describe("Associated assignee ID"),
   title: z.string().max(200).optional().describe("Session title"),
   status: z
     .enum(["starting", "in_progress", "waiting_confirmation", "stopped"])
@@ -366,11 +305,7 @@ export const insertChatSessionSchema = z.object({
 
 export const updateChatSessionSchema = z.object({
   title: z.string().max(200).optional().describe("Session title"),
-  assigneeId: z
-    .string()
-    .optional()
-    .nullable()
-    .describe("Associated assignee ID"),
+  assigneeId: z.string().optional().nullable().describe("Associated assignee ID"),
 });
 
 // ---- Confirmations ----
@@ -381,31 +316,70 @@ export const selectConfirmationSchema = z.object({
   chatSessionId: z.string().describe("Associated chat session ID"),
   toolCallId: z.string().describe("Tool call that triggered this confirmation"),
   toolName: z.string().describe("Name of the tool requiring confirmation"),
-  approvalId: z
-    .string()
-    .describe("SDK approval ID for tool-approval-response matching"),
+  approvalId: z.string().describe("SDK approval ID for tool-approval-response matching"),
   parameters: z.record(z.unknown()).nullable().describe("Tool call parameters"),
-  status: z
-    .string()
-    .nullable()
-    .describe("Confirmation status (pending/confirmed/rejected)"),
+  status: z.string().nullable().describe("Confirmation status (pending/confirmed/rejected)"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
-  resolvedAt: z
-    .string()
-    .nullable()
-    .describe("When the confirmation was resolved"),
+  resolvedAt: z.string().nullable().describe("When the confirmation was resolved"),
 });
 
 export const resolveConfirmationSchema = z.object({
-  action: z
-    .enum(["confirm", "reject"])
-    .describe("Whether to confirm or reject the tool call"),
+  action: z.enum(["confirm", "reject"]).describe("Whether to confirm or reject the tool call"),
   alwaysAllow: z
     .boolean()
     .optional()
-    .describe(
-      "If true, update assignee permissions to auto-confirm this tool in the future",
-    ),
+    .describe("If true, update assignee permissions to auto-confirm this tool in the future"),
+});
+
+// ---- Questions ----
+
+export const questionItemSchema = z.object({
+  title: z.string().describe("The question text"),
+  description: z.string().optional().describe("Additional context for the question"),
+  type: z
+    .enum(["boolean", "multiple_choice", "single_choice", "fill_in_blank"])
+    .describe("Question type"),
+  options: z
+    .array(
+      z.object({
+        title: z.string().describe("Option label"),
+        description: z.string().optional().describe("Option description"),
+      }),
+    )
+    .optional()
+    .describe("Available options for choice-type questions"),
+});
+
+export const questionAnswerSchema = z.object({
+  questionIndex: z.number().describe("Index of the question being answered"),
+  answer: z.union([z.string(), z.array(z.string()), z.boolean()]).describe("The answer value"),
+});
+
+export const selectQuestionSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  chatSessionId: z.string().describe("Associated chat session ID"),
+  toolCallId: z.string().describe("Tool call that triggered this question"),
+  toolName: z.string().describe("Name of the tool (ask_question)"),
+  approvalId: z.string().describe("SDK approval ID for tool-approval-response matching"),
+  questionsData: z.array(questionItemSchema).nullable().describe("The questions asked"),
+  answers: z.array(questionAnswerSchema).nullable().describe("User's answers"),
+  status: z.string().nullable().describe("Question status (pending/answered/rejected)"),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  answeredAt: z.string().nullable().describe("When the question was answered"),
+});
+
+export const answerQuestionSchema = z.object({
+  action: z.enum(["answer", "reject"]).describe("Whether to answer or reject the questions"),
+  answers: z
+    .array(questionAnswerSchema)
+    .optional()
+    .describe("Answers to the questions (required when action is 'answer')"),
+});
+
+export const answerQuestionResponseSchema = z.object({
+  action: z.enum(["answered", "rejected"]).describe("Action taken"),
+  questionId: z.string().describe("Question ID that was resolved"),
 });
 
 // ---- Documents ----
@@ -415,9 +389,7 @@ export const selectDocumentSchema = z.object({
   userId: z.string().describe("Owner user ID"),
   chatSessionId: z.string().describe("Associated chat session ID"),
   title: z.string().describe("Document title"),
-  format: z
-    .enum(["markdown", "html"])
-    .describe("Content format: markdown or html"),
+  format: z.enum(["markdown", "html"]).describe("Content format: markdown or html"),
   content: z.string().describe("Document content"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
@@ -426,9 +398,7 @@ export const selectDocumentSchema = z.object({
 export const insertDocumentSchema = z.object({
   chatSessionId: z.string().describe("Associated chat session ID"),
   title: z.string().max(500).describe("Document title"),
-  format: z
-    .enum(["markdown", "html"])
-    .describe("Content format: markdown or html"),
+  format: z.enum(["markdown", "html"]).describe("Content format: markdown or html"),
   content: z.string().describe("Document content"),
 });
 
@@ -459,9 +429,7 @@ export const sendMessageSchema = z.object({
   attachments: z
     .array(
       z.object({
-        type: z
-          .enum(["image", "audio", "pdf", "file"])
-          .describe("Attachment media type"),
+        type: z.enum(["image", "audio", "pdf", "file"]).describe("Attachment media type"),
         url: z.string().url().describe("Attachment URL"),
         name: z.string().optional().describe("Attachment filename"),
       }),
@@ -527,23 +495,11 @@ export const streamEventSchema = z.object({
   text: z.string().optional().describe("Text content (for text-delta events)"),
   toolCallId: z.string().optional().describe("Tool call identifier"),
   toolName: z.string().optional().describe("Name of the tool"),
-  input: z
-    .record(z.unknown())
-    .optional()
-    .describe("Tool call input parameters"),
+  input: z.record(z.unknown()).optional().describe("Tool call input parameters"),
   output: z.record(z.unknown()).optional().describe("Tool result output"),
-  parameters: z
-    .record(z.unknown())
-    .optional()
-    .describe("Parameters awaiting confirmation"),
-  error: z
-    .string()
-    .optional()
-    .describe("Error message (for error events or tool-result errors)"),
-  isError: z
-    .boolean()
-    .optional()
-    .describe("Whether this tool result is an error"),
+  parameters: z.record(z.unknown()).optional().describe("Parameters awaiting confirmation"),
+  error: z.string().optional().describe("Error message (for error events or tool-result errors)"),
+  isError: z.boolean().optional().describe("Whether this tool result is an error"),
 });
 
 // ---- Common path params ----
@@ -559,9 +515,7 @@ export const assigneeIdParamSchema = z.object({
 // ---- Chat Messages (cursor-paginated) ----
 
 export const chatMessagesResponseSchema = z.object({
-  messages: z
-    .array(chatMessageSchema)
-    .describe("Messages in chronological order"),
+  messages: z.array(chatMessageSchema).describe("Messages in chronological order"),
   nextCursor: z
     .string()
     .nullable()

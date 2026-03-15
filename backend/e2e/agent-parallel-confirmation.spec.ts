@@ -261,7 +261,10 @@ test.describe("Agent Parallel Confirmation", () => {
     client.close();
   });
 
-  test("tool-call events re-emitted on resume connection for execution", async ({ request, baseURL }) => {
+  test("tool-call events re-emitted on resume connection for execution", async ({
+    request,
+    baseURL,
+  }) => {
     // Create session
     const sessionRes = await request.post("/api/chat-sessions", {
       data: { assigneeId },

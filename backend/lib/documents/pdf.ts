@@ -17,10 +17,7 @@ export function sanitizeDocumentFilename(title: string): string {
 export async function generateDocumentPdf(
   documentId: string,
 ): Promise<{ buffer: Buffer; title: string }> {
-  const [doc] = await db
-    .select()
-    .from(documents)
-    .where(eq(documents.id, documentId));
+  const [doc] = await db.select().from(documents).where(eq(documents.id, documentId));
 
   if (!doc) throw new Error("Document not found");
 
@@ -76,10 +73,7 @@ export async function generateDocumentPdf(
   };
   // Replace the advertised host (127.0.0.1) with the configured host
   const chromeHost = new URL(httpBase).host;
-  const browserWSEndpoint = webSocketDebuggerUrl.replace(
-    /ws:\/\/[^/]+/,
-    `ws://${chromeHost}`,
-  );
+  const browserWSEndpoint = webSocketDebuggerUrl.replace(/ws:\/\/[^/]+/, `ws://${chromeHost}`);
 
   const browser = await puppeteer.connect({ browserWSEndpoint });
 
@@ -91,8 +85,7 @@ export async function generateDocumentPdf(
     // text in PDFs and also doesn't apply default block-level display).
     await page.evaluate(() => {
       const s = document.body.style;
-      s.fontFamily =
-        "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      s.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
       s.maxWidth = "800px";
       s.margin = "0 auto";
       s.padding = "40px 20px";

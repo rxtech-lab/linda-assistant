@@ -230,14 +230,14 @@ struct DocumentViewerSheet: View {
         private var fileIcon: String {
             let ext = url.pathExtension.lowercased()
             switch ext {
-            case "pdf":
-                return "doc.richtext.fill"
-            case "md", "markdown":
-                return "doc.text.fill"
-            case "html", "htm":
-                return "globe"
-            default:
-                return "doc.fill"
+                case "pdf":
+                    return "doc.richtext.fill"
+                case "md", "markdown":
+                    return "doc.text.fill"
+                case "html", "htm":
+                    return "globe"
+                default:
+                    return "doc.fill"
             }
         }
 

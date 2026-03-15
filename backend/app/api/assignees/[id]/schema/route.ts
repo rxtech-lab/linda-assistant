@@ -13,10 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
  * @pathParams idParamSchema
  * @response assigneeEditFormSchemaResponse
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -32,9 +29,7 @@ export async function GET(
   const toolNames = Object.keys(tools);
 
   const toolPermissions = toolNames.map((toolName) => {
-    const existing = item.toolPermissions?.find(
-      (permission) => permission.toolName === toolName,
-    );
+    const existing = item.toolPermissions?.find((permission) => permission.toolName === toolName);
     return {
       toolName,
       permission: existing?.permission ?? ("manual-confirm" as const),

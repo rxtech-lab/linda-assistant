@@ -5,11 +5,7 @@ import { db } from "@/lib/db";
 import { assignees, chatSessions } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import {
-  sendMessageSchema,
-  queuedResponseSchema,
-  assigneeIdParamSchema,
-} from "@/lib/schemas";
+import { sendMessageSchema, queuedResponseSchema, assigneeIdParamSchema } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
 import { publishTask, publishEvent } from "@/lib/queue/producer";
 import { insertMessages } from "@/lib/db/messages";
@@ -47,9 +43,7 @@ export async function POST(
   const [assignee] = await db
     .select()
     .from(assignees)
-    .where(
-      and(eq(assignees.id, assigneeId), eq(assignees.userId, auth.userId)),
-    );
+    .where(and(eq(assignees.id, assigneeId), eq(assignees.userId, auth.userId)));
 
   if (!assignee) return errorJson("Assignee not found", 404);
 
@@ -57,12 +51,7 @@ export async function POST(
   let [session] = await db
     .select({ id: chatSessions.id })
     .from(chatSessions)
-    .where(
-      and(
-        eq(chatSessions.assigneeId, assigneeId),
-        eq(chatSessions.userId, auth.userId),
-      ),
-    )
+    .where(and(eq(chatSessions.assigneeId, assigneeId), eq(chatSessions.userId, auth.userId)))
     .limit(1);
 
   if (!session) {

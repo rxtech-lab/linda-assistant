@@ -322,7 +322,10 @@ test.describe("Chat Endpoints", () => {
     expect(afterBody.nextCursor).toBeNull();
   });
 
-  test("send_email with document attachment auto-confirms and sends", async ({ request, baseURL }) => {
+  test("send_email with document attachment auto-confirms and sends", async ({
+    request,
+    baseURL,
+  }) => {
     // Create assignee with auto-confirm for send_email
     const assigneeRes = await request.post("/api/assignees", {
       data: {
@@ -351,7 +354,14 @@ test.describe("Chat Endpoints", () => {
     // Insert a test document with the known ID that the mock model will reference
     await client.execute({
       sql: "INSERT OR REPLACE INTO documents (id, user_id, chat_session_id, title, format, content) VALUES (?, ?, ?, ?, ?, ?)",
-      args: ["e2e-test-doc", "e2e-test-user", sessionId, "Test Report", "markdown", "# Test Report\n\nThis is a test document."],
+      args: [
+        "e2e-test-doc",
+        "e2e-test-user",
+        sessionId,
+        "Test Report",
+        "markdown",
+        "# Test Report\n\nThis is a test document.",
+      ],
     });
     client.close();
 

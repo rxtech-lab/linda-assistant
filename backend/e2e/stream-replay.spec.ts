@@ -152,9 +152,7 @@ test.describe("Stream Replay", () => {
     expect(reconnectedText.length).toBeGreaterThan(0);
 
     // Verify no duplicate text-delta events (each should have unique seq)
-    const seqs = replayedTextDeltas
-      .map((e) => e.data.seq)
-      .filter((s: unknown) => s !== undefined);
+    const seqs = replayedTextDeltas.map((e) => e.data.seq).filter((s: unknown) => s !== undefined);
     const uniqueSeqs = new Set(seqs);
     // If seq is present, all should be unique
     if (seqs.length > 0) {

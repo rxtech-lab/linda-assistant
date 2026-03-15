@@ -219,6 +219,16 @@ public extension APIClient {
         try await request(path: "confirmations/\(id)/resolve", method: "POST", body: body)
     }
 
+    // MARK: - Questions
+
+    func listQuestions() async throws -> [Question] {
+        try await request(path: "questions")
+    }
+
+    func answerQuestion(id: String, _ body: AnswerQuestion) async throws -> AnswerQuestionResponse {
+        try await request(path: "questions/\(id)/answer", method: "POST", body: body)
+    }
+
     // MARK: - Devices
 
     func registerDevice(_ body: RegisterDevice) async throws -> Device {

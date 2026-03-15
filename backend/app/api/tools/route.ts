@@ -25,11 +25,7 @@ export async function GET(request: NextRequest) {
   const assigneeId = request.nextUrl.searchParams.get("assigneeId");
 
   // Build tool set dynamically
-  const { tools } = await buildToolSet(
-    auth.userId,
-    assigneeId,
-    auth.accessToken,
-  );
+  const { tools } = await buildToolSet(auth.userId, assigneeId, auth.accessToken);
 
   // Convert tool objects to API response format
   const toolsList = Object.entries(tools).map(([name, tool]) => {

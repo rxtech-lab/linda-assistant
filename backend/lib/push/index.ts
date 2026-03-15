@@ -91,7 +91,9 @@ export async function sendPushNotification(
 
   const userDevices = await db.select().from(devices).where(eq(devices.userId, userId));
 
-  log(`userId=${userId} devices=${userDevices.length} title="${payload.title}" type=${payload.data?.type ?? "unknown"}`);
+  log(
+    `userId=${userId} devices=${userDevices.length} title="${payload.title}" type=${payload.data?.type ?? "unknown"}`,
+  );
 
   if (userDevices.length === 0) {
     log("no registered devices, skipping");
@@ -119,21 +121,33 @@ export async function sendPushNotification(
       const path = `/3/device/${device.deviceToken}`;
       log(`sending to device=${device.id} token=${device.deviceToken.slice(0, 8)}...`);
 
-      const response = await sendHttp2Request(host, path, {
-        authorization: `bearer ${token}`,
-        "apns-topic": bundleId,
-        "apns-push-type": "alert",
-        "apns-priority": "10",
-        "content-type": "application/json",
-      }, apnsPayload);
+      const response = await sendHttp2Request(
+        host,
+        path,
+        {
+          authorization: `bearer ${token}`,
+          "apns-topic": bundleId,
+          "apns-push-type": "alert",
+          "apns-priority": "10",
+          "content-type": "application/json",
+        },
+        apnsPayload,
+      );
 
       if (response.status === 200) {
         log(`device=${device.id} status=${response.status} ✓`);
       } else {
-        console.error(`[push] device=${device.id} status=${response.status} error: ${response.body}`);
-        if (response.status === 410 || (response.status === 400 && response.body.includes("BadDeviceToken"))) {
+        console.error(
+          `[push] device=${device.id} status=${response.status} error: ${response.body}`,
+        );
+        if (
+          response.status === 410 ||
+          (response.status === 400 && response.body.includes("BadDeviceToken"))
+        ) {
           await db.delete(devices).where(eq(devices.id, device.id));
-          log(`device=${device.id} token=${device.deviceToken.slice(0, 8)}... removed (${response.status === 410 ? "unregistered" : "bad token"})`);
+          log(
+            `device=${device.id} token=${device.deviceToken.slice(0, 8)}... removed (${response.status === 410 ? "unregistered" : "bad token"})`,
+          );
         }
       }
     }),

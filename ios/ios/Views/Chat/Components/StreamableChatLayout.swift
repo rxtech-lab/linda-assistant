@@ -23,9 +23,14 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var selectedDocumentItem: DocumentSheetItem?
     @State private var errorDismissTask: Task<Void, Never>?
     @State private var presentedConfirmation: ConfirmationPayload?
+    @State private var presentedQuestion: QuestionPayload?
     @State private var scrollSubject = PassthroughSubject<Void, Never>()
     private var pendingConfirmationCount: Int {
         streamHandler?.pendingConfirmations.count ?? 0
+    }
+
+    private var pendingQuestionCount: Int {
+        streamHandler?.pendingQuestions.count ?? 0
     }
 
     private var showPendingIndicator: Bool {
@@ -33,6 +38,7 @@ struct StreamableChatLayout<Header: View>: View {
               handler.isStreaming,
               handler.streamingParts.isEmpty,
               handler.pendingConfirmations.isEmpty,
+              handler.pendingQuestions.isEmpty,
               handler.error == nil
         else { return false }
         return true
@@ -42,7 +48,7 @@ struct StreamableChatLayout<Header: View>: View {
     private var allMessages: [DisplayMessage] {
         var msgs = messages
         if let handler = streamHandler, !handler.streamingParts.isEmpty,
-           handler.isStreaming || !handler.pendingConfirmations.isEmpty
+           handler.isStreaming || !handler.pendingConfirmations.isEmpty || !handler.pendingQuestions.isEmpty
         {
             msgs.append(DisplayMessage(
                 id: "streaming",
@@ -88,7 +94,21 @@ struct StreamableChatLayout<Header: View>: View {
                                 }
                             },
                             onToolCallTap: { toolCall in
-                                selectedToolCall = toolCall
+                                // If pending question, open interactive form instead of read-only detail sheet
+                                if toolCall.status == .pendingQuestion {
+                                    if let question = streamHandler?.pendingQuestions.first(where: {
+                                        $0.toolCallId == toolCall.toolCallId
+                                    }) {
+                                        presentedQuestion = question
+                                    } else if let payload = QuestionPayload.from(toolCall: toolCall) {
+                                        // Reconstruct from tool call input when not in pending queue
+                                        presentedQuestion = payload
+                                    } else {
+                                        selectedToolCall = toolCall
+                                    }
+                                } else {
+                                    selectedToolCall = toolCall
+                                }
                             },
                             onDocumentTap: { item in
                                 selectedDocumentItem = item
@@ -103,6 +123,14 @@ struct StreamableChatLayout<Header: View>: View {
                     .onAppear {
                         DispatchQueue.main.async {
                             proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    }
+                    .onChange(of: messages.count) { oldCount, newCount in
+                        // Scroll to bottom when messages are first loaded (empty -> non-empty)
+                        if oldCount == 0, newCount > 0 {
+                            DispatchQueue.main.async {
+                                proxy.scrollTo("bottom", anchor: .bottom)
+                            }
                         }
                     }
                     .task {
@@ -121,7 +149,8 @@ struct StreamableChatLayout<Header: View>: View {
             .onChange(of: pendingConfirmationCount) {
                 // Dismiss sheet if the presented confirmation was resolved (e.g. from another device)
                 if let presented = presentedConfirmation,
-                   !(streamHandler?.pendingConfirmations.contains(where: { $0.confirmationId == presented.confirmationId }) ?? false)
+                   !(streamHandler?.pendingConfirmations
+                       .contains(where: { $0.confirmationId == presented.confirmationId }) ?? false)
                 {
                     presentedConfirmation = nil
                 }
@@ -162,6 +191,39 @@ struct StreamableChatLayout<Header: View>: View {
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: pendingConfirmationCount)
+            .overlay(alignment: .bottom) {
+                if pendingQuestionCount > 0, pendingConfirmationCount == 0 {
+                    PendingQuestionBanner(count: pendingQuestionCount) {
+                        if let question = streamHandler?.pendingQuestion {
+                            presentedQuestion = question
+                        }
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: pendingQuestionCount)
+            .onChange(of: pendingQuestionCount) {
+                // Dismiss sheet if the presented question was resolved
+                if let presented = presentedQuestion,
+                   !(streamHandler?.pendingQuestions
+                       .contains(where: { $0.questionId == presented.questionId }) ?? false)
+                {
+                    presentedQuestion = nil
+                }
+                // Present next question if none is showing
+                if presentedQuestion == nil,
+                   let question = streamHandler?.pendingQuestion
+                {
+                    presentedQuestion = question
+                }
+            }
+            .onAppear {
+                if presentedQuestion == nil,
+                   let question = streamHandler?.pendingQuestion
+                {
+                    presentedQuestion = question
+                }
+            }
             .onChange(of: displayError) {
                 errorDismissTask?.cancel()
                 if displayError != nil {
@@ -214,6 +276,43 @@ struct StreamableChatLayout<Header: View>: View {
                 }
             )
         }
+        .sheet(item: $presentedQuestion) { question in
+            QuestionSheetView(
+                question: question,
+                remainingCount: max(0, (streamHandler?.pendingQuestions.count ?? 1) - 1),
+                onAnswer: { answers in
+                    presentedQuestion = nil
+                    Task {
+                        await streamHandler?.answerQuestion(
+                            questionId: question.questionId,
+                            action: "answer",
+                            answers: answers
+                        )
+                        if let next = streamHandler?.pendingQuestion {
+                            try? await Task.sleep(for: .milliseconds(400))
+                            await MainActor.run {
+                                presentedQuestion = next
+                            }
+                        }
+                    }
+                },
+                onReject: {
+                    presentedQuestion = nil
+                    Task {
+                        await streamHandler?.answerQuestion(
+                            questionId: question.questionId,
+                            action: "reject"
+                        )
+                        if let next = streamHandler?.pendingQuestion {
+                            try? await Task.sleep(for: .milliseconds(400))
+                            await MainActor.run {
+                                presentedQuestion = next
+                            }
+                        }
+                    }
+                }
+            )
+        }
         .sheet(item: $selectedToolCall) { toolCall in
             ToolCallDetailSheet(toolCall: toolCall)
         }
@@ -253,6 +352,43 @@ private struct PendingConfirmationBanner: View {
             .background(Color.orange)
             .clipShape(RoundedRectangle(cornerRadius: 14))
             .shadow(color: .orange.opacity(0.3), radius: 8, y: 4)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+    }
+}
+
+// MARK: - Pending Question Banner
+
+private struct PendingQuestionBanner: View {
+    let count: Int
+    var onTap: () -> Void = {}
+
+    var body: some View {
+        Button {
+            onTap()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "questionmark.circle.fill")
+                    .foregroundStyle(.white)
+                Text(
+                    count == 1
+                        ? "1 question pending"
+                        : "\(count) questions pending"
+                )
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+                Spacer()
+                Text("Answer")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.purple)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .shadow(color: .purple.opacity(0.3), radius: 8, y: 4)
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)

@@ -172,12 +172,7 @@ export async function compactMessages(
     .set({
       seq: sql`${messages.seq} + 1`,
     })
-    .where(
-      and(
-        eq(messages.chatSessionId, chatSessionId),
-        gte(messages.seq, keepFromSeq),
-      ),
-    );
+    .where(and(eq(messages.chatSessionId, chatSessionId), gte(messages.seq, keepFromSeq)));
 
   // 3. Insert summary message at seq = keepFromSeq
   await db.insert(messages).values({

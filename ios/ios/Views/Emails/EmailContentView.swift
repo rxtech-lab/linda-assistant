@@ -104,12 +104,12 @@ struct EmailContentView: View {
                         """)
                         .onMediaClick { media in
                             switch media {
-                            case .image(let src):
-                                if let url = URL(string: src) {
-                                    selectedImageURL = url
-                                }
-                            case .video:
-                                break
+                                case let .image(src):
+                                    if let url = URL(string: src) {
+                                        selectedImageURL = url
+                                    }
+                                case .video:
+                                    break
                             }
                         }
                         .placeholder {

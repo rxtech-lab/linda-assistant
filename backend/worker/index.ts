@@ -66,7 +66,9 @@ async function handleTask(task: AgentTask): Promise<void> {
 
     // Skip push notification if the stream was aborted
     if (!controller.signal.aborted && responseText.trim()) {
-      console.log(`[Worker] Sending push for session=${sessionId} responseText=${responseText.length} chars`);
+      console.log(
+        `[Worker] Sending push for session=${sessionId} responseText=${responseText.length} chars`,
+      );
       try {
         await notifySessionResponse(sessionId, userId, responseText);
       } catch (pushError) {
@@ -114,7 +116,10 @@ const healthServer = createServer(async (req, res) => {
 
 async function main() {
   console.log("[Worker] Starting...");
-  console.log("[Worker] MEM0_API_URL:", process.env.MEM0_API_URL || "(not set, default: http://mem0:8000)");
+  console.log(
+    "[Worker] MEM0_API_URL:",
+    process.env.MEM0_API_URL || "(not set, default: http://mem0:8000)",
+  );
 
   await setupTopology();
   console.log("[Worker] Connected to RabbitMQ, topology ready");
