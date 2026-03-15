@@ -141,11 +141,11 @@ export async function buildToolSet(
     },
     {
       name: CREATE_TASK_TOOL_NAME,
-      create: (na: boolean) => createTaskTool(userId, na),
+      create: (na: boolean) => createTaskTool(userId, na, chatSessionId),
     },
     {
       name: UPDATE_TASK_TOOL_NAME,
-      create: (na: boolean) => updateTaskTool(userId, na),
+      create: (na: boolean) => updateTaskTool(userId, na, chatSessionId),
     },
     {
       name: GET_CURRENT_TIME_TOOL_NAME,
