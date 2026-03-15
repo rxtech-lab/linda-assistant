@@ -129,6 +129,7 @@ export const selectTaskSchema = z.object({
   categories: z.array(z.string()).nullable().describe("Category labels"),
   cronSchedule: z.string().nullable().describe("Cron expression e.g. '0 9 * * *'"),
   isCronEnabled: z.boolean().nullable().describe("Whether cron scheduling is active"),
+  runsAt: z.string().nullable().describe("ISO datetime for one-shot scheduled execution"),
   nextRunAt: z
     .number()
     .nullable()
@@ -140,24 +141,61 @@ export const selectTaskSchema = z.object({
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
 
-export const insertTaskSchema = z.object({
-  assigneeId: z.string().optional().nullable().describe("Linked assignee ID"),
-  title: z.string().min(1).max(200).describe("Task title"),
-  description: z.string().max(5000).optional().describe("Detailed task description"),
-  tags: z.array(z.string()).optional().describe("Freeform tags"),
-  categories: z.array(z.string()).optional().describe("Category labels"),
-  cronSchedule: z
-    .string()
-    .optional()
-    .nullable()
-    .refine((val) => !val || isValidCronExpression(val), {
-      message: "Invalid cron expression",
-    })
-    .describe("Cron expression e.g. '0 9 * * *'"),
-  isCronEnabled: z.boolean().optional().describe("Enable cron scheduling"),
-});
+export const insertTaskSchema = z
+  .object({
+    assigneeId: z.string().optional().nullable().describe("Linked assignee ID"),
+    title: z.string().min(1).max(200).describe("Task title"),
+    description: z.string().max(5000).optional().describe("Detailed task description"),
+    tags: z.array(z.string()).optional().describe("Freeform tags"),
+    categories: z.array(z.string()).optional().describe("Category labels"),
+    cronSchedule: z
+      .string()
+      .optional()
+      .nullable()
+      .refine((val) => !val || isValidCronExpression(val), {
+        message: "Invalid cron expression",
+      })
+      .describe("Cron expression e.g. '0 9 * * *'"),
+    isCronEnabled: z.boolean().optional().describe("Enable cron scheduling"),
+    runsAt: z
+      .string()
+      .datetime({ offset: true })
+      .optional()
+      .nullable()
+      .describe("ISO datetime for one-shot scheduled execution"),
+  })
+  .refine((data) => !(data.isCronEnabled && data.runsAt), {
+    message: "A task cannot have both cron scheduling and a one-shot runsAt schedule",
+    path: ["runsAt"],
+  });
 
-export const updateTaskSchema = insertTaskSchema.partial();
+export const updateTaskSchema = z
+  .object({
+    assigneeId: z.string().optional().nullable().describe("Linked assignee ID"),
+    title: z.string().min(1).max(200).optional().describe("Task title"),
+    description: z.string().max(5000).optional().describe("Detailed task description"),
+    tags: z.array(z.string()).optional().describe("Freeform tags"),
+    categories: z.array(z.string()).optional().describe("Category labels"),
+    cronSchedule: z
+      .string()
+      .optional()
+      .nullable()
+      .refine((val) => !val || isValidCronExpression(val), {
+        message: "Invalid cron expression",
+      })
+      .describe("Cron expression e.g. '0 9 * * *'"),
+    isCronEnabled: z.boolean().optional().describe("Enable cron scheduling"),
+    runsAt: z
+      .string()
+      .datetime({ offset: true })
+      .optional()
+      .nullable()
+      .describe("ISO datetime for one-shot scheduled execution"),
+  })
+  .refine((data) => !(data.isCronEnabled && data.runsAt), {
+    message: "A task cannot have both cron scheduling and a one-shot runsAt schedule",
+    path: ["runsAt"],
+  });
 
 // ---- Task Emails ----
 

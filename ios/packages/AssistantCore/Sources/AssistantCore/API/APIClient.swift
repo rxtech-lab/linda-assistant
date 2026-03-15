@@ -143,6 +143,12 @@ public actor APIClient {
                 throw APIError.forbidden
             case 404:
                 throw APIError.notFound
+            case 409:
+                let errorBody = parseError(data)
+                throw APIError.conflict(errorBody)
+            case 422:
+                let errorBody = parseError(data)
+                throw APIError.validationError(errorBody)
             default:
                 let errorBody = parseError(data)
                 throw APIError.serverError(httpResponse.statusCode, errorBody)
@@ -166,6 +172,8 @@ public enum APIError: Error, LocalizedError, Sendable {
     case unauthorized
     case forbidden
     case notFound
+    case conflict(String)
+    case validationError(String)
     case serverError(Int, String)
 
     public var errorDescription: String? {
@@ -175,6 +183,8 @@ public enum APIError: Error, LocalizedError, Sendable {
             case .unauthorized: "Authentication required"
             case .forbidden: "Access denied"
             case .notFound: "Resource not found"
+            case let .conflict(msg): msg
+            case let .validationError(msg): msg
             case let .serverError(code, msg): "Server error (\(code)): \(msg)"
         }
     }

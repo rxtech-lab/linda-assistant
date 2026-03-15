@@ -6,7 +6,7 @@ import { authenticate } from "@/lib/auth/middleware";
 import { insertTaskSchema, selectTaskSchema } from "@/lib/schemas";
 import { parsePagination } from "@/lib/utils/pagination";
 import { successJson, errorJson, paginatedJson } from "@/lib/utils/response";
-import { registerCronTask } from "@/lib/celery/client";
+import { registerCronTask, scheduleOnceTask } from "@/lib/celery/client";
 import { getNextRunSeconds } from "@/lib/utils/cron";
 import { z } from "zod";
 
@@ -57,9 +57,13 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const parsed = insertTaskSchema.safeParse(body);
-  if (!parsed.success) return errorJson(parsed.error.message, 422);
+  if (!parsed.success) {
+    const msg = parsed.error.issues.map((i) => i.message).join("; ");
+    console.error("[Tasks] Validation error:", msg, parsed.error.issues);
+    return errorJson(msg, 422);
+  }
 
-  const status = parsed.data.isCronEnabled ? "running" : "pending";
+  const status = parsed.data.isCronEnabled || parsed.data.runsAt ? "running" : "pending";
 
   const [created] = await db
     .insert(tasks)
@@ -68,6 +72,10 @@ export async function POST(request: NextRequest) {
 
   if (created.isCronEnabled && created.cronSchedule) {
     await registerCronTask(created.id, created.cronSchedule);
+  }
+
+  if (created.runsAt) {
+    await scheduleOnceTask(created.id, created.runsAt);
   }
 
   return successJson(created, 201);

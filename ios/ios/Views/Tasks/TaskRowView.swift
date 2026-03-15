@@ -3,6 +3,9 @@ import SwiftUI
 
 struct TaskRowView: View {
     let task: LindaTask
+    var onStart: (() -> Void)?
+    var onStop: (() -> Void)?
+    var onRunNow: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -19,6 +22,22 @@ struct TaskRowView: View {
             HStack(spacing: 8) {
                 if let status = task.status {
                     StatusBadge(status: status)
+                }
+
+                if task.isCronEnabled == true {
+                    Label(task.cronSchedule ?? "cron", systemImage: "clock.arrow.2.circlepath")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else if let runsAt = task.runsAt {
+                    Label(relativeTime(runsAt), systemImage: "calendar.badge.clock")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let nextRunAt = task.nextRunAt {
+                    Label(formatNextRunShort(nextRunAt), systemImage: "arrow.right.circle")
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
                 }
 
                 if let tags = task.tags, !tags.isEmpty {
@@ -41,6 +60,40 @@ struct TaskRowView: View {
         }
         .padding(.vertical, 2)
         .accessibilityIdentifier("task-row-\(task.id)")
+        .swipeActions(edge: .trailing) {
+            if task.status == "running" {
+                Button {
+                    onStop?()
+                } label: {
+                    Label("Stop", systemImage: "stop.fill")
+                }
+                .tint(.red)
+            } else {
+                Button {
+                    onStart?()
+                } label: {
+                    Label("Start", systemImage: "play.fill")
+                }
+                .tint(.green)
+            }
+        }
+        .swipeActions(edge: .leading) {
+            if task.assigneeId != nil {
+                Button {
+                    onRunNow?()
+                } label: {
+                    Label("Run Now", systemImage: "bolt.fill")
+                }
+                .tint(.blue)
+            }
+        }
+    }
+
+    private func formatNextRunShort(_ seconds: Int) -> String {
+        let target = Date.now.addingTimeInterval(TimeInterval(seconds))
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: target, relativeTo: .now)
     }
 
     private func relativeTime(_ dateString: String) -> String {

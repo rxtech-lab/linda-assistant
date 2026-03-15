@@ -42,4 +42,31 @@ final class TaskListViewModel {
             }
         }
     }
+
+    func startTask(id: String, apiClient: APIClient, eventManager: EventManager) async {
+        do {
+            let updated = try await apiClient.startTask(id: id)
+            eventManager.emit(.taskUpdated(updated))
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func stopTask(id: String, apiClient: APIClient, eventManager: EventManager) async {
+        do {
+            let updated = try await apiClient.stopTask(id: id)
+            eventManager.emit(.taskUpdated(updated))
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func executeTaskNow(id: String, apiClient: APIClient, eventManager: EventManager) async {
+        do {
+            _ = try await apiClient.executeTaskNow(id: id)
+            await loadTasks(apiClient: apiClient)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
 }

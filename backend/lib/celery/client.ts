@@ -48,3 +48,31 @@ export async function deleteCronTask(taskId: string): Promise<void> {
     console.error(`[Celery] Failed to delete cron task ${taskId}:`, err);
   }
 }
+
+/** Schedule a one-shot task execution at a specific datetime. No-op if CELERY_BASE_URL is not set. */
+export async function scheduleOnceTask(taskId: string, runsAt: string): Promise<void> {
+  if (!CELERY_BASE_URL) return;
+  try {
+    await fetch(`${CELERY_BASE_URL}/execute-once`, {
+      method: "POST",
+      headers: celeryHeaders(),
+      body: JSON.stringify({ task_id: taskId, eta: new Date(runsAt).toISOString() }),
+    });
+  } catch (err) {
+    console.error(`[Celery] Failed to schedule one-shot task ${taskId}:`, err);
+  }
+}
+
+/** Execute a task immediately. No-op if CELERY_BASE_URL is not set. */
+export async function executeTaskNow(taskId: string): Promise<void> {
+  if (!CELERY_BASE_URL) return;
+  try {
+    await fetch(`${CELERY_BASE_URL}/execute-now`, {
+      method: "POST",
+      headers: celeryHeaders(),
+      body: JSON.stringify({ task_id: taskId }),
+    });
+  } catch (err) {
+    console.error(`[Celery] Failed to execute task ${taskId}:`, err);
+  }
+}
