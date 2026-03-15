@@ -99,6 +99,13 @@
       "when": 1773562780128,
       "tag": "0013_steady_black_bird",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1773593674107,
+      "tag": "0014_smooth_wolf_cub",
+      "breakpoints": true
     }
   ]
 }

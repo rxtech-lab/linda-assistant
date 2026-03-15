@@ -25,6 +25,15 @@ class ScheduleUpdate(BaseModel):
     cron_schedule: str
 
 
+class ExecuteOnceBody(BaseModel):
+    task_id: str
+    eta: str  # ISO datetime
+
+
+class ExecuteNowBody(BaseModel):
+    task_id: str
+
+
 def parse_crontab(cron_str: str) -> crontab:
     """Parse a 5-field cron expression into a Celery crontab."""
     parts = cron_str.strip().split()
@@ -87,3 +96,18 @@ def delete_schedule(task_id: str):
     except Exception:
         pass  # Already gone — that's fine
     return {"task_id": task_id, "deleted": True}
+
+
+@api.post("/execute-once", status_code=201, dependencies=[Depends(verify_admin_key)])
+def execute_once(body: ExecuteOnceBody):
+    from datetime import datetime
+
+    eta = datetime.fromisoformat(body.eta.replace("Z", "+00:00"))
+    execute_task.apply_async(args=[body.task_id], eta=eta)
+    return {"task_id": body.task_id, "eta": body.eta, "scheduled": True}
+
+
+@api.post("/execute-now", status_code=201, dependencies=[Depends(verify_admin_key)])
+def execute_now(body: ExecuteNowBody):
+    execute_task.apply_async(args=[body.task_id])
+    return {"task_id": body.task_id, "scheduled": True}

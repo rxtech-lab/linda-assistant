@@ -87,6 +87,8 @@ public struct LindaTask: Codable, Identifiable, Sendable {
     public let categories: [String]?
     public let cronSchedule: String?
     public let isCronEnabled: Bool?
+    public let runsAt: String?
+    public let nextRunAt: Int?
     public let createdAt: String?
     public let updatedAt: String?
 }
@@ -102,6 +104,8 @@ public struct TaskDetail: Codable, Identifiable, Sendable {
     public let categories: [String]?
     public let cronSchedule: String?
     public let isCronEnabled: Bool?
+    public let runsAt: String?
+    public let nextRunAt: Int?
     public let createdAt: String?
     public let updatedAt: String?
     public let chatSessions: [SessionSummary]
@@ -116,6 +120,7 @@ public struct CreateTask: Codable, Sendable {
     public let assigneeId: String?
     public let cronSchedule: String?
     public let isCronEnabled: Bool?
+    public let runsAt: String?
 
     public init(
         title: String,
@@ -124,7 +129,8 @@ public struct CreateTask: Codable, Sendable {
         categories: [String]? = nil,
         assigneeId: String? = nil,
         cronSchedule: String? = nil,
-        isCronEnabled: Bool? = nil
+        isCronEnabled: Bool? = nil,
+        runsAt: String? = nil
     ) {
         self.title = title
         self.description = description
@@ -133,6 +139,7 @@ public struct CreateTask: Codable, Sendable {
         self.assigneeId = assigneeId
         self.cronSchedule = cronSchedule
         self.isCronEnabled = isCronEnabled
+        self.runsAt = runsAt
     }
 }
 
@@ -144,6 +151,7 @@ public struct UpdateTask: Codable, Sendable {
     public let assigneeId: String?
     public let cronSchedule: String?
     public let isCronEnabled: Bool?
+    public let runsAt: String?
 
     public init(
         title: String? = nil,
@@ -152,7 +160,8 @@ public struct UpdateTask: Codable, Sendable {
         categories: [String]? = nil,
         assigneeId: String? = nil,
         cronSchedule: String? = nil,
-        isCronEnabled: Bool? = nil
+        isCronEnabled: Bool? = nil,
+        runsAt: String? = nil
     ) {
         self.title = title
         self.description = description
@@ -161,7 +170,13 @@ public struct UpdateTask: Codable, Sendable {
         self.assigneeId = assigneeId
         self.cronSchedule = cronSchedule
         self.isCronEnabled = isCronEnabled
+        self.runsAt = runsAt
     }
+}
+
+public struct ExecuteNowResponse: Codable, Sendable {
+    public let sessionId: String
+    public let queued: Bool
 }
 
 // MARK: - Document

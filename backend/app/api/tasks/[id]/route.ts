@@ -10,7 +10,7 @@ import {
   idParamSchema,
 } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
-import { registerCronTask, updateCronTask, deleteCronTask } from "@/lib/celery/client";
+import { registerCronTask, updateCronTask, deleteCronTask, scheduleOnceTask } from "@/lib/celery/client";
 import { getNextRunSeconds } from "@/lib/utils/cron";
 import { z } from "zod";
 
@@ -98,11 +98,38 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   const body = await request.json();
   const parsed = updateTaskSchema.safeParse(body);
-  if (!parsed.success) return errorJson(parsed.error.message, 422);
+  if (!parsed.success) {
+    const msg = parsed.error.issues.map((i) => i.message).join("; ");
+    console.error("[Tasks] Validation error:", msg, parsed.error.issues);
+    return errorJson(msg, 422);
+  }
+
+  // Check mutual exclusivity against existing task state
+  const [existing] = await db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.id, id), eq(tasks.userId, auth.userId)));
+  if (!existing) return errorJson("Task not found", 404);
+
+  const willBeCron = parsed.data.isCronEnabled ?? existing.isCronEnabled;
+  const willHaveRunsAt = parsed.data.runsAt !== undefined ? parsed.data.runsAt : existing.runsAt;
+  if (willBeCron && willHaveRunsAt) {
+    return errorJson("A task cannot have both cron scheduling and a one-shot runsAt schedule", 422);
+  }
+
+  // Clear conflicting fields when switching schedule type
+  const updates: Record<string, unknown> = { ...parsed.data, updatedAt: sql`(datetime('now'))` };
+  if (parsed.data.isCronEnabled && parsed.data.runsAt === undefined) {
+    updates.runsAt = null; // Switching to cron → clear runsAt
+  }
+  if (parsed.data.runsAt && parsed.data.isCronEnabled === undefined) {
+    updates.isCronEnabled = false; // Setting runsAt → disable cron
+    updates.cronSchedule = null;
+  }
 
   const [updated] = await db
     .update(tasks)
-    .set({ ...parsed.data, updatedAt: sql`(datetime('now'))` })
+    .set(updates)
     .where(and(eq(tasks.id, id), eq(tasks.userId, auth.userId)))
     .returning();
 
@@ -115,8 +142,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     } else {
       await registerCronTask(id, updated.cronSchedule);
     }
-  } else if (parsed.data.isCronEnabled === false) {
+  } else if (parsed.data.isCronEnabled === false || parsed.data.runsAt) {
     await deleteCronTask(id);
+  }
+
+  if (parsed.data.runsAt !== undefined && updated.runsAt) {
+    await scheduleOnceTask(id, updated.runsAt);
   }
 
   return successJson(updated);

@@ -29,7 +29,36 @@ struct TaskListView: View {
                 List {
                     ForEach(viewModel.tasks) { task in
                         NavigationLink(value: AppDestination.task(id: task.id)) {
-                            TaskRowView(task: task)
+                            TaskRowView(
+                                task: task,
+                                onStart: {
+                                    Task {
+                                        await viewModel.startTask(
+                                            id: task.id,
+                                            apiClient: apiClient,
+                                            eventManager: eventManager
+                                        )
+                                    }
+                                },
+                                onStop: {
+                                    Task {
+                                        await viewModel.stopTask(
+                                            id: task.id,
+                                            apiClient: apiClient,
+                                            eventManager: eventManager
+                                        )
+                                    }
+                                },
+                                onRunNow: {
+                                    Task {
+                                        await viewModel.executeTaskNow(
+                                            id: task.id,
+                                            apiClient: apiClient,
+                                            eventManager: eventManager
+                                        )
+                                    }
+                                }
+                            )
                         }
                     }
                     .onDelete { offsets in

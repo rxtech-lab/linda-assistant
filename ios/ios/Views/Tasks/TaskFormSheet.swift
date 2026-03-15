@@ -7,6 +7,12 @@ struct TaskFormSheet: View {
         case edit(TaskDetail)
     }
 
+    enum ScheduleType: String, CaseIterable {
+        case none = "None"
+        case cron = "Recurring (Cron)"
+        case scheduled = "Scheduled"
+    }
+
     let mode: Mode
     let onSave: (LindaTask) -> Void
 
@@ -18,8 +24,9 @@ struct TaskFormSheet: View {
     @State private var categoriesText = ""
     @State private var selectedAssigneeId: String? = nil
     @State private var availableAssignees: [Assignee] = []
-    @State private var isCronEnabled = false
+    @State private var scheduleType: ScheduleType = .none
     @State private var cronSchedule = ""
+    @State private var runsAtDate = Date().addingTimeInterval(3600)
     @State private var isSubmitting = false
     @State private var error: String?
 
@@ -54,28 +61,26 @@ struct TaskFormSheet: View {
                 }
 
                 Section("Schedule") {
-                    Toggle("Enable cron schedule", isOn: $isCronEnabled)
-                        .accessibilityIdentifier("task-cron-toggle")
-                    if isCronEnabled {
-                        CronExpressionView(cronExpression: $cronSchedule)
-                    }
-                }
-
-                Section("Assignee") {
-                    Picker("Assignee", selection: $selectedAssigneeId) {
-                        Text("None").tag(String?.none)
-                        ForEach(availableAssignees) { assignee in
-                            Text(assignee.name).tag(Optional(assignee.id))
+                    Picker("Type", selection: $scheduleType) {
+                        ForEach(ScheduleType.allCases, id: \.self) { type in
+                            Text(type.rawValue).tag(type)
                         }
                     }
-                    .accessibilityIdentifier("task-assignee-picker")
-                }
+                    .accessibilityIdentifier("task-schedule-type-picker")
 
-                Section("Schedule") {
-                    Toggle("Enable cron schedule", isOn: $isCronEnabled)
-                        .accessibilityIdentifier("task-cron-toggle")
-                    if isCronEnabled {
+                    switch scheduleType {
+                    case .cron:
                         CronExpressionView(cronExpression: $cronSchedule)
+                    case .scheduled:
+                        DatePicker(
+                            "Run at",
+                            selection: $runsAtDate,
+                            in: Date()...,
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                        .accessibilityIdentifier("task-runs-at-picker")
+                    case .none:
+                        EmptyView()
                     }
                 }
 
@@ -85,12 +90,6 @@ struct TaskFormSheet: View {
 
                 Section("Categories (comma-separated)") {
                     TextField("engineering, design", text: $categoriesText)
-                }
-
-                if let error {
-                    Section {
-                        Text(error).foregroundStyle(.red)
-                    }
                 }
 
                 #if os(iOS)
@@ -129,6 +128,14 @@ struct TaskFormSheet: View {
             }
             .onAppear { populateForEdit() }
             .task { await loadAssignees() }
+            .alert("Error", isPresented: .init(
+                get: { error != nil },
+                set: { if !$0 { error = nil } }
+            )) {
+                Button("OK") { error = nil }
+            } message: {
+                Text(error ?? "")
+            }
         }
         .presentationDetents([.large])
     }
@@ -149,8 +156,16 @@ struct TaskFormSheet: View {
         tagsText = task.tags?.joined(separator: ", ") ?? ""
         categoriesText = task.categories?.joined(separator: ", ") ?? ""
         selectedAssigneeId = task.assigneeId
-        isCronEnabled = task.isCronEnabled ?? false
         cronSchedule = task.cronSchedule ?? ""
+
+        if task.isCronEnabled == true {
+            scheduleType = .cron
+        } else if let runsAt = task.runsAt, let date = ISO8601DateFormatter().date(from: runsAt) {
+            scheduleType = .scheduled
+            runsAtDate = date
+        } else {
+            scheduleType = .none
+        }
     }
 
     private func parseTags(_ text: String) -> [String]? {
@@ -162,9 +177,20 @@ struct TaskFormSheet: View {
         isSubmitting = true
         error = nil
 
-        let effectiveCronSchedule = isCronEnabled && !cronSchedule.trimmingCharacters(in: .whitespaces).isEmpty
+        let effectiveCronSchedule = scheduleType == .cron && !cronSchedule.trimmingCharacters(in: .whitespaces).isEmpty
             ? cronSchedule.trimmingCharacters(in: .whitespaces)
             : nil
+        let effectiveRunsAt: String? = if scheduleType == .scheduled {
+            {
+                let formatter = ISO8601DateFormatter()
+                formatter.timeZone = .current
+                formatter.formatOptions = [.withInternetDateTime]
+                return formatter.string(from: runsAtDate)
+            }()
+        } else {
+            nil
+        }
+        let effectiveIsCronEnabled = scheduleType == .cron
 
         do {
             if case let .edit(existing) = mode {
@@ -175,7 +201,8 @@ struct TaskFormSheet: View {
                     categories: parseTags(categoriesText),
                     assigneeId: selectedAssigneeId,
                     cronSchedule: effectiveCronSchedule,
-                    isCronEnabled: isCronEnabled
+                    isCronEnabled: effectiveIsCronEnabled,
+                    runsAt: effectiveRunsAt
                 )
                 let updated = try await apiClient.updateTask(id: existing.id, body)
                 onSave(updated)
@@ -187,7 +214,8 @@ struct TaskFormSheet: View {
                     categories: parseTags(categoriesText),
                     assigneeId: selectedAssigneeId,
                     cronSchedule: effectiveCronSchedule,
-                    isCronEnabled: isCronEnabled
+                    isCronEnabled: effectiveIsCronEnabled,
+                    runsAt: effectiveRunsAt
                 )
                 let created = try await apiClient.createTask(body)
                 onSave(created)

@@ -98,6 +98,10 @@ public extension APIClient {
         try await request(path: "tasks/\(id)/stop", method: "POST")
     }
 
+    func executeTaskNow(id: String) async throws -> ExecuteNowResponse {
+        try await request(path: "tasks/\(id)/execute-now", method: "POST")
+    }
+
     func listTaskChatSessions(taskId: String) async throws -> [SessionSummary] {
         try await request(path: "tasks/\(taskId)/chat-sessions")
     }
