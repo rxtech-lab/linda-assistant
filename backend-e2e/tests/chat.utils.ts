@@ -223,7 +223,7 @@ export function consumeStream(
       let res: Response;
       let retries = 0;
       while (true) {
-        res = await fetch(`${BASE_URL}/api/chat/${assigneeId}/stream${options?.deviceToken ? `?deviceToken=${options.deviceToken}` : ""}`, {
+        res = await fetch(`${BASE_URL}/api/chat/${assigneeId}/stream${options?.deviceToken ? `?deviceToken=${encodeURIComponent(options.deviceToken)}` : ""}`, {
           headers: { Authorization: `Bearer ${token.access_token}` },
           signal: controller.signal,
         });

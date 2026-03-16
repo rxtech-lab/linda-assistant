@@ -64,16 +64,20 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
     public func connectByAssignee(assigneeId: String) async {
         var path = "chat/\(assigneeId)/stream"
-        if let token = deviceToken {
-            path += "?deviceToken=\(token)"
+        if let token = deviceToken,
+           let encoded = token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+        {
+            path += "?deviceToken=\(encoded)"
         }
         await connectToPath(path)
     }
 
     public func connect(sessionId: String) async {
         var path = "chat-sessions/\(sessionId)/stream"
-        if let token = deviceToken {
-            path += "?deviceToken=\(token)"
+        if let token = deviceToken,
+           let encoded = token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+        {
+            path += "?deviceToken=\(encoded)"
         }
         await connectToPath(path)
     }
