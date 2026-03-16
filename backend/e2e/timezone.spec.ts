@@ -1,5 +1,26 @@
+import { createClient } from "@libsql/client";
 import { test, expect } from "@playwright/test";
+import path from "path";
 import { taskResponseSchema } from "./helpers/schemas";
+
+const dbPath = path.resolve(__dirname, "..", "e2e-test.db");
+
+/** Query the session for a given assignee directly from the DB. */
+async function getSessionByAssignee(
+  assigneeId: string,
+): Promise<{ id: string; timezone: string | null } | null> {
+  const client = createClient({ url: `file:${dbPath}` });
+  const result = await client.execute({
+    sql: "SELECT id, timezone FROM chat_sessions WHERE assignee_id = ? ORDER BY created_at DESC LIMIT 1",
+    args: [assigneeId],
+  });
+  client.close();
+  if (result.rows.length === 0) return null;
+  return {
+    id: result.rows[0].id as string,
+    timezone: result.rows[0].timezone as string | null,
+  };
+}
 
 test.describe("Task timezone handling", () => {
   let assigneeId: string;
@@ -20,12 +41,9 @@ test.describe("Task timezone handling", () => {
     expect(msgRes.ok()).toBeTruthy();
 
     // Verify the chat session has the timezone
-    const sessionsRes = await request.get("/api/chat-sessions");
-    expect(sessionsRes.ok()).toBeTruthy();
-    const sessions = await sessionsRes.json();
-    const session = sessions.data.find((s: { assigneeId: string }) => s.assigneeId === assigneeId);
+    const session = await getSessionByAssignee(assigneeId);
     expect(session).toBeTruthy();
-    expect(session.timezone).toBe("America/New_York");
+    expect(session!.timezone).toBe("America/New_York");
   });
 
   test("chat session updates timezone on subsequent messages", async ({ request }) => {
@@ -36,12 +54,9 @@ test.describe("Task timezone handling", () => {
     expect(msgRes.ok()).toBeTruthy();
 
     // Verify the timezone was updated
-    const sessionsRes = await request.get("/api/chat-sessions");
-    expect(sessionsRes.ok()).toBeTruthy();
-    const sessions = await sessionsRes.json();
-    const session = sessions.data.find((s: { assigneeId: string }) => s.assigneeId === assigneeId);
+    const session = await getSessionByAssignee(assigneeId);
     expect(session).toBeTruthy();
-    expect(session.timezone).toBe("Asia/Tokyo");
+    expect(session!.timezone).toBe("Asia/Tokyo");
   });
 
   test("chat session preserves timezone when message omits it", async ({ request }) => {
@@ -52,12 +67,9 @@ test.describe("Task timezone handling", () => {
     expect(msgRes.ok()).toBeTruthy();
 
     // Timezone should still be the previously set value
-    const sessionsRes = await request.get("/api/chat-sessions");
-    expect(sessionsRes.ok()).toBeTruthy();
-    const sessions = await sessionsRes.json();
-    const session = sessions.data.find((s: { assigneeId: string }) => s.assigneeId === assigneeId);
+    const session = await getSessionByAssignee(assigneeId);
     expect(session).toBeTruthy();
-    expect(session.timezone).toBe("Asia/Tokyo");
+    expect(session!.timezone).toBe("Asia/Tokyo");
   });
 
   test("creating a task with runsAt uses timezone offset as-is", async ({ request }) => {
@@ -77,15 +89,12 @@ test.describe("Task timezone handling", () => {
   });
 
   test("session detail includes timezone field", async ({ request }) => {
-    // Get all sessions and find ours
-    const sessionsRes = await request.get("/api/chat-sessions");
-    expect(sessionsRes.ok()).toBeTruthy();
-    const sessions = await sessionsRes.json();
-    const session = sessions.data.find((s: { assigneeId: string }) => s.assigneeId === assigneeId);
+    // Get the session for our assignee
+    const session = await getSessionByAssignee(assigneeId);
     expect(session).toBeTruthy();
 
-    // Get session detail
-    const detailRes = await request.get(`/api/chat-sessions/${session.id}`);
+    // Get session detail via API
+    const detailRes = await request.get(`/api/chat-sessions/${session!.id}`);
     expect(detailRes.ok()).toBeTruthy();
     const detail = await detailRes.json();
     expect(detail.timezone).toBe("Asia/Tokyo");

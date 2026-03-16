@@ -3,7 +3,7 @@ import { chatSessions, tasks } from "@/lib/db/schema";
 import { registerCronTask, scheduleOnceTask } from "@/lib/celery/client";
 import { convertCronToUTC, convertRunsAtToUTC } from "@/lib/utils/timezone";
 import { isValidCronExpression } from "@/lib/utils/cron";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { tool } from "ai";
 import { z } from "zod";
 
@@ -49,7 +49,7 @@ export const createTaskTool = (userId: string, needsApproval: boolean, sessionId
         const [session] = await db
           .select({ timezone: chatSessions.timezone })
           .from(chatSessions)
-          .where(eq(chatSessions.id, sessionId));
+          .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, userId)));
         sessionTimezone = session?.timezone ?? null;
       }
 

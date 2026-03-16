@@ -51,7 +51,10 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
         return { error: "Invalid cron expression" };
       }
 
-      // Validate mutual exclusivity
+      // Validate mutual exclusivity: reject when both a cron schedule and runsAt are provided
+      if (cronSchedule && runsAt) {
+        return { error: "A task cannot have both cron scheduling and a one-shot runsAt schedule" };
+      }
       if (isCronEnabled && runsAt) {
         return { error: "A task cannot have both cron scheduling and a one-shot runsAt schedule" };
       }
@@ -62,9 +65,16 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
         const [session] = await db
           .select({ timezone: chatSessions.timezone })
           .from(chatSessions)
-          .where(eq(chatSessions.id, sessionId));
+          .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, userId)));
         sessionTimezone = session?.timezone ?? null;
       }
+
+      // Fetch existing task to check current state
+      const [existingTask] = await db
+        .select()
+        .from(tasks)
+        .where(and(eq(tasks.id, taskId), eq(tasks.userId, userId)));
+      if (!existingTask) return { error: "Task not found" };
 
       const setValues: Record<string, unknown> = {
         updatedAt: sql`(datetime('now'))`,
@@ -87,6 +97,9 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
         }
       }
       if (isCronEnabled !== undefined) {
+        if (isCronEnabled && !cronSchedule && !existingTask.cronSchedule) {
+          return { error: "Cannot enable cron without a cron schedule" };
+        }
         setValues.isCronEnabled = isCronEnabled;
         if (!isCronEnabled) {
           setValues.cronSchedule = null;
@@ -111,13 +124,17 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
       if (!updated) return { error: "Task not found" };
 
       // Sync with Celery
-      if (updated.isCronEnabled && updated.cronSchedule) {
-        if (cronSchedule !== undefined) {
-          await updateCronTask(taskId, updated.cronSchedule);
+      const wasCronEnabled = existingTask.isCronEnabled && existingTask.cronSchedule;
+      const isCronNow = updated.isCronEnabled && updated.cronSchedule;
+
+      if (isCronNow) {
+        if (wasCronEnabled) {
+          await updateCronTask(taskId, updated.cronSchedule!);
         } else {
-          await registerCronTask(taskId, updated.cronSchedule);
+          await registerCronTask(taskId, updated.cronSchedule!);
         }
-      } else if (isCronEnabled === false || runsAt) {
+      } else if (wasCronEnabled && !isCronNow) {
+        // Cron was active but is now disabled/removed
         await deleteCronTask(taskId);
       }
 

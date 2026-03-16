@@ -108,9 +108,11 @@ export function convertCronToUTC(cronSchedule: string, sessionTimezone?: string 
 
     // Convert from local hour to UTC: subtract offset
     let utcHour = hourNum - offsetHours;
-    let minuteNum = parseInt(minute, 10);
-    if (!isNaN(minuteNum) && minute === String(minuteNum)) {
-      minuteNum = minuteNum - offsetMins;
+    // Only adjust minutes when the minute field is a simple integer
+    const minuteIsSimple = /^\d+$/.test(minute) && minute === String(parseInt(minute, 10));
+    let adjustedMinute = minute;
+    if (minuteIsSimple && offsetMins !== 0) {
+      let minuteNum = parseInt(minute, 10) - offsetMins;
       if (minuteNum < 0) {
         minuteNum += 60;
         utcHour -= 1;
@@ -118,12 +120,13 @@ export function convertCronToUTC(cronSchedule: string, sessionTimezone?: string 
         minuteNum -= 60;
         utcHour += 1;
       }
+      adjustedMinute = String(minuteNum);
     }
 
     // Wrap hour around 24h
     utcHour = ((utcHour % 24) + 24) % 24;
 
-    return `${isNaN(minuteNum) ? minute : minuteNum} ${utcHour} ${dayOfMonth} ${month} ${dayOfWeek}`;
+    return `${adjustedMinute} ${utcHour} ${dayOfMonth} ${month} ${dayOfWeek}`;
   } catch {
     return cronSchedule;
   }

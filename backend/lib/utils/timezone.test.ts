@@ -90,4 +90,21 @@ describe("convertCronToUTC", () => {
     expect(convertCronToUTC("not-a-cron", "Asia/Tokyo")).toBe("not-a-cron");
     expect(convertCronToUTC("0 9", "Asia/Tokyo")).toBe("0 9");
   });
+
+  test("preserves non-integer minute fields during conversion", () => {
+    // Minute fields like */5, 5-10, 5,10 should not be parsed/corrupted
+    const result1 = convertCronToUTC("*/5 9 * * *", "Asia/Tokyo");
+    expect(result1).toBe("*/5 0 * * *");
+    const result2 = convertCronToUTC("5-10 9 * * *", "Asia/Tokyo");
+    expect(result2).toBe("5-10 0 * * *");
+    const result3 = convertCronToUTC("5,10 9 * * *", "Asia/Tokyo");
+    expect(result3).toBe("5,10 0 * * *");
+    const result4 = convertCronToUTC("0/15 9 * * *", "Asia/Tokyo");
+    expect(result4).toBe("0/15 0 * * *");
+  });
+
+  test("returns as-is when runsAt has milliseconds with Z suffix", () => {
+    expect(convertRunsAtToUTC("2025-06-15T09:00:00.000Z")).toBe("2025-06-15T09:00:00.000Z");
+    expect(convertRunsAtToUTC("2025-06-15T09:00:00.123Z")).toBe("2025-06-15T09:00:00.123Z");
+  });
 });
