@@ -70,7 +70,7 @@ struct SidebarNavigationView: View {
                         AssigneeListView()
                     }
                 case .settings:
-                    NavigationStack(path: $nav.settingsPath) {
+                    NavigationStack {
                         SettingsView()
                     }
             }

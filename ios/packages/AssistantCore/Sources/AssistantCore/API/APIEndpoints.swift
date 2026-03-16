@@ -239,6 +239,16 @@ public extension APIClient {
         try await request(path: "location-response", method: "POST", body: body)
     }
 
+    // MARK: - Usage
+
+    func getUsage(days: Int = 30, tzOffset: Int? = nil) async throws -> UsageResponse {
+        let offset = tzOffset ?? (TimeZone.current.secondsFromGMT() / 3600)
+        return try await request(path: "usage", queryItems: [
+            URLQueryItem(name: "days", value: "\(days)"),
+            URLQueryItem(name: "tzOffset", value: "\(offset)"),
+        ])
+    }
+
     // MARK: - Devices
 
     func registerDevice(_ body: RegisterDevice) async throws -> Device {

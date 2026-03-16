@@ -30,7 +30,7 @@
 	<key>SUFeedURL</key>
 	<string>https://update.linda.rxlab.app/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>REPLACE_WITH_YOUR_PUBLIC_ED_KEY</string>
+	<string>OOJs50Q9V9lpqBgeRi0ow0YBdiAlmc9uJ3B9hABDsqQ=</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

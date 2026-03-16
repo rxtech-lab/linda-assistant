@@ -31,18 +31,9 @@ struct TaskListView: View {
                         NavigationLink(value: AppDestination.task(id: task.id)) {
                             TaskRowView(
                                 task: task,
-                                onStart: {
+                                onDelete: {
                                     Task {
-                                        await viewModel.startTask(
-                                            id: task.id,
-                                            apiClient: apiClient,
-                                            eventManager: eventManager
-                                        )
-                                    }
-                                },
-                                onStop: {
-                                    Task {
-                                        await viewModel.stopTask(
+                                        await viewModel.deleteTask(
                                             id: task.id,
                                             apiClient: apiClient,
                                             eventManager: eventManager
@@ -59,11 +50,6 @@ struct TaskListView: View {
                                     }
                                 }
                             )
-                        }
-                    }
-                    .onDelete { offsets in
-                        Task {
-                            await viewModel.deleteTasks(at: offsets, apiClient: apiClient, eventManager: eventManager)
                         }
                     }
                 }

@@ -3,8 +3,7 @@ import SwiftUI
 
 struct TaskRowView: View {
     let task: LindaTask
-    var onStart: (() -> Void)?
-    var onStop: (() -> Void)?
+    var onDelete: (() -> Void)?
     var onRunNow: (() -> Void)?
 
     var body: some View {
@@ -60,21 +59,11 @@ struct TaskRowView: View {
         }
         .padding(.vertical, 2)
         .accessibilityIdentifier("task-row-\(task.id)")
-        .swipeActions(edge: .trailing) {
-            if task.status == "running" {
-                Button {
-                    onStop?()
-                } label: {
-                    Label("Stop", systemImage: "stop.fill")
-                }
-                .tint(.red)
-            } else {
-                Button {
-                    onStart?()
-                } label: {
-                    Label("Start", systemImage: "play.fill")
-                }
-                .tint(.green)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
+                onDelete?()
+            } label: {
+                Label("Delete", systemImage: "trash")
             }
         }
         .swipeActions(edge: .leading) {
