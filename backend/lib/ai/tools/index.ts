@@ -160,10 +160,6 @@ export async function buildToolSet(
       name: GET_LOCATION_TOOL_NAME,
       create: (_na: boolean) => getLocationTool(),
     },
-    {
-      name: SEND_NOTIFICATION_TOOL_NAME,
-      create: (na: boolean) => sendNotificationTool(userId, na),
-    },
   ];
 
   // Build permission-aware tools
@@ -180,6 +176,9 @@ export async function buildToolSet(
   if (chatSessionId) {
     filtered[CREATE_DOCUMENT_TOOL_NAME] = createDocumentTool(userId, chatSessionId);
   }
+
+  // Notification tool — never require confirmation
+  filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(userId);
 
   // Skip MCP tools in E2E test mode (no valid OAuth tokens for external services)
   if (!isE2E) {

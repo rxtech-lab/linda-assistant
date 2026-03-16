@@ -2,11 +2,10 @@ import { tool } from "ai";
 import { z } from "zod";
 import { sendPushNotification } from "@/lib/push";
 
-export const sendNotificationTool = (userId: string, needsApproval: boolean) =>
+export const sendNotificationTool = (userId: string) =>
   tool({
     description:
       "Send a push notification to all of the user's registered devices. Use this to proactively alert the user about important information, reminders, or updates.",
-    needsApproval,
     inputSchema: z.object({
       title: z.string().describe("Notification title"),
       body: z.string().describe("Notification body text"),
