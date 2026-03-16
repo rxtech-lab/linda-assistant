@@ -16,13 +16,13 @@ import { setStreamActive } from "@/lib/streaming/manager";
 import { extractTextFromMessage, prepareMessages } from "./compaction";
 import { createConfirmation, sendConfirmationGroupNotification } from "./confirmation";
 import { createLocationRequest } from "./location";
+import { getModelProvider } from "./model";
+import { availableModelSchema, calculateCostUsd, DEFAULT_MODEL } from "./models";
 import { createQuestion, sendQuestionGroupNotification } from "./question";
+import { buildToolSet } from "./tools";
 import { ASK_QUESTION_TOOL_NAME } from "./tools/ask-question";
 import { GET_LOCATION_TOOL_NAME } from "./tools/get-location";
-import { getModelProvider } from "./model";
-import { availableModelSchema, DEFAULT_MODEL } from "./models";
-import { buildToolSet } from "./tools";
-import { resolvePermission, loadAssigneePermissions } from "./tools/permission";
+import { loadAssigneePermissions, resolvePermission } from "./tools/permission";
 
 const MAX_STEPS = 20;
 
@@ -908,6 +908,10 @@ export async function runAgent(options: AgentRunOptions) {
   let currentMessages: ModelMessage[] = [...preprocessed.messages];
   let persistedCount = messages.length + preprocessed.persistCount;
 
+  // Accumulated token usage across all steps
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+
   try {
     while (stepCount < MAX_STEPS) {
       if (signal?.aborted) break;
@@ -1048,6 +1052,13 @@ export async function runAgent(options: AgentRunOptions) {
 
       const finishReason = await result.finishReason;
       const responseMessages = (await result.response).messages;
+
+      // Accumulate token usage from this step
+      const stepUsage = await result.usage;
+      if (stepUsage) {
+        totalInputTokens += stepUsage.inputTokens ?? 0;
+        totalOutputTokens += stepUsage.outputTokens ?? 0;
+      }
 
       // Append response messages with the step id as the assistant message's id
       currentMessages = [
@@ -1255,10 +1266,16 @@ export async function runAgent(options: AgentRunOptions) {
             ? "waiting_question"
             : "waiting_confirmation";
         await onEvent?.("status", { status: waitingStatus });
+
+        // Save accumulated token usage so far (partial run before pause)
+        const pauseCostUsd = calculateCostUsd(modelId, totalInputTokens, totalOutputTokens);
         await db
           .update(chatSessions)
           .set({
             status: waitingStatus,
+            inputTokens: totalInputTokens > 0 ? totalInputTokens : undefined,
+            outputTokens: totalOutputTokens > 0 ? totalOutputTokens : undefined,
+            costUsd: pauseCostUsd,
             updatedAt: sql`(datetime('now'))`,
           })
           .where(eq(chatSessions.id, sessionId));
@@ -1304,10 +1321,17 @@ export async function runAgent(options: AgentRunOptions) {
     // Persist new messages and mark session as stopped
     await insertMessages(sessionId, currentMessages.slice(persistedCount));
     persistedCount = currentMessages.length;
+
+    // Calculate USD cost for this run's accumulated token usage
+    const costUsd = calculateCostUsd(modelId, totalInputTokens, totalOutputTokens);
+
     await db
       .update(chatSessions)
       .set({
         status: "stopped",
+        inputTokens: totalInputTokens > 0 ? totalInputTokens : undefined,
+        outputTokens: totalOutputTokens > 0 ? totalOutputTokens : undefined,
+        costUsd,
         updatedAt: sql`(datetime('now'))`,
       })
       .where(eq(chatSessions.id, sessionId));
