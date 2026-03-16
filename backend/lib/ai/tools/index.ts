@@ -14,6 +14,7 @@ import { GET_CURRENT_TIME_TOOL_NAME, getCurrentTimeTool } from "./get-current-ti
 import { ASK_QUESTION_TOOL_NAME, askQuestionTool } from "./ask-question";
 import { GET_LOCATION_TOOL_NAME, getLocationTool } from "./get-location";
 import { UPDATE_DOCUMENT_TOOL_NAME, updateDocumentTool } from "./update-document";
+import { SEND_NOTIFICATION_TOOL_NAME, sendNotificationTool } from "./send-notification";
 import { createFilesMcp } from "./mcps/files";
 import { createFirecrawlMcp } from "./mcps/firecrawl";
 import { createTransportMcp } from "./mcps/transport";
@@ -159,6 +160,10 @@ export async function buildToolSet(
       name: GET_LOCATION_TOOL_NAME,
       create: (_na: boolean) => getLocationTool(),
     },
+    {
+      name: SEND_NOTIFICATION_TOOL_NAME,
+      create: (na: boolean) => sendNotificationTool(userId, na),
+    },
   ];
 
   // Build permission-aware tools
@@ -225,6 +230,7 @@ export {
   GET_LOCATION_TOOL_NAME,
   SEARCH_EMAILS_TOOL_NAME,
   SEND_EMAIL_TOOL_NAME,
+  SEND_NOTIFICATION_TOOL_NAME,
   UPDATE_DOCUMENT_TOOL_NAME,
   UPDATE_TASK_TOOL_NAME,
 };

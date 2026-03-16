@@ -37,6 +37,11 @@ mock.module("@/lib/db", () => ({
   },
 }));
 
+// Mock push notification module to avoid real APNs calls in unit tests
+mock.module("@/lib/push", () => ({
+  sendPushNotification: mock(() => Promise.resolve([])),
+}));
+
 const { buildToolSet } = await import("./index");
 
 // Well-known tools that must always be present (not exhaustive — new tools may be added)
@@ -48,6 +53,7 @@ const KNOWN_TOOLS = [
   "update_document",
   "get_current_time",
   "ask_question",
+  "send_notification",
 ];
 
 describe("buildToolSet", () => {

@@ -10,7 +10,12 @@ import {
   idParamSchema,
 } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
-import { registerCronTask, updateCronTask, deleteCronTask, scheduleOnceTask } from "@/lib/celery/client";
+import {
+  registerCronTask,
+  updateCronTask,
+  deleteCronTask,
+  scheduleOnceTask,
+} from "@/lib/celery/client";
 import { getNextRunSeconds } from "@/lib/utils/cron";
 import { z } from "zod";
 
