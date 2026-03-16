@@ -51,11 +51,8 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
         return { error: "Invalid cron expression" };
       }
 
-      // Validate mutual exclusivity: reject when both a cron schedule and runsAt are provided
-      if (cronSchedule && runsAt) {
-        return { error: "A task cannot have both cron scheduling and a one-shot runsAt schedule" };
-      }
-      if (isCronEnabled && runsAt) {
+      // Validate mutual exclusivity: reject when both cron and runsAt are provided
+      if ((cronSchedule || isCronEnabled) && runsAt) {
         return { error: "A task cannot have both cron scheduling and a one-shot runsAt schedule" };
       }
 

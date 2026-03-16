@@ -109,7 +109,7 @@ export function convertCronToUTC(cronSchedule: string, sessionTimezone?: string 
     // Convert from local hour to UTC: subtract offset
     let utcHour = hourNum - offsetHours;
     // Only adjust minutes when the minute field is a simple integer
-    const minuteIsSimple = /^\d+$/.test(minute) && minute === String(parseInt(minute, 10));
+    const minuteIsSimple = /^\d+$/.test(minute);
     let adjustedMinute = minute;
     if (minuteIsSimple && offsetMins !== 0) {
       let minuteNum = parseInt(minute, 10) - offsetMins;
