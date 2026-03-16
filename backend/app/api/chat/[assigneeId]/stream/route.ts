@@ -54,6 +54,7 @@ export async function GET(
   if (!session) return errorJson("No chat session exists for this assignee", 404);
 
   const { stream, send, ping, close } = createSSEStream();
+  const deviceToken = request.nextUrl.searchParams.get("deviceToken") ?? undefined;
 
   // Start streaming in the background
   (async () => {
@@ -78,7 +79,7 @@ export async function GET(
 
       // Subscribe, replay cached events, then switch to live mode
       console.log(
-        `[Stream] Subscribing to events for session=${session.id} (assignee=${assigneeId})`,
+        `[Stream] Subscribing to events for session=${session.id} (assignee=${assigneeId}) deviceToken=${deviceToken ?? "none"}`,
       );
       subscription = await streamWithReplay(
         session.id,
@@ -86,6 +87,7 @@ export async function GET(
         send,
         cleanup,
         request.signal,
+        deviceToken,
       );
     } catch (error) {
       if (!request.signal.aborted) {

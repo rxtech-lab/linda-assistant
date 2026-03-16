@@ -18,6 +18,7 @@ public enum SSEEventType: String, Sendable {
     case error
     case done
     case status
+    case refresh
     case reconnecting
     case unknown
 }
@@ -106,6 +107,9 @@ public struct SSEEvent: Sendable {
             case .done:
                 logger.info("parse: done")
                 return .done
+            case .refresh:
+                logger.info("parse: refresh")
+                return .refresh
             case .reconnecting:
                 logger.info("parse: reconnecting")
                 return .reconnecting
@@ -133,6 +137,7 @@ public enum SSEMessage: Sendable {
     case compacting(CompactingPayload)
     case error(SSEErrorPayload)
     case done
+    case refresh
     case reconnecting
     case unknown(String)
 }
