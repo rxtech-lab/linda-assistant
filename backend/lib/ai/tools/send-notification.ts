@@ -19,11 +19,11 @@ export const sendNotificationTool = (userId: string, needsApproval: boolean) =>
           data: { type: "agent_notification" },
         });
 
-        return { sent: true, title, body };
+        return { sent: true };
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error sending notification";
         console.error("[send_notification] Error:", err);
-        return { error: message };
+        return { sent: false, error: message };
       }
     },
   });
