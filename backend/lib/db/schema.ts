@@ -1,5 +1,5 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
 
 export type ToolPermission = {
@@ -93,6 +93,9 @@ export const chatSessions = sqliteTable("chat_sessions", {
   refreshToken: text("refresh_token"),
   deviceToken: text("device_token"),
   timezone: text("timezone"),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  costUsd: real("cost_usd"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
