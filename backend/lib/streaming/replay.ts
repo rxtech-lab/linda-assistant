@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { subscribeToEvents, type EventSubscription } from "@/lib/queue/consumer";
 import type { AgentEvent } from "@/lib/queue/types";
-import { getStreamChunks } from "./manager";
+import { getStreamChunks, hasDeviceReceived, markDeviceReceived } from "./manager";
 
 /**
  * Subscribe-first SSE replay helper.
@@ -18,6 +18,7 @@ export async function streamWithReplay(
   send: (event: string, data: unknown) => void,
   cleanup: () => void,
   signal: AbortSignal,
+  deviceToken?: string,
 ): Promise<EventSubscription> {
   let replaying = true;
   let highestSeq = 0;
@@ -54,10 +55,33 @@ export async function streamWithReplay(
   // 2. Send current session status
   send("status", { id: crypto.randomUUID(), status: sessionStatus });
 
-  // 3. If session already stopped, skip replay — no cached chunks to replay.
+  // 3. If session already stopped, check for cached chunks.
+  //    If there are cached chunks and the device hasn't received them yet,
+  //    emit a "refresh" signal so the client refetches the latest chat.
   //    Stay open in live mode so newly-sent messages are still delivered.
   if (sessionStatus === "stopped") {
-    console.log(`[Replay] session=${sessionId} already stopped, skipping replay but staying open`);
+    const chunks = await getStreamChunks(sessionId);
+    const hasChunks = chunks.length > 0;
+    let deviceAlreadyReceived = false;
+
+    if (deviceToken) {
+      deviceAlreadyReceived = await hasDeviceReceived(sessionId, deviceToken);
+    }
+
+    if (hasChunks && !deviceAlreadyReceived) {
+      console.log(
+        `[Replay] session=${sessionId} stopped with ${chunks.length} cached chunks, device=${deviceToken ?? "unknown"} not yet received, emitting refresh`,
+      );
+      send("refresh", { id: crypto.randomUUID() });
+      if (deviceToken) {
+        await markDeviceReceived(sessionId, deviceToken);
+      }
+    } else {
+      console.log(
+        `[Replay] session=${sessionId} already stopped, no refresh needed (hasChunks=${hasChunks}, deviceAlreadyReceived=${deviceAlreadyReceived})`,
+      );
+    }
+
     replaying = false;
     return subscription;
   }
@@ -96,9 +120,12 @@ export async function streamWithReplay(
     `[Replay] session=${sessionId} replayed=${chunks.length} hasTerminal=${hasTerminal} highestSeq=${highestSeq}`,
   );
 
-  // 4. If agent already finished, close after replay
+  // 4. If agent already finished, mark device and close after replay
   if (hasTerminal) {
     console.log(`[Replay] session=${sessionId} terminal event found, closing after replay`);
+    if (deviceToken) {
+      await markDeviceReceived(sessionId, deviceToken);
+    }
     replaying = false;
     cleanup();
     return subscription;

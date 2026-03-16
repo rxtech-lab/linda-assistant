@@ -159,6 +159,8 @@ export function consumeStream(
     label?: string;
     /** Automatically cancel the stream when a `done` event is received */
     autoDisconnect?: boolean;
+    /** Device token to send as query parameter for per-device stream recovery */
+    deviceToken?: string;
     onMessage?: (event: StreamEvent) => void | Promise<void>;
   },
 ): StreamHandle {
@@ -221,7 +223,7 @@ export function consumeStream(
       let res: Response;
       let retries = 0;
       while (true) {
-        res = await fetch(`${BASE_URL}/api/chat/${assigneeId}/stream`, {
+        res = await fetch(`${BASE_URL}/api/chat/${assigneeId}/stream${options?.deviceToken ? `?deviceToken=${encodeURIComponent(options.deviceToken)}` : ""}`, {
           headers: { Authorization: `Bearer ${token.access_token}` },
           signal: controller.signal,
         });

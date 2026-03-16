@@ -63,11 +63,23 @@ public final class ChatStreamHandler: @unchecked Sendable {
     }
 
     public func connectByAssignee(assigneeId: String) async {
-        await connectToPath("chat/\(assigneeId)/stream")
+        var path = "chat/\(assigneeId)/stream"
+        if let token = deviceToken,
+           let encoded = token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+        {
+            path += "?deviceToken=\(encoded)"
+        }
+        await connectToPath(path)
     }
 
     public func connect(sessionId: String) async {
-        await connectToPath("chat-sessions/\(sessionId)/stream")
+        var path = "chat-sessions/\(sessionId)/stream"
+        if let token = deviceToken,
+           let encoded = token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+        {
+            path += "?deviceToken=\(encoded)"
+        }
+        await connectToPath(path)
     }
 
     @discardableResult
@@ -540,6 +552,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
             case .done:
                 logger.info("done: streamingParts count=\(self.streamingParts.count)")
                 finalizeResponse()
+
+            case .refresh:
+                logger.info("refresh: server indicates new data available, triggering refetch")
+                Task { await onReconnected?() }
 
             case let .status(payload):
                 logger.info("status: \(payload.status)")

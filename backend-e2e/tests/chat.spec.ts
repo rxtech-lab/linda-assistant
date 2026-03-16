@@ -725,7 +725,136 @@ test.describe.serial("Stream behavior", () => {
     streamBReconnect.cancel();
   });
 
-  test("test 8: no stream listener — poll DB until assistant replies, then connect and receive nothing", async ({ assigneeId }) => {
+  test("test 7b: stream recovery — two devices both disconnect and reconnect mid-stream, both get replay", async ({ assigneeId }) => {
+    const deviceTokenA = `test-device-${Date.now()}-a`;
+    const deviceTokenB = `test-device-${Date.now()}-b`;
+
+    // Step 1: Send message asking for long text
+    await sendMessage(
+      assigneeId,
+      "Write exactly 300 words about the history of space exploration. Do not use any tools including ask_question. Just write plain text.",
+    );
+
+    // Step 2: Connect both devices, each disconnects after first text-delta
+    const firstChunkA: StreamEvent[] = [];
+    const streamA = consumeStream(assigneeId, {
+      timeout: 60_000,
+      label: "Device A",
+      deviceToken: deviceTokenA,
+      onMessage: async (evt) => {
+        if (evt.event === "text-delta") {
+          firstChunkA.push(evt);
+          console.log("Device A received first text-delta, disconnecting...");
+          streamA.cancel();
+        }
+      },
+    });
+
+    const firstChunkB: StreamEvent[] = [];
+    const streamB = consumeStream(assigneeId, {
+      timeout: 60_000,
+      label: "Device B",
+      deviceToken: deviceTokenB,
+      onMessage: async (evt) => {
+        if (evt.event === "text-delta") {
+          firstChunkB.push(evt);
+          console.log("Device B received first text-delta, disconnecting...");
+          streamB.cancel();
+        }
+      },
+    });
+
+    // Wait for both to disconnect
+    await new Promise<void>((resolve) => {
+      const check = setInterval(() => {
+        if (firstChunkA.length > 0 && firstChunkB.length > 0) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 100);
+      setTimeout(() => {
+        clearInterval(check);
+        resolve();
+      }, 30_000);
+    });
+
+    expect(firstChunkA.length).toBeGreaterThan(0);
+    expect(firstChunkB.length).toBeGreaterThan(0);
+    console.log("Both devices disconnected after first chunk");
+
+    // Step 3: Wait briefly, then reconnect both devices
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const streamAReconnect = consumeStream(assigneeId, {
+      timeout: 120_000,
+      label: "Device A Reconnect",
+      deviceToken: deviceTokenA,
+    });
+    const streamBReconnect = consumeStream(assigneeId, {
+      timeout: 120_000,
+      label: "Device B Reconnect",
+      deviceToken: deviceTokenB,
+    });
+
+    // Step 4: Wait for both to finish
+    await Promise.all([
+      Promise.race([
+        streamAReconnect.waitForDone(),
+        streamAReconnect.waitForEvent("status").then((evt) => {
+          if (evt.data.status === "stopped") return;
+          return streamAReconnect.waitForDone();
+        }),
+      ]),
+      Promise.race([
+        streamBReconnect.waitForDone(),
+        streamBReconnect.waitForEvent("status").then((evt) => {
+          if (evt.data.status === "stopped") return;
+          return streamBReconnect.waitForDone();
+        }),
+      ]),
+    ]);
+
+    // Step 5: Verify both received all text
+    const { messages } = await getChatHistory(assigneeId);
+    const assistantMsg = messages.find((m) => m.role === "assistant");
+    expect(assistantMsg).toBeTruthy();
+
+    let fullText = "";
+    if (typeof assistantMsg!.content === "string") {
+      fullText = assistantMsg!.content;
+    } else if (Array.isArray(assistantMsg!.content)) {
+      for (const part of assistantMsg!.content) {
+        if (part.type === "text" && typeof part.text === "string") {
+          fullText += part.text;
+        }
+      }
+    }
+
+    expect(fullText.length).toBeGreaterThan(500);
+
+    const textA = streamAReconnect.events
+      .filter((e) => e.event === "text-delta")
+      .map((e) => String(e.data.text ?? ""))
+      .join("");
+    const textB = streamBReconnect.events
+      .filter((e) => e.event === "text-delta")
+      .map((e) => String(e.data.text ?? ""))
+      .join("");
+
+    expect(textA).toBe(fullText);
+    expect(textB).toBe(fullText);
+
+    console.log(
+      `Test 7b passed: both devices disconnected+reconnected mid-stream, both received full text (${fullText.length} chars)`,
+    );
+
+    streamAReconnect.cancel();
+    streamBReconnect.cancel();
+  });
+
+  test("test 8: no stream listener — poll DB until assistant replies, then connect with deviceToken and receive refresh signal", async ({ assigneeId }) => {
+    const deviceTokenA = `test-device-${Date.now()}-a`;
+
     // Step 1: Send message but do NOT listen to the stream
     await sendMessage(
       assigneeId,
@@ -764,11 +893,11 @@ test.describe.serial("Stream behavior", () => {
 
     expect(assistantText.length).toBeGreaterThan(0);
 
-    // Step 3: Now connect to the stream — generation is already done, should receive no text-delta events
-    const stream = consumeStream(assigneeId, { timeout: 15_000 });
+    // Step 3: Connect with deviceToken — should receive refresh signal (cached data exists, device hasn't seen it)
+    const stream = consumeStream(assigneeId, { timeout: 15_000, deviceToken: deviceTokenA });
     try {
-      const statusEvent = await stream.waitForEvent("status");
-      console.log("Received status event:", statusEvent.data);
+      const refreshEvent = await stream.waitForEvent("refresh");
+      console.log("Received refresh event:", refreshEvent.data);
 
       const textDeltas = stream.events.filter((e) => e.event === "text-delta");
       console.log(
@@ -776,9 +905,35 @@ test.describe.serial("Stream behavior", () => {
       );
       expect(textDeltas.length).toBe(0);
 
-      console.log("Test 8 passed: no stream events after generation completed");
+      console.log("Test 8 passed: refresh signal received after generation completed");
     } finally {
       stream.cancel();
+    }
+
+    // Step 4: Connect again with same deviceToken — should NOT receive refresh (already marked)
+    const stream2 = consumeStream(assigneeId, { timeout: 15_000, deviceToken: deviceTokenA });
+    try {
+      const statusEvent = await stream2.waitForEvent("status");
+      console.log("Second connection status event:", statusEvent.data);
+
+      const refreshEvents = stream2.events.filter((e) => e.event === "refresh");
+      console.log(`Second connection received ${refreshEvents.length} refresh events`);
+      expect(refreshEvents.length).toBe(0);
+
+      console.log("Test 8 continued: no duplicate refresh for same device");
+    } finally {
+      stream2.cancel();
+    }
+
+    // Step 5: Connect with a DIFFERENT deviceToken — should receive refresh
+    const deviceTokenB = `test-device-${Date.now()}-b`;
+    const stream3 = consumeStream(assigneeId, { timeout: 15_000, deviceToken: deviceTokenB });
+    try {
+      const refreshEvent = await stream3.waitForEvent("refresh");
+      console.log("Different device refresh event:", refreshEvent.data);
+      console.log("Test 8 continued: different device gets refresh signal");
+    } finally {
+      stream3.cancel();
     }
   });
 });

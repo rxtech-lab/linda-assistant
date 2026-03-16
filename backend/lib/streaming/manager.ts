@@ -3,6 +3,8 @@ import { redis } from "@/lib/redis";
 const CHUNK_KEY = (sessionId: string) => `stream:chunks:${sessionId}`;
 const SEQ_KEY = (sessionId: string) => `stream:seq:${sessionId}`;
 const ACTIVE_KEY = (sessionId: string) => `stream:active:${sessionId}`;
+const DEVICE_KEY = (sessionId: string, deviceToken: string) =>
+  `stream:device:${sessionId}:${deviceToken}`;
 const CHUNK_TTL = 60 * 60; // 1 hour
 
 export async function appendStreamChunk(sessionId: string, chunk: string) {
@@ -43,4 +45,18 @@ export async function isStreamActive(sessionId: string): Promise<boolean> {
   const active = val === "1";
   console.log(`[StreamManager] session=${sessionId} isActive=${active}`);
   return active;
+}
+
+export async function markDeviceReceived(sessionId: string, deviceToken: string) {
+  console.log(`[StreamManager] session=${sessionId} markDeviceReceived device=${deviceToken}`);
+  await redis.set(DEVICE_KEY(sessionId, deviceToken), "1", { ex: CHUNK_TTL });
+}
+
+export async function hasDeviceReceived(sessionId: string, deviceToken: string): Promise<boolean> {
+  const val = await redis.get(DEVICE_KEY(sessionId, deviceToken));
+  const received = val === "1";
+  console.log(
+    `[StreamManager] session=${sessionId} hasDeviceReceived device=${deviceToken} received=${received}`,
+  );
+  return received;
 }
