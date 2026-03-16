@@ -20,13 +20,13 @@ export const MODEL_PRICING: Record<
   AvailableModel,
   { inputPerMillion: number; outputPerMillion: number }
 > = {
-  "anthropic/claude-haiku-4.5": { inputPerMillion: 0.8, outputPerMillion: 4.0 },
+  "anthropic/claude-haiku-4.5": { inputPerMillion: 1.0, outputPerMillion: 5.0 },
   "anthropic/claude-sonnet-4.6": { inputPerMillion: 3.0, outputPerMillion: 15.0 },
-  "google/gemini-3.1-flash-image-preview": { inputPerMillion: 0.15, outputPerMillion: 0.6 },
-  "google/gemini-3.1-flash-lite-preview": { inputPerMillion: 0.075, outputPerMillion: 0.3 },
-  "google/gemini-3.1-pro-preview": { inputPerMillion: 1.25, outputPerMillion: 5.0 },
-  "openai/gpt-5.4": { inputPerMillion: 2.5, outputPerMillion: 10.0 },
-  "openai/gpt-oss-120b": { inputPerMillion: 1.0, outputPerMillion: 4.0 },
+  "google/gemini-3.1-flash-image-preview": { inputPerMillion: 0.5, outputPerMillion: 3.0 },
+  "google/gemini-3.1-flash-lite-preview": { inputPerMillion: 0.25, outputPerMillion: 1.5 },
+  "google/gemini-3.1-pro-preview": { inputPerMillion: 2.0, outputPerMillion: 12.0 },
+  "openai/gpt-5.4": { inputPerMillion: 2.5, outputPerMillion: 15.0 },
+  "openai/gpt-oss-120b": { inputPerMillion: 0.04, outputPerMillion: 0.19 },
 };
 
 /**
