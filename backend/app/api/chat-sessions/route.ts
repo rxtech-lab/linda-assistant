@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
         assigneeId: chatSessions.assigneeId,
         title: chatSessions.title,
         status: chatSessions.status,
+        timezone: chatSessions.timezone,
         createdAt: chatSessions.createdAt,
         updatedAt: chatSessions.updatedAt,
       })

@@ -112,6 +112,7 @@ export async function POST(
       accessToken: auth.accessToken,
       refreshToken: auth.refreshToken,
       ...(parsed.data.deviceToken ? { deviceToken: parsed.data.deviceToken } : {}),
+      ...(parsed.data.timezone ? { timezone: parsed.data.timezone } : {}),
       updatedAt: sql`(datetime('now'))`,
     })
     .where(eq(chatSessions.id, session.id));
