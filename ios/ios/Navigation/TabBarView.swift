@@ -45,7 +45,7 @@ import SwiftUI
                 .accessibilityIdentifier("assignees-tab")
 
                 Tab("Settings", systemImage: "gearshape", value: .settings) {
-                    NavigationStack(path: $nav.settingsPath) {
+                    NavigationStack {
                         SettingsView()
                             .toolbar {
                                 ToolbarItem(placement: .topBarLeading) {

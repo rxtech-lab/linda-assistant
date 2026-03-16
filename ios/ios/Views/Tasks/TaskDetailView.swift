@@ -54,6 +54,7 @@ struct TaskDetailView: View {
             case let .chatSession(id): ChatDetailView(sessionId: id)
             case let .email(id): EmailDetailView(emailId: id)
             case let .assignee(id, name): AssigneeDetailView(assigneeId: id, assigneeName: name)
+
             }
         }
         #if os(iOS)

@@ -19,16 +19,13 @@ final class TaskListViewModel {
         isLoading = false
     }
 
-    func deleteTasks(at offsets: IndexSet, apiClient: APIClient, eventManager: EventManager) async {
-        for index in offsets {
-            let task = tasks[index]
-            do {
-                try await apiClient.deleteTask(id: task.id)
-                tasks.remove(at: index)
-                eventManager.emit(.taskDeleted(task.id))
-            } catch {
-                self.error = error.localizedDescription
-            }
+    func deleteTask(id: String, apiClient: APIClient, eventManager: EventManager) async {
+        do {
+            try await apiClient.deleteTask(id: id)
+            tasks.removeAll { $0.id == id }
+            eventManager.emit(.taskDeleted(id))
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 

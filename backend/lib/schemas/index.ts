@@ -555,6 +555,37 @@ export const streamEventSchema = z.object({
   isError: z.boolean().optional().describe("Whether this tool result is an error"),
 });
 
+// ---- Usage ----
+
+export const usageDailyEntrySchema = z.object({
+  date: z.string().describe("Date in YYYY-MM-DD format"),
+  inputTokens: z.number().describe("Total input tokens for the day"),
+  outputTokens: z.number().describe("Total output tokens for the day"),
+  costUsd: z.number().describe("Total cost in USD for the day"),
+});
+
+export const usageByAssigneeSchema = z.object({
+  assigneeId: z.string().describe("Assignee ID"),
+  assigneeName: z.string().describe("Assignee display name"),
+  inputTokens: z.number().describe("Total input tokens for this assignee"),
+  outputTokens: z.number().describe("Total output tokens for this assignee"),
+  costUsd: z.number().describe("Total cost in USD for this assignee"),
+});
+
+export const usageTotalSchema = z.object({
+  inputTokens: z.number().describe("Grand total input tokens"),
+  outputTokens: z.number().describe("Grand total output tokens"),
+  costUsd: z.number().describe("Grand total cost in USD"),
+});
+
+export const usageResponseSchema = z.object({
+  daily: z.array(usageDailyEntrySchema).describe("Daily token usage breakdown"),
+  byAssignee: z
+    .array(usageByAssigneeSchema)
+    .describe("Token usage grouped by assignee"),
+  total: usageTotalSchema.describe("Aggregate totals for the period"),
+});
+
 // ---- Common path params ----
 
 export const idParamSchema = z.object({

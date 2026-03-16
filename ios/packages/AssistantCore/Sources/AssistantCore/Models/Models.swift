@@ -595,6 +595,37 @@ public struct PresignedURLResponse: Codable, Sendable {
     public let key: String
 }
 
+// MARK: - Usage
+
+public struct UsageDailyEntry: Codable, Sendable, Identifiable {
+    public var id: String { date }
+    public let date: String
+    public let inputTokens: Int
+    public let outputTokens: Int
+    public let costUsd: Double
+}
+
+public struct UsageByAssignee: Codable, Sendable, Identifiable {
+    public var id: String { assigneeId }
+    public let assigneeId: String
+    public let assigneeName: String
+    public let inputTokens: Int
+    public let outputTokens: Int
+    public let costUsd: Double
+}
+
+public struct UsageTotal: Codable, Sendable {
+    public let inputTokens: Int
+    public let outputTokens: Int
+    public let costUsd: Double
+}
+
+public struct UsageResponse: Codable, Sendable {
+    public let daily: [UsageDailyEntry]
+    public let byAssignee: [UsageByAssignee]
+    public let total: UsageTotal
+}
+
 // MARK: - Preview Helpers
 
 public extension Assignee {
