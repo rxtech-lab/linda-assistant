@@ -32,18 +32,6 @@ import SwiftUI
                 }
                 .accessibilityIdentifier("emails-tab")
 
-                Tab("Assignees", systemImage: "person.2", value: .assignees) {
-                    NavigationStack(path: $nav.assigneesPath) {
-                        AssigneeListView()
-                            .toolbar {
-                                ToolbarItem(placement: .topBarLeading) {
-                                    chatButton
-                                }
-                            }
-                    }
-                }
-                .accessibilityIdentifier("assignees-tab")
-
                 Tab("Settings", systemImage: "gearshape", value: .settings) {
                     NavigationStack {
                         SettingsView()
