@@ -29,6 +29,7 @@ CONFIGURATION="${CONFIGURATION:-Debug}"
 SDK="${SDK:-iphonesimulator}"
 BUILD_DIR="${BUILD_DIR:-$PROJECT_ROOT/.build}"
 RESULT_BUNDLE_PATH="${RESULT_BUNDLE_PATH:-$PROJECT_ROOT/test-results.xcresult}"
+TEST_ITERATIONS="${TEST_ITERATIONS:-3}"
 
 # Determine destination based on SDK
 if [ -z "$DESTINATION" ]; then
@@ -64,6 +65,7 @@ echo -e "${BLUE}📱 SDK:${NC} $SDK"
 echo -e "${BLUE}🎯 Destination:${NC} $DESTINATION"
 echo -e "${BLUE}📂 Build Directory:${NC} $BUILD_DIR"
 echo -e "${BLUE}📊 Result Bundle:${NC} $RESULT_BUNDLE_PATH"
+echo -e "${BLUE}🔁 Test Iterations:${NC} $TEST_ITERATIONS"
 echo ""
 
 # Health check backend server
@@ -137,6 +139,8 @@ if command -v xcbeautify &> /dev/null; then
         -skipPackagePluginValidation \
         -skipMacroValidation \
         -retry-tests-on-failure \
+        -test-iterations "$TEST_ITERATIONS" \
+        -test-repetition-relaunch-enabled YES \
         "${EXTRA_BUILD_SETTINGS[@]}" \
         2>&1 | xcbeautify
     TEST_EXIT_CODE=${PIPESTATUS[0]}
@@ -152,6 +156,8 @@ else
         -skipPackagePluginValidation \
         -skipMacroValidation \
         -retry-tests-on-failure \
+        -test-iterations "$TEST_ITERATIONS" \
+        -test-repetition-relaunch-enabled YES \
         "${EXTRA_BUILD_SETTINGS[@]}" \
         2>&1
     TEST_EXIT_CODE=$?

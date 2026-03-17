@@ -115,7 +115,142 @@ test.describe.serial("Agent task creation", () => {
     const history = await getChatHistory(assigneeId);
     const createTaskCalls = findToolCallParts(history.messages, "create_task");
     expect(createTaskCalls.length).toBeGreaterThanOrEqual(1);
-    const createTaskResults = findToolResultParts(history.messages, "create_task");
+    const createTaskResults = findToolResultParts(
+      history.messages,
+      "create_task",
+    );
+    expect(createTaskResults.length).toBeGreaterThanOrEqual(1);
+
+    // Clean up the task
+    await fetch(`${BASE_URL}/api/tasks/${taskId}`, {
+      method: "DELETE",
+      headers,
+    });
+
+    stream.cancel();
+  });
+
+  test("agent creates a cron-scheduled task", async ({ assigneeId }) => {
+    const token = loadToken();
+    const headers = authHeaders(token);
+
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      label: "agent-create-cron-task",
+    });
+
+    await sendMessage(
+      assigneeId,
+      'Create a task titled "Daily Report" with cron schedule "0 9 * * 1-5". Do not ask questions, just create it immediately.',
+    );
+    await stream.waitForDone();
+
+    // Verify agent used create_task tool
+    const toolCallEvents = stream.events.filter(
+      (e) => e.event === "tool-call" && e.data.toolName === "create_task",
+    );
+    expect(toolCallEvents.length).toBeGreaterThanOrEqual(1);
+
+    // Verify tool-result was received
+    const toolResultEvents = stream.events.filter(
+      (e) => e.event === "tool-result" && e.data.toolName === "create_task",
+    );
+    expect(toolResultEvents.length).toBeGreaterThanOrEqual(1);
+
+    // Extract taskId from the tool result
+    const toolResult = toolResultEvents[0]!.data;
+    const output = toolResult.output as Record<string, unknown>;
+    expect(output.taskId).toBeTruthy();
+    const taskId = output.taskId as string;
+
+    // Verify the task was created via API with cron schedule
+    const taskRes = await fetch(`${BASE_URL}/api/tasks/${taskId}`, { headers });
+    expect(taskRes.ok).toBe(true);
+    const task = (await taskRes.json()) as {
+      id: string;
+      title: string;
+      cronSchedule: string | null;
+      status: string;
+    };
+    expect(task.title).toBe("Daily Report");
+    expect(task.cronSchedule).toBeTruthy();
+    expect(task.status).toBe("running");
+
+    // Verify in chat history
+    const history = await getChatHistory(assigneeId);
+    const createTaskCalls = findToolCallParts(history.messages, "create_task");
+    expect(createTaskCalls.length).toBeGreaterThanOrEqual(1);
+    const createTaskResults = findToolResultParts(
+      history.messages,
+      "create_task",
+    );
+    expect(createTaskResults.length).toBeGreaterThanOrEqual(1);
+
+    // Clean up the task
+    await fetch(`${BASE_URL}/api/tasks/${taskId}`, {
+      method: "DELETE",
+      headers,
+    });
+
+    stream.cancel();
+  });
+
+  test("agent creates a runsAt-scheduled task", async ({ assigneeId }) => {
+    const token = loadToken();
+    const headers = authHeaders(token);
+
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      label: "agent-create-runsat-task",
+    });
+
+    await sendMessage(
+      assigneeId,
+      'Create a task titled "Send Weekly Summary" scheduled to run at "2026-12-01T10:00:00". Do not ask questions, just create it immediately.',
+    );
+    await stream.waitForDone();
+
+    // Verify agent used create_task tool
+    const toolCallEvents = stream.events.filter(
+      (e) => e.event === "tool-call" && e.data.toolName === "create_task",
+    );
+    expect(toolCallEvents.length).toBeGreaterThanOrEqual(1);
+
+    // Verify tool-result was received
+    const toolResultEvents = stream.events.filter(
+      (e) => e.event === "tool-result" && e.data.toolName === "create_task",
+    );
+    expect(toolResultEvents.length).toBeGreaterThanOrEqual(1);
+
+    // Extract taskId from the tool result
+    const toolResult = toolResultEvents[0]!.data;
+    const output = toolResult.output as Record<string, unknown>;
+    expect(output.taskId).toBeTruthy();
+    const taskId = output.taskId as string;
+
+    // Verify the task was created via API with runsAt schedule
+    const taskRes = await fetch(`${BASE_URL}/api/tasks/${taskId}`, { headers });
+    expect(taskRes.ok).toBe(true);
+    const task = (await taskRes.json()) as {
+      id: string;
+      title: string;
+      runsAt: string | null;
+      cronSchedule: string | null;
+      status: string;
+    };
+    expect(task.title).toBe("Send Weekly Summary");
+    expect(task.runsAt).toBeTruthy();
+    expect(task.cronSchedule).toBeNull();
+    expect(task.status).toBe("running");
+
+    // Verify in chat history
+    const history = await getChatHistory(assigneeId);
+    const createTaskCalls = findToolCallParts(history.messages, "create_task");
+    expect(createTaskCalls.length).toBeGreaterThanOrEqual(1);
+    const createTaskResults = findToolResultParts(
+      history.messages,
+      "create_task",
+    );
     expect(createTaskResults.length).toBeGreaterThanOrEqual(1);
 
     // Clean up the task

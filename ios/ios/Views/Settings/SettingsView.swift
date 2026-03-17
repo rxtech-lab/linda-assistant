@@ -16,6 +16,35 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            if let user = authManager.currentUser {
+                Section {
+                    HStack(spacing: 12) {
+                        AsyncImage(url: user.image.flatMap { URL(string: $0) }) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            Image(systemName: "person.crop.circle.fill")
+                                .resizable()
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(width: 48, height: 48)
+                        .clipShape(Circle())
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            if let name = user.name {
+                                Text(name)
+                                    .font(.headline)
+                            }
+                            if let email = user.email {
+                                Text(email)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+
             Section("General") {
                 NavigationLink("Usage") {
                     UsageView()

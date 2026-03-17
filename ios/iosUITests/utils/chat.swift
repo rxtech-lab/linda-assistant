@@ -24,11 +24,23 @@ extension XCUIApplication {
         otherElements["end-of-message-list"].firstMatch
     }
 
+    var messageList: XCUIElement {
+        tables["message-list"].firstMatch
+    }
+
     /// Waits for an element to exist and be visible (hittable) on screen
     func waitForElementToBeVisible(_ element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
         guard element.waitForExistence(timeout: timeout) else {
             return false
         }
         return element.isHittable
+    }
+
+    var questionBanner: XCUIElement {
+        buttons["question-banner"].firstMatch
+    }
+
+    var questionSubmitButton: XCUIElement {
+        buttons["submitButton"].firstMatch
     }
 }

@@ -11,8 +11,10 @@ import { consumeSSE } from "./helpers/sse-client";
 
 const dbPath = path.resolve(__dirname, "..", "e2e-test.db");
 
-/** Small delay to ensure SSE subscription is established before posting */
-const SUB_DELAY = 200;
+/** Delay to ensure SSE subscription + RabbitMQ queue binding is established before posting.
+ * Must be long enough for the RabbitMQ exclusive queue to be created and bound,
+ * otherwise events published to the exchange before the queue exists are discarded. */
+const SUB_DELAY = 500;
 
 async function waitForStopped(request: APIRequestContext, assigneeId: string, timeoutMs = 10000) {
   const start = Date.now();

@@ -45,6 +45,13 @@ struct DocumentViewerSheet: View {
                 } else if let document {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
+                            if let createdAt = document.createdAt, let date = parseDate(createdAt) {
+                                Text("Created \(date.formatted(.dateTime.month().day().year().hour().minute()))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal)
+                                    .padding(.top, 8)
+                            }
                             if document.format == "markdown" {
                                 Markdown(document.content)
                                     .markdownTheme(.docC)
@@ -173,6 +180,18 @@ struct DocumentViewerSheet: View {
         } catch {
             downloadError = error.localizedDescription
         }
+    }
+
+    private func parseDate(_ string: String) -> Date? {
+        let iso8601 = ISO8601DateFormatter()
+        iso8601.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso8601.date(from: string) { return date }
+        iso8601.formatOptions = [.withInternetDateTime]
+        if let date = iso8601.date(from: string) { return date }
+        let sqlite = DateFormatter()
+        sqlite.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        sqlite.timeZone = TimeZone(identifier: "UTC")
+        return sqlite.date(from: string)
     }
 
     private func sanitizeFilename(_ name: String) -> String {

@@ -18,3 +18,10 @@ func launchApp() -> XCUIApplication {
 
     return app
 }
+
+/// Relaunch the app without resetting auth (tokens persist in Keychain)
+func relaunchApp(_ app: XCUIApplication) {
+    app.terminate()
+    app.launchArguments = [] // No --reset-auth so tokens persist
+    app.launch()
+}

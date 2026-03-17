@@ -56,58 +56,6 @@ jobs:
             echo "$ADMIN_ENV_BASE64" | base64 --decode > backend/.env
           fi
 
-      - name: Start RabbitMQ
-        run: |
-          brew install rabbitmq
-          brew services start rabbitmq
-          echo "Waiting for RabbitMQ..."
-          for i in {1..30}; do
-            if rabbitmqctl status &>/dev/null; then
-              echo "RabbitMQ is ready"
-              break
-            fi
-            sleep 2
-          done
-          rabbitmqctl add_user linda linda
-          rabbitmqctl set_permissions -p / linda ".*" ".*" ".*"
-
-      - name: Start Backend Server
-        run: bun install && bun dev:e2e > ../backend.log 2>&1 &
-        working-directory: backend
-
-      - name: Start Worker Server
-        run: bun worker:e2e > ../worker.log 2>&1 &
-        working-directory: backend
-
-      - name: Wait for Backend Server
-        run: |
-          echo "Waiting for backend server to start..."
-          for i in {1..30}; do
-            if curl -s http://localhost:3000/api/health | grep -q "ok"; then
-              echo "Backend server is up!"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Backend server did not start in time."
-          exit 1
-
-      - name: Wait for Worker Server
-        run: |
-          echo "Waiting for worker server to start..."
-          for i in {1..30}; do
-            if curl -s http://localhost:3002/healthz | grep -q "ok"; then
-              echo "Worker server is up!"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Worker server did not start in time."
-          exit 1
-
-      - name: Generate OpenAPI spec
-        run: ./scripts/ios-update-openapi.sh
-
       - name: Setup Python
         uses: actions/setup-python@v6
         with:

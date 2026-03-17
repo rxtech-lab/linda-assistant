@@ -9,7 +9,7 @@ import {
   insertMessages,
   updateMessageContent,
 } from "@/lib/db/messages";
-import { assignees, chatSessions, confirmations, questions } from "@/lib/db/schema";
+import { assignees, chatSessions, confirmations, questions, usage } from "@/lib/db/schema";
 import { createMem0Client } from "@/lib/mem0/client";
 import { redis } from "@/lib/redis";
 import { setStreamActive } from "@/lib/streaming/manager";
@@ -1273,12 +1273,24 @@ export async function runAgent(options: AgentRunOptions) {
           .update(chatSessions)
           .set({
             status: waitingStatus,
-            inputTokens: totalInputTokens > 0 ? totalInputTokens : undefined,
-            outputTokens: totalOutputTokens > 0 ? totalOutputTokens : undefined,
-            costUsd: pauseCostUsd,
             updatedAt: sql`(datetime('now'))`,
           })
           .where(eq(chatSessions.id, sessionId));
+
+        // Insert a usage record for this partial run
+        if (totalInputTokens > 0 || totalOutputTokens > 0) {
+          await db.insert(usage).values({
+            userId,
+            chatSessionId: sessionId,
+            assigneeId: session.assigneeId,
+            model: modelId,
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+            costUsd: pauseCostUsd,
+          });
+        }
+
+        console.log(`[agent] Usage saved (paused): session=${sessionId} model=${modelId} input=${totalInputTokens} output=${totalOutputTokens} cost=$${pauseCostUsd ?? 'unknown'}`);
 
         await setStreamActive(sessionId, false);
         return {
@@ -1329,12 +1341,24 @@ export async function runAgent(options: AgentRunOptions) {
       .update(chatSessions)
       .set({
         status: "stopped",
-        inputTokens: totalInputTokens > 0 ? totalInputTokens : undefined,
-        outputTokens: totalOutputTokens > 0 ? totalOutputTokens : undefined,
-        costUsd,
         updatedAt: sql`(datetime('now'))`,
       })
       .where(eq(chatSessions.id, sessionId));
+
+    // Insert a usage record for this completed run
+    if (totalInputTokens > 0 || totalOutputTokens > 0) {
+      await db.insert(usage).values({
+        userId,
+        chatSessionId: sessionId,
+        assigneeId: session.assigneeId,
+        model: modelId,
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        costUsd,
+      });
+    }
+
+    console.log(`[agent] Usage saved (completed): session=${sessionId} model=${modelId} input=${totalInputTokens} output=${totalOutputTokens} cost=$${costUsd ?? 'unknown'}`);
 
     // Fire-and-forget: send new turn messages to mem0 for long-term memory
     const newTurnMessages = currentMessages.slice(messages.length);

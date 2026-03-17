@@ -93,11 +93,26 @@ export const chatSessions = sqliteTable("chat_sessions", {
   refreshToken: text("refresh_token"),
   deviceToken: text("device_token"),
   timezone: text("timezone"),
-  inputTokens: integer("input_tokens"),
-  outputTokens: integer("output_tokens"),
-  costUsd: real("cost_usd"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
+export const usage = sqliteTable("usage", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull(),
+  chatSessionId: text("chat_session_id").references(() => chatSessions.id, {
+    onDelete: "set null",
+  }),
+  assigneeId: text("assignee_id").references(() => assignees.id, {
+    onDelete: "set null",
+  }),
+  model: text("model"),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  costUsd: real("cost_usd"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
 });
 
 export const messages = sqliteTable("messages", {

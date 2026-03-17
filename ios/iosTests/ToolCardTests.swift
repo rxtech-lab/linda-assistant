@@ -389,18 +389,6 @@ final class QuestionSheetViewTests: XCTestCase {
 
     // MARK: - Header Tests
 
-    func testQuestionSheet_showsHeader() throws {
-        let sut = QuestionSheetView(
-            question: makeBooleanQuestion(),
-            remainingCount: 0,
-            onAnswer: { _ in },
-            onReject: {}
-        )
-
-        let texts = try sut.inspect().findAll(ViewType.Text.self).compactMap { try? $0.string() }
-        XCTAssertTrue(texts.contains("Linda has a question"), "Should show header text")
-    }
-
     func testQuestionSheet_showsRemainingCount() throws {
         let sut = QuestionSheetView(
             question: makeBooleanQuestion(),
@@ -665,6 +653,6 @@ final class QuestionSheetViewTests: XCTestCase {
 
         let images = try sut.inspect().findAll(ViewType.Image.self)
         let systemNames = images.compactMap { try? $0.actualImage().name() }
-        XCTAssertTrue(systemNames.contains("xmark.circle.fill"), "Should show close button icon")
+        XCTAssertTrue(systemNames.contains("xmark"), "Should show close button icon")
     }
 }

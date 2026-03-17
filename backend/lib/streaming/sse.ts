@@ -12,9 +12,13 @@ export function createSSEStream() {
   });
 
   function send(event: string, data: unknown) {
-    if (!controller) return;
+    if (!controller) {
+      console.log(`[SSE] send: controller=null, dropping event=${event}`);
+      return;
+    }
     try {
       const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+      console.log(`[SSE] send: event=${event} payloadLen=${payload.length}`);
       controller.enqueue(encoder.encode(payload));
     } catch {
       // Stream closed

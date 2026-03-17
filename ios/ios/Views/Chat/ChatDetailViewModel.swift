@@ -72,6 +72,15 @@ final class ChatDetailViewModel {
                 in: &displayMessages
             )
         }
+        handler.isToolCallInHistory = { [weak self] toolCallId in
+            guard let self else { return false }
+            return displayMessages.contains { msg in
+                msg.parts.contains { part in
+                    if case let .tool(info) = part { return info.toolCallId == toolCallId }
+                    return false
+                }
+            }
+        }
         handler.onUserMessage = { [weak self] id, content in
             guard let self else { return }
             // Dedup: skip if a message with this server ID already exists
