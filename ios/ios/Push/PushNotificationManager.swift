@@ -4,6 +4,7 @@ import OSLog
 import SwiftUI
 #if canImport(UIKit)
     import UIKit
+
     typealias BackgroundFetchResult = UIBackgroundFetchResult
 #elseif canImport(AppKit)
     import AppKit

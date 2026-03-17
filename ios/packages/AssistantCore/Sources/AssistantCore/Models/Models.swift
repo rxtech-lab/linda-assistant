@@ -181,7 +181,7 @@ public struct ExecuteNowResponse: Codable, Sendable {
 
 // MARK: - Document
 
-public struct Document: Codable, Identifiable, Sendable {
+public struct Document: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let userId: String
     public let chatSessionId: String
@@ -215,6 +215,37 @@ public struct Document: Codable, Identifiable, Sendable {
 public struct DocumentListResponse: Codable, Sendable {
     public let data: [Document]
 }
+
+// MARK: - Briefing
+
+public struct Briefing: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let userId: String
+    public let chatSessionId: String?
+    public let assigneeId: String?
+    public let title: String
+    public let content: String
+    public let imageUrl: String?
+    public let documents: [Document]?
+    public let createdAt: String?
+    public let updatedAt: String?
+}
+
+public struct BriefingSection: Codable, Sendable, Identifiable {
+    public var id: String {
+        date
+    }
+
+    public let date: String
+    public let briefings: [Briefing]
+
+    public init(date: String, briefings: [Briefing]) {
+        self.date = date
+        self.briefings = briefings
+    }
+}
+
+public typealias BriefingListResponse = PaginatedResponse<BriefingSection>
 
 // MARK: - Chat Session
 
@@ -598,7 +629,10 @@ public struct PresignedURLResponse: Codable, Sendable {
 // MARK: - Usage
 
 public struct UsageDailyEntry: Codable, Sendable, Identifiable {
-    public var id: String { date }
+    public var id: String {
+        date
+    }
+
     public let date: String
     public let inputTokens: Int
     public let outputTokens: Int
@@ -606,7 +640,10 @@ public struct UsageDailyEntry: Codable, Sendable, Identifiable {
 }
 
 public struct UsageByAssignee: Codable, Sendable, Identifiable {
-    public var id: String { assigneeId }
+    public var id: String {
+        assigneeId
+    }
+
     public let assigneeId: String
     public let assigneeName: String
     public let inputTokens: Int

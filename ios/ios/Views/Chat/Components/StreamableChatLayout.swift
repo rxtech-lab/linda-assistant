@@ -114,7 +114,6 @@ struct StreamableChatLayout<Header: View>: View {
         }
     }
 
-    @ViewBuilder
     private func chatListView(proxy: ScrollViewProxy) -> some View {
         List {
             Section {
@@ -156,7 +155,10 @@ struct StreamableChatLayout<Header: View>: View {
                 // Only disengage when user scrolled up, not when content growth pushed bottom away
                 isAtBottom = false
             }
-            logger.debug("scroll: isAtBottom=\(isAtBottom) distance=\(distanceFromBottom, format: .fixed(precision: 1)) contentGrew=\(contentGrew)")
+            logger
+                .debug(
+                    "scroll: isAtBottom=\(isAtBottom) distance=\(distanceFromBottom, format: .fixed(precision: 1)) contentGrew=\(contentGrew)"
+                )
         }
         .scrollContentBackground(.hidden)
         .onTapGesture {

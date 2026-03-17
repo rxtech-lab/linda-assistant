@@ -189,6 +189,26 @@ public extension APIClient {
         try await requestData(path: "documents/\(id)/pdf")
     }
 
+    // MARK: - Briefings
+
+    func listBriefings(limit: Int = 20, offset: Int = 0) async throws -> BriefingListResponse {
+        try await request(
+            path: "briefings",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)"),
+            ]
+        )
+    }
+
+    func getBriefing(id: String) async throws -> Briefing {
+        try await request(path: "briefings/\(id)")
+    }
+
+    func deleteBriefing(id: String) async throws {
+        try await requestNoContent(path: "briefings/\(id)")
+    }
+
     // MARK: - Emails
 
     func listEmails(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Email> {

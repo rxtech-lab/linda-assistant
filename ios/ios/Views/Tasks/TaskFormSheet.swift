@@ -69,18 +69,18 @@ struct TaskFormSheet: View {
                     .accessibilityIdentifier("task-schedule-type-picker")
 
                     switch scheduleType {
-                    case .cron:
-                        CronExpressionView(cronExpression: $cronSchedule)
-                    case .scheduled:
-                        DatePicker(
-                            "Run at",
-                            selection: $runsAtDate,
-                            in: Date()...,
-                            displayedComponents: [.date, .hourAndMinute]
-                        )
-                        .accessibilityIdentifier("task-runs-at-picker")
-                    case .none:
-                        EmptyView()
+                        case .cron:
+                            CronExpressionView(cronExpression: $cronSchedule)
+                        case .scheduled:
+                            DatePicker(
+                                "Run at",
+                                selection: $runsAtDate,
+                                in: Date()...,
+                                displayedComponents: [.date, .hourAndMinute]
+                            )
+                            .accessibilityIdentifier("task-runs-at-picker")
+                        case .none:
+                            EmptyView()
                     }
                 }
 

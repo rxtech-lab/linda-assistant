@@ -48,9 +48,9 @@ struct SettingsView: View {
             Section("General") {
                 NavigationLink("Assistants") {
                     AssigneeListView()
-                        #if os(iOS)
+                    #if os(iOS)
                         .toolbar(.hidden, for: .tabBar)
-                        #endif
+                    #endif
                 }
                 NavigationLink("Usage") {
                     UsageView()

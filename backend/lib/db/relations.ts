@@ -1,6 +1,8 @@
 import { relations } from "drizzle-orm";
 import {
   assignees,
+  briefingDocuments,
+  briefings,
   emailInbox,
   tasks,
   taskEmails,
@@ -8,6 +10,7 @@ import {
   messages,
   confirmations,
   devices,
+  documents,
 } from "./schema";
 
 export const assigneesRelations = relations(assignees, ({ many }) => ({
@@ -63,6 +66,29 @@ export const confirmationsRelations = relations(confirmations, ({ one }) => ({
   chatSession: one(chatSessions, {
     fields: [confirmations.chatSessionId],
     references: [chatSessions.id],
+  }),
+}));
+
+export const briefingsRelations = relations(briefings, ({ one, many }) => ({
+  assignee: one(assignees, {
+    fields: [briefings.assigneeId],
+    references: [assignees.id],
+  }),
+  chatSession: one(chatSessions, {
+    fields: [briefings.chatSessionId],
+    references: [chatSessions.id],
+  }),
+  briefingDocuments: many(briefingDocuments),
+}));
+
+export const briefingDocumentsRelations = relations(briefingDocuments, ({ one }) => ({
+  briefing: one(briefings, {
+    fields: [briefingDocuments.briefingId],
+    references: [briefings.id],
+  }),
+  document: one(documents, {
+    fields: [briefingDocuments.documentId],
+    references: [documents.id],
   }),
 }));
 

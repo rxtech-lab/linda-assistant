@@ -9,7 +9,7 @@ import XCTest
 
 final class AssigneeViewTests: XCTestCase {
     @MainActor
-    func testAssigneeViewLoads() async throws {
+    func testAssigneeViewLoads() throws {
         let app = launchApp()
         try app.signInWithEmailAndPassword()
 
@@ -19,7 +19,10 @@ final class AssigneeViewTests: XCTestCase {
         settingsButton.tap()
 
         // wait for settings-tab
-        XCTAssertTrue(app.buttons["settings-tab"].firstMatch.waitForExistence(timeout: 10), "Settings tab should appear")
+        XCTAssertTrue(
+            app.buttons["settings-tab"].firstMatch.waitForExistence(timeout: 10),
+            "Settings tab should appear"
+        )
         app.buttons["settings-tab"].firstMatch.tap()
 
         // Tap on Assistants navigation link

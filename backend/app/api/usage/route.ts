@@ -21,9 +21,7 @@ export async function GET(request: NextRequest) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
-  const parsed = querySchema.safeParse(
-    Object.fromEntries(request.nextUrl.searchParams),
-  );
+  const parsed = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!parsed.success) return errorJson(parsed.error.message, 422);
 
   const { days, tzOffset } = parsed.data;
@@ -55,25 +53,12 @@ export async function GET(request: NextRequest) {
     db
       .select({
         date: sql<string>`${timeExpr}`.as("date"),
-        inputTokens:
-          sql<number>`coalesce(sum(${usage.inputTokens}), 0)`.as(
-            "inputTokens",
-          ),
-        outputTokens:
-          sql<number>`coalesce(sum(${usage.outputTokens}), 0)`.as(
-            "outputTokens",
-          ),
-        costUsd: sql<number>`coalesce(sum(${usage.costUsd}), 0)`.as(
-          "costUsd",
-        ),
+        inputTokens: sql<number>`coalesce(sum(${usage.inputTokens}), 0)`.as("inputTokens"),
+        outputTokens: sql<number>`coalesce(sum(${usage.outputTokens}), 0)`.as("outputTokens"),
+        costUsd: sql<number>`coalesce(sum(${usage.costUsd}), 0)`.as("costUsd"),
       })
       .from(usage)
-      .where(
-        and(
-          eq(usage.userId, auth.userId),
-          sinceExpr,
-        ),
-      )
+      .where(and(eq(usage.userId, auth.userId), sinceExpr))
       .groupBy(timeExpr)
       .orderBy(timeExpr),
 
@@ -81,54 +66,25 @@ export async function GET(request: NextRequest) {
     db
       .select({
         assigneeId: usage.assigneeId,
-        assigneeName: sql<string>`coalesce(${assignees.name}, 'Unknown')`.as(
-          "assigneeName",
-        ),
-        inputTokens:
-          sql<number>`coalesce(sum(${usage.inputTokens}), 0)`.as(
-            "inputTokens",
-          ),
-        outputTokens:
-          sql<number>`coalesce(sum(${usage.outputTokens}), 0)`.as(
-            "outputTokens",
-          ),
-        costUsd: sql<number>`coalesce(sum(${usage.costUsd}), 0)`.as(
-          "costUsd",
-        ),
+        assigneeName: sql<string>`coalesce(${assignees.name}, 'Unknown')`.as("assigneeName"),
+        inputTokens: sql<number>`coalesce(sum(${usage.inputTokens}), 0)`.as("inputTokens"),
+        outputTokens: sql<number>`coalesce(sum(${usage.outputTokens}), 0)`.as("outputTokens"),
+        costUsd: sql<number>`coalesce(sum(${usage.costUsd}), 0)`.as("costUsd"),
       })
       .from(usage)
       .leftJoin(assignees, eq(usage.assigneeId, assignees.id))
-      .where(
-        and(
-          eq(usage.userId, auth.userId),
-          sinceExpr,
-          isNotNull(usage.assigneeId),
-        ),
-      )
+      .where(and(eq(usage.userId, auth.userId), sinceExpr, isNotNull(usage.assigneeId)))
       .groupBy(usage.assigneeId),
 
     // Total
     db
       .select({
-        inputTokens:
-          sql<number>`coalesce(sum(${usage.inputTokens}), 0)`.as(
-            "inputTokens",
-          ),
-        outputTokens:
-          sql<number>`coalesce(sum(${usage.outputTokens}), 0)`.as(
-            "outputTokens",
-          ),
-        costUsd: sql<number>`coalesce(sum(${usage.costUsd}), 0)`.as(
-          "costUsd",
-        ),
+        inputTokens: sql<number>`coalesce(sum(${usage.inputTokens}), 0)`.as("inputTokens"),
+        outputTokens: sql<number>`coalesce(sum(${usage.outputTokens}), 0)`.as("outputTokens"),
+        costUsd: sql<number>`coalesce(sum(${usage.costUsd}), 0)`.as("costUsd"),
       })
       .from(usage)
-      .where(
-        and(
-          eq(usage.userId, auth.userId),
-          sinceExpr,
-        ),
-      ),
+      .where(and(eq(usage.userId, auth.userId), sinceExpr)),
   ]);
 
   const total = totalResult[0] ?? {

@@ -450,6 +450,44 @@ export const updateDocumentSchema = z.object({
   content: z.string().optional().describe("Updated document content"),
 });
 
+// ---- Briefings ----
+
+export const selectBriefingSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  chatSessionId: z.string().nullable().describe("Associated chat session ID"),
+  assigneeId: z.string().nullable().describe("Associated assignee ID"),
+  title: z.string().describe("Briefing title"),
+  content: z.string().describe("Briefing markdown content"),
+  imageUrl: z.string().nullable().describe("Cover image URL"),
+  documents: z.array(selectDocumentSchema).optional().describe("Linked documents"),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
+});
+
+export const insertBriefingSchema = z.object({
+  title: z.string().min(1).max(500).describe("Briefing title"),
+  content: z.string().describe("Briefing markdown content"),
+  imageUrl: z.string().optional().describe("Cover image URL"),
+  assigneeId: z.string().optional().describe("Associated assignee ID"),
+  chatSessionId: z.string().optional().describe("Associated chat session ID"),
+});
+
+export const briefingSectionSchema = z.object({
+  date: z.string().describe("Date in YYYY-MM-DD format"),
+  briefings: z.array(selectBriefingSchema).describe("Briefings for this date"),
+});
+
+export const listBriefingResponseSchema = z.object({
+  data: z.array(briefingSectionSchema),
+  pagination: z.object({
+    total: z.number(),
+    limit: z.number(),
+    offset: z.number(),
+    hasMore: z.boolean(),
+  }),
+});
+
 // ---- Devices ----
 
 export const selectDeviceSchema = z.object({
@@ -580,9 +618,7 @@ export const usageTotalSchema = z.object({
 
 export const usageResponseSchema = z.object({
   daily: z.array(usageDailyEntrySchema).describe("Daily token usage breakdown"),
-  byAssignee: z
-    .array(usageByAssigneeSchema)
-    .describe("Token usage grouped by assignee"),
+  byAssignee: z.array(usageByAssigneeSchema).describe("Token usage grouped by assignee"),
   total: usageTotalSchema.describe("Aggregate totals for the period"),
 });
 

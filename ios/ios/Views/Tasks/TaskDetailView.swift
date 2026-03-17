@@ -50,11 +50,10 @@ struct TaskDetailView: View {
         .navigationTitle(viewModel.task?.title ?? "Task")
         .navigationDestination(for: AppDestination.self) { destination in
             switch destination {
-            case let .task(id): TaskDetailView(taskId: id)
-            case let .chatSession(id): ChatDetailView(sessionId: id)
-            case let .email(id): EmailDetailView(emailId: id)
-            case let .assignee(id, name): AssigneeDetailView(assigneeId: id, assigneeName: name)
-
+                case let .task(id): TaskDetailView(taskId: id)
+                case let .chatSession(id): ChatDetailView(sessionId: id)
+                case let .email(id): EmailDetailView(emailId: id)
+                case let .assignee(id, name): AssigneeDetailView(assigneeId: id, assigneeName: name)
             }
         }
         #if os(iOS)
@@ -66,7 +65,7 @@ struct TaskDetailView: View {
                     Button("Edit", systemImage: "pencil") { showingEdit = true }
                     Button("Delete", systemImage: "trash", role: .destructive) { showingDelete = true }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "ellipsis")
                 }
             }
         }
@@ -351,11 +350,11 @@ private struct TaskDetailContentView: View {
 
     private func statusColor(_ status: String?) -> Color {
         switch status?.lowercased() {
-        case "pending", "starting": .orange
-        case "running", "in_progress": .blue
-        case "finished", "stopped": .green
-        case "cancelled": .secondary
-        default: .secondary
+            case "pending", "starting": .orange
+            case "running", "in_progress": .blue
+            case "finished", "stopped": .green
+            case "cancelled": .secondary
+            default: .secondary
         }
     }
 }
@@ -416,32 +415,32 @@ private struct TaskHeaderCard: View {
 
     private var gradientColors: [Color] {
         switch task.status?.lowercased() {
-        case "running", "in_progress": [.blue, .cyan]
-        case "pending", "starting": [.orange, .yellow]
-        case "finished": [.green, .mint]
-        case "stopped", "cancelled": [.gray, .secondary]
-        default: [.gray, .secondary]
+            case "running", "in_progress": [.blue, .cyan]
+            case "pending", "starting": [.orange, .yellow]
+            case "finished": [.green, .mint]
+            case "stopped", "cancelled": [.gray, .secondary]
+            default: [.gray, .secondary]
         }
     }
 
     private var statusIcon: String {
         switch task.status?.lowercased() {
-        case "running", "in_progress": "bolt.fill"
-        case "pending", "starting": "clock.fill"
-        case "finished": "checkmark"
-        case "stopped": "stop.fill"
-        case "cancelled": "xmark"
-        default: "questionmark"
+            case "running", "in_progress": "bolt.fill"
+            case "pending", "starting": "clock.fill"
+            case "finished": "checkmark"
+            case "stopped": "stop.fill"
+            case "cancelled": "xmark"
+            default: "questionmark"
         }
     }
 
     private var statusColor: Color {
         switch task.status?.lowercased() {
-        case "pending", "starting": .orange
-        case "running", "in_progress": .blue
-        case "finished", "stopped": .green
-        case "cancelled": .secondary
-        default: .secondary
+            case "pending", "starting": .orange
+            case "running", "in_progress": .blue
+            case "finished", "stopped": .green
+            case "cancelled": .secondary
+            default: .secondary
         }
     }
 
@@ -476,6 +475,7 @@ private struct FlowLayout: View {
         }
     }
 }
+
 // MARK: - Action Buttons
 
 private struct TaskActionButtons: View {
@@ -495,7 +495,7 @@ private struct TaskActionButtons: View {
     var body: some View {
         HStack {
             Spacer()
-            
+
             // Start/Stop button
             ContactStyleButton(
                 title: isRunning ? "Stop" : "Start",
@@ -507,7 +507,7 @@ private struct TaskActionButtons: View {
             // Run Now button (only if has assignee)
             if hasAssignee {
                 Spacer()
-                
+
                 ContactStyleButton(
                     title: "Run Now",
                     icon: "bolt.fill",
@@ -515,7 +515,7 @@ private struct TaskActionButtons: View {
                 )
                 .accessibilityIdentifier("run-now-button")
             }
-            
+
             Spacer()
         }
         .frame(maxWidth: .infinity)
@@ -553,4 +553,3 @@ private struct ScaleButtonStyle: ButtonStyle {
             .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }
-

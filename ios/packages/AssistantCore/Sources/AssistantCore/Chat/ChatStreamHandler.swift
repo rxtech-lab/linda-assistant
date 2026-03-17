@@ -488,8 +488,14 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 onQuestionAnswered?(payload.toolCallId, payload.action)
 
             case let .locationRequired(payload):
-                logger.info("locationRequired: \(payload.toolName) toolCallId=\(payload.toolCallId) isAutoConfirm=\(String(describing: payload.isAutoConfirm))")
-                logger.info("locationRequired raw payload: toolName=\(payload.toolName) reason=\(payload.reason ?? "nil") isAutoConfirm=\(String(describing: payload.isAutoConfirm))")
+                logger
+                    .info(
+                        "locationRequired: \(payload.toolName) toolCallId=\(payload.toolCallId) isAutoConfirm=\(String(describing: payload.isAutoConfirm))"
+                    )
+                logger
+                    .info(
+                        "locationRequired raw payload: toolName=\(payload.toolName) reason=\(payload.reason ?? "nil") isAutoConfirm=\(String(describing: payload.isAutoConfirm))"
+                    )
                 // Update the corresponding tool call status
                 if let index = streamingParts.firstIndex(where: {
                     if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
@@ -509,7 +515,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
                         let locationService = LocationService()
                         do {
                             let location = try await locationService.requestLocation()
-                            await self.resolveLocation(
+                            await resolveLocation(
                                 toolCallId: toolCallId,
                                 action: "confirm",
                                 latitude: location.latitude,
@@ -518,7 +524,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
                             )
                         } catch {
                             logger.error("Auto-confirm location failed: \(error)")
-                            await self.resolveLocation(
+                            await resolveLocation(
                                 toolCallId: toolCallId,
                                 action: "reject"
                             )

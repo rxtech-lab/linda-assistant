@@ -15,6 +15,8 @@ import { ASK_QUESTION_TOOL_NAME, askQuestionTool } from "./ask-question";
 import { GET_LOCATION_TOOL_NAME, getLocationTool } from "./get-location";
 import { UPDATE_DOCUMENT_TOOL_NAME, updateDocumentTool } from "./update-document";
 import { SEND_NOTIFICATION_TOOL_NAME, sendNotificationTool } from "./send-notification";
+import { SEARCH_DOCUMENTS_TOOL_NAME, searchDocumentsTool } from "./search-documents";
+import { CREATE_BRIEFING_TOOL_NAME, createBriefingTool } from "./create-briefing";
 import { createFilesMcp } from "./mcps/files";
 import { createFirecrawlMcp } from "./mcps/firecrawl";
 import { createTransportMcp } from "./mcps/transport";
@@ -177,6 +179,14 @@ export async function buildToolSet(
     filtered[CREATE_DOCUMENT_TOOL_NAME] = createDocumentTool(userId, chatSessionId);
   }
 
+  // Search documents — never require confirmation (read-only)
+  filtered[SEARCH_DOCUMENTS_TOOL_NAME] = searchDocumentsTool(userId, false);
+
+  // Briefing tool — never require confirmation
+  if (chatSessionId) {
+    filtered[CREATE_BRIEFING_TOOL_NAME] = createBriefingTool(userId, chatSessionId, assigneeId);
+  }
+
   // Notification tool — never require confirmation
   filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(userId);
 
@@ -223,10 +233,12 @@ export async function buildToolSet(
 
 export {
   ASK_QUESTION_TOOL_NAME,
+  CREATE_BRIEFING_TOOL_NAME,
   CREATE_DOCUMENT_TOOL_NAME,
   CREATE_TASK_TOOL_NAME,
   GET_CURRENT_TIME_TOOL_NAME,
   GET_LOCATION_TOOL_NAME,
+  SEARCH_DOCUMENTS_TOOL_NAME,
   SEARCH_EMAILS_TOOL_NAME,
   SEND_EMAIL_TOOL_NAME,
   SEND_NOTIFICATION_TOOL_NAME,

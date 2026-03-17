@@ -7,7 +7,12 @@ import { eq, and } from "drizzle-orm";
 import { tool } from "ai";
 import { z } from "zod";
 
-export const createTaskTool = (userId: string, needsApproval: boolean, sessionId?: string, defaultAssigneeId?: string | null) =>
+export const createTaskTool = (
+  userId: string,
+  needsApproval: boolean,
+  sessionId?: string,
+  defaultAssigneeId?: string | null,
+) =>
   tool({
     description:
       "Create a new task for the user. Can optionally set up a recurring cron schedule or a one-shot scheduled execution. " +

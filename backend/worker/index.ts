@@ -51,7 +51,9 @@ async function handleTask(task: AgentTask): Promise<void> {
 
         // Log all events for debugging SSE delivery
         if (event === "text-delta") {
-          console.log(`[Worker] SSE event: session=${sessionId} event=text-delta len=${((data as Record<string, unknown>)?.text as string)?.length ?? 0}`);
+          console.log(
+            `[Worker] SSE event: session=${sessionId} event=text-delta len=${((data as Record<string, unknown>)?.text as string)?.length ?? 0}`,
+          );
         } else {
           console.log(`[Worker] SSE event: session=${sessionId} event=${event}`);
         }

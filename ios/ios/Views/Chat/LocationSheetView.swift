@@ -5,7 +5,13 @@ import SwiftUI
 
 struct LocationSheetView: View {
     let location: LocationRequestPayload
-    let onResolve: (_ action: String, _ latitude: Double?, _ longitude: Double?, _ accuracy: Double?, _ alwaysAllow: Bool) -> Void
+    let onResolve: (
+        _ action: String,
+        _ latitude: Double?,
+        _ longitude: Double?,
+        _ accuracy: Double?,
+        _ alwaysAllow: Bool
+    ) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var isLoading = false
