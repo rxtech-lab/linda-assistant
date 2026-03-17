@@ -474,7 +474,16 @@ private extension ToolCallDetailSheet {
         }()
 
         let answer: AnyCodable? = {
-            guard case let .array(answersArray) = answers else { return nil }
+            let answersArray: [AnyCodable]
+            if case let .array(arr) = answers {
+                answersArray = arr
+            } else if case let .object(wrapper) = answers,
+                      case let .array(arr) = wrapper["answers"]
+            {
+                answersArray = arr
+            } else {
+                return nil
+            }
             for answerEntry in answersArray {
                 if case let .object(dict) = answerEntry,
                    case let .int(qIndex) = dict["questionIndex"],
@@ -607,14 +616,6 @@ private extension ToolCallDetailSheet {
             .background {
                 Capsule()
                     .fill(Color.purple.opacity(0.1))
-            }
-        } else {
-            HStack(spacing: 6) {
-                ProgressView()
-                    .scaleEffect(0.7)
-                Text("Awaiting answer")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
     }

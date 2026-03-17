@@ -27,7 +27,7 @@ export const askQuestionTool = () =>
                   description: z.string().optional().describe("Option description"),
                 }),
               )
-              .optional()
+              .nullish()
               .describe("Available options for single_choice and multiple_choice types"),
           }),
         )

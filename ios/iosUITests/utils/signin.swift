@@ -66,8 +66,14 @@ extension XCUIApplication {
 
             // Fill in credentials from environment
             // WebView elements need extra handling for keyboard focus in CI
-            emailField.tap()
-            sleep(3) // Give WebView time to establish keyboard focus and let autofill settle
+            // Use coordinate-based tap to ensure the WebView field gets real touch focus
+            // Plain .tap() sometimes doesn't establish keyboard focus in Safari WebView
+            let emailCoord = emailField.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            emailCoord.tap()
+            sleep(2)
+            // Tap again to ensure keyboard focus is established (dismiss any autofill popups)
+            emailCoord.tap()
+            sleep(1)
             // Type the email
             emailField.typeText(testEmail)
             NSLog("✅ Email entered")
@@ -95,7 +101,10 @@ extension XCUIApplication {
             emailField.typeText(testEmail)
         #endif
         // WebView password field also needs focus handling
-        passwordField.tap()
+        let passwordCoord = passwordField.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        passwordCoord.tap()
+        sleep(1)
+        passwordCoord.tap()
         sleep(1) // Give WebView time to establish keyboard focus
 
         passwordField.typeText(testPassword)

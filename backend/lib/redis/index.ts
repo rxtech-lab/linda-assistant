@@ -44,6 +44,13 @@ export const redis = new Proxy({} as Redis, {
         };
       case "lrange":
         return (key: string) => (memoryStore.get(key) as string[]) ?? [];
+      case "incr":
+        return (key: string) => {
+          const current = parseInt((memoryStore.get(key) as string) ?? "0", 10);
+          const next = current + 1;
+          memoryStore.set(key, String(next));
+          return next;
+        };
       case "expire":
         return () => 1;
       default:

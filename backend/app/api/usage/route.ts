@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { chatSessions, assignees } from "@/lib/db/schema";
+import { usage, assignees } from "@/lib/db/schema";
 import { eq, sql, and, gte, isNotNull } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { successJson, errorJson } from "@/lib/utils/response";
@@ -46,9 +46,9 @@ export async function GET(request: NextRequest) {
 
   // For 24h view, group by hour in local time; otherwise group by date in local time
   const timeExpr = hourly
-    ? sql`strftime('%Y-%m-%dT%H:00', ${chatSessions.createdAt}, ${tzMod})`
-    : sql`date(${chatSessions.createdAt}, ${tzMod})`;
-  const sinceExpr = gte(chatSessions.createdAt, sinceUtcStr);
+    ? sql`strftime('%Y-%m-%dT%H:00', ${usage.createdAt}, ${tzMod})`
+    : sql`date(${usage.createdAt}, ${tzMod})`;
+  const sinceExpr = gte(usage.createdAt, sinceUtcStr);
 
   const [daily, byAssignee, totalResult] = await Promise.all([
     // Daily (or hourly) aggregation
@@ -56,21 +56,21 @@ export async function GET(request: NextRequest) {
       .select({
         date: sql<string>`${timeExpr}`.as("date"),
         inputTokens:
-          sql<number>`coalesce(sum(${chatSessions.inputTokens}), 0)`.as(
+          sql<number>`coalesce(sum(${usage.inputTokens}), 0)`.as(
             "inputTokens",
           ),
         outputTokens:
-          sql<number>`coalesce(sum(${chatSessions.outputTokens}), 0)`.as(
+          sql<number>`coalesce(sum(${usage.outputTokens}), 0)`.as(
             "outputTokens",
           ),
-        costUsd: sql<number>`coalesce(sum(${chatSessions.costUsd}), 0)`.as(
+        costUsd: sql<number>`coalesce(sum(${usage.costUsd}), 0)`.as(
           "costUsd",
         ),
       })
-      .from(chatSessions)
+      .from(usage)
       .where(
         and(
-          eq(chatSessions.userId, auth.userId),
+          eq(usage.userId, auth.userId),
           sinceExpr,
         ),
       )
@@ -80,52 +80,52 @@ export async function GET(request: NextRequest) {
     // By assignee aggregation
     db
       .select({
-        assigneeId: chatSessions.assigneeId,
+        assigneeId: usage.assigneeId,
         assigneeName: sql<string>`coalesce(${assignees.name}, 'Unknown')`.as(
           "assigneeName",
         ),
         inputTokens:
-          sql<number>`coalesce(sum(${chatSessions.inputTokens}), 0)`.as(
+          sql<number>`coalesce(sum(${usage.inputTokens}), 0)`.as(
             "inputTokens",
           ),
         outputTokens:
-          sql<number>`coalesce(sum(${chatSessions.outputTokens}), 0)`.as(
+          sql<number>`coalesce(sum(${usage.outputTokens}), 0)`.as(
             "outputTokens",
           ),
-        costUsd: sql<number>`coalesce(sum(${chatSessions.costUsd}), 0)`.as(
+        costUsd: sql<number>`coalesce(sum(${usage.costUsd}), 0)`.as(
           "costUsd",
         ),
       })
-      .from(chatSessions)
-      .leftJoin(assignees, eq(chatSessions.assigneeId, assignees.id))
+      .from(usage)
+      .leftJoin(assignees, eq(usage.assigneeId, assignees.id))
       .where(
         and(
-          eq(chatSessions.userId, auth.userId),
+          eq(usage.userId, auth.userId),
           sinceExpr,
-          isNotNull(chatSessions.assigneeId),
+          isNotNull(usage.assigneeId),
         ),
       )
-      .groupBy(chatSessions.assigneeId),
+      .groupBy(usage.assigneeId),
 
     // Total
     db
       .select({
         inputTokens:
-          sql<number>`coalesce(sum(${chatSessions.inputTokens}), 0)`.as(
+          sql<number>`coalesce(sum(${usage.inputTokens}), 0)`.as(
             "inputTokens",
           ),
         outputTokens:
-          sql<number>`coalesce(sum(${chatSessions.outputTokens}), 0)`.as(
+          sql<number>`coalesce(sum(${usage.outputTokens}), 0)`.as(
             "outputTokens",
           ),
-        costUsd: sql<number>`coalesce(sum(${chatSessions.costUsd}), 0)`.as(
+        costUsd: sql<number>`coalesce(sum(${usage.costUsd}), 0)`.as(
           "costUsd",
         ),
       })
-      .from(chatSessions)
+      .from(usage)
       .where(
         and(
-          eq(chatSessions.userId, auth.userId),
+          eq(usage.userId, auth.userId),
           sinceExpr,
         ),
       ),

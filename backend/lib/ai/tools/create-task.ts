@@ -71,9 +71,9 @@ export const createTaskTool = (userId: string, needsApproval: boolean, sessionId
           tags,
           categories,
           assigneeId,
-          cronSchedule: utcCronSchedule,
+          ...(utcCronSchedule !== undefined ? { cronSchedule: utcCronSchedule } : {}),
           isCronEnabled,
-          runsAt: utcRunsAt,
+          ...(utcRunsAt !== undefined ? { runsAt: utcRunsAt } : {}),
           status,
         })
         .returning();

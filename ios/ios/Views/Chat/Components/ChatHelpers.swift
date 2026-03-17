@@ -50,7 +50,15 @@ func updateToolCallStatus(
     for i in messages.indices {
         for j in messages[i].parts.indices {
             if case var .tool(info) = messages[i].parts[j], info.toolCallId == toolCallId {
-                info.status = action == "rejected" ? .rejected : .running
+                // "rejected" → rejected, "answered" → completed (question done),
+                // "confirmed" → running (tool will execute after confirmation)
+                if action == "rejected" {
+                    info.status = .rejected
+                } else if action == "answered" {
+                    info.status = .completed
+                } else {
+                    info.status = .running
+                }
                 messages[i].parts[j] = .tool(info)
                 logger.info("updateToolCallStatus: toolCallId=\(toolCallId) -> \(action)")
                 return

@@ -21,7 +21,7 @@ export async function getStreamChunks(sessionId: string): Promise<unknown[]> {
 
 export async function clearStreamChunks(sessionId: string) {
   console.log(`[StreamManager] session=${sessionId} clearChunks`);
-  await redis.del(CHUNK_KEY(sessionId), SEQ_KEY(sessionId));
+  await redis.del(CHUNK_KEY(sessionId)); // Keep SEQ_KEY so seq stays monotonic across task boundaries
 }
 
 export async function nextSeq(sessionId: string): Promise<number> {

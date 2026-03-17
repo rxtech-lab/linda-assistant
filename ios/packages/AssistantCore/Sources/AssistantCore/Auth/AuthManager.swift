@@ -27,6 +27,10 @@ public final class AuthManager: Sendable {
         tokenStorage.getAccessToken()
     }
 
+    public var currentUser: User? {
+        oauthManager.currentUser
+    }
+
     public init() {
         let storage = KeychainTokenStorage()
         tokenStorage = storage

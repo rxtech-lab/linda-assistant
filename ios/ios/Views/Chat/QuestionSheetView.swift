@@ -69,13 +69,19 @@ struct QuestionSheetView: View {
                 // Bottom action bar
                 bottomActionBar
             }
+            .background(LinearGradient.questionSheetBackgroundColor.ignoresSafeArea())
+            .onTapGesture {
+                #if os(iOS)
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder),
+                        to: nil,
+                        from: nil,
+                        for: nil
+                    )
+                #endif
+            }
             #if os(iOS)
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            #else
-            .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
-            #endif
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.inline)
             #endif
         }
         .presentationDetents([.medium, .large])
@@ -100,12 +106,13 @@ private extension QuestionSheetView {
     var topBar: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Linda has a question")
+                Text("Assistant has a question")
                     .font(.headline)
+                    .foregroundStyle(Color(red: 0.35, green: 0.2, blue: 0.5))
                 if remainingCount > 0 {
                     Text("+\(remainingCount) more pending")
                         .font(.caption)
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(Color.questionSheetIconColor)
                 }
             }
 
@@ -114,11 +121,11 @@ private extension QuestionSheetView {
             Button {
                 dismiss()
             } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.secondary)
+                Image(systemName: "xmark")
+                    .foregroundStyle(Color(red: 0.45, green: 0.35, blue: 0.55))
             }
+            .padding()
+            .glassEffect(in: Circle())
             .disabled(isLoading)
         }
         .padding(.horizontal, 20)
@@ -192,9 +199,9 @@ private extension QuestionSheetView {
     }
 
     func pillColor(isActive: Bool, isAnswered: Bool) -> Color {
-        if isActive { return .purple }
-        if isAnswered { return .purple.opacity(0.55) }
-        return Color(.tertiarySystemFill)
+        if isActive { return Color.questionSheetIconColor }
+        if isAnswered { return Color.questionSheetIconColor.opacity(0.7) }
+        return Color.questionSheetIconColor.opacity(0.3)
     }
 }
 
@@ -227,14 +234,6 @@ private extension QuestionSheetView {
             }
             .padding(20)
         }
-        .background {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-            #if os(iOS)
-                .fill(Color(.secondarySystemGroupedBackground))
-            #else
-                .fill(Color(nsColor: .controlBackgroundColor))
-            #endif
-        }
     }
 
     func questionHeader(item: QuestionItem) -> some View {
@@ -242,11 +241,11 @@ private extension QuestionSheetView {
             HStack(spacing: 8) {
                 Image(systemName: questionTypeIcon(item.type))
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.purple)
+                    .foregroundStyle(Color.questionSheetIconColor)
                     .padding(5)
                     .background {
                         Circle()
-                            .fill(Color.purple.opacity(0.12))
+                            .fill(Color.questionSheetIconColor.opacity(0.12))
                     }
 
                 Text(questionTypeLabel(item.type))
@@ -526,26 +525,9 @@ private extension QuestionSheetView {
                     .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.glassProminent)
-                .tint(.purple)
+                .tint(Color.questionSheetIconColor)
                 .disabled(isLoading || !currentAnswerProvided)
                 .accessibilityIdentifier("submitButton")
-
-                // Forward button
-                if currentQuestionIndex < totalQuestions - 1, !isLastQuestion {
-                    Button {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            currentQuestionIndex += 1
-                        }
-                        triggerHaptic()
-                    } label: {
-                        Image(systemName: "chevron.right")
-                            .font(.body.weight(.semibold))
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.glass)
-                    .tint(.secondary)
-                    .disabled(isLoading)
-                }
             }
 
             // Skip/Reject button
@@ -696,7 +678,7 @@ private struct ChoiceOptionRow: View {
             HStack(spacing: 12) {
                 Image(systemName: isSelected ? style.selectedIcon : style.deselectedIcon)
                     .font(.title3)
-                    .foregroundStyle(isSelected ? Color.purple : Color.secondary)
+                    .foregroundStyle(isSelected ? Color.questionSheetIconColor : Color.secondary)
                     .frame(width: 24)
                     .contentTransition(.symbolEffect(.replace))
 
@@ -717,7 +699,7 @@ private struct ChoiceOptionRow: View {
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(Color.questionSheetIconColor)
                         .transition(.scale.combined(with: .opacity))
                 }
             }
@@ -725,11 +707,11 @@ private struct ChoiceOptionRow: View {
             .padding(.vertical, 12)
             .background {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.purple.opacity(0.06) : Color(.quaternarySystemFill))
+                    .fill(isSelected ? Color.questionSheetIconColor.opacity(0.06) : Color(.quaternarySystemFill))
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(isSelected ? Color.purple.opacity(0.25) : Color.clear, lineWidth: 1)
+                    .strokeBorder(isSelected ? Color.questionSheetIconColor.opacity(0.25) : Color.clear, lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
@@ -747,7 +729,7 @@ private struct CustomTextInput: View {
         Group {
             if isMultiline {
                 TextField(placeholder, text: $text, axis: .vertical)
-                    .lineLimit(3 ... 8)
+                    .lineLimit(16 ... 20)
                     .focused($isFocused)
             } else {
                 TextField(placeholder, text: $text)
@@ -762,7 +744,7 @@ private struct CustomTextInput: View {
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(
-                    isFocused ? Color.purple.opacity(0.5) : Color.clear,
+                    isFocused ? Color.questionSheetIconColor.opacity(0.5) : Color.clear,
                     lineWidth: 1.5
                 )
         }

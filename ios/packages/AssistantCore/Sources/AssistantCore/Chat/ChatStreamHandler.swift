@@ -49,6 +49,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
     public var onQuestionAnswered: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
     public var onLocationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
     public var onToolResult: (@MainActor (_ toolCallId: String, _ isError: Bool, _ errorMessage: String?) -> Void)?
+    /// Check whether a toolCallId already exists in display messages (historical tool calls).
+    /// When true, the handler skips adding to streamingParts so tool-result falls through to onToolResult.
+    public var isToolCallInHistory: (@MainActor (_ toolCallId: String) -> Bool)?
     public var onUserMessage: (@MainActor (_ id: String, _ content: String) -> Void)?
 
     private let apiClient: APIClient
@@ -372,6 +375,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                         info.status = .running
                         streamingParts[index] = .tool(info)
                     }
+                } else if isToolCallInHistory?(payload.toolCallId) == true {
+                    // Re-emitted for historical tool call already in displayMessages — skip adding
+                    // to streamingParts so tool-result falls through to onToolResult callback
+                    logger.info("toolCall: \(payload.toolCallId) already in history, skipping streamingParts")
                 } else {
                     let info = ToolCallInfo(
                         toolCallId: payload.toolCallId,
@@ -468,7 +475,13 @@ public final class ChatStreamHandler: @unchecked Sendable {
                     return false
                 }) {
                     if case var .tool(info) = streamingParts[index] {
-                        info.status = payload.action == "rejected" ? .rejected : .running
+                        if payload.action == "rejected" {
+                            info.status = .rejected
+                        } else if payload.action == "answered" {
+                            info.status = .completed
+                        } else {
+                            info.status = .running
+                        }
                         streamingParts[index] = .tool(info)
                     }
                 }

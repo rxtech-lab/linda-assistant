@@ -25,6 +25,7 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var presentedConfirmation: ConfirmationPayload?
     @State private var presentedQuestion: QuestionPayload?
     @State private var presentedLocation: LocationRequestPayload?
+    @State private var isAtBottom = true
     @State private var scrollSubject = PassthroughSubject<Void, Never>()
     private var pendingConfirmationCount: Int {
         streamHandler?.pendingConfirmations.count ?? 0
@@ -57,14 +58,140 @@ struct StreamableChatLayout<Header: View>: View {
            handler.isStreaming || !handler.pendingConfirmations.isEmpty || !handler.pendingQuestions.isEmpty || !handler
            .pendingLocations.isEmpty
         {
-            msgs.append(DisplayMessage(
-                id: "streaming",
-                role: .assistant,
-                parts: handler.streamingParts,
-                assigneeName: assigneeName
-            ))
+            // Collect all toolCallIds already in display messages to avoid duplicates
+            let existingToolCallIds = Set(
+                msgs.flatMap { $0.parts.compactMap { part -> String? in
+                    if case let .tool(info) = part { return info.toolCallId }
+                    return nil
+                }}
+            )
+
+            // Filter out streaming tool calls that already exist in display messages
+            let filteredParts = handler.streamingParts.filter { part in
+                if case let .tool(info) = part {
+                    return !existingToolCallIds.contains(info.toolCallId)
+                }
+                return true
+            }
+
+            if !filteredParts.isEmpty {
+                msgs.append(DisplayMessage(
+                    id: "streaming",
+                    role: .assistant,
+                    parts: filteredParts,
+                    assigneeName: assigneeName
+                ))
+            }
         }
         return msgs
+    }
+
+    private func handleConfirmationTap() {
+        logger
+            .info(
+                "onConfirmationTap: pendingConfirmation=\(streamHandler?.pendingConfirmation != nil ? "set" : "nil")"
+            )
+        if let confirmation = streamHandler?.pendingConfirmation {
+            presentedConfirmation = confirmation
+        }
+    }
+
+    private func handleToolCallTap(_ toolCall: ToolCallInfo) {
+        // If pending question, open interactive form instead of read-only detail sheet
+        if toolCall.status == .pendingQuestion {
+            if let question = streamHandler?.pendingQuestions.first(where: {
+                $0.toolCallId == toolCall.toolCallId
+            }) {
+                presentedQuestion = question
+            } else if let payload = QuestionPayload.from(toolCall: toolCall) {
+                // Reconstruct from tool call input when not in pending queue
+                presentedQuestion = payload
+            } else {
+                selectedToolCall = toolCall
+            }
+        } else {
+            selectedToolCall = toolCall
+        }
+    }
+
+    @ViewBuilder
+    private func chatListView(proxy: ScrollViewProxy) -> some View {
+        List {
+            Section {
+                header()
+            }
+            .id("header")
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+
+            MessageList(
+                messages: allMessages,
+                assigneeName: assigneeName,
+                showPendingIndicator: showPendingIndicator,
+                showStreamComplete: streamHandler?.isStreaming == false
+                    && !messages.isEmpty
+                    && messages.last?.role == .assistant,
+                onConfirmationTap: handleConfirmationTap,
+                onToolCallTap: handleToolCallTap,
+                onDocumentTap: { item in
+                    selectedDocumentItem = item
+                }
+            )
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+        }
+        .listStyle(.plain)
+        .accessibilityIdentifier("message-list")
+        .onScrollGeometryChange(for: CGPoint.self) { geometry in
+            CGPoint(
+                x: geometry.contentSize.height,
+                y: geometry.contentSize.height - geometry.contentOffset.y - geometry.containerSize.height
+            )
+        } action: { old, new in
+            let distanceFromBottom = new.y
+            let contentGrew = new.x > old.x
+            if distanceFromBottom < 50 {
+                isAtBottom = true
+            } else if !contentGrew {
+                // Only disengage when user scrolled up, not when content growth pushed bottom away
+                isAtBottom = false
+            }
+            logger.debug("scroll: isAtBottom=\(isAtBottom) distance=\(distanceFromBottom, format: .fixed(precision: 1)) contentGrew=\(contentGrew)")
+        }
+        .scrollContentBackground(.hidden)
+        .onTapGesture {
+            #if canImport(UIKit)
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+                )
+            #endif
+        }
+        .defaultScrollAnchor(.bottom, for: .sizeChanges)
+        .onAppear {
+            DispatchQueue.main.async {
+                proxy.scrollTo("bottom", anchor: .bottom)
+            }
+        }
+        .onChange(of: messages.count) { oldCount, newCount in
+            // Scroll to bottom when messages are first loaded (empty -> non-empty)
+            if oldCount == 0, newCount > 0 {
+                DispatchQueue.main.async {
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            }
+        }
+        .task {
+            for await event in eventManager.stream {
+                if case .streamContentUpdated = event {
+                    guard isAtBottom else { continue }
+                    DispatchQueue.main.async {
+                        withAnimation {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     var body: some View {
@@ -76,88 +203,7 @@ struct StreamableChatLayout<Header: View>: View {
                 }
 
                 ScrollViewReader { proxy in
-                    List {
-                        Section {
-                            header()
-                        }
-                        .id("header")
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-
-                        MessageList(
-                            messages: allMessages,
-                            assigneeName: assigneeName,
-                            showPendingIndicator: showPendingIndicator,
-                            showStreamComplete: streamHandler?.isStreaming == false
-                                && !messages.isEmpty
-                                && messages.last?.role == .assistant,
-                            onConfirmationTap: {
-                                logger
-                                    .info(
-                                        "onConfirmationTap: pendingConfirmation=\(streamHandler?.pendingConfirmation != nil ? "set" : "nil")"
-                                    )
-                                if let confirmation = streamHandler?.pendingConfirmation {
-                                    presentedConfirmation = confirmation
-                                }
-                            },
-                            onToolCallTap: { toolCall in
-                                // If pending question, open interactive form instead of read-only detail sheet
-                                if toolCall.status == .pendingQuestion {
-                                    if let question = streamHandler?.pendingQuestions.first(where: {
-                                        $0.toolCallId == toolCall.toolCallId
-                                    }) {
-                                        presentedQuestion = question
-                                    } else if let payload = QuestionPayload.from(toolCall: toolCall) {
-                                        // Reconstruct from tool call input when not in pending queue
-                                        presentedQuestion = payload
-                                    } else {
-                                        selectedToolCall = toolCall
-                                    }
-                                } else {
-                                    selectedToolCall = toolCall
-                                }
-                            },
-                            onDocumentTap: { item in
-                                selectedDocumentItem = item
-                            }
-                        )
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                    }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                    .onTapGesture {
-                        #if canImport(UIKit)
-                            UIApplication.shared.sendAction(
-                                #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
-                            )
-                        #endif
-                    }
-                    .defaultScrollAnchor(.bottom, for: .sizeChanges)
-                    .onAppear {
-                        DispatchQueue.main.async {
-                            proxy.scrollTo("bottom", anchor: .bottom)
-                        }
-                    }
-                    .onChange(of: messages.count) { oldCount, newCount in
-                        // Scroll to bottom when messages are first loaded (empty -> non-empty)
-                        if oldCount == 0, newCount > 0 {
-                            DispatchQueue.main.async {
-                                proxy.scrollTo("bottom", anchor: .bottom)
-                            }
-                        }
-                    }
-                    .task {
-                        for await event in eventManager.stream {
-                            if case .streamContentUpdated = event {
-                                DispatchQueue.main.async {
-                                    withAnimation {
-                                        proxy.scrollTo("bottom", anchor: .bottom)
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    chatListView(proxy: proxy)
                 }
             }
             .onChange(of: pendingConfirmationCount) {
@@ -292,6 +338,7 @@ struct StreamableChatLayout<Header: View>: View {
                 text: $messageText,
                 isStreaming: streamHandler?.isStreaming == true
             ) { text in
+                isAtBottom = true
                 onSend(text)
             } onStop: {
                 onStop()
@@ -464,6 +511,7 @@ private struct PendingQuestionBanner: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
+        .accessibilityIdentifier("question-banner")
     }
 }
 

@@ -231,6 +231,7 @@ test.describe("Cron Task Scheduling", () => {
     const createRes = await request.post("/api/tasks", {
       data: {
         title: "Concurrent Cron Task",
+        description: "[SLOW_STREAM] Process this task slowly",
         assigneeId,
         cronSchedule: "* * * * *",
         isCronEnabled: true,
@@ -239,11 +240,14 @@ test.describe("Cron Task Scheduling", () => {
     expect(createRes.ok()).toBeTruthy();
     const task = await createRes.json();
 
-    // First execute — creates a session in "starting" status
+    // First execute — creates a session; [SLOW_STREAM] keeps the agent active
     const first = await request.post(`/api/tasks/${task.id}/execute`, {
       headers: { authorization: `Bearer ${CELERY_ADMIN_KEY}` },
     });
     expect(first.ok()).toBeTruthy();
+
+    // Small delay to let the worker pick up the task and set the session active
+    await new Promise((r) => setTimeout(r, 500));
 
     // Second execute while first session is still active — should be skipped
     const second = await request.post(`/api/tasks/${task.id}/execute`, {

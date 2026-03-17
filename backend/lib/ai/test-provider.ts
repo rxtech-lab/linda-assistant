@@ -145,6 +145,16 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
       };
     }
 
+    // ask_question flow: after user answers, return follow-up text
+    if (hasUserMessage(messages, "[TOOL:ask_question]")) {
+      return {
+        chunks: createTextMessageChunks(
+          "Thank you for answering! Based on your response, here is the follow-up. [QUESTION_FOLLOW_UP]",
+        ),
+        chunkDelayInMs: null,
+      };
+    }
+
     const text = isRejection ? "I understand, I won't do that." : "Email sent successfully.";
 
     return {
@@ -312,6 +322,25 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
     });
     return {
       chunks: createToolCallChunks("call-reject-retry", "send_email", input),
+      chunkDelayInMs: null,
+    };
+  }
+
+  // Scenario: ask_question tool call (boolean question)
+  if (
+    lastText.includes("[TOOL:ask_question]") &&
+    (!availableTools || availableTools.has("ask_question"))
+  ) {
+    const input = JSON.stringify({
+      questions: [
+        {
+          title: "Do you like sushi?",
+          type: "boolean",
+        },
+      ],
+    });
+    return {
+      chunks: createToolCallChunks("call-question-1", "ask_question", input),
       chunkDelayInMs: null,
     };
   }

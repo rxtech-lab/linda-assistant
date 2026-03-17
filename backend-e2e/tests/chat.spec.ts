@@ -45,14 +45,19 @@ const test = base.extend<{ assigneeId: string }>({
 test.describe.serial("Confirmation flow", () => {
   test.setTimeout(300_000);
 
-  test("test 1: get current time + approve confirmation + continue chat", async ({ assigneeId }) => {
+  test("test 1: get current time + approve confirmation + continue chat", async ({
+    assigneeId,
+  }) => {
     // Single stream connection for the entire test
     const stream = consumeStream(assigneeId, {
       timeout: 180_000,
       onMessage: async (evt) => {
         if (evt.event === "confirmation_required") {
           expect(evt.data.toolName).toBe("get_current_time");
-          await resolveConfirmation(evt.data.confirmationId as string, "confirm");
+          await resolveConfirmation(
+            evt.data.confirmationId as string,
+            "confirm",
+          );
         }
       },
     });
@@ -98,7 +103,10 @@ test.describe.serial("Confirmation flow", () => {
       expect(timeCallParts.length).toBeGreaterThanOrEqual(1);
       const confirmedCall = timeCallParts.find((p) => p.confirmation);
       expect(confirmedCall).toBeTruthy();
-      const timeConfirmation = confirmedCall!.confirmation as { id: string; status: string };
+      const timeConfirmation = confirmedCall!.confirmation as {
+        id: string;
+        status: string;
+      };
       expect(timeConfirmation.status).toBe("confirmed");
 
       // Verify get_current_time tool-result exists
@@ -126,14 +134,19 @@ test.describe.serial("Confirmation flow", () => {
     }
   });
 
-  test("test 2: get current time + reject confirmation + continue chat", async ({ assigneeId }) => {
+  test("test 2: get current time + reject confirmation + continue chat", async ({
+    assigneeId,
+  }) => {
     // Single stream connection for the entire test
     const stream = consumeStream(assigneeId, {
       timeout: 180_000,
       onMessage: async (evt) => {
         if (evt.event === "confirmation_required") {
           expect(evt.data.toolName).toBe("get_current_time");
-          await resolveConfirmation(evt.data.confirmationId as string, "reject");
+          await resolveConfirmation(
+            evt.data.confirmationId as string,
+            "reject",
+          );
         }
       },
     });
@@ -170,7 +183,10 @@ test.describe.serial("Confirmation flow", () => {
       expect(timeCallParts.length).toBeGreaterThanOrEqual(1);
       const rejectedCall = timeCallParts.find((p) => p.confirmation);
       expect(rejectedCall).toBeTruthy();
-      const timeConfirmation = rejectedCall!.confirmation as { id: string; status: string };
+      const timeConfirmation = rejectedCall!.confirmation as {
+        id: string;
+        status: string;
+      };
       expect(timeConfirmation.status).toBe("rejected");
 
       // Verify the rejected tool-call's tool-result has isError
@@ -201,7 +217,9 @@ test.describe.serial("Confirmation flow", () => {
     }
   });
 
-  test("test 3: get current time with auto-confirm + continue chat", async ({ assigneeId }) => {
+  test("test 3: get current time with auto-confirm + continue chat", async ({
+    assigneeId,
+  }) => {
     // Set get_current_time to auto-confirm
     const assignee = await getAssignee(assigneeId);
     const updatedPermissions = assignee.toolPermissions.map((tp) => {
@@ -290,7 +308,9 @@ test.describe.serial("Confirmation flow", () => {
     }
   });
 
-  test("test 4: get current time confirmation ignored + continue chat + re-check and confirm", async ({ assigneeId }) => {
+  test("test 4: get current time confirmation ignored + continue chat + re-check and confirm", async ({
+    assigneeId,
+  }) => {
     // Track whether we should confirm or ignore confirmations
     let shouldConfirm = false;
 
@@ -299,7 +319,10 @@ test.describe.serial("Confirmation flow", () => {
       onMessage: async (evt) => {
         if (evt.event === "confirmation_required") {
           if (shouldConfirm) {
-            await resolveConfirmation(evt.data.confirmationId as string, "confirm");
+            await resolveConfirmation(
+              evt.data.confirmationId as string,
+              "confirm",
+            );
             console.log(`Confirmed: ${evt.data.toolName}`);
           } else {
             console.log(`Ignoring confirmation for: ${evt.data.toolName}`);
@@ -387,7 +410,9 @@ test.describe.serial("Confirmation flow", () => {
     }
   });
 
-  test.skip("test 5: multiple get_current_time — confirm second, first gets rejected, continue chat", async ({ assigneeId }) => {
+  test.skip("test 5: multiple get_current_time — confirm second, first gets rejected, continue chat", async ({
+    assigneeId,
+  }) => {
     // We'll track confirmation IDs as they arrive and only confirm the second one
     const confirmationIds: Array<{ id: string; toolName: string }> = [];
     let confirmSecond = false;
@@ -397,7 +422,10 @@ test.describe.serial("Confirmation flow", () => {
       onMessage: async (evt) => {
         if (evt.event === "confirmation_required") {
           const cId = evt.data.confirmationId as string;
-          confirmationIds.push({ id: cId, toolName: evt.data.toolName as string });
+          confirmationIds.push({
+            id: cId,
+            toolName: evt.data.toolName as string,
+          });
           console.log(
             `Received confirmation #${confirmationIds.length}: ${cId}`,
           );
@@ -497,7 +525,9 @@ test.describe.serial("Confirmation flow", () => {
     }
   });
 
-  test("test 6: get current time confirmation + delete messages + re-check and confirm", async ({ assigneeId }) => {
+  test("test 6: get current time confirmation + delete messages + re-check and confirm", async ({
+    assigneeId,
+  }) => {
     const stream = consumeStream(assigneeId, {
       timeout: 180_000,
       onMessage: async (evt) => {
@@ -534,7 +564,10 @@ test.describe.serial("Confirmation flow", () => {
         timeout: 180_000,
         onMessage: async (evt) => {
           if (evt.event === "confirmation_required") {
-            await resolveConfirmation(evt.data.confirmationId as string, "confirm");
+            await resolveConfirmation(
+              evt.data.confirmationId as string,
+              "confirm",
+            );
             console.log(`Confirmed after delete: ${evt.data.toolName}`);
           }
         },
@@ -593,7 +626,9 @@ test.describe.serial("Confirmation flow", () => {
 test.describe.serial("Stream behavior", () => {
   test.setTimeout(300_000);
 
-  test("test 7: stream recovery — two listeners, one disconnects and reconnects, both match history", async ({ assigneeId }) => {
+  test("test 7: stream recovery — two listeners, one disconnects and reconnects, both match history", async ({
+    assigneeId,
+  }) => {
     // Step 1: Send message asking for ~200 words of plain text (no tool calls)
     await sendMessage(
       assigneeId,
@@ -725,7 +760,9 @@ test.describe.serial("Stream behavior", () => {
     streamBReconnect.cancel();
   });
 
-  test("test 7b: stream recovery — two devices both disconnect and reconnect mid-stream, both get replay", async ({ assigneeId }) => {
+  test("test 7b: stream recovery — two devices both disconnect and reconnect mid-stream, both get replay", async ({
+    assigneeId,
+  }) => {
     const deviceTokenA = `test-device-${Date.now()}-a`;
     const deviceTokenB = `test-device-${Date.now()}-b`;
 
@@ -852,7 +889,9 @@ test.describe.serial("Stream behavior", () => {
     streamBReconnect.cancel();
   });
 
-  test("test 8: no stream listener — poll DB until assistant replies, then connect with deviceToken and receive refresh signal", async ({ assigneeId }) => {
+  test("test 8: no stream listener — poll DB until assistant replies, then connect with deviceToken and receive refresh signal", async ({
+    assigneeId,
+  }) => {
     const deviceTokenA = `test-device-${Date.now()}-a`;
 
     // Step 1: Send message but do NOT listen to the stream
@@ -894,7 +933,10 @@ test.describe.serial("Stream behavior", () => {
     expect(assistantText.length).toBeGreaterThan(0);
 
     // Step 3: Connect with deviceToken — should receive refresh signal (cached data exists, device hasn't seen it)
-    const stream = consumeStream(assigneeId, { timeout: 15_000, deviceToken: deviceTokenA });
+    const stream = consumeStream(assigneeId, {
+      timeout: 15_000,
+      deviceToken: deviceTokenA,
+    });
     try {
       const refreshEvent = await stream.waitForEvent("refresh");
       console.log("Received refresh event:", refreshEvent.data);
@@ -905,19 +947,26 @@ test.describe.serial("Stream behavior", () => {
       );
       expect(textDeltas.length).toBe(0);
 
-      console.log("Test 8 passed: refresh signal received after generation completed");
+      console.log(
+        "Test 8 passed: refresh signal received after generation completed",
+      );
     } finally {
       stream.cancel();
     }
 
     // Step 4: Connect again with same deviceToken — should NOT receive refresh (already marked)
-    const stream2 = consumeStream(assigneeId, { timeout: 15_000, deviceToken: deviceTokenA });
+    const stream2 = consumeStream(assigneeId, {
+      timeout: 15_000,
+      deviceToken: deviceTokenA,
+    });
     try {
       const statusEvent = await stream2.waitForEvent("status");
       console.log("Second connection status event:", statusEvent.data);
 
       const refreshEvents = stream2.events.filter((e) => e.event === "refresh");
-      console.log(`Second connection received ${refreshEvents.length} refresh events`);
+      console.log(
+        `Second connection received ${refreshEvents.length} refresh events`,
+      );
       expect(refreshEvents.length).toBe(0);
 
       console.log("Test 8 continued: no duplicate refresh for same device");
@@ -927,7 +976,10 @@ test.describe.serial("Stream behavior", () => {
 
     // Step 5: Connect with a DIFFERENT deviceToken — should receive refresh
     const deviceTokenB = `test-device-${Date.now()}-b`;
-    const stream3 = consumeStream(assigneeId, { timeout: 15_000, deviceToken: deviceTokenB });
+    const stream3 = consumeStream(assigneeId, {
+      timeout: 15_000,
+      deviceToken: deviceTokenB,
+    });
     try {
       const refreshEvent = await stream3.waitForEvent("refresh");
       console.log("Different device refresh event:", refreshEvent.data);
@@ -938,7 +990,7 @@ test.describe.serial("Stream behavior", () => {
   });
 });
 
-test.describe.serial("Question tool", () => {
+test.describe("Question tool", () => {
   test.setTimeout(300_000);
 
   test("test 9: ask question + answer + follow up", async ({ assigneeId }) => {
@@ -946,17 +998,14 @@ test.describe.serial("Question tool", () => {
       timeout: 180_000,
       onMessage: async (evt) => {
         if (evt.event === "question_required") {
-          console.log(`Question required: ${evt.data.questionId}`);
-          const pending = await listQuestions();
-          const q = pending.find(
-            (q) => q.toolName === "ask_question" && q.status === "pending",
-          );
-          expect(q).toBeTruthy();
-          expect(q!.questionsData).toBeTruthy();
-          expect(q!.questionsData.length).toBeGreaterThanOrEqual(1);
+          const questionId = evt.data.questionId as string;
+          const questions = evt.data.questions as Array<{ type: string }>;
+          console.log(`Question required: ${questionId}`);
+          expect(questions).toBeTruthy();
+          expect(questions.length).toBeGreaterThanOrEqual(1);
 
-          // Answer all questions
-          const answers = q!.questionsData.map(
+          // Answer all questions using data from the event
+          const answers = questions.map(
             (qd: { type: string }, i: number) => ({
               questionIndex: i,
               answer:
@@ -967,8 +1016,8 @@ test.describe.serial("Question tool", () => {
                     : "Test answer",
             }),
           );
-          await answerQuestion(q!.id, "answer", answers);
-          console.log(`Answered question: ${q!.id}`);
+          await answerQuestion(questionId, "answer", answers);
+          console.log(`Answered question: ${questionId}`);
         }
       },
     });
@@ -1039,14 +1088,10 @@ test.describe.serial("Question tool", () => {
       timeout: 180_000,
       onMessage: async (evt) => {
         if (evt.event === "question_required") {
-          console.log(`Question required, rejecting: ${evt.data.questionId}`);
-          const pending = await listQuestions();
-          const q = pending.find(
-            (q) => q.toolName === "ask_question" && q.status === "pending",
-          );
-          expect(q).toBeTruthy();
-          await answerQuestion(q!.id, "reject");
-          console.log(`Rejected question: ${q!.id}`);
+          const questionId = evt.data.questionId as string;
+          console.log(`Question required, rejecting: ${questionId}`);
+          await answerQuestion(questionId, "reject");
+          console.log(`Rejected question: ${questionId}`);
         }
       },
     });
@@ -1112,7 +1157,9 @@ test.describe.serial("Question tool", () => {
     }
   });
 
-  test("test 11: ask question + user skips + keeps chatting = auto reject", async ({ assigneeId }) => {
+  test("test 11: ask question + user skips + keeps chatting = auto reject", async ({
+    assigneeId,
+  }) => {
     const stream = consumeStream(assigneeId, {
       timeout: 180_000,
       onMessage: async (evt) => {
@@ -1185,6 +1232,117 @@ test.describe.serial("Question tool", () => {
       );
     } finally {
       stream.cancel();
+    }
+  });
+
+  test("test 11b: answer historical question emits question_answered SSE event", async ({
+    assigneeId,
+  }) => {
+    // Step 1: Start stream and trigger ask_question
+    const stream1 = consumeStream(assigneeId, {
+      timeout: 180_000,
+      label: "stream1",
+    });
+
+    let capturedQuestionId: string;
+    let capturedToolCallId: string;
+
+    try {
+      await sendMessage(
+        assigneeId,
+        "Ask me a question using the ask_question tool. Ask a single boolean question: 'Do you like sushi?' and provide one follow-up response based on the user's answer.",
+      );
+      // Wait for the question_required event (backend pauses here)
+      await stream1.waitForEvent("question_required");
+
+      const questionEvent = stream1.events.find(
+        (e) => e.event === "question_required",
+      );
+      expect(questionEvent).toBeTruthy();
+      capturedQuestionId = questionEvent!.data.questionId as string;
+      capturedToolCallId = questionEvent!.data.toolCallId as string;
+      console.log(
+        `Question created: ${capturedQuestionId}, toolCallId: ${capturedToolCallId}`,
+      );
+    } finally {
+      // Disconnect the first stream (simulates app close)
+      stream1.cancel();
+    }
+
+    // Step 2: Open a NEW stream (simulates app reopen with historical question)
+    const stream2 = consumeStream(assigneeId, {
+      timeout: 180_000,
+      label: "stream2",
+    });
+
+    try {
+      // Wait for replayed waiting_question status (backend replays in_progress, tool-call,
+      // question_required, then waiting_question)
+      await stream2.waitForEvent("question_required");
+
+      // Step 3: Answer the question using the captured questionId
+      console.log(`Answering historical question: ${capturedQuestionId!}`);
+      await answerQuestion(capturedQuestionId!, "answer", [
+        { questionIndex: 0, answer: true },
+      ]);
+
+      // Step 4: Wait for the stream to complete
+      await stream2.waitForDone();
+
+      // Step 5: Verify question_answered SSE event was emitted
+      const answeredEvents = stream2.events.filter(
+        (e) => e.event === "question_answered",
+      );
+      expect(answeredEvents.length).toBeGreaterThanOrEqual(1);
+      expect(answeredEvents[0]!.data.action).toBe("answered");
+      expect(answeredEvents[0]!.data.toolCallId).toBe(capturedToolCallId!);
+      console.log(
+        `question_answered event received: toolCallId=${answeredEvents[0]!.data.toolCallId}`,
+      );
+
+      // Step 6: Verify agent produced text AFTER receiving the answer (not just replayed pre-question text)
+      const textDeltas = stream2.events.filter((e) => e.event === "text-delta");
+      const lastMessageFromAssistantStream = textDeltas
+        .map((e) => e.data.text)
+        .join("");
+      expect(textDeltas.length).toBeGreaterThan(0);
+
+      // Verify text-delta events appear after question_answered (post-resume, not just replay)
+      const questionAnsweredIndex = stream2.events.findIndex(
+        (e) => e.event === "question_answered",
+      );
+      const postAnswerTextDeltas = stream2.events.filter(
+        (e, i) => e.event === "text-delta" && i > questionAnsweredIndex,
+      );
+      expect(postAnswerTextDeltas.length).toBeGreaterThan(0);
+
+      // Step 7: Verify the stream completed (done event arrived)
+      const doneEvents = stream2.events.filter((e) => e.event === "done");
+      expect(doneEvents.length).toBeGreaterThanOrEqual(1);
+
+      // Step 8: Validate chat history
+      const { messages } = await getChatHistory(assigneeId);
+      const questionCallParts = findToolCallParts(messages, "ask_question");
+      expect(questionCallParts.length).toBeGreaterThanOrEqual(1);
+      const questionAnnotation = questionCallParts[0]?.question as
+        | { id: string; status: string }
+        | undefined;
+      expect(questionAnnotation).toBeTruthy();
+      expect(questionAnnotation!.status).toBe("answered");
+
+      // check if the last message equals the text from the stream
+      const lastMessageFromAssistant = messages.findLast(
+        (m) => m.role === "assistant",
+      );
+      expect((lastMessageFromAssistant?.content[0] as any).text).toEqual(
+        lastMessageFromAssistantStream,
+      );
+
+      console.log(
+        `Test 11b passed: historical question answered, question_answered event emitted, text followed`,
+      );
+    } finally {
+      stream2.cancel();
     }
   });
 });
@@ -1345,7 +1503,9 @@ test.describe.serial("Location tool", () => {
     }
   });
 
-  test("test 15: get location with auto-confirm permission", async ({ assigneeId }) => {
+  test("test 15: get location with auto-confirm permission", async ({
+    assigneeId,
+  }) => {
     // Set get_location to auto-confirm
     const assignee = await getAssignee(assigneeId);
     const updatedPermissions = assignee.toolPermissions.map((tp) => {
@@ -1429,7 +1589,9 @@ test.describe.serial("Location tool", () => {
     }
   });
 
-  test("test 14: get location + user skips + keeps chatting = auto reject", async ({ assigneeId }) => {
+  test("test 14: get location + user skips + keeps chatting = auto reject", async ({
+    assigneeId,
+  }) => {
     const stream = consumeStream(assigneeId, {
       timeout: 180_000,
       onMessage: async (evt) => {
