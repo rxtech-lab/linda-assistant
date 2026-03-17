@@ -209,6 +209,48 @@ public extension APIClient {
         try await requestNoContent(path: "briefings/\(id)")
     }
 
+    // MARK: - Extensions
+
+    func listExtensions(assigneeId: String? = nil) async throws -> [ExtensionWithStatus] {
+        var queryItems: [URLQueryItem]?
+        if let assigneeId {
+            queryItems = [URLQueryItem(name: "assigneeId", value: assigneeId)]
+        }
+        return try await request(path: "extensions", queryItems: queryItems)
+    }
+
+    func createExtension(_ body: CreateExtension) async throws -> Extension {
+        try await request(path: "extensions", method: "POST", body: body)
+    }
+
+    func getExtension(id: String, assigneeId: String? = nil) async throws -> ExtensionWithStatus {
+        var queryItems: [URLQueryItem]?
+        if let assigneeId {
+            queryItems = [URLQueryItem(name: "assigneeId", value: assigneeId)]
+        }
+        return try await request(path: "extensions/\(id)", queryItems: queryItems)
+    }
+
+    func deleteExtension(id: String) async throws {
+        try await requestNoContent(path: "extensions/\(id)")
+    }
+
+    func listAssigneeExtensions(assigneeId: String) async throws -> [ExtensionWithStatus] {
+        try await request(path: "assignees/\(assigneeId)/extensions")
+    }
+
+    func updateAssigneeExtension(
+        assigneeId: String,
+        extensionId: String,
+        _ body: AssigneeExtensionSettings
+    ) async throws -> ExtensionWithStatus {
+        try await request(
+            path: "assignees/\(assigneeId)/extensions/\(extensionId)",
+            method: "PUT",
+            body: body
+        )
+    }
+
     // MARK: - Emails
 
     func listEmails(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Email> {

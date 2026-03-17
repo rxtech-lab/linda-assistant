@@ -1,8 +1,7 @@
 import { db } from "@/lib/db";
 import type { ToolPermission } from "@/lib/db/schema";
-import { assignees } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { createInvoiceMcp } from "./mcps/invoice";
+import { assignees, extensions, assigneeExtensions } from "@/lib/db/schema";
+import { eq, and, or } from "drizzle-orm";
 import { CREATE_TASK_TOOL_NAME, createTaskTool } from "./create-task";
 import { CREATE_DOCUMENT_TOOL_NAME, createDocumentTool } from "./create-document";
 import { getActiveSessionMessages } from "@/lib/db/messages";
@@ -17,9 +16,8 @@ import { UPDATE_DOCUMENT_TOOL_NAME, updateDocumentTool } from "./update-document
 import { SEND_NOTIFICATION_TOOL_NAME, sendNotificationTool } from "./send-notification";
 import { SEARCH_DOCUMENTS_TOOL_NAME, searchDocumentsTool } from "./search-documents";
 import { CREATE_BRIEFING_TOOL_NAME, createBriefingTool } from "./create-briefing";
-import { createFilesMcp } from "./mcps/files";
-import { createFirecrawlMcp } from "./mcps/firecrawl";
-import { createTransportMcp } from "./mcps/transport";
+import { type AuthConfig, createGenericMcp } from "./mcps/generic";
+import { redis } from "@/lib/redis";
 
 export interface ToolSetResult {
   /** Tools filtered to exclude auto-reject and disabled entries, built with correct needsApproval */
@@ -27,58 +25,116 @@ export interface ToolSetResult {
 }
 
 /**
- * Generic MCP configuration for loading external tools
- */
-interface McpConfig {
-  /** Prefix to add to all tool names from this MCP */
-  prefix: string;
-  /** Function to create the MCP client */
-  createMcp: (
-    accessToken: string,
-    needsApproval: Record<string, boolean>,
-  ) => Promise<Record<string, unknown>>;
-}
-
-/**
- * Load tools from a generic MCP server with permission filtering
+ * Load tools from an MCP server with permission filtering
  */
 async function loadMcpTools(
-  config: McpConfig,
-  accessToken: string,
+  prefix: string,
+  mcpUrl: string,
+  auth: AuthConfig,
   toolPermissions: ToolPermission[] | null,
 ): Promise<Record<string, unknown>> {
-  if (!accessToken) {
-    return {};
-  }
-
   try {
     // First fetch tools to discover their names
-    const rawTools = await config.createMcp(accessToken, {});
+    const rawTools = await createGenericMcp(mcpUrl, auth, {});
     const needsApproval: Record<string, boolean> = {};
 
     // Build needsApproval map based on permissions
     for (const toolName of Object.keys(rawTools)) {
-      const perm = resolvePermission(`${config.prefix}${toolName}`, toolPermissions);
+      const perm = resolvePermission(`${prefix}${toolName}`, toolPermissions);
       if (perm === "auto-reject" || perm === "disabled") continue;
       needsApproval[toolName] = perm === "manual-confirm";
     }
 
     // Fetch tools again with correct needsApproval settings
-    const mcpTools = await config.createMcp(accessToken, needsApproval);
+    const mcpTools = await createGenericMcp(mcpUrl, auth, needsApproval);
 
     // Prefix tool names and filter out auto-rejected tools
     const prefixed: Record<string, unknown> = {};
     for (const [toolName, tool] of Object.entries(mcpTools)) {
-      const perm = resolvePermission(`${config.prefix}${toolName}`, toolPermissions);
+      const perm = resolvePermission(`${prefix}${toolName}`, toolPermissions);
       if (perm === "auto-reject" || perm === "disabled") continue;
-      prefixed[`${config.prefix}${toolName}`] = tool as unknown;
+      prefixed[`${prefix}${toolName}`] = tool as unknown;
     }
 
     return prefixed;
   } catch (error) {
-    console.warn(`[loadMcpTools] Failed to load ${config.prefix} MCP tools:`, error);
+    console.warn(`[loadMcpTools] Failed to load ${prefix} MCP tools:`, error);
     return {};
   }
+}
+
+/**
+ * Build AuthConfig from extension row + session access token
+ */
+function buildAuthConfig(
+  authType: string,
+  authConfigJson: Record<string, unknown> | null,
+  accessToken: string,
+): AuthConfig {
+  switch (authType) {
+    case "api_key":
+      return { type: "api_key", apiKey: (authConfigJson?.apiKey as string) ?? "" };
+    case "none":
+      return { type: "none" };
+    case "rxauth":
+    default:
+      return { type: "rxauth", accessToken };
+  }
+}
+
+/**
+ * Get enabled extensions for an assignee, including auth config
+ */
+async function getEnabledExtensions(
+  userId: string,
+  assigneeId: string | null,
+  accessToken: string,
+): Promise<
+  Array<{
+    prefix: string;
+    mcpUrl: string;
+    auth: AuthConfig;
+    extToolPermissions: ToolPermission[] | null;
+  }>
+> {
+  if (!assigneeId) return [];
+
+  // Get all extensions available to this user (system + user's own)
+  const allExtensions = await db
+    .select()
+    .from(extensions)
+    .where(or(eq(extensions.type, "system"), eq(extensions.userId, userId)));
+
+  if (allExtensions.length === 0) return [];
+
+  // Get assignee extension settings
+  const aeRows = await db
+    .select()
+    .from(assigneeExtensions)
+    .where(eq(assigneeExtensions.assigneeId, assigneeId));
+
+  const aeMap = new Map(aeRows.map((ae) => [ae.extensionId, ae]));
+
+  const result: Array<{
+    prefix: string;
+    mcpUrl: string;
+    auth: AuthConfig;
+    extToolPermissions: ToolPermission[] | null;
+  }> = [];
+
+  for (const ext of allExtensions) {
+    const ae = aeMap.get(ext.id);
+    if (!ae?.enabled) continue; // Skip disabled or not-configured extensions
+
+    result.push({
+      prefix: ext.prefix,
+      mcpUrl: ext.mcpUrl,
+      auth: buildAuthConfig(ext.authType, ext.authConfig, accessToken),
+      extToolPermissions: ae.toolPermissions,
+    });
+  }
+
+  return result;
 }
 
 /**
@@ -192,30 +248,14 @@ export async function buildToolSet(
 
   // Skip MCP tools in E2E test mode (no valid OAuth tokens for external services)
   if (!isE2E) {
-    // MCP server configurations - add more MCPs here
-    const mcpConfigs: McpConfig[] = [
-      {
-        prefix: "invoice_",
-        createMcp: createInvoiceMcp,
-      },
-      // Add more MCP configurations here in the future:
-      {
-        prefix: "files_",
-        createMcp: createFilesMcp,
-      },
-      {
-        prefix: "firecrawl_",
-        createMcp: createFirecrawlMcp,
-      },
-      {
-        prefix: "transport_",
-        createMcp: createTransportMcp,
-      },
-    ];
+    // Query enabled extensions for this assignee from DB
+    const enabledExtensions = await getEnabledExtensions(userId, assigneeId, accessToken);
 
-    // Load all MCP tools in parallel
+    // Load all enabled extension MCP tools in parallel
     const mcpResults = await Promise.allSettled(
-      mcpConfigs.map((mcpConfig) => loadMcpTools(mcpConfig, accessToken, toolPermissions)),
+      enabledExtensions.map(({ prefix, mcpUrl, auth, extToolPermissions }) =>
+        loadMcpTools(prefix, mcpUrl, auth, extToolPermissions ?? toolPermissions),
+      ),
     );
 
     for (let i = 0; i < mcpResults.length; i++) {
@@ -223,12 +263,77 @@ export async function buildToolSet(
       if (result.status === "fulfilled") {
         Object.assign(filtered, result.value);
       } else {
-        console.error(`[buildToolSet] MCP ${mcpConfigs[i].prefix} failed to load:`, result.reason);
+        console.error(
+          `[buildToolSet] MCP ${enabledExtensions[i].prefix} failed to load:`,
+          result.reason,
+        );
       }
     }
   }
 
   return { tools: filtered };
+}
+
+export type ToolMetadata = {
+  name: string;
+  description: string;
+  needsApproval: boolean;
+};
+
+export type ToolMetadataResult = { data: ToolMetadata[]; fromCache: boolean };
+
+const TOOL_META_TTL = 600; // 10 minutes
+
+function toolMetaCacheKey(userId: string, assigneeId: string): string {
+  return `tool-meta:${userId}:${assigneeId}`;
+}
+
+/**
+ * Get tool metadata list with Redis caching.
+ * Skips cache when assigneeId is null (cheap path, no MCP tools).
+ */
+export async function getToolMetadataList(
+  userId: string,
+  assigneeId: string | null,
+  accessToken: string,
+): Promise<ToolMetadataResult> {
+  // No cache for null assigneeId — cheap path without MCP tools
+  if (!assigneeId) {
+    return { data: extractMetadata(await buildToolSet(userId, assigneeId, accessToken)), fromCache: false };
+  }
+
+  const cacheKey = toolMetaCacheKey(userId, assigneeId);
+  const cached = await redis.get<string>(cacheKey);
+  if (cached) {
+    const data = typeof cached === "string" ? JSON.parse(cached) : cached;
+    return { data, fromCache: true };
+  }
+
+  const result = await buildToolSet(userId, assigneeId, accessToken);
+  const metadata = extractMetadata(result);
+  await redis.set(cacheKey, JSON.stringify(metadata), { ex: TOOL_META_TTL });
+  return { data: metadata, fromCache: false };
+}
+
+function extractMetadata(result: ToolSetResult): ToolMetadata[] {
+  return Object.entries(result.tools).map(([name, tool]) => {
+    const t = tool as { description?: string; needsApproval?: boolean };
+    return {
+      name,
+      description: t.description ?? "",
+      needsApproval: t.needsApproval ?? false,
+    };
+  });
+}
+
+/**
+ * Invalidate cached tool metadata for a specific assignee.
+ */
+export async function invalidateToolMetadataCache(
+  userId: string,
+  assigneeId: string,
+): Promise<void> {
+  await redis.del(toolMetaCacheKey(userId, assigneeId));
 }
 
 export {

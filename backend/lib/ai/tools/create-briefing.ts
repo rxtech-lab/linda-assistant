@@ -43,10 +43,7 @@ export const createBriefingTool = (
         });
 
         if (result.files && result.files.length > 0) {
-          console.log(
-            "[createBriefingTool] Generated image file:",
-            result.files[0],
-          );
+          console.log("[createBriefingTool] Generated image file:", result.files[0]);
           const file = result.files[0];
           const buffer = Buffer.from(file.base64, "base64");
           const ext = file.mediaType === "image/png" ? "png" : "jpg";
@@ -59,10 +56,7 @@ export const createBriefingTool = (
           imageUrl = uploaded.url;
         }
       } catch (err) {
-        console.warn(
-          "[create-briefing] Image generation failed, proceeding without image:",
-          err,
-        );
+        console.warn("[create-briefing] Image generation failed, proceeding without image:", err);
       }
 
       // Insert briefing

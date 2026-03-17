@@ -52,7 +52,7 @@ describe("downloadAndUploadToS3", () => {
     );
 
     // Verify fetch was called with the URL
-    expect(mockFetch.mock.calls[0][0]).toBe("https://example.com/file.pdf");
+    expect((mockFetch.mock.calls as unknown[][])[0][0]).toBe("https://example.com/file.pdf");
 
     // Verify S3 upload was called
     expect(mockSend).toHaveBeenCalledTimes(1);

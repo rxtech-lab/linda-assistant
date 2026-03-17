@@ -663,6 +663,85 @@ public struct UsageResponse: Codable, Sendable {
     public let total: UsageTotal
 }
 
+// MARK: - Extension
+
+public struct Extension: Codable, Identifiable, Sendable {
+    public let id: String
+    public let userId: String
+    public let type: String // "system" | "user"
+    public let slug: String
+    public let title: String
+    public let description: String?
+    public let imageUrl: String?
+    public let mcpUrl: String
+    public let prefix: String
+    public let authType: String // "rxauth" | "api_key" | "none"
+    public let createdAt: String?
+    public let updatedAt: String?
+}
+
+public struct ExtensionTool: Codable, Sendable, Identifiable {
+    public var id: String {
+        name
+    }
+
+    public let name: String
+    public let description: String
+}
+
+public struct ExtensionWithStatus: Codable, Identifiable, Sendable {
+    public let id: String
+    public let userId: String
+    public let type: String
+    public let slug: String
+    public let title: String
+    public let description: String?
+    public let imageUrl: String?
+    public let mcpUrl: String
+    public let prefix: String
+    public let authType: String
+    public let enabled: Bool
+    public let toolPermissions: [ToolPermission]?
+    public let tools: [ExtensionTool]?
+    public let createdAt: String?
+    public let updatedAt: String?
+}
+
+public struct CreateExtension: Codable, Sendable {
+    public let title: String
+    public let description: String?
+    public let mcpUrl: String
+    public let prefix: String
+    public let authType: String?
+    public let authConfig: [String: AnyCodable]?
+
+    public init(
+        title: String,
+        description: String? = nil,
+        mcpUrl: String,
+        prefix: String,
+        authType: String? = nil,
+        authConfig: [String: AnyCodable]? = nil
+    ) {
+        self.title = title
+        self.description = description
+        self.mcpUrl = mcpUrl
+        self.prefix = prefix
+        self.authType = authType
+        self.authConfig = authConfig
+    }
+}
+
+public struct AssigneeExtensionSettings: Codable, Sendable {
+    public let enabled: Bool
+    public let toolPermissions: [ToolPermission]?
+
+    public init(enabled: Bool, toolPermissions: [ToolPermission]? = nil) {
+        self.enabled = enabled
+        self.toolPermissions = toolPermissions
+    }
+}
+
 // MARK: - Preview Helpers
 
 public extension Assignee {

@@ -218,6 +218,40 @@ export const briefingDocuments = sqliteTable("briefing_documents", {
     .references(() => documents.id, { onDelete: "cascade" }),
 });
 
+export const extensions = sqliteTable("extensions", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull(), // "system" for built-in, actual userId for user-registered
+  type: text("type").notNull(), // "system" | "user"
+  slug: text("slug").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  imageUrl: text("image_url"),
+  mcpUrl: text("mcp_url").notNull(),
+  prefix: text("prefix").notNull(),
+  authType: text("auth_type").notNull().default("rxauth"), // "rxauth" | "api_key" | "none"
+  authConfig: text("auth_config", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
+export const assigneeExtensions = sqliteTable("assignee_extensions", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  assigneeId: text("assignee_id")
+    .notNull()
+    .references(() => assignees.id, { onDelete: "cascade" }),
+  extensionId: text("extension_id")
+    .notNull()
+    .references(() => extensions.id, { onDelete: "cascade" }),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
 export const devices = sqliteTable("devices", {
   id: text("id")
     .primaryKey()

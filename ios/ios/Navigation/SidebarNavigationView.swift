@@ -63,7 +63,7 @@ struct SidebarNavigationView: View {
                         EmailListView()
                     }
                 case .settings:
-                    NavigationStack {
+                    NavigationStack(path: $nav.settingsPath) {
                         SettingsView()
                     }
             }

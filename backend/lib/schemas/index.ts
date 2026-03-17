@@ -488,6 +488,59 @@ export const listBriefingResponseSchema = z.object({
   }),
 });
 
+// ---- Extensions ----
+
+export const selectExtensionSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID or 'system'"),
+  type: z.enum(["system", "user"]).describe("Extension type"),
+  slug: z.string().describe("Unique slug identifier"),
+  title: z.string().describe("Display title"),
+  description: z.string().nullable().describe("Extension description"),
+  imageUrl: z.string().nullable().describe("Extension icon/image URL"),
+  mcpUrl: z.string().describe("MCP server URL"),
+  prefix: z.string().describe("Tool name prefix"),
+  authType: z.enum(["rxauth", "api_key", "none"]).describe("Authentication type"),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
+});
+
+export const insertExtensionSchema = z.object({
+  title: z.string().min(1).max(200).describe("Display title"),
+  description: z.string().max(1000).optional().describe("Extension description"),
+  mcpUrl: z.string().url().describe("MCP server URL"),
+  prefix: z
+    .string()
+    .min(1)
+    .max(50)
+    .regex(/^[a-z0-9_]+$/, "Prefix must be lowercase alphanumeric with underscores")
+    .describe("Tool name prefix (e.g. 'my_ext_')"),
+  authType: z.enum(["rxauth", "api_key", "none"]).optional().describe("Authentication type"),
+  authConfig: z.record(z.unknown()).optional().describe("Auth-specific configuration"),
+});
+
+export const extensionToolSchema = z.object({
+  name: z.string().describe("Tool name (without prefix)"),
+  description: z.string().describe("Tool description"),
+});
+
+export const extensionWithStatusSchema = selectExtensionSchema.extend({
+  enabled: z.boolean().describe("Whether this extension is enabled for the assignee"),
+  toolPermissions: z
+    .array(toolPermissionSchema)
+    .nullable()
+    .describe("Per-tool permission overrides"),
+  tools: z.array(extensionToolSchema).optional().describe("Discovered tools from MCP server"),
+});
+
+export const assigneeExtensionSettingsSchema = z.object({
+  enabled: z.boolean().describe("Whether to enable this extension"),
+  toolPermissions: z
+    .array(toolPermissionSchema)
+    .optional()
+    .describe("Per-tool permission overrides"),
+});
+
 // ---- Devices ----
 
 export const selectDeviceSchema = z.object({
