@@ -17,11 +17,14 @@ export const SUMMARY_TARGET_TOKENS = 2_000;
 /** Token size of each chunk when splitting an oversized single message. */
 export const CHUNK_TOKEN_SIZE = 10_000;
 
+export const IMAGE_GENERATION_MODEL = "google/gemini-3.1-flash-image-preview";
+
 /**
  * Model used for generating summaries during compaction.
  * Env: COMPACTION_MODEL (default: fast model with large context window).
  */
-export const COMPACTION_MODEL = process.env.COMPACTION_MODEL || "google/gemini-3-flash";
+export const COMPACTION_MODEL =
+  process.env.COMPACTION_MODEL || "google/gemini-3-flash";
 
 // ── Token Estimation ───────────────────────────────────────────────────
 

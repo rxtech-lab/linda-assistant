@@ -358,11 +358,13 @@ If the user rejects your questions, do NOT retry with the same or similar questi
 
   const locationGuidance = `\nUse the get_location tool when you need the user's current GPS coordinates — for example, to find nearby places, get local weather, provide directions, or give location-based recommendations. The user will be asked to share their location and may decline. Do NOT request location unless it is clearly relevant to the user's request.`;
 
+  const briefingGuidance = `\nUse the create_briefing tool when the user asks for a briefing, digest, or summary report that should appear in their Briefing feed. Briefings are rich reports with a cover image and markdown content. Use the search_documents tool first if you need to find and link existing documents to the briefing. Provide a short, evocative imageDescription for the cover image (e.g. 'morning coffee and newspaper on a wooden desk').`;
+
   if (!assignee)
-    return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}`;
+    return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}`;
   if (assignee.personality)
-    return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}`;
-  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}`;
+    return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}`;
+  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}`;
 }
 
 /**
@@ -1290,7 +1292,9 @@ export async function runAgent(options: AgentRunOptions) {
           });
         }
 
-        console.log(`[agent] Usage saved (paused): session=${sessionId} model=${modelId} input=${totalInputTokens} output=${totalOutputTokens} cost=$${pauseCostUsd ?? 'unknown'}`);
+        console.log(
+          `[agent] Usage saved (paused): session=${sessionId} model=${modelId} input=${totalInputTokens} output=${totalOutputTokens} cost=$${pauseCostUsd ?? "unknown"}`,
+        );
 
         await setStreamActive(sessionId, false);
         return {
@@ -1358,7 +1362,9 @@ export async function runAgent(options: AgentRunOptions) {
       });
     }
 
-    console.log(`[agent] Usage saved (completed): session=${sessionId} model=${modelId} input=${totalInputTokens} output=${totalOutputTokens} cost=$${costUsd ?? 'unknown'}`);
+    console.log(
+      `[agent] Usage saved (completed): session=${sessionId} model=${modelId} input=${totalInputTokens} output=${totalOutputTokens} cost=$${costUsd ?? "unknown"}`,
+    );
 
     // Fire-and-forget: send new turn messages to mem0 for long-term memory
     const newTurnMessages = currentMessages.slice(messages.length);

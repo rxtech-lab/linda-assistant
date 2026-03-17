@@ -188,6 +188,36 @@ export const documents = sqliteTable("documents", {
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
 
+export const briefings = sqliteTable("briefings", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull(),
+  chatSessionId: text("chat_session_id").references(() => chatSessions.id, {
+    onDelete: "set null",
+  }),
+  assigneeId: text("assignee_id").references(() => assignees.id, {
+    onDelete: "set null",
+  }),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  imageUrl: text("image_url"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
+export const briefingDocuments = sqliteTable("briefing_documents", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  briefingId: text("briefing_id")
+    .notNull()
+    .references(() => briefings.id, { onDelete: "cascade" }),
+  documentId: text("document_id")
+    .notNull()
+    .references(() => documents.id, { onDelete: "cascade" }),
+});
+
 export const devices = sqliteTable("devices", {
   id: text("id")
     .primaryKey()

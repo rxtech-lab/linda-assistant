@@ -84,7 +84,9 @@ public struct SSEEvent: Sendable {
                     print("[SSE DEBUG] locationRequired raw JSON: \(rawString)")
                 }
                 if let payload = try? decoder.decode(LocationRequestPayload.self, from: jsonData) {
-                    print("[SSE DEBUG] locationRequired decoded isAutoConfirm=\(String(describing: payload.isAutoConfirm))")
+                    print(
+                        "[SSE DEBUG] locationRequired decoded isAutoConfirm=\(String(describing: payload.isAutoConfirm))"
+                    )
                     return .locationRequired(payload)
                 }
             case .locationResolved:

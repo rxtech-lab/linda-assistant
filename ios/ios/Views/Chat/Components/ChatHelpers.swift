@@ -103,7 +103,10 @@ func extractPendingConfirmations(
             if tc.toolName == "get_location" {
                 let reason = tc.input?["reason"]?.description
                 let isAutoConfirm = tc.isAutoConfirm ?? tc.confirmation?.isAutoConfirm ?? false
-                logger.info("extractPendingLocations: found pending toolCallId=\(tc.toolCallId) isAutoConfirm=\(isAutoConfirm)")
+                logger
+                    .info(
+                        "extractPendingLocations: found pending toolCallId=\(tc.toolCallId) isAutoConfirm=\(isAutoConfirm)"
+                    )
 
                 if isAutoConfirm {
                     // Auto-confirm: silently get location and respond without showing sheet

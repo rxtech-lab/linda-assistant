@@ -10,4 +10,5 @@
 --closingparen balanced
 --commas always
 --semicolons never
+--disable redundantSelf
 --exclude .build,packages/AssistantCore/.build

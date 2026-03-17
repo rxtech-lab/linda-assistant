@@ -108,7 +108,6 @@ struct UsageView: View {
             }
     }
 
-    @ViewBuilder
     private func tokenChart(daily: [UsageDailyEntry]) -> some View {
         Chart {
             ForEach(daily) { entry in

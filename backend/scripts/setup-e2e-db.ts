@@ -48,5 +48,76 @@ await client.execute({
 });
 console.log("  Seeded default assignee: e2e-assignee");
 
+// Seed a chat session for briefing data
+await client.execute({
+  sql: `INSERT OR IGNORE INTO chat_sessions (id, user_id, assignee_id, title, status) VALUES (?, ?, ?, ?, ?)`,
+  args: [
+    "e2e-briefing-session",
+    "e2e-test-user",
+    "e2e-assignee",
+    "Briefing Seed Session",
+    "stopped",
+  ],
+});
+
+// Seed sample documents linked to briefings
+await client.execute({
+  sql: `INSERT OR IGNORE INTO documents (id, user_id, chat_session_id, title, format, content) VALUES (?, ?, ?, ?, ?, ?)`,
+  args: [
+    "e2e-doc-1",
+    "e2e-test-user",
+    "e2e-briefing-session",
+    "Q1 Revenue Analysis",
+    "markdown",
+    "## Revenue Summary\n\nTotal revenue for Q1 was $2.3M, up 15% from last quarter.",
+  ],
+});
+await client.execute({
+  sql: `INSERT OR IGNORE INTO documents (id, user_id, chat_session_id, title, format, content) VALUES (?, ?, ?, ?, ?, ?)`,
+  args: [
+    "e2e-doc-2",
+    "e2e-test-user",
+    "e2e-briefing-session",
+    "Weekly Team Updates",
+    "markdown",
+    "## Team Updates — Week 12\n\n**Engineering:** Shipped v2.4 with performance improvements.",
+  ],
+});
+
+// Seed sample briefings
+await client.execute({
+  sql: `INSERT OR IGNORE INTO briefings (id, user_id, chat_session_id, assignee_id, title, content) VALUES (?, ?, ?, ?, ?, ?)`,
+  args: [
+    "e2e-briefing-1",
+    "e2e-test-user",
+    "e2e-briefing-session",
+    "e2e-assignee",
+    "Morning Briefing: Market Overview",
+    "## Market Summary\n\nMarkets opened slightly higher today with tech leading gains.\n\n### Key Points\n\n- **Tech sector** continues its recovery\n- **Interest rates** remain steady\n\n### Your Action Items\n\n1. Review the Q1 revenue analysis\n2. Prepare talking points for the board meeting",
+  ],
+});
+await client.execute({
+  sql: `INSERT OR IGNORE INTO briefings (id, user_id, chat_session_id, assignee_id, title, content) VALUES (?, ?, ?, ?, ?, ?)`,
+  args: [
+    "e2e-briefing-2",
+    "e2e-test-user",
+    "e2e-briefing-session",
+    "e2e-assignee",
+    "Weekly Digest: Team Progress & Goals",
+    "## This Week's Highlights\n\nThe team made significant progress across all departments.\n\n### Engineering\n- Shipped 12 PRs, closing 8 tickets\n- Performance improvements reduced API latency by 40%",
+  ],
+});
+
+// Link documents to briefings
+await client.execute({
+  sql: `INSERT OR IGNORE INTO briefing_documents (id, briefing_id, document_id) VALUES (?, ?, ?)`,
+  args: ["e2e-bd-1", "e2e-briefing-1", "e2e-doc-1"],
+});
+await client.execute({
+  sql: `INSERT OR IGNORE INTO briefing_documents (id, briefing_id, document_id) VALUES (?, ?, ?)`,
+  args: ["e2e-bd-2", "e2e-briefing-2", "e2e-doc-2"],
+});
+console.log("  Seeded briefings with linked documents");
+
 client.close();
 console.log("E2E dev DB ready.");

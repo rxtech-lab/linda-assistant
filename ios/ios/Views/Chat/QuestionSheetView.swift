@@ -81,7 +81,7 @@ struct QuestionSheetView: View {
                 #endif
             }
             #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
             #endif
         }
         .presentationDetents([.medium, .large])

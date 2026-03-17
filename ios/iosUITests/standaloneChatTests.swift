@@ -64,8 +64,8 @@ final class StandaloneChatTests: XCTestCase {
         app.messageInput.typeText("long-output-test-1")
         app.sendButton.tap()
 
-
-        let element = app/*@START_MENU_TOKEN@*/.collectionViews["message-list"].firstMatch/*[[".otherElements.collectionViews[\"message-list\"].firstMatch",".collectionViews",".containing(.cell, identifier: nil).firstMatch",".containing(.other, identifier: nil).firstMatch",".firstMatch",".collectionViews[\"message-list\"].firstMatch"],[[[-1,5],[-1,1,1],[-1,0]],[[-1,4],[-1,3],[-1,2]]],[0]]@END_MENU_TOKEN@*/
+        let element = app/*@START_MENU_TOKEN@*/ .collectionViews["message-list"]
+            .firstMatch/*[[".otherElements.collectionViews[\"message-list\"].firstMatch",".collectionViews",".containing(.cell, identifier: nil).firstMatch",".containing(.other, identifier: nil).firstMatch",".firstMatch",".collectionViews[\"message-list\"].firstMatch"],[[[-1,5],[-1,1,1],[-1,0]],[[-1,4],[-1,3],[-1,2]]],[0]]@END_MENU_TOKEN@*/
         element.swipeDown()
         element.swipeDown()
 

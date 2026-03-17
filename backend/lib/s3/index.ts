@@ -72,9 +72,14 @@ export async function downloadAndUploadToS3(url: string, contentType: string, fi
   return { url: getS3PublicUrl(key), contentHash };
 }
 
-export async function uploadBufferToS3(buffer: Buffer, contentType: string, filename: string) {
+export async function uploadBufferToS3(
+  buffer: Buffer,
+  contentType: string,
+  filename: string,
+  prefix = "email-inline-images",
+) {
   const contentHash = createHash("sha256").update(buffer).digest("hex");
-  const key = `email-inline-images/${nanoid()}-${filename}`;
+  const key = `${prefix}/${nanoid()}-${filename}`;
 
   const command = new PutObjectCommand({
     Bucket: process.env.S3_BUCKET_NAME!,

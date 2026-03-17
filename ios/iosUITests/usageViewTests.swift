@@ -9,7 +9,7 @@ import XCTest
 
 final class UsageViewTests: XCTestCase {
     @MainActor
-    func testUsageViewLoads() async throws {
+    func testUsageViewLoads() throws {
         let app = launchApp()
         try app.signInWithEmailAndPassword()
 
@@ -19,7 +19,10 @@ final class UsageViewTests: XCTestCase {
         settingsButton.tap()
 
         // wait for settings-tab
-        XCTAssertTrue(app.buttons["settings-tab"].firstMatch.waitForExistence(timeout: 10), "Settings tab should appear")
+        XCTAssertTrue(
+            app.buttons["settings-tab"].firstMatch.waitForExistence(timeout: 10),
+            "Settings tab should appear"
+        )
         app.buttons["settings-tab"].firstMatch.tap()
 
         // Tap on Usage navigation link

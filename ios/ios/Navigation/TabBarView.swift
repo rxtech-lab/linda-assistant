@@ -8,6 +8,18 @@ import SwiftUI
             @Bindable var nav = navigationManager
 
             TabView(selection: $nav.selectedTab) {
+                Tab("Briefing", systemImage: "newspaper", value: .briefings) {
+                    NavigationStack(path: $nav.briefingsPath) {
+                        BriefingListView()
+                            .toolbar {
+                                ToolbarItem(placement: .topBarLeading) {
+                                    chatButton
+                                }
+                            }
+                    }
+                }
+                .accessibilityIdentifier("briefings-tab")
+
                 Tab("Tasks", systemImage: "checklist", value: .tasks) {
                     NavigationStack(path: $nav.tasksPath) {
                         TaskListView()

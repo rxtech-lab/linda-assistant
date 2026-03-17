@@ -42,7 +42,7 @@ struct AssigneeDetailView: View {
                     Button("Edit", systemImage: "pencil") { showingEdit = true }
                     Button("Delete", systemImage: "trash", role: .destructive) { showingDelete = true }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "ellipsis")
                 }
             }
         }
@@ -306,7 +306,7 @@ private struct PermissionBadge: View {
                         Button("Edit", systemImage: "pencil") {}
                         Button("Delete", systemImage: "trash", role: .destructive) {}
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Image(systemName: "ellipsis")
                     }
                 }
             }

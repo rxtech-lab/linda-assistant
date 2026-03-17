@@ -32,8 +32,11 @@ struct DeleteConfirmationSheet: View {
                 .tint(.red)
                 .controlSize(.large)
 
-                Button("Cancel") {
+                Button {
                     dismiss()
+                } label: {
+                    Text("Cancel")
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)

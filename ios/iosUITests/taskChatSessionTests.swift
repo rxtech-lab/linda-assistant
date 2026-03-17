@@ -32,9 +32,12 @@ final class TaskChatSessionTests: XCTestCase {
 
         // Navigate to Tasks tab
         app/*@START_MENU_TOKEN@*/
-            .buttons["square.grid.2x2"]/*[[".otherElements[\"square.grid.2x2\"].buttons",".otherElements",".buttons[\"Grid View\"]",".buttons[\"square.grid.2x2\"]"],[[[-1,3],[-1,2],[-1,1,1],[-1,0]],[[-1,3],[-1,2]]],[0]]@END_MENU_TOKEN@*/
+            .buttons["square.grid.2x2"]
             .firstMatch.tap()
 
+        let tasksTab = app.buttons["tasks-tab"].firstMatch
+        XCTAssertTrue(tasksTab.waitForExistence(timeout: 5), "Tasks tab should exist")
+        tasksTab.tap()
         // Add new task
         app.buttons["add-task-button"].firstMatch.tap()
 
