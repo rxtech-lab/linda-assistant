@@ -7,7 +7,6 @@ struct SidebarNavigationView: View {
         case chat
         case tasks
         case emails
-        case assignees
         case settings
 
         var title: String {
@@ -15,7 +14,6 @@ struct SidebarNavigationView: View {
                 case .chat: "Chat"
                 case .tasks: "Tasks"
                 case .emails: "Email"
-                case .assignees: "Assignees"
                 case .settings: "Settings"
             }
         }
@@ -25,7 +23,6 @@ struct SidebarNavigationView: View {
                 case .chat: "bubble.left.and.bubble.right"
                 case .tasks: "checklist"
                 case .emails: "envelope"
-                case .assignees: "person.2"
                 case .settings: "gearshape"
             }
         }
@@ -64,10 +61,6 @@ struct SidebarNavigationView: View {
                 case .emails:
                     NavigationStack(path: $nav.emailsPath) {
                         EmailListView()
-                    }
-                case .assignees:
-                    NavigationStack(path: $nav.assigneesPath) {
-                        AssigneeListView()
                     }
                 case .settings:
                     NavigationStack {

@@ -14,19 +14,15 @@ final class NavigationManager {
     var tasksPath = NavigationPath()
     var chatPath = NavigationPath()
     var emailsPath = NavigationPath()
-    var assigneesPath = NavigationPath()
-
     enum Tab: String, CaseIterable {
         case tasks
         case emails
-        case assignees
         case settings
 
         var title: String {
             switch self {
                 case .tasks: "Tasks"
                 case .emails: "Email"
-                case .assignees: "Assignees"
                 case .settings: "Settings"
             }
         }
@@ -35,7 +31,6 @@ final class NavigationManager {
             switch self {
                 case .tasks: "checklist"
                 case .emails: "envelope"
-                case .assignees: "person.2"
                 case .settings: "gearshape"
             }
         }
@@ -45,7 +40,6 @@ final class NavigationManager {
         switch selectedTab {
             case .tasks: tasksPath = NavigationPath()
             case .emails: emailsPath = NavigationPath()
-            case .assignees: assigneesPath = NavigationPath()
             case .settings: break
         }
     }
