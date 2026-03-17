@@ -7,7 +7,7 @@ import { eq, and } from "drizzle-orm";
 import { tool } from "ai";
 import { z } from "zod";
 
-export const createTaskTool = (userId: string, needsApproval: boolean, sessionId?: string) =>
+export const createTaskTool = (userId: string, needsApproval: boolean, sessionId?: string, defaultAssigneeId?: string | null) =>
   tool({
     description:
       "Create a new task for the user. Can optionally set up a recurring cron schedule or a one-shot scheduled execution. " +
@@ -18,7 +18,6 @@ export const createTaskTool = (userId: string, needsApproval: boolean, sessionId
       description: z.string().optional().describe("Task description"),
       tags: z.array(z.string()).optional().describe("Tags for categorization"),
       categories: z.array(z.string()).optional().describe("Task categories"),
-      assigneeId: z.string().optional().describe("Assignee ID to link to this task"),
       cronSchedule: z
         .string()
         .optional()
@@ -32,7 +31,8 @@ export const createTaskTool = (userId: string, needsApproval: boolean, sessionId
           "ISO datetime for one-shot scheduled execution (e.g. '2025-01-15T09:00:00'). Specify in the user's local timezone.",
         ),
     }),
-    execute: async ({ title, description, tags, categories, assigneeId, cronSchedule, runsAt }) => {
+    execute: async ({ title, description, tags, categories, cronSchedule, runsAt }) => {
+      const assigneeId = defaultAssigneeId ?? undefined;
       // Validate mutual exclusivity
       if (cronSchedule && runsAt) {
         return { error: "A task cannot have both cron scheduling and a one-shot runsAt schedule" };

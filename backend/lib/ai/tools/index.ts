@@ -142,7 +142,7 @@ export async function buildToolSet(
     },
     {
       name: CREATE_TASK_TOOL_NAME,
-      create: (na: boolean) => createTaskTool(userId, na, chatSessionId),
+      create: (na: boolean) => createTaskTool(userId, na, chatSessionId, assigneeId),
     },
     {
       name: UPDATE_TASK_TOOL_NAME,

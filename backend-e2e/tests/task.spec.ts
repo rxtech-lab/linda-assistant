@@ -88,9 +88,10 @@ test.describe.serial("Agent task creation", () => {
     );
     expect(toolResultEvents.length).toBeGreaterThanOrEqual(1);
 
-    // Extract taskId from the tool result
+    // Extract taskId from the tool result and verify no error
     const toolResult = toolResultEvents[0]!.data;
     const output = toolResult.output as Record<string, unknown>;
+    expect(output.error).toBeUndefined();
     expect(output.taskId).toBeTruthy();
     const taskId = output.taskId as string;
 
@@ -157,9 +158,10 @@ test.describe.serial("Agent task creation", () => {
     );
     expect(toolResultEvents.length).toBeGreaterThanOrEqual(1);
 
-    // Extract taskId from the tool result
+    // Extract taskId from the tool result and verify no error
     const toolResult = toolResultEvents[0]!.data;
     const output = toolResult.output as Record<string, unknown>;
+    expect(output.error).toBeUndefined();
     expect(output.taskId).toBeTruthy();
     const taskId = output.taskId as string;
 
@@ -222,9 +224,10 @@ test.describe.serial("Agent task creation", () => {
     );
     expect(toolResultEvents.length).toBeGreaterThanOrEqual(1);
 
-    // Extract taskId from the tool result
+    // Extract taskId from the tool result and verify no error
     const toolResult = toolResultEvents[0]!.data;
     const output = toolResult.output as Record<string, unknown>;
+    expect(output.error).toBeUndefined();
     expect(output.taskId).toBeTruthy();
     const taskId = output.taskId as string;
 
