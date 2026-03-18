@@ -8,6 +8,7 @@ import {
   extensions,
   tasks,
   taskEmails,
+  taskExtensions,
   chatSessions,
   messages,
   confirmations,
@@ -32,6 +33,7 @@ export const emailInboxRelations = relations(emailInbox, ({ one, many }) => ({
 export const tasksRelations = relations(tasks, ({ many }) => ({
   taskEmails: many(taskEmails),
   chatSessions: many(chatSessions),
+  taskExtensions: many(taskExtensions),
 }));
 
 export const taskEmailsRelations = relations(taskEmails, ({ one }) => ({
@@ -97,6 +99,7 @@ export const briefingDocumentsRelations = relations(briefingDocuments, ({ one })
 
 export const extensionsRelations = relations(extensions, ({ many }) => ({
   assigneeExtensions: many(assigneeExtensions),
+  taskExtensions: many(taskExtensions),
 }));
 
 export const assigneeExtensionsRelations = relations(assigneeExtensions, ({ one }) => ({
@@ -106,6 +109,17 @@ export const assigneeExtensionsRelations = relations(assigneeExtensions, ({ one 
   }),
   extension: one(extensions, {
     fields: [assigneeExtensions.extensionId],
+    references: [extensions.id],
+  }),
+}));
+
+export const taskExtensionsRelations = relations(taskExtensions, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskExtensions.taskId],
+    references: [tasks.id],
+  }),
+  extension: one(extensions, {
+    fields: [taskExtensions.extensionId],
     references: [extensions.id],
   }),
 }));

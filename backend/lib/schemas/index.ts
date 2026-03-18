@@ -130,6 +130,11 @@ export const selectTaskSchema = z.object({
   cronSchedule: z.string().nullable().describe("Cron expression e.g. '0 9 * * *'"),
   isCronEnabled: z.boolean().nullable().describe("Whether cron scheduling is active"),
   runsAt: z.string().nullable().describe("ISO datetime for one-shot scheduled execution"),
+  toolPermissions: z
+    .array(toolPermissionSchema)
+    .nullable()
+    .optional()
+    .describe("Per-tool permission overrides inherited from assignee"),
   nextRunAt: z
     .number()
     .nullable()
@@ -191,6 +196,11 @@ export const updateTaskSchema = z
       .optional()
       .nullable()
       .describe("ISO datetime for one-shot scheduled execution"),
+    toolPermissions: z
+      .array(toolPermissionSchema)
+      .optional()
+      .nullable()
+      .describe("Per-tool permission overrides for this task"),
   })
   .refine((data) => !(data.isCronEnabled && data.runsAt), {
     message: "A task cannot have both cron scheduling and a one-shot runsAt schedule",
@@ -539,6 +549,14 @@ export const assigneeExtensionSettingsSchema = z.object({
     .array(toolPermissionSchema)
     .optional()
     .describe("Per-tool permission overrides"),
+});
+
+export const taskExtensionSettingsSchema = z.object({
+  enabled: z.boolean().describe("Whether to enable this extension for the task"),
+  toolPermissions: z
+    .array(toolPermissionSchema)
+    .optional()
+    .describe("Per-tool permission overrides for this task's extension"),
 });
 
 // ---- Devices ----

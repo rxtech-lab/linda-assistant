@@ -1,7 +1,14 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { tasks, chatSessions, taskEmails, emailInbox } from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import {
+  tasks,
+  chatSessions,
+  taskEmails,
+  emailInbox,
+  taskExtensions,
+  extensions,
+} from "@/lib/db/schema";
+import { eq, and, sql, or, inArray } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import {
   updateTaskSchema,
@@ -29,6 +36,15 @@ const taskDetailSchema = selectTaskSchema.extend({
     }),
   ),
   emails: z.array(z.any()),
+  enabledExtensions: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        prefix: z.string(),
+      }),
+    )
+    .optional(),
 });
 
 /**
@@ -49,7 +65,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   if (!task) return errorJson("Task not found", 404);
 
-  const [sessions, linkedEmails] = await Promise.all([
+  const [sessions, linkedEmails, teRows] = await Promise.all([
     db
       .select({
         id: chatSessions.id,
@@ -71,7 +87,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .from(taskEmails)
       .innerJoin(emailInbox, eq(taskEmails.emailId, emailInbox.id))
       .where(eq(taskEmails.taskId, id)),
+    db.select().from(taskExtensions).where(eq(taskExtensions.taskId, id)),
   ]);
+
+  // Build enabled extensions list
+  const enabledExtensionIds = teRows.filter((te) => te.enabled).map((te) => te.extensionId);
+  let enabledExtensions: Array<{ id: string; title: string; prefix: string }> = [];
+  if (enabledExtensionIds.length > 0) {
+    enabledExtensions = await db
+      .select({ id: extensions.id, title: extensions.title, prefix: extensions.prefix })
+      .from(extensions)
+      .where(
+        and(
+          inArray(extensions.id, enabledExtensionIds),
+          or(eq(extensions.type, "system"), eq(extensions.userId, auth.userId)),
+        ),
+      );
+  }
 
   const lastRunAt =
     sessions.length > 0
@@ -86,7 +118,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       ? getNextRunSeconds(task.cronSchedule, lastRunAt ? new Date(lastRunAt) : null)
       : null;
 
-  return successJson({ ...task, chatSessions: sessions, emails: linkedEmails, nextRunAt });
+  return successJson({
+    ...task,
+    chatSessions: sessions,
+    emails: linkedEmails,
+    nextRunAt,
+    enabledExtensions,
+  });
 }
 
 /**
