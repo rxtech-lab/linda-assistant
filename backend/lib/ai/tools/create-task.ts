@@ -3,6 +3,7 @@ import { chatSessions, tasks } from "@/lib/db/schema";
 import { registerCronTask, scheduleOnceTask } from "@/lib/celery/client";
 import { convertCronToUTC, convertRunsAtToUTC } from "@/lib/utils/timezone";
 import { isValidCronExpression } from "@/lib/utils/cron";
+import { inheritAssigneeToolset } from "@/lib/db/task-toolset";
 import { eq, and } from "drizzle-orm";
 import { tool } from "ai";
 import { z } from "zod";
@@ -89,6 +90,14 @@ export const createTaskTool = (
       }
       if (utcRunsAt) {
         await scheduleOnceTask(created.id, utcRunsAt);
+      }
+
+      // Inherit assignee's tool permissions and enabled extensions
+      if (assigneeId) {
+        const toolPermissions = await inheritAssigneeToolset(created.id, assigneeId);
+        if (toolPermissions) {
+          await db.update(tasks).set({ toolPermissions }).where(eq(tasks.id, created.id));
+        }
       }
 
       return {

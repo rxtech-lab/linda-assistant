@@ -8,6 +8,7 @@ import { parsePagination } from "@/lib/utils/pagination";
 import { successJson, errorJson, paginatedJson } from "@/lib/utils/response";
 import { registerCronTask, scheduleOnceTask } from "@/lib/celery/client";
 import { getNextRunSeconds } from "@/lib/utils/cron";
+import { inheritAssigneeToolset } from "@/lib/db/task-toolset";
 import { z } from "zod";
 
 const listResponseSchema = z.object({
@@ -69,6 +70,15 @@ export async function POST(request: NextRequest) {
     .insert(tasks)
     .values({ ...parsed.data, userId: auth.userId, status })
     .returning();
+
+  // Inherit assignee's tool permissions and enabled extensions
+  if (created.assigneeId) {
+    const toolPermissions = await inheritAssigneeToolset(created.id, created.assigneeId);
+    if (toolPermissions) {
+      await db.update(tasks).set({ toolPermissions }).where(eq(tasks.id, created.id));
+      created.toolPermissions = toolPermissions;
+    }
+  }
 
   if (created.isCronEnabled && created.cronSchedule) {
     await registerCronTask(created.id, created.cronSchedule);

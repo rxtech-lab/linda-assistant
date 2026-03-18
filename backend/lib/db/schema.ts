@@ -62,6 +62,7 @@ export const tasks = sqliteTable("tasks", {
   cronSchedule: text("cron_schedule"),
   isCronEnabled: integer("is_cron_enabled", { mode: "boolean" }).default(false),
   runsAt: text("runs_at"),
+  toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
@@ -243,6 +244,22 @@ export const assigneeExtensions = sqliteTable("assignee_extensions", {
   assigneeId: text("assignee_id")
     .notNull()
     .references(() => assignees.id, { onDelete: "cascade" }),
+  extensionId: text("extension_id")
+    .notNull()
+    .references(() => extensions.id, { onDelete: "cascade" }),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
+export const taskExtensions = sqliteTable("task_extensions", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
   extensionId: text("extension_id")
     .notNull()
     .references(() => extensions.id, { onDelete: "cascade" }),
