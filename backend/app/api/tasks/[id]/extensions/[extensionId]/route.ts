@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { extensions, taskExtensions, tasks } from "@/lib/db/schema";
-import { eq, and, or, sql } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { taskExtensionSettingsSchema, extensionWithStatusSchema } from "@/lib/schemas";
 import { errorJson } from "@/lib/utils/response";
@@ -54,33 +54,33 @@ export async function PUT(
 
   const { enabled, toolPermissions } = parsed.data;
 
-  // Atomic upsert using unique constraint on (task_id, extension_id)
-  await db
-    .insert(taskExtensions)
-    .values({
+  // Upsert task_extensions row (mirrors assignee extension pattern)
+  const existing = await db
+    .select()
+    .from(taskExtensions)
+    .where(and(eq(taskExtensions.taskId, taskId), eq(taskExtensions.extensionId, extensionId)));
+
+  if (existing.length > 0) {
+    await db
+      .update(taskExtensions)
+      .set({
+        enabled,
+        ...(toolPermissions !== undefined && { toolPermissions }),
+        updatedAt: new Date().toISOString().replace("T", " ").slice(0, 19),
+      })
+      .where(eq(taskExtensions.id, existing[0].id));
+  } else {
+    await db.insert(taskExtensions).values({
       taskId,
       extensionId,
       enabled,
       toolPermissions: toolPermissions ?? null,
-    })
-    .onConflictDoUpdate({
-      target: [taskExtensions.taskId, taskExtensions.extensionId],
-      set: {
-        enabled,
-        ...(toolPermissions !== undefined && { toolPermissions }),
-        updatedAt: sql`(datetime('now'))`,
-      },
     });
-
-  // Read back actual stored value to return accurate response
-  const [stored] = await db
-    .select({ toolPermissions: taskExtensions.toolPermissions })
-    .from(taskExtensions)
-    .where(and(eq(taskExtensions.taskId, taskId), eq(taskExtensions.extensionId, extensionId)));
+  }
 
   return NextResponse.json({
     ...ext,
     enabled,
-    toolPermissions: stored?.toolPermissions ?? null,
+    toolPermissions: toolPermissions ?? existing[0]?.toolPermissions ?? null,
   });
 }
