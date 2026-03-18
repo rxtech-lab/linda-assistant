@@ -1272,7 +1272,16 @@
           "default": "(datetime('now'))"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "task_extensions_task_id_extension_id_unique": {
+          "name": "task_extensions_task_id_extension_id_unique",
+          "columns": [
+            "task_id",
+            "extension_id"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {
         "task_extensions_task_id_tasks_id_fk": {
           "name": "task_extensions_task_id_tasks_id_fk",

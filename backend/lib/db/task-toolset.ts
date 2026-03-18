@@ -22,7 +22,7 @@ export async function inheritAssigneeToolset(
 
   const toolPermissions = assignee.toolPermissions ?? null;
 
-  // 2. Copy enabled extensions from assignee (best-effort, don't fail task creation)
+  // 2. Copy extension settings from assignee (best-effort, don't fail task creation)
   try {
     const aeRows = await db
       .select()
