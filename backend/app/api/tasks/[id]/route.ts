@@ -8,7 +8,7 @@ import {
   taskExtensions,
   extensions,
 } from "@/lib/db/schema";
-import { eq, and, sql, or } from "drizzle-orm";
+import { eq, and, sql, or, inArray } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import {
   updateTaskSchema,
@@ -94,11 +94,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const enabledExtensionIds = teRows.filter((te) => te.enabled).map((te) => te.extensionId);
   let enabledExtensions: Array<{ id: string; title: string; prefix: string }> = [];
   if (enabledExtensionIds.length > 0) {
-    const allExtensions = await db
+    enabledExtensions = await db
       .select({ id: extensions.id, title: extensions.title, prefix: extensions.prefix })
       .from(extensions)
-      .where(or(eq(extensions.type, "system"), eq(extensions.userId, auth.userId)));
-    enabledExtensions = allExtensions.filter((ext) => enabledExtensionIds.includes(ext.id));
+      .where(
+        and(
+          inArray(extensions.id, enabledExtensionIds),
+          or(eq(extensions.type, "system"), eq(extensions.userId, auth.userId)),
+        ),
+      );
   }
 
   const lastRunAt =

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { extensions, taskExtensions, tasks } from "@/lib/db/schema";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and, or, sql } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { taskExtensionSettingsSchema, extensionWithStatusSchema } from "@/lib/schemas";
 import { errorJson } from "@/lib/utils/response";
@@ -66,7 +66,7 @@ export async function PUT(
       .set({
         enabled,
         ...(toolPermissions !== undefined && { toolPermissions }),
-        updatedAt: new Date().toISOString().replace("T", " ").slice(0, 19),
+        updatedAt: sql`(datetime('now'))`,
       })
       .where(eq(taskExtensions.id, existing[0].id));
   } else {

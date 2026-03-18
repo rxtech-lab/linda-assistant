@@ -89,6 +89,7 @@ async function deleteTask(taskId: string): Promise<void> {
 
 interface ExtensionWithStatus {
   id: string;
+  type: string;
   title: string;
   prefix: string;
   enabled: boolean;

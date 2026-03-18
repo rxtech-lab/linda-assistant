@@ -19,21 +19,25 @@ export async function inheritAssigneeToolset(
 
   const toolPermissions = assignee?.toolPermissions ?? null;
 
-  // 2. Copy enabled extensions from assignee
-  const aeRows = await db
-    .select()
-    .from(assigneeExtensions)
-    .where(eq(assigneeExtensions.assigneeId, assigneeId));
+  // 2. Copy enabled extensions from assignee (best-effort, don't fail task creation)
+  try {
+    const aeRows = await db
+      .select()
+      .from(assigneeExtensions)
+      .where(eq(assigneeExtensions.assigneeId, assigneeId));
 
-  if (aeRows.length > 0) {
-    const values = aeRows.map((ae) => ({
-      taskId,
-      extensionId: ae.extensionId,
-      enabled: ae.enabled,
-      toolPermissions: ae.toolPermissions,
-    }));
+    if (aeRows.length > 0) {
+      const values = aeRows.map((ae) => ({
+        taskId,
+        extensionId: ae.extensionId,
+        enabled: ae.enabled,
+        toolPermissions: ae.toolPermissions,
+      }));
 
-    await db.insert(taskExtensions).values(values);
+      await db.insert(taskExtensions).values(values);
+    }
+  } catch (error) {
+    console.error("[inheritAssigneeToolset] Failed to copy extensions:", error);
   }
 
   return toolPermissions;
