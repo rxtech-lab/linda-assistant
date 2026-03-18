@@ -57,6 +57,12 @@ export const sendNotificationTool = (userId: string, sessionId?: string) =>
 
         // Convert scheduledAt to UTC
         const utcScheduledAt = convertRunsAtToUTC(scheduledAt, resolvedTimezone);
+        if (!utcScheduledAt || Number.isNaN(new Date(utcScheduledAt).getTime())) {
+          return {
+            sent: false,
+            error: `Invalid scheduledAt "${scheduledAt}" or timezone "${resolvedTimezone ?? "UTC"}"`,
+          };
+        }
 
         // Persist the scheduled notification
         const [created] = await db
