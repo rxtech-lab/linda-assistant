@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { briefings, briefingDocuments } from "@/lib/db/schema";
 import { generateText } from "ai";
 import { uploadBufferToS3 } from "@/lib/s3";
+import { sendPushNotification } from "@/lib/push";
 import { tool } from "ai";
 import { z } from "zod";
 import { IMAGE_GENERATION_MODEL } from "../context";
@@ -43,10 +44,7 @@ export const createBriefingTool = (
         });
 
         if (result.files && result.files.length > 0) {
-          console.log(
-            "[createBriefingTool] Generated image file:",
-            result.files[0],
-          );
+          console.log("[createBriefingTool] Generated image file:", result.files[0]);
           const file = result.files[0];
           const buffer = Buffer.from(file.base64, "base64");
           const ext = file.mediaType === "image/png" ? "png" : "jpg";
@@ -59,10 +57,7 @@ export const createBriefingTool = (
           imageUrl = uploaded.url;
         }
       } catch (err) {
-        console.warn(
-          "[create-briefing] Image generation failed, proceeding without image:",
-          err,
-        );
+        console.warn("[create-briefing] Image generation failed, proceeding without image:", err);
       }
 
       // Insert briefing
@@ -87,6 +82,24 @@ export const createBriefingTool = (
           })),
         );
       }
+
+      // Send push notification
+      const dateStr = new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      await sendPushNotification(userId, {
+        title: `New Briefing: ${title} — ${dateStr}`,
+        body: title,
+        data: {
+          type: "briefing",
+          briefingId: created.id,
+          chatSessionId,
+        },
+      }).catch((err) => {
+        console.error("Failed to send briefing push notification:", err);
+      });
 
       return {
         briefingId: created.id,
