@@ -469,14 +469,16 @@ private struct FlowLayout: View {
     let tags: [String]
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(tags, id: \.self) { tag in
-                Text(tag)
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.fill.tertiary)
-                    .clipShape(Capsule())
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(tags, id: \.self) { tag in
+                    Text(tag)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.fill.tertiary)
+                        .clipShape(Capsule())
+                }
             }
         }
     }
@@ -559,3 +561,58 @@ private struct ScaleButtonStyle: ButtonStyle {
             .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }
+// MARK: - Preview
+
+private let previewTaskJSON = """
+{
+    "id": "preview-task-1",
+    "userId": "user-1",
+    "assigneeId": "assignee-1",
+    "title": "Weekly Report Generation",
+    "description": "Automatically generate and send weekly performance reports to stakeholders every Monday morning.",
+    "status": "running",
+    "tags": ["automation", "reports", "weekly", "stakeholders", "performance"],
+    "categories": ["Business", "Analytics"],
+    "cronSchedule": "0 9 * * 1",
+    "isCronEnabled": true,
+    "nextRunAt": 172800,
+    "createdAt": "2024-01-15T10:00:00Z",
+    "updatedAt": "2024-03-19T08:30:00Z",
+    "chatSessions": [
+        {
+            "id": "session-1",
+            "title": "Report Generation - Mar 18",
+            "status": "finished",
+            "assigneeId": "assignee-1",
+            "createdAt": "2024-03-18T09:00:00Z",
+            "updatedAt": "2024-03-18T09:15:00Z"
+        },
+        {
+            "id": "session-2",
+            "title": "Report Generation - Mar 11",
+            "status": "finished",
+            "assigneeId": "assignee-1",
+            "createdAt": "2024-03-11T09:00:00Z",
+            "updatedAt": "2024-03-11T09:12:00Z"
+        }
+    ],
+    "emails": []
+}
+"""
+
+#Preview {
+    let task = try! JSONDecoder().decode(TaskDetail.self, from: previewTaskJSON.data(using: .utf8)!)
+
+    return NavigationStack {
+        TaskDetailContentView(
+            task: task,
+            onDeleteSessions: { _ in },
+            onNewChat: {},
+            onStart: {},
+            onStop: {},
+            onRunNow: {}
+        )
+        .navigationTitle("Weekly Report Generation")
+    }
+}
+

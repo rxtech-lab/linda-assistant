@@ -151,6 +151,7 @@ export async function buildToolSet(
   assigneeId: string | null,
   accessToken: string,
   chatSessionId?: string,
+  isTaskContext?: boolean,
 ): Promise<ToolSetResult> {
   const isE2E = process.env.IS_E2E?.toLowerCase() === "true";
   const toolPermissions = assigneeId ? await loadAssigneePermissions(assigneeId) : null;
@@ -223,6 +224,8 @@ export async function buildToolSet(
   // Build permission-aware tools
   const filtered: Record<string, unknown> = {};
   for (const { name, create } of toolDefs) {
+    // Skip task tools and ask_question when running in task context (agent runs autonomously)
+    if (isTaskContext && (name === CREATE_TASK_TOOL_NAME || name === UPDATE_TASK_TOOL_NAME || name === ASK_QUESTION_TOOL_NAME)) continue;
     const perm = resolvePermission(name, toolPermissions);
     if (perm === "auto-reject" || perm === "disabled") continue;
     const needsApproval = autoConfirmOverrides.has(name) ? false : perm === "manual-confirm";

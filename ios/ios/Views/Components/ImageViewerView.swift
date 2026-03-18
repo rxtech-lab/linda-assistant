@@ -10,7 +10,7 @@ struct ImageViewerView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            AsyncImage(url: imageURL) { phase in
+            CachedAsyncImage(url: imageURL) { phase in
                 switch phase {
                     case let .success(image):
                         image

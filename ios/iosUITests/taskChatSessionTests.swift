@@ -44,8 +44,9 @@ final class TaskChatSessionTests: XCTestCase {
         // Fill in task details
         let titleField = app.textFields["task-title-field"].firstMatch
         XCTAssertTrue(titleField.waitForExistence(timeout: 5), "Title field should appear")
+        let randomName = "Test Task \(Date().timeIntervalSince1970)"
         titleField.tap()
-        titleField.typeText("Test Task")
+        titleField.typeText(randomName)
 
         let descriptionField = app.textFields["task-description-field"].firstMatch
         XCTAssertTrue(descriptionField.waitForExistence(timeout: 5), "Description field should appear")
@@ -69,7 +70,7 @@ final class TaskChatSessionTests: XCTestCase {
 
         // Wait for task list to reload and find the new task
         // Use a predicate to find a button whose label contains "Test Task"
-        let taskPredicate = NSPredicate(format: "label CONTAINS %@", "Test Task")
+        let taskPredicate = NSPredicate(format: "label CONTAINS %@", "\(randomName)")
         let taskRow = app.buttons.matching(taskPredicate).firstMatch
         XCTAssertTrue(taskRow.waitForExistence(timeout: 10), "Task row should appear in list")
         taskRow.tap()

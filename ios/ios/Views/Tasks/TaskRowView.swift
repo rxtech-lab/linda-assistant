@@ -38,17 +38,6 @@ struct TaskRowView: View {
                         .font(.caption2)
                         .foregroundStyle(.blue)
                 }
-
-                if let tags = task.tags, !tags.isEmpty {
-                    ForEach(tags.prefix(3), id: \.self) { tag in
-                        Text(tag)
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.fill.tertiary)
-                            .clipShape(Capsule())
-                    }
-                }
             }
 
             if let updatedAt = task.updatedAt {
@@ -93,4 +82,68 @@ struct TaskRowView: View {
         relative.unitsStyle = .abbreviated
         return relative.localizedString(for: date, relativeTo: .now)
     }
+}
+
+// MARK: - Previews
+
+private func makePreviewTask(json: String) -> LindaTask {
+    try! JSONDecoder().decode(LindaTask.self, from: json.data(using: .utf8)!)
+}
+
+#Preview("Pending Task") {
+    TaskRowView(
+        task: makePreviewTask(json: """
+        {
+            "id": "1",
+            "userId": "user-1",
+            "assigneeId": "assignee-1",
+            "title": "Review weekly reports",
+            "description": "Check all team reports",
+            "status": "pending",
+            "tags": ["work", "reports"],
+            "isCronEnabled": false,
+            "runsAt": "2025-01-15T10:00:00.000Z",
+            "nextRunAt": 3600,
+            "updatedAt": "2025-01-15T09:00:00.000Z"
+        }
+        """)
+    )
+    .padding()
+}
+
+#Preview("Finished Task") {
+    TaskRowView(
+        task: makePreviewTask(json: """
+        {
+            "id": "2",
+            "userId": "user-1",
+            "title": "Send email to client",
+            "status": "finished",
+            "isCronEnabled": false,
+            "updatedAt": "2025-01-15T07:00:00.000Z"
+        }
+        """)
+    )
+    .padding()
+}
+
+#Preview("Cron Task") {
+    TaskRowView(
+        task: makePreviewTask(json: """
+        {
+            "id": "3",
+            "userId": "user-1",
+            "assigneeId": "assignee-1",
+            "title": "Daily standup reminder",
+            "description": "Send daily standup reminder to team",
+            "status": "pending",
+            "tags": ["daily", "team", "standup"],
+            "cronSchedule": "0 9 * * *",
+            "isCronEnabled": true,
+            "nextRunAt": 86400,
+            "updatedAt": "2025-01-15T09:00:00.000Z"
+        }
+        """)
+    )
+    .padding()
 }

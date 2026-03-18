@@ -66,23 +66,18 @@ public final class ChatStreamHandler: @unchecked Sendable {
     }
 
     public func connectByAssignee(assigneeId: String) async {
-        var path = "chat/\(assigneeId)/stream"
-        if let token = deviceToken,
-           let encoded = token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
-        {
-            path += "?deviceToken=\(encoded)"
-        }
-        await connectToPath(path)
+        let path = "chat/\(assigneeId)/stream"
+        await connectToPath(path, queryItems: deviceTokenQueryItems)
     }
 
     public func connect(sessionId: String) async {
-        var path = "chat-sessions/\(sessionId)/stream"
-        if let token = deviceToken,
-           let encoded = token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
-        {
-            path += "?deviceToken=\(encoded)"
-        }
-        await connectToPath(path)
+        let path = "chat-sessions/\(sessionId)/stream"
+        await connectToPath(path, queryItems: deviceTokenQueryItems)
+    }
+
+    private var deviceTokenQueryItems: [URLQueryItem]? {
+        guard let token = deviceToken else { return nil }
+        return [URLQueryItem(name: "deviceToken", value: token)]
     }
 
     @discardableResult
@@ -119,14 +114,14 @@ public final class ChatStreamHandler: @unchecked Sendable {
         }
     }
 
-    private func connectToPath(_ path: String) async {
+    private func connectToPath(_ path: String, queryItems: [URLQueryItem]? = nil) async {
         guard !isConnected else {
             logger.info("connect: already connected")
             return
         }
 
         do {
-            let request = try await apiClient.buildSSERequest(path: path)
+            let request = try await apiClient.buildSSERequest(path: path, queryItems: queryItems)
             guard let url = request.url else {
                 throw APIError.invalidResponse
             }
