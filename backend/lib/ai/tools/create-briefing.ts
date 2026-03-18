@@ -84,8 +84,13 @@ export const createBriefingTool = (
       }
 
       // Send push notification
+      const dateStr = new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
       await sendPushNotification(userId, {
-        title: "New Briefing",
+        title: `New Briefing: ${title} — ${dateStr}`,
         body: title,
         data: {
           type: "briefing",
