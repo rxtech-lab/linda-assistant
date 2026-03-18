@@ -72,9 +72,15 @@ export async function PUT(
       },
     });
 
+  // Read back actual stored value to return accurate response
+  const [stored] = await db
+    .select({ toolPermissions: taskExtensions.toolPermissions })
+    .from(taskExtensions)
+    .where(and(eq(taskExtensions.taskId, taskId), eq(taskExtensions.extensionId, extensionId)));
+
   return NextResponse.json({
     ...ext,
     enabled,
-    toolPermissions: toolPermissions ?? null,
+    toolPermissions: stored?.toolPermissions ?? null,
   });
 }
