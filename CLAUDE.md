@@ -33,4 +33,4 @@ Always use view inspector to inspect view and interact with view when user wants
 
 # Backend e2e tests
 
-Backend-e2e folder not using IS_E2E env and using the production env to do the pre-production environment testing. All tests are running in the real environment. No mocking, all real!
+Backend-e2e folder not using IS_E2E env and using the production env to do the pre-production environment testing. All tests are running in the real environment. No mocking, all real! Do not run `scripts/backend-e2e.sh` for tests in `backend-e2e` folder. `scripts/backend-e2e.sh` will run tests iin `backend` folder.

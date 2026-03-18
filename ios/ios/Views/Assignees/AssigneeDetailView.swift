@@ -15,7 +15,7 @@ struct AssigneeDetailView: View {
     }
 
     var body: some View {
-        Group {
+        VStack {
             if viewModel.isLoading {
                 ProgressView()
             } else if let error = viewModel.error {
@@ -108,6 +108,13 @@ struct AssigneeDetailContentView: View {
                 }
             }
 
+            // Extensions section
+            Section {
+                NavigationLink(value: AppDestination.assigneeExtensions(assigneeId: assignee.id)) {
+                    Label("Extensions", systemImage: "puzzlepiece.extension")
+                }
+            }
+
             // Tool permissions section
             if let permissions = assignee.toolPermissions, !permissions.isEmpty {
                 Section {
@@ -117,7 +124,7 @@ struct AssigneeDetailContentView: View {
                         }
                     }
                 } header: {
-                    Label("Tool Permissions", systemImage: "wrench.and.screwdriver")
+                    Label("System Tools", systemImage: "wrench.and.screwdriver")
                 }
             }
         }

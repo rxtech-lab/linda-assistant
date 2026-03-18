@@ -80,39 +80,39 @@ struct BriefingDetailView: View {
         #endif
         .navigationTitle(briefing?.title ?? "Briefing")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackgroundVisibility(.automatic, for: .navigationBar)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackgroundVisibility(.automatic, for: .navigationBar)
         #endif
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Button(role: .destructive) {
-                        showingDelete = true
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button(role: .destructive) {
+                            showingDelete = true
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
                     } label: {
-                        Label("Delete", systemImage: "trash")
+                        Image(systemName: "ellipsis")
                     }
-                } label: {
-                    Image(systemName: "ellipsis")
-                }
-                .accessibilityIdentifier("briefing-menu")
-            }
-        }
-        .sheet(isPresented: $showingDelete) {
-            DeleteConfirmationSheet(
-                title: "Delete Briefing",
-                message: "Are you sure you want to delete this briefing? This action cannot be undone."
-            ) {
-                Task {
-                    await deleteBriefing()
+                    .accessibilityIdentifier("briefing-menu")
                 }
             }
-        }
-        .sheet(item: $selectedDocument) { doc in
-            DocumentViewerSheet(documentId: doc.id, initialTitle: doc.title)
-        }
-        .task {
-            await loadBriefing()
-        }
+            .sheet(isPresented: $showingDelete) {
+                DeleteConfirmationSheet(
+                    title: "Delete Briefing",
+                    message: "Are you sure you want to delete this briefing? This action cannot be undone."
+                ) {
+                    Task {
+                        await deleteBriefing()
+                    }
+                }
+            }
+            .sheet(item: $selectedDocument) { doc in
+                DocumentViewerSheet(documentId: doc.id, initialTitle: doc.title)
+            }
+            .task {
+                await loadBriefing()
+            }
     }
 
     @ViewBuilder

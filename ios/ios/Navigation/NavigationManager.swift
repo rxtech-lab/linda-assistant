@@ -5,6 +5,11 @@ enum AppDestination: Hashable {
     case chatSession(id: String)
     case email(id: String)
     case assignee(id: String, name: String)
+    case assigneeExtensions(assigneeId: String)
+    case extensionDetail(extensionId: String, assigneeId: String?)
+    case extensionList
+    case assigneeList
+    case usage
 }
 
 @Observable
@@ -15,6 +20,7 @@ final class NavigationManager {
     var tasksPath = NavigationPath()
     var chatPath = NavigationPath()
     var emailsPath = NavigationPath()
+    var settingsPath = NavigationPath()
     enum Tab: String, CaseIterable {
         case briefings
         case tasks
@@ -45,7 +51,7 @@ final class NavigationManager {
             case .briefings: briefingsPath = NavigationPath()
             case .tasks: tasksPath = NavigationPath()
             case .emails: emailsPath = NavigationPath()
-            case .settings: break
+            case .settings: settingsPath = NavigationPath()
         }
     }
 

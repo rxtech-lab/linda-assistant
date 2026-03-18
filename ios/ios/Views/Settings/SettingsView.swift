@@ -46,15 +46,9 @@ struct SettingsView: View {
             }
 
             Section("General") {
-                NavigationLink("Assistants") {
-                    AssigneeListView()
-                    #if os(iOS)
-                        .toolbar(.hidden, for: .tabBar)
-                    #endif
-                }
-                NavigationLink("Usage") {
-                    UsageView()
-                }
+                NavigationLink("Assistants", value: AppDestination.assigneeList)
+                NavigationLink("Extensions", value: AppDestination.extensionList)
+                NavigationLink("Usage", value: AppDestination.usage)
             }
 
             Section("About") {
@@ -70,5 +64,27 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Settings")
+        .navigationDestination(for: AppDestination.self) { destination in
+            switch destination {
+            case let .task(id): TaskDetailView(taskId: id)
+            case let .chatSession(id): ChatDetailView(sessionId: id)
+            case let .email(id): EmailDetailView(emailId: id)
+            case let .assignee(id, name): AssigneeDetailView(assigneeId: id, assigneeName: name)
+            case let .assigneeExtensions(assigneeId): AssigneeExtensionListView(assigneeId: assigneeId)
+            case let .extensionDetail(extensionId, assigneeId):
+                ExtensionDetailView(extensionId: extensionId, assigneeId: assigneeId)
+            case .extensionList:
+                ExtensionListView()
+                #if os(iOS)
+                    .toolbar(.hidden, for: .tabBar)
+                #endif
+            case .assigneeList:
+                AssigneeListView()
+                #if os(iOS)
+                    .toolbar(.hidden, for: .tabBar)
+                #endif
+            case .usage: UsageView()
+            }
+        }
     }
 }

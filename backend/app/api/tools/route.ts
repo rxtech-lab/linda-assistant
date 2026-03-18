@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth/middleware";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { buildToolSet } from "@/lib/ai/tools";
+import { getToolMetadataList } from "@/lib/ai/tools";
 
 const toolSchema = z.object({
   name: z.string(),
@@ -21,26 +21,19 @@ export async function GET(request: NextRequest) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
-  // Get assigneeId from query params if provided
   const assigneeId = request.nextUrl.searchParams.get("assigneeId");
 
-  // Build tool set dynamically
-  const { tools } = await buildToolSet(auth.userId, assigneeId, auth.accessToken);
+  const { data: metadata, fromCache } = await getToolMetadataList(auth.userId, assigneeId, auth.accessToken);
 
-  // Convert tool objects to API response format
-  const toolsList = Object.entries(tools).map(([name, tool]) => {
-    const toolObj = tool as {
-      description: string;
-      needsApproval?: boolean;
-    };
-    return {
-      name,
-      description: toolObj.description,
-      defaultPermission: toolObj.needsApproval
-        ? ("manual-confirm" as const)
-        : ("auto-confirm" as const),
-    };
+  const toolsList = metadata.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    defaultPermission: tool.needsApproval
+      ? ("manual-confirm" as const)
+      : ("auto-confirm" as const),
+  }));
+
+  return NextResponse.json(toolsList, {
+    headers: { "X-Cache": fromCache ? "HIT" : "MISS" },
   });
-
-  return NextResponse.json(toolsList);
 }

@@ -12,7 +12,7 @@ struct AssigneeListView: View {
     }
 
     var body: some View {
-        Group {
+        VStack {
             if viewModel.isLoading, viewModel.assignees.isEmpty {
                 ProgressView()
             } else if let error = viewModel.error, viewModel.assignees.isEmpty {
@@ -46,14 +46,6 @@ struct AssigneeListView: View {
             }
         }
         .navigationTitle("Assistants")
-        .navigationDestination(for: AppDestination.self) { destination in
-            switch destination {
-                case let .task(id): TaskDetailView(taskId: id)
-                case let .chatSession(id): ChatDetailView(sessionId: id)
-                case let .email(id): EmailDetailView(emailId: id)
-                case let .assignee(id, name): AssigneeDetailView(assigneeId: id, assigneeName: name)
-            }
-        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {

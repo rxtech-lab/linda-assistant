@@ -45,7 +45,7 @@ import SwiftUI
                 .accessibilityIdentifier("emails-tab")
 
                 Tab("Settings", systemImage: "gearshape", value: .settings) {
-                    NavigationStack {
+                    NavigationStack(path: $nav.settingsPath) {
                         SettingsView()
                             .toolbar {
                                 ToolbarItem(placement: .topBarLeading) {

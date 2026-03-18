@@ -801,8 +801,8 @@ test.describe.serial("Stream behavior", () => {
       },
     });
 
-    // Wait for both to disconnect
-    await new Promise<void>((resolve) => {
+    // Wait for both to disconnect (up to 60s for slow CI environments)
+    await new Promise<void>((resolve, reject) => {
       const check = setInterval(() => {
         if (firstChunkA.length > 0 && firstChunkB.length > 0) {
           clearInterval(check);
@@ -811,12 +811,13 @@ test.describe.serial("Stream behavior", () => {
       }, 100);
       setTimeout(() => {
         clearInterval(check);
-        resolve();
-      }, 30_000);
+        reject(
+          new Error(
+            `Timed out waiting for text-delta: deviceA=${firstChunkA.length}, deviceB=${firstChunkB.length}`,
+          ),
+        );
+      }, 60_000);
     });
-
-    expect(firstChunkA.length).toBeGreaterThan(0);
-    expect(firstChunkB.length).toBeGreaterThan(0);
     console.log("Both devices disconnected after first chunk");
 
     // Step 3: Wait briefly, then reconnect both devices

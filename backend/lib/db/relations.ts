@@ -1,9 +1,11 @@
 import { relations } from "drizzle-orm";
 import {
   assignees,
+  assigneeExtensions,
   briefingDocuments,
   briefings,
   emailInbox,
+  extensions,
   tasks,
   taskEmails,
   chatSessions,
@@ -89,6 +91,21 @@ export const briefingDocumentsRelations = relations(briefingDocuments, ({ one })
   document: one(documents, {
     fields: [briefingDocuments.documentId],
     references: [documents.id],
+  }),
+}));
+
+export const extensionsRelations = relations(extensions, ({ many }) => ({
+  assigneeExtensions: many(assigneeExtensions),
+}));
+
+export const assigneeExtensionsRelations = relations(assigneeExtensions, ({ one }) => ({
+  assignee: one(assignees, {
+    fields: [assigneeExtensions.assigneeId],
+    references: [assignees.id],
+  }),
+  extension: one(extensions, {
+    fields: [assigneeExtensions.extensionId],
+    references: [extensions.id],
   }),
 }));
 

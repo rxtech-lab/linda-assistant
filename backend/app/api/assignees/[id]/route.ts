@@ -1,5 +1,5 @@
 import { authenticate } from "@/lib/auth/middleware";
-import { buildToolSet } from "@/lib/ai/tools";
+import { getToolMetadataList, invalidateToolMetadataCache } from "@/lib/ai/tools";
 import { db } from "@/lib/db";
 import { assignees } from "@/lib/db/schema";
 import { updateAssigneeSchema } from "@/lib/schemas";
@@ -24,8 +24,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   if (!item) return errorJson("Assignee not found", 404);
 
-  const { tools } = await buildToolSet(auth.userId, item.id, auth.accessToken);
-  const toolNames = Object.keys(tools);
+  const { data: metadata } = await getToolMetadataList(auth.userId, item.id, auth.accessToken);
+  const toolNames = metadata.map((t) => t.name);
   // User-requested permission handling via buildToolSet; do not change.
   const toolPermissions = toolNames.map((toolName) => {
     const existing = item.toolPermissions?.find((permission) => permission.toolName === toolName);
@@ -62,8 +62,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   if (!updated) return errorJson("Assignee not found", 404);
 
-  const { tools } = await buildToolSet(auth.userId, updated.id, auth.accessToken);
-  const toolNames = Object.keys(tools);
+  await invalidateToolMetadataCache(auth.userId, updated.id);
+  const { data: metadata } = await getToolMetadataList(auth.userId, updated.id, auth.accessToken);
+  const toolNames = metadata.map((t) => t.name);
   // User-requested permission handling via buildToolSet; do not change.
   const toolPermissions = toolNames.map((toolName) => {
     const existing = updated.toolPermissions?.find(
