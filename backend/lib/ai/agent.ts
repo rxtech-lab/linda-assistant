@@ -9,7 +9,7 @@ import {
   insertMessages,
   updateMessageContent,
 } from "@/lib/db/messages";
-import { assignees, chatSessions, confirmations, questions, usage } from "@/lib/db/schema";
+import { assignees, chatSessions, confirmations, questions, tasks, usage } from "@/lib/db/schema";
 import { createMem0Client } from "@/lib/mem0/client";
 import { redis } from "@/lib/redis";
 import { setStreamActive } from "@/lib/streaming/manager";
@@ -338,6 +338,7 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
 
 export function buildSystemPrompt(
   assignee?: { name: string; personality: string | null } | null,
+  taskContext?: { title: string; description: string | null; timezone: string | null } | null,
 ): string {
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -360,11 +361,15 @@ If the user rejects your questions, do NOT retry with the same or similar questi
 
   const briefingGuidance = `\nUse the create_briefing tool when the user asks for a briefing, digest, or summary report that should appear in their Briefing feed. Briefings are rich reports with a cover image and markdown content. Use the search_documents tool first if you need to find and link existing documents to the briefing. Provide a short, evocative imageDescription for the cover image (e.g. 'morning coffee and newspaper on a wooden desk').`;
 
+  const taskGuidance = taskContext
+    ? `\nYou are currently running within a task: "${taskContext.title}".${taskContext.timezone ? ` The task's timezone is ${taskContext.timezone}.` : ""} You do not need to create any tasks. Follow the user's instructions directly and perform the requested actions on their behalf. Do not ask the user any questions — proceed autonomously with reasonable defaults.`
+    : "";
+
   if (!assignee)
-    return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}`;
+    return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${taskGuidance}`;
   if (assignee.personality)
-    return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}`;
-  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}`;
+    return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${taskGuidance}`;
+  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${taskGuidance}`;
 }
 
 /**
@@ -784,6 +789,16 @@ export async function runAgent(options: AgentRunOptions) {
 
   if (!session) throw new Error("Session not found");
 
+  // Load task context if session is linked to a task
+  let taskContext: { title: string; description: string | null; timezone: string | null } | null = null;
+  if (session.taskId) {
+    const [task] = await db
+      .select({ title: tasks.title, description: tasks.description })
+      .from(tasks)
+      .where(eq(tasks.id, session.taskId));
+    if (task) taskContext = { ...task, timezone: session.timezone ?? null };
+  }
+
   // Load assignee for personality and model config
   let assignee: {
     name: string;
@@ -811,7 +826,7 @@ export async function runAgent(options: AgentRunOptions) {
     }
   }
 
-  let systemPrompt = buildSystemPrompt(assignee);
+  let systemPrompt = buildSystemPrompt(assignee, taskContext);
 
   // Ensure we have a valid access token, refresh if needed
   let accessToken = session.accessToken || "";
@@ -833,7 +848,7 @@ export async function runAgent(options: AgentRunOptions) {
     }
   }
 
-  const { tools } = await buildToolSet(userId, session.assigneeId ?? null, accessToken, sessionId);
+  const { tools } = await buildToolSet(userId, session.assigneeId ?? null, accessToken, sessionId, !!taskContext);
   const messages = await getActiveSessionMessages(sessionId);
 
   // Search mem0 for relevant long-term memories

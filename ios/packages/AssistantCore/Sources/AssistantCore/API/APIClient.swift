@@ -117,8 +117,8 @@ public actor APIClient {
         return components.url
     }
 
-    public func buildSSERequest(path: String) async throws -> URLRequest {
-        try await buildRequest(path: path, method: "GET")
+    public func buildSSERequest(path: String, queryItems: [URLQueryItem]? = nil) async throws -> URLRequest {
+        try await buildRequest(path: path, method: "GET", queryItems: queryItems)
     }
 
     // MARK: - Validation

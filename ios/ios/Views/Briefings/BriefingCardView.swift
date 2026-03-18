@@ -7,7 +7,7 @@ struct BriefingCardView: View {
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             if let imageUrl = briefing.imageUrl, let url = URL(string: imageUrl) {
-                AsyncImage(url: url) { phase in
+                CachedAsyncImage(url: url) { phase in
                     switch phase {
                         case let .success(image):
                             image

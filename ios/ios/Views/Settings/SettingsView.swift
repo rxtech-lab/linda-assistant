@@ -19,7 +19,7 @@ struct SettingsView: View {
             if let user = authManager.currentUser {
                 Section {
                     HStack(spacing: 12) {
-                        AsyncImage(url: user.image.flatMap { URL(string: $0) }) { image in
+                        CachedAsyncImage(url: user.image.flatMap { URL(string: $0) }) { image in
                             image.resizable().scaledToFill()
                         } placeholder: {
                             Image(systemName: "person.crop.circle.fill")

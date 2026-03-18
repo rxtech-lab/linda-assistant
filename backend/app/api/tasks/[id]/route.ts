@@ -154,12 +154,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     .where(and(eq(tasks.id, id), eq(tasks.userId, auth.userId)));
   if (!existing) return errorJson("Task not found", 404);
 
-  const willBeCron = parsed.data.isCronEnabled ?? existing.isCronEnabled;
-  const willHaveRunsAt = parsed.data.runsAt !== undefined ? parsed.data.runsAt : existing.runsAt;
-  if (willBeCron && willHaveRunsAt) {
-    return errorJson("A task cannot have both cron scheduling and a one-shot runsAt schedule", 422);
-  }
-
   // Clear conflicting fields when switching schedule type
   const updates: Record<string, unknown> = { ...parsed.data, updatedAt: sql`(datetime('now'))` };
   if (parsed.data.isCronEnabled && parsed.data.runsAt === undefined) {
@@ -168,6 +162,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (parsed.data.runsAt && parsed.data.isCronEnabled === undefined) {
     updates.isCronEnabled = false; // Setting runsAt → disable cron
     updates.cronSchedule = null;
+  }
+
+  // Validate after auto-clear: reject only explicit conflicts
+  const willBeCron = (updates.isCronEnabled as boolean | undefined) ?? existing.isCronEnabled;
+  const willHaveRunsAt = updates.runsAt !== undefined ? updates.runsAt : existing.runsAt;
+  if (willBeCron && willHaveRunsAt) {
+    return errorJson("A task cannot have both cron scheduling and a one-shot runsAt schedule", 422);
   }
 
   const [updated] = await db

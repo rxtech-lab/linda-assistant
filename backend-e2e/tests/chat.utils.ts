@@ -474,6 +474,269 @@ export async function sendLocationResponse(
   }
 }
 
+// ---- Task helpers ----
+
+export async function createTask(
+  assigneeId: string,
+  title: string,
+  description: string,
+): Promise<string> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/tasks`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ assigneeId, title, description }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`POST /api/tasks failed (${res.status}): ${text}`);
+  }
+  const created = (await res.json()) as { id: string };
+  return created.id;
+}
+
+export async function deleteTask(taskId: string): Promise<void> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/tasks/${taskId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`DELETE /api/tasks/${taskId} failed (${res.status})`);
+  }
+}
+
+export async function executeTaskNow(
+  taskId: string,
+): Promise<{ sessionId: string }> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/tasks/${taskId}/execute-now`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(
+      `POST /api/tasks/${taskId}/execute-now failed (${res.status}): ${text}`,
+    );
+  }
+  return res.json() as any;
+}
+
+// ---- Session-based helpers (for task chat) ----
+
+export function consumeSessionStream(
+  sessionId: string,
+  options?: {
+    timeout?: number;
+    label?: string;
+    autoDisconnect?: boolean;
+    onMessage?: (event: StreamEvent) => void | Promise<void>;
+  },
+): StreamHandle {
+  const timeout = options?.timeout ?? 120_000;
+  const token = loadToken();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+
+  const events: StreamEvent[] = [];
+  let doneCount = 0;
+  const doneWaiters: Array<{
+    target: number;
+    resolve: () => void;
+    reject: (err: Error) => void;
+  }> = [];
+  const eventWaiters: Array<{
+    eventType: string;
+    resolve: (evt: StreamEvent) => void;
+    reject: (err: Error) => void;
+  }> = [];
+
+  const notifyDone = () => {
+    doneCount++;
+    const resolved: number[] = [];
+    for (let i = 0; i < doneWaiters.length; i++) {
+      if (doneCount >= doneWaiters[i]!.target) {
+        doneWaiters[i]!.resolve();
+        resolved.push(i);
+      }
+    }
+    for (let i = resolved.length - 1; i >= 0; i--) {
+      doneWaiters.splice(resolved[i]!, 1);
+    }
+  };
+
+  const notifyEventWaiters = (evt: StreamEvent) => {
+    const resolved: number[] = [];
+    for (let i = 0; i < eventWaiters.length; i++) {
+      if (eventWaiters[i]!.eventType === evt.event) {
+        eventWaiters[i]!.resolve(evt);
+        resolved.push(i);
+      }
+    }
+    for (let i = resolved.length - 1; i >= 0; i--) {
+      eventWaiters.splice(resolved[i]!, 1);
+    }
+  };
+
+  const rejectAll = (err: Error) => {
+    for (const w of doneWaiters) w.reject(err);
+    doneWaiters.length = 0;
+    for (const w of eventWaiters) w.reject(err);
+    eventWaiters.length = 0;
+  };
+
+  (async () => {
+    try {
+      let res: Response;
+      let retries = 0;
+      while (true) {
+        res = await fetch(`${BASE_URL}/api/chat-sessions/${sessionId}/stream`, {
+          headers: { Authorization: `Bearer ${token.access_token}` },
+          signal: controller.signal,
+        });
+        if (res.status === 404 && retries < 20) {
+          retries++;
+          streamLog(options?.label, `Session stream 404, retrying (${retries}/20)...`);
+          await new Promise((r) => setTimeout(r, 500));
+          continue;
+        }
+        if (!res.ok) {
+          throw new Error(
+            `GET /api/chat-sessions/${sessionId}/stream failed (${res.status})`,
+          );
+        }
+        break;
+      }
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop()!;
+
+        let currentEvent = "";
+        let currentData = "";
+
+        for (const line of lines) {
+          streamLog(options?.label, "SSE line:", line);
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            currentData = line.slice(6);
+          } else if (line === "" && currentEvent && currentData) {
+            let data: Record<string, unknown>;
+            try {
+              data = JSON.parse(currentData);
+            } catch {
+              currentEvent = "";
+              currentData = "";
+              continue;
+            }
+
+            const evt: StreamEvent = { event: currentEvent, data };
+            events.push(evt);
+
+            if (currentEvent === "error") {
+              const errMsg =
+                typeof data.message === "string"
+                  ? data.message
+                  : JSON.stringify(data);
+              rejectAll(new Error(`SSE error: ${errMsg}`));
+              return;
+            }
+
+            if (currentEvent === "done") {
+              notifyDone();
+              if (options?.autoDisconnect) {
+                controller.abort();
+                clearTimeout(timer);
+                return;
+              }
+            }
+            notifyEventWaiters(evt);
+
+            if (options?.onMessage) {
+              await options.onMessage(evt);
+            }
+            currentEvent = "";
+            currentData = "";
+          }
+        }
+      }
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        streamLog(options?.label, "Stream error:", err);
+        rejectAll(err instanceof Error ? err : new Error(String(err)));
+      }
+    }
+  })();
+
+  return {
+    events,
+    waitForDone: () => {
+      const target = doneCount + 1;
+      return new Promise<void>((resolve, reject) => {
+        if (doneCount >= target) {
+          resolve();
+          return;
+        }
+        doneWaiters.push({ target, resolve, reject });
+      });
+    },
+    waitForEvent: (eventType: string) => {
+      return new Promise<StreamEvent>((resolve, reject) => {
+        eventWaiters.push({ eventType, resolve, reject });
+      });
+    },
+    cancel: () => {
+      controller.abort();
+      clearTimeout(timer);
+    },
+  };
+}
+
+export async function sendSessionMessage(
+  sessionId: string,
+  content: string,
+): Promise<{ queued: boolean; messageId: string }> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/chat-sessions/${sessionId}/messages`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(
+      `POST /api/chat-sessions/${sessionId}/messages failed (${res.status}): ${text}`,
+    );
+  }
+  return res.json() as any;
+}
+
+export async function getSessionMessages(
+  sessionId: string,
+): Promise<{ messages: ChatMessage[]; nextCursor: string | null }> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/chat-sessions/${sessionId}/messages`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `GET /api/chat-sessions/${sessionId}/messages failed (${res.status})`,
+    );
+  }
+  return res.json() as any;
+}
+
 // ---- Utility: find parts in messages ----
 
 export function findToolCallParts(

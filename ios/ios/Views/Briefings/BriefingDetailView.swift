@@ -118,7 +118,7 @@ struct BriefingDetailView: View {
     @ViewBuilder
     private func coverImage(for briefing: Briefing) -> some View {
         if let imageUrl = briefing.imageUrl, let url = URL(string: imageUrl) {
-            AsyncImage(url: url) { phase in
+            CachedAsyncImage(url: url) { phase in
                 switch phase {
                     case let .success(image):
                         image
