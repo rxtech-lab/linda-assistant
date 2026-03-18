@@ -23,14 +23,16 @@ export async function GET(request: NextRequest) {
 
   const assigneeId = request.nextUrl.searchParams.get("assigneeId");
 
-  const { data: metadata, fromCache } = await getToolMetadataList(auth.userId, assigneeId, auth.accessToken);
+  const { data: metadata, fromCache } = await getToolMetadataList(
+    auth.userId,
+    assigneeId,
+    auth.accessToken,
+  );
 
   const toolsList = metadata.map((tool) => ({
     name: tool.name,
     description: tool.description,
-    defaultPermission: tool.needsApproval
-      ? ("manual-confirm" as const)
-      : ("auto-confirm" as const),
+    defaultPermission: tool.needsApproval ? ("manual-confirm" as const) : ("auto-confirm" as const),
   }));
 
   return NextResponse.json(toolsList, {

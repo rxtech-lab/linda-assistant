@@ -13,6 +13,7 @@ import {
   confirmations,
   devices,
   documents,
+  scheduledNotifications,
 } from "./schema";
 
 export const assigneesRelations = relations(assignees, ({ many }) => ({
@@ -110,3 +111,5 @@ export const assigneeExtensionsRelations = relations(assigneeExtensions, ({ one 
 }));
 
 export const devicesRelations = relations(devices, () => ({}));
+
+export const scheduledNotificationsRelations = relations(scheduledNotifications, () => ({}));

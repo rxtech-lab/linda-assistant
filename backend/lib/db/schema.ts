@@ -252,6 +252,18 @@ export const assigneeExtensions = sqliteTable("assignee_extensions", {
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
 
+export const scheduledNotifications = sqliteTable("scheduled_notifications", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  scheduledAt: text("scheduled_at").notNull(), // UTC ISO datetime
+  sent: integer("sent", { mode: "boolean" }).default(false),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
 export const devices = sqliteTable("devices", {
   id: text("id")
     .primaryKey()

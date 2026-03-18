@@ -63,6 +63,23 @@ export async function scheduleOnceTask(taskId: string, runsAt: string): Promise<
   }
 }
 
+/** Schedule a one-shot notification at a specific datetime. No-op if CELERY_BASE_URL is not set. */
+export async function scheduleNotification(notificationId: string, sendAt: string): Promise<void> {
+  if (!CELERY_BASE_URL) return;
+  try {
+    await fetch(`${CELERY_BASE_URL}/schedule-notification`, {
+      method: "POST",
+      headers: celeryHeaders(),
+      body: JSON.stringify({
+        notification_id: notificationId,
+        eta: new Date(sendAt).toISOString(),
+      }),
+    });
+  } catch (err) {
+    console.error(`[Celery] Failed to schedule notification ${notificationId}:`, err);
+  }
+}
+
 /** Execute a task immediately. No-op if CELERY_BASE_URL is not set. */
 export async function executeTaskNow(taskId: string): Promise<void> {
   if (!CELERY_BASE_URL) return;
