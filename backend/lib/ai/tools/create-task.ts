@@ -94,7 +94,7 @@ export const createTaskTool = (
 
       // Inherit assignee's tool permissions and enabled extensions
       if (assigneeId) {
-        const toolPermissions = await inheritAssigneeToolset(created.id, assigneeId);
+        const toolPermissions = await inheritAssigneeToolset(created.id, assigneeId, userId);
         if (toolPermissions) {
           await db.update(tasks).set({ toolPermissions }).where(eq(tasks.id, created.id));
         }

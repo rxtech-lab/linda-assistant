@@ -73,7 +73,11 @@ export async function POST(request: NextRequest) {
 
   // Inherit assignee's tool permissions and enabled extensions
   if (created.assigneeId) {
-    const toolPermissions = await inheritAssigneeToolset(created.id, created.assigneeId);
+    const toolPermissions = await inheritAssigneeToolset(
+      created.id,
+      created.assigneeId,
+      auth.userId,
+    );
     if (toolPermissions) {
       await db.update(tasks).set({ toolPermissions }).where(eq(tasks.id, created.id));
       created.toolPermissions = toolPermissions;

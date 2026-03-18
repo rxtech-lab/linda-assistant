@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
 
 export type ToolPermission = {
@@ -253,21 +253,27 @@ export const assigneeExtensions = sqliteTable("assignee_extensions", {
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
 
-export const taskExtensions = sqliteTable("task_extensions", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => nanoid()),
-  taskId: text("task_id")
-    .notNull()
-    .references(() => tasks.id, { onDelete: "cascade" }),
-  extensionId: text("extension_id")
-    .notNull()
-    .references(() => extensions.id, { onDelete: "cascade" }),
-  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
-  toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
-  createdAt: text("created_at").default(sql`(datetime('now'))`),
-  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
-});
+export const taskExtensions = sqliteTable(
+  "task_extensions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    taskId: text("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    extensionId: text("extension_id")
+      .notNull()
+      .references(() => extensions.id, { onDelete: "cascade" }),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+    toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
+    createdAt: text("created_at").default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    uniqueIndex("task_extensions_task_id_extension_id_unique").on(table.taskId, table.extensionId),
+  ],
+);
 
 export const scheduledNotifications = sqliteTable("scheduled_notifications", {
   id: text("id")

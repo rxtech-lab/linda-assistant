@@ -1,23 +1,26 @@
 import { db } from "@/lib/db";
 import { assignees, assigneeExtensions, taskExtensions } from "@/lib/db/schema";
 import type { ToolPermission } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 /**
- * Copy the assignee's tool permissions and enabled extensions to a newly created task.
+ * Copy the assignee's tool permissions and extension settings to a newly created task.
  * This is called during task creation (both via API and AI tool).
  */
 export async function inheritAssigneeToolset(
   taskId: string,
   assigneeId: string,
+  userId: string,
 ): Promise<ToolPermission[] | null> {
-  // 1. Copy tool permissions from assignee
+  // 1. Copy tool permissions from assignee (scoped by userId for cross-user safety)
   const [assignee] = await db
     .select({ toolPermissions: assignees.toolPermissions })
     .from(assignees)
-    .where(eq(assignees.id, assigneeId));
+    .where(and(eq(assignees.id, assigneeId), eq(assignees.userId, userId)));
 
-  const toolPermissions = assignee?.toolPermissions ?? null;
+  if (!assignee) return null;
+
+  const toolPermissions = assignee.toolPermissions ?? null;
 
   // 2. Copy enabled extensions from assignee (best-effort, don't fail task creation)
   try {

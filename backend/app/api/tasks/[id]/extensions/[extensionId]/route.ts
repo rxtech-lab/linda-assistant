@@ -54,33 +54,27 @@ export async function PUT(
 
   const { enabled, toolPermissions } = parsed.data;
 
-  // Upsert task_extensions row
-  const existing = await db
-    .select()
-    .from(taskExtensions)
-    .where(and(eq(taskExtensions.taskId, taskId), eq(taskExtensions.extensionId, extensionId)));
-
-  if (existing.length > 0) {
-    await db
-      .update(taskExtensions)
-      .set({
-        enabled,
-        ...(toolPermissions !== undefined && { toolPermissions }),
-        updatedAt: sql`(datetime('now'))`,
-      })
-      .where(eq(taskExtensions.id, existing[0].id));
-  } else {
-    await db.insert(taskExtensions).values({
+  // Atomic upsert using unique constraint on (task_id, extension_id)
+  await db
+    .insert(taskExtensions)
+    .values({
       taskId,
       extensionId,
       enabled,
       toolPermissions: toolPermissions ?? null,
+    })
+    .onConflictDoUpdate({
+      target: [taskExtensions.taskId, taskExtensions.extensionId],
+      set: {
+        enabled,
+        ...(toolPermissions !== undefined && { toolPermissions }),
+        updatedAt: sql`(datetime('now'))`,
+      },
     });
-  }
 
   return NextResponse.json({
     ...ext,
     enabled,
-    toolPermissions: toolPermissions ?? existing[0]?.toolPermissions ?? null,
+    toolPermissions: toolPermissions ?? null,
   });
 }
