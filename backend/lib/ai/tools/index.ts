@@ -244,7 +244,7 @@ export async function buildToolSet(
   }
 
   // Notification tool — never require confirmation
-  filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(userId);
+  filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(userId, chatSessionId);
 
   // Skip MCP tools in E2E test mode (no valid OAuth tokens for external services)
   if (!isE2E) {
@@ -299,7 +299,10 @@ export async function getToolMetadataList(
 ): Promise<ToolMetadataResult> {
   // No cache for null assigneeId — cheap path without MCP tools
   if (!assigneeId) {
-    return { data: extractMetadata(await buildToolSet(userId, assigneeId, accessToken)), fromCache: false };
+    return {
+      data: extractMetadata(await buildToolSet(userId, assigneeId, accessToken)),
+      fromCache: false,
+    };
   }
 
   const cacheKey = toolMetaCacheKey(userId, assigneeId);
