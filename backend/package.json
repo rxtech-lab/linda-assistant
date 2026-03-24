@@ -29,9 +29,11 @@
     "@libsql/client": "^0.15",
     "@tailwindcss/postcss": "^4.1.18",
     "@upstash/redis": "^1",
+    "@vercel/sandbox": "^1.9.0",
     "ai": "^6.0.116",
     "ajv": "^8.17.1",
     "amqplib": "^0.10.9",
+    "cron-parser": "^4",
     "drizzle-orm": "^0.44",
     "drizzle-zod": "^0.7",
     "escape-html": "^1.0.3",
@@ -45,7 +47,7 @@
     "redoc": "^2.5.2",
     "resend": "^6.9.2",
     "svix": "^1",
-    "cron-parser": "^4",
+    "tsx": "^4.21.0",
     "zod": "^3"
   },
   "devDependencies": {
@@ -54,15 +56,15 @@
     "@types/amqplib": "^0.10.8",
     "@types/bun": "latest",
     "@types/escape-html": "^1.0.4",
-    "@types/node": "^20",
+    "@types/node": "^25.5.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "dotenv": "^16",
+    "dotenv": "^17.3.1",
     "drizzle-kit": "^0.31",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "next-openapi-gen": "^0",
-    "typescript": "^5"
+    "typescript": "^6.0.2"
   },
   "trustedDependencies": [
     "sharp",

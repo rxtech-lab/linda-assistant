@@ -796,3 +796,19 @@ export function findAllToolResultParts(messages: ChatMessage[]): MessagePart[] {
   }
   return parts;
 }
+
+// ---- Document helpers ----
+
+export async function listChatDocuments(
+  assigneeId: string,
+): Promise<Array<{ id: string; title: string; format: string; content: string }>> {
+  const token = loadToken();
+  const res = await fetch(
+    `${BASE_URL}/api/chat/${assigneeId}/documents`,
+    { headers: authHeaders(token) },
+  );
+  if (!res.ok)
+    throw new Error(`GET /api/chat/${assigneeId}/documents failed (${res.status})`);
+  const body = (await res.json()) as { data: Array<{ id: string; title: string; format: string; content: string }> };
+  return body.data;
+}

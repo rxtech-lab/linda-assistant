@@ -19,11 +19,14 @@ export const CHUNK_TOKEN_SIZE = 10_000;
 
 export const IMAGE_GENERATION_MODEL = "google/gemini-3.1-flash-image-preview";
 
+export const CHART_GENERATION_MODEL = "openai/gpt-5.4";
+
 /**
  * Model used for generating summaries during compaction.
  * Env: COMPACTION_MODEL (default: fast model with large context window).
  */
-export const COMPACTION_MODEL = process.env.COMPACTION_MODEL || "google/gemini-3-flash";
+export const COMPACTION_MODEL =
+  process.env.COMPACTION_MODEL || "google/gemini-3-flash";
 
 // ── Token Estimation ───────────────────────────────────────────────────
 

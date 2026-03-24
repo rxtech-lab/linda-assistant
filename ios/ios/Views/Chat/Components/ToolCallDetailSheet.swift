@@ -51,6 +51,8 @@ struct ToolCallDetailSheet: View {
     var body: some View {
         if toolCall.toolName == "get_location" {
             locationResultBody
+        } else if toolCall.toolName == "create_drawing" {
+            drawingResultBody
         } else {
             defaultBody
         }
@@ -334,6 +336,91 @@ private extension ToolCallDetailSheet {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 32)
         }
+    }
+}
+
+// MARK: - Drawing Section
+
+private extension ToolCallDetailSheet {
+    /// Extract the chart URL from the tool result.
+    var drawingURL: URL? {
+        if case let .object(dict) = toolCall.result,
+           case let .string(urlStr) = dict["url"]
+        {
+            return URL(string: urlStr)
+        }
+        return nil
+    }
+
+    var drawingResultBody: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    headerSection
+
+                    if toolCall.status == .failed, let errorMsg = toolCall.errorMessage {
+                        errorSection(message: errorMsg)
+                    }
+
+                    if let url = drawingURL {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                                case .empty:
+                                    ProgressView()
+                                        .frame(maxWidth: .infinity, minHeight: 200)
+                                case let .success(image):
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .strokeBorder(Color.primary.opacity(0.08))
+                                        )
+                                case .failure:
+                                    VStack(spacing: 8) {
+                                        Image(systemName: "photo.badge.exclamationmark")
+                                            .font(.title)
+                                            .foregroundStyle(.tertiary)
+                                        Text("Failed to load chart")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity, minHeight: 200)
+                                @unknown default:
+                                    EmptyView()
+                            }
+                        }
+                    }
+
+                    if let params = toolCall.input, !params.isEmpty {
+                        detailsSection(title: "Parameters", params: params)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
+            }
+            #if os(iOS)
+            .background(Color(.systemGroupedBackground))
+            #else
+            .background(Color(nsColor: .windowBackgroundColor))
+            #endif
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 
@@ -848,4 +935,32 @@ private func previewInput(_ questions: [AnyCodable]) -> [String: AnyCodable] {
         status: .rejected,
         errorMessage: "User stopped this action"
     ))
+}
+
+#Preview("Drawing - Completed") {
+    ToolCallDetailSheet(
+        toolCall: ToolCallInfo(
+            toolCallId: "draw-1",
+            toolName: "create_drawing",
+            input: [
+                "chartDescription": .string("Bar chart showing monthly revenue"),
+                "data": .object(["January": .int(1000), "February": .int(1500), "March": .int(1200)]),
+            ],
+            status: .completed,
+            result: .object(["url": .string("https://picsum.photos/600/400")])
+        )
+    )
+}
+
+#Preview("Drawing - Running") {
+    ToolCallDetailSheet(
+        toolCall: ToolCallInfo(
+            toolCallId: "draw-2",
+            toolName: "create_drawing",
+            input: [
+                "chartDescription": .string("Pie chart of expenses"),
+            ],
+            status: .running
+        )
+    )
 }

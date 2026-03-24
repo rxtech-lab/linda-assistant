@@ -20,6 +20,7 @@ import { UPDATE_DOCUMENT_TOOL_NAME, updateDocumentTool } from "./update-document
 import { SEND_NOTIFICATION_TOOL_NAME, sendNotificationTool } from "./send-notification";
 import { SEARCH_DOCUMENTS_TOOL_NAME, searchDocumentsTool } from "./search-documents";
 import { CREATE_BRIEFING_TOOL_NAME, createBriefingTool } from "./create-briefing";
+import { CREATE_DRAWING_TOOL_NAME, createDrawingTool } from "./create-drawing";
 import { type AuthConfig, createGenericMcp } from "./mcps/generic";
 import { redis } from "@/lib/redis";
 
@@ -292,6 +293,9 @@ export async function buildToolSet(
     filtered[CREATE_BRIEFING_TOOL_NAME] = createBriefingTool(userId, chatSessionId, assigneeId);
   }
 
+  // Drawing tool — never require confirmation
+  filtered[CREATE_DRAWING_TOOL_NAME] = createDrawingTool();
+
   // Notification tool — never require confirmation
   filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(userId, chatSessionId);
 
@@ -464,6 +468,7 @@ export {
   ASK_QUESTION_TOOL_NAME,
   CREATE_BRIEFING_TOOL_NAME,
   CREATE_DOCUMENT_TOOL_NAME,
+  CREATE_DRAWING_TOOL_NAME,
   CREATE_TASK_TOOL_NAME,
   GET_CURRENT_TIME_TOOL_NAME,
   GET_LOCATION_TOOL_NAME,
