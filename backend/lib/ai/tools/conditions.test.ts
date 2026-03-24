@@ -344,7 +344,11 @@ describe("evaluateConditions", () => {
         },
       ];
       expect(
-        evaluateConditions(conditions, { to: "test@example.com", subject: "Daily report" }, "or"),
+        evaluateConditions(
+          conditions,
+          { to: "test@example.com", subject: "Daily report" },
+          "or",
+        ),
       ).toBe(true);
     });
 
@@ -366,7 +370,9 @@ describe("evaluateConditions", () => {
           operator: "isTrue",
         },
       ];
-      expect(evaluateConditions(conditions, { priority: 3, urgent: true }, "or")).toBe(true);
+      expect(
+        evaluateConditions(conditions, { priority: 3, urgent: true }, "or"),
+      ).toBe(true);
     });
   });
 });

@@ -448,7 +448,10 @@ async function resolvePendingToolCalls(
           resolvedAt: sql`(datetime('now'))`,
         })
         .where(
-          and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.toolCallId, toolCallId)),
+          and(
+            eq(confirmations.chatSessionId, sessionId),
+            eq(confirmations.toolCallId, toolCallId),
+          ),
         );
       await db
         .update(questions)
@@ -456,7 +459,9 @@ async function resolvePendingToolCalls(
           status: "rejected",
           answeredAt: sql`(datetime('now'))`,
         })
-        .where(and(eq(questions.chatSessionId, sessionId), eq(questions.toolCallId, toolCallId)));
+        .where(
+          and(eq(questions.chatSessionId, sessionId), eq(questions.toolCallId, toolCallId)),
+        );
 
       // Update the tool-call annotation in messages so it persists as "cancelled".
       // Check for both confirmation and question annotations.
