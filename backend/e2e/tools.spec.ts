@@ -1,6 +1,14 @@
 import { test, expect } from "@playwright/test";
 import { toolsResponseSchema } from "./helpers/schemas";
 
+const SYSTEM_TOOLS_NO_PERMISSION_CHANGE = [
+  "update_document",
+  "create_document",
+  "search_documents",
+  "create_briefing",
+  "send_notification",
+];
+
 test.describe("Tools API", () => {
   test("GET /api/tools returns available tools", async ({ request }) => {
     const res = await request.get("/api/tools");
@@ -23,6 +31,20 @@ test.describe("Tools API", () => {
       expect(["auto-confirm", "manual-confirm", "auto-reject", "disabled"]).toContain(
         tool.defaultPermission,
       );
+    }
+  });
+
+  test("GET /api/tools includes disablePermissionChange for system tools", async ({ request }) => {
+    const res = await request.get("/api/tools");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+
+    for (const tool of body) {
+      if (SYSTEM_TOOLS_NO_PERMISSION_CHANGE.includes(tool.name)) {
+        expect(tool.disablePermissionChange).toBe(true);
+      } else {
+        expect(tool.disablePermissionChange).toBeUndefined();
+      }
     }
   });
 

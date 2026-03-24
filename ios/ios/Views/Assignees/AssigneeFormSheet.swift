@@ -186,13 +186,18 @@ struct AssigneeFormSheet: View {
         isSubmitting = true
         error = nil
 
-        let permissions = toolPermissions.map { entry in
-            let conditions: [ToolCondition]? = entry.value == "auto-confirm"
-                ? (toolConditions[entry.key]?.isEmpty == false ? toolConditions[entry.key] : nil)
-                : nil
-            let logic: String? = conditions != nil ? toolConditionLogics[entry.key] : nil
-            return ToolPermission(toolName: entry.key, permission: entry.value, conditions: conditions, conditionLogic: logic)
-        }
+        let permissions = toolPermissions
+            .filter { entry in
+                // Exclude tools that cannot have their permission changed
+                !(availableTools.first(where: { $0.name == entry.key })?.disablePermissionChange == true)
+            }
+            .map { entry in
+                let conditions: [ToolCondition]? = entry.value == "auto-confirm"
+                    ? (toolConditions[entry.key]?.isEmpty == false ? toolConditions[entry.key] : nil)
+                    : nil
+                let logic: String? = conditions != nil ? toolConditionLogics[entry.key] : nil
+                return ToolPermission(toolName: entry.key, permission: entry.value, conditions: conditions, conditionLogic: logic)
+            }
 
         do {
             if case let .edit(assigneeId) = mode {

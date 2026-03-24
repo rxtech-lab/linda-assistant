@@ -15,6 +15,10 @@ struct ToolPermissionRow: View {
     @State private var showingConditionsSheet = false
     @State private var showingDetailSheet = false
 
+    private var isPermissionChangeDisabled: Bool {
+        tool?.disablePermissionChange == true
+    }
+
     static let permissionOptions: [(value: String, label: String)] = [
         ("auto-confirm", "Auto"),
         ("manual-confirm", "Confirm"),
@@ -71,14 +75,19 @@ struct ToolPermissionRow: View {
                 hasConditions: hasConditions
             )
 
-            Image(systemName: "chevron.right")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.tertiary)
+            if !isPermissionChangeDisabled {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
+        .opacity(isPermissionChangeDisabled ? 0.6 : 1.0)
         .onTapGesture {
-            showingDetailSheet = true
+            if !isPermissionChangeDisabled {
+                showingDetailSheet = true
+            }
         }
         .sheet(isPresented: $showingDetailSheet) {
             ToolDetailSheet(

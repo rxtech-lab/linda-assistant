@@ -708,6 +708,7 @@ public struct AgentTool: Codable, Sendable, Identifiable {
     public let description: String
     public let defaultPermission: String
     public let parameters: [ToolParameter]?
+    public let disablePermissionChange: Bool?
 }
 
 // MARK: - Upload

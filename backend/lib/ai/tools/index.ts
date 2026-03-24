@@ -24,6 +24,18 @@ import { CREATE_DRAWING_TOOL_NAME, createDrawingTool } from "./create-drawing";
 import { type AuthConfig, createGenericMcp } from "./mcps/generic";
 import { redis } from "@/lib/redis";
 
+/**
+ * System tools that never require approval and cannot have their permission changed.
+ * These tools are always auto-executed by the agent.
+ */
+export const NO_PERMISSION_CHANGE_TOOLS: ReadonlySet<string> = new Set([
+  UPDATE_DOCUMENT_TOOL_NAME,
+  CREATE_DOCUMENT_TOOL_NAME,
+  SEARCH_DOCUMENTS_TOOL_NAME,
+  CREATE_BRIEFING_TOOL_NAME,
+  SEND_NOTIFICATION_TOOL_NAME,
+]);
+
 export interface ToolSetResult {
   /** Tools filtered to exclude auto-reject and disabled entries, built with correct needsApproval */
   tools: Record<string, unknown>;

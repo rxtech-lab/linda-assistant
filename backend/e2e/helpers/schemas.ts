@@ -87,6 +87,7 @@ export const toolsResponseSchema = z.array(
     name: z.string(),
     description: z.string(),
     defaultPermission: z.enum(["auto-confirm", "manual-confirm", "auto-reject", "disabled"]),
+    disablePermissionChange: z.boolean().optional(),
   }),
 );
 

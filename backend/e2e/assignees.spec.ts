@@ -357,4 +357,41 @@ test.describe("Tool permissions", () => {
     assigneeResponseSchema.parse(body);
     expect(body.toolPermissions).toBeNull();
   });
+
+  test("POST rejects permission change for system tools", async ({ request }) => {
+    const systemTools = [
+      "update_document",
+      "create_document",
+      "search_documents",
+      "create_briefing",
+      "send_notification",
+    ];
+    for (const toolName of systemTools) {
+      const res = await request.post("/api/assignees", {
+        data: {
+          name: "System Tool Test",
+          email: "system-tool@example.com",
+          toolPermissions: [{ toolName, permission: "manual-confirm" }],
+        },
+      });
+      expect(res.status()).toBe(400);
+      const body = await res.json();
+      errorResponseSchema.parse(body);
+      expect(body.error).toContain("Cannot change permissions for system tools");
+      expect(body.error).toContain(toolName);
+    }
+  });
+
+  test("PUT rejects permission change for system tools", async ({ request }) => {
+    const res = await request.put(`/api/assignees/${assigneeId}`, {
+      data: {
+        toolPermissions: [{ toolName: "update_document", permission: "disabled" }],
+      },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    errorResponseSchema.parse(body);
+    expect(body.error).toContain("Cannot change permissions for system tools");
+    expect(body.error).toContain("update_document");
+  });
 });
