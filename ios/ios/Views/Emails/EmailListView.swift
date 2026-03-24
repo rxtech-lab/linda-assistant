@@ -52,8 +52,10 @@ struct EmailListView: View {
                 case let .email(id): EmailDetailView(emailId: id)
                 case let .assignee(id, name): AssigneeDetailView(assigneeId: id, assigneeName: name)
                 case let .assigneeExtensions(assigneeId): AssigneeExtensionListView(assigneeId: assigneeId)
-                case let .extensionDetail(extensionId, assigneeId):
-                    ExtensionDetailView(extensionId: extensionId, assigneeId: assigneeId)
+                case let .taskToolPermissions(taskId): TaskToolPermissionsView(taskId: taskId)
+                case let .taskExtensions(taskId): TaskExtensionListView(taskId: taskId)
+                case let .extensionDetail(extensionId, assigneeId, taskId):
+                    ExtensionDetailView(extensionId: extensionId, assigneeId: assigneeId, taskId: taskId)
                 case .extensionList: ExtensionListView()
                 case .assigneeList: AssigneeListView()
                 case .usage: UsageView()

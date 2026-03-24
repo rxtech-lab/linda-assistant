@@ -2,9 +2,41 @@ import { sql } from "drizzle-orm";
 import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
 
+// Discriminated union by parameterType — each type allows only its valid operators
+export type StringCondition = {
+  parameterName: string;
+  parameterType: "string";
+  operator: "startsWith" | "endsWith" | "contains" | "equals" | "regex";
+  value: string;
+};
+
+export type NumberCondition = {
+  parameterName: string;
+  parameterType: "number";
+  operator: "gt" | "gte" | "lt" | "lte" | "regex";
+  value: number | string; // number for comparison, string for regex pattern
+};
+
+export type BooleanCondition = {
+  parameterName: string;
+  parameterType: "boolean";
+  operator: "isTrue" | "isFalse";
+};
+
+export type ArrayCondition = {
+  parameterName: string;
+  parameterType: "array";
+  operator: "contains" | "equals" | "lengthGt" | "lengthLt" | "lengthGte" | "lengthLte";
+  value: string | string[] | number; // string for contains, string[] for equals, number for length ops
+};
+
+export type ToolCondition = StringCondition | NumberCondition | BooleanCondition | ArrayCondition;
+
 export type ToolPermission = {
   toolName: string;
   permission: "auto-confirm" | "manual-confirm" | "auto-reject" | "disabled";
+  conditions?: ToolCondition[];
+  conditionLogic?: "and" | "or";
 };
 
 export type EmailAttachment = {

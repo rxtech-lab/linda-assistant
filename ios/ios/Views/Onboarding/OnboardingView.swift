@@ -53,33 +53,24 @@ struct OnboardingView: View {
             if !viewModel.availableTools.isEmpty {
                 Section("Tool Permissions") {
                     ForEach(viewModel.availableTools) { tool in
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(tool.name)
-                                    .font(.body)
-                                if let markdown = try? AttributedString(markdown: tool.description) {
-                                    Text(markdown)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    Text(tool.description)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
+                        ToolPermissionRow(
+                            permission: ToolPermission(
+                                toolName: tool.name,
+                                permission: viewModel.toolPermissions[tool.name] ?? tool.defaultPermission,
+                                conditions: viewModel.toolConditions[tool.name],
+                                conditionLogic: viewModel.toolConditionLogics[tool.name]
+                            ),
+                            tool: tool
+                        ) { newPermission in
+                            viewModel.toolPermissions[tool.name] = newPermission
+                            if newPermission != "auto-confirm" {
+                                viewModel.toolConditions[tool.name] = nil
+                                viewModel.toolConditionLogics[tool.name] = nil
                             }
-                            .layoutPriority(1)
-                            Spacer()
-                            Picker("", selection: viewModel.bindingForTool(tool.name)) {
-                                Text("Auto").tag("auto-confirm")
-                                Text("Manual").tag("manual-confirm")
-                                Text("Reject").tag("auto-reject")
-                                Text("Disabled").tag("disabled")
-                            }
-                            .labelsHidden()
-                            #if os(macOS)
-                                .pickerStyle(.menu)
-                                .fixedSize()
-                            #endif
+                        } onConditionsChange: { newConditions in
+                            viewModel.toolConditions[tool.name] = newConditions.isEmpty ? nil : newConditions
+                        } onConditionLogicChange: { newLogic in
+                            viewModel.toolConditionLogics[tool.name] = newLogic
                         }
                     }
                 }

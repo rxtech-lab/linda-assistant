@@ -55,8 +55,10 @@ struct TaskDetailView: View {
                 case let .email(id): EmailDetailView(emailId: id)
                 case let .assignee(id, name): AssigneeDetailView(assigneeId: id, assigneeName: name)
                 case let .assigneeExtensions(assigneeId): AssigneeExtensionListView(assigneeId: assigneeId)
-                case let .extensionDetail(extensionId, assigneeId):
-                    ExtensionDetailView(extensionId: extensionId, assigneeId: assigneeId)
+                case let .taskToolPermissions(taskId): TaskToolPermissionsView(taskId: taskId)
+                case let .taskExtensions(taskId): TaskExtensionListView(taskId: taskId)
+                case let .extensionDetail(extensionId, assigneeId, taskId):
+                    ExtensionDetailView(extensionId: extensionId, assigneeId: assigneeId, taskId: taskId)
                 case .extensionList: ExtensionListView()
                 case .assigneeList: AssigneeListView()
                 case .usage: UsageView()
@@ -195,6 +197,16 @@ private struct TaskDetailContentView: View {
                     }
                 } header: {
                     Label("Labels", systemImage: "tag")
+                }
+            }
+
+            // Tools & Extensions
+            Section {
+                NavigationLink(value: AppDestination.taskToolPermissions(taskId: task.id)) {
+                    Label("Tool Permissions", systemImage: "wrench.and.screwdriver")
+                }
+                NavigationLink(value: AppDestination.taskExtensions(taskId: task.id)) {
+                    Label("Extensions", systemImage: "puzzlepiece.extension")
                 }
             }
 
@@ -561,6 +573,7 @@ private struct ScaleButtonStyle: ButtonStyle {
             .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }
+
 // MARK: - Preview
 
 private let previewTaskJSON = """
@@ -615,4 +628,3 @@ private let previewTaskJSON = """
         .navigationTitle("Weekly Report Generation")
     }
 }
-

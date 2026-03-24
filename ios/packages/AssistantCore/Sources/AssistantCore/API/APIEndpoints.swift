@@ -251,6 +251,24 @@ public extension APIClient {
         )
     }
 
+    // MARK: - Task Extensions
+
+    func listTaskExtensions(taskId: String) async throws -> [ExtensionWithStatus] {
+        try await request(path: "tasks/\(taskId)/extensions")
+    }
+
+    func updateTaskExtension(
+        taskId: String,
+        extensionId: String,
+        _ body: TaskExtensionSettings
+    ) async throws -> ExtensionWithStatus {
+        try await request(
+            path: "tasks/\(taskId)/extensions/\(extensionId)",
+            method: "PUT",
+            body: body
+        )
+    }
+
     // MARK: - Emails
 
     func listEmails(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Email> {

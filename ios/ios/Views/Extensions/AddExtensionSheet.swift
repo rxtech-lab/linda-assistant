@@ -80,17 +80,17 @@ struct AddExtensionSheet: View {
             #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        Task { await createExtension() }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
                     }
-                    .disabled(!isValid || isSaving)
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Add") {
+                            Task { await createExtension() }
+                        }
+                        .disabled(!isValid || isSaving)
+                    }
                 }
-            }
         }
     }
 
@@ -123,6 +123,7 @@ struct AddExtensionSheet: View {
         isSaving = false
     }
 }
+
 private extension View {
     @ViewBuilder
     func urlFieldInputModifiers() -> some View {
@@ -145,4 +146,3 @@ private extension View {
         #endif
     }
 }
-

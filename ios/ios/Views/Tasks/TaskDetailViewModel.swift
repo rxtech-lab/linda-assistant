@@ -37,9 +37,35 @@ final class TaskDetailViewModel {
                     await loadTask(id: taskId, apiClient: apiClient)
                 case let .taskUpdated(updated) where updated.id == taskId:
                     await loadTask(id: taskId, apiClient: apiClient)
+                case let .taskExtensionUpdated(tId, _) where tId == taskId:
+                    await loadTask(id: taskId, apiClient: apiClient)
                 default:
                     break
             }
+        }
+    }
+
+    func updateToolPermission(
+        toolName: String,
+        newPermission: String,
+        apiClient: APIClient,
+        eventManager: EventManager
+    ) async {
+        guard let task else { return }
+        var permissions = task.toolPermissions ?? []
+        if let index = permissions.firstIndex(where: { $0.toolName == toolName }) {
+            permissions[index] = ToolPermission(toolName: toolName, permission: newPermission)
+        } else {
+            permissions.append(ToolPermission(toolName: toolName, permission: newPermission))
+        }
+        do {
+            let updated = try await apiClient.updateTask(
+                id: task.id,
+                UpdateTask(toolPermissions: permissions)
+            )
+            eventManager.emit(.taskUpdated(updated))
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 

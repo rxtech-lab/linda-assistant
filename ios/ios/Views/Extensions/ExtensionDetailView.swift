@@ -4,11 +4,13 @@ import SwiftUI
 struct ExtensionDetailView: View {
     let extensionId: String
     var assigneeId: String?
+    var taskId: String?
 
     @Environment(AuthManager.self) private var authManager
     @Environment(EventManager.self) private var eventManager
     @State private var ext: ExtensionWithStatus?
     @State private var isLoading = true
+    @State private var isToggling = false
     @State private var error: String?
 
     private var apiClient: APIClient {
@@ -58,8 +60,8 @@ struct ExtensionDetailView: View {
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
 
-                    // Assignee-specific toggle
-                    if assigneeId != nil {
+                    // Assignee/Task-specific toggle
+                    if assigneeId != nil || taskId != nil {
                         Section {
                             Toggle("Enabled", isOn: Binding(
                                 get: { ext.enabled },
@@ -101,6 +103,16 @@ struct ExtensionDetailView: View {
             }
         }
         .navigationTitle(ext?.title ?? "Extension")
+        .overlay(alignment: .center) {
+            if isToggling {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("Updating")
+                }
+                .padding()
+                .glassEffect(in: .rect(cornerRadius: 24))
+            }
+        }
         .task {
             await loadExtension()
         }
@@ -118,14 +130,24 @@ struct ExtensionDetailView: View {
     }
 
     private func toggleEnabled(_ enabled: Bool) async {
-        guard let assigneeId else { return }
+        isToggling = true
+        defer { isToggling = false }
         do {
-            ext = try await apiClient.updateAssigneeExtension(
-                assigneeId: assigneeId,
-                extensionId: extensionId,
-                AssigneeExtensionSettings(enabled: enabled)
-            )
-            eventManager.emit(.assigneeExtensionUpdated(assigneeId, extensionId))
+            if let assigneeId {
+                ext = try await apiClient.updateAssigneeExtension(
+                    assigneeId: assigneeId,
+                    extensionId: extensionId,
+                    AssigneeExtensionSettings(enabled: enabled)
+                )
+                eventManager.emit(.assigneeExtensionUpdated(assigneeId, extensionId))
+            } else if let taskId {
+                ext = try await apiClient.updateTaskExtension(
+                    taskId: taskId,
+                    extensionId: extensionId,
+                    TaskExtensionSettings(enabled: enabled)
+                )
+                eventManager.emit(.taskExtensionUpdated(taskId, extensionId))
+            }
         } catch {
             self.error = error.localizedDescription
         }

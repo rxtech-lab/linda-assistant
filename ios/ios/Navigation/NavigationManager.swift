@@ -6,7 +6,9 @@ enum AppDestination: Hashable {
     case email(id: String)
     case assignee(id: String, name: String)
     case assigneeExtensions(assigneeId: String)
-    case extensionDetail(extensionId: String, assigneeId: String?)
+    case taskToolPermissions(taskId: String)
+    case taskExtensions(taskId: String)
+    case extensionDetail(extensionId: String, assigneeId: String?, taskId: String? = nil)
     case extensionList
     case assigneeList
     case usage

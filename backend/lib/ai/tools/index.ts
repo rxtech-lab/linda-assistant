@@ -1,11 +1,15 @@
 import { db } from "@/lib/db";
-import type { ToolPermission } from "@/lib/db/schema";
+import type { ToolPermission, ToolCondition } from "@/lib/db/schema";
 import { assignees, extensions, assigneeExtensions } from "@/lib/db/schema";
 import { eq, and, or } from "drizzle-orm";
 import { CREATE_TASK_TOOL_NAME, createTaskTool } from "./create-task";
 import { CREATE_DOCUMENT_TOOL_NAME, createDocumentTool } from "./create-document";
 import { getActiveSessionMessages } from "@/lib/db/messages";
-import { loadAssigneePermissions, resolvePermission } from "./permission";
+import {
+  loadAssigneePermissions,
+  resolvePermission,
+  resolvePermissionWithConditions,
+} from "./permission";
 import { SEARCH_EMAILS_TOOL_NAME, searchEmailsTool } from "./search-emails";
 import { SEND_EMAIL_TOOL_NAME, sendEmailTool } from "./send-email";
 import { UPDATE_TASK_TOOL_NAME, updateTaskTool } from "./update-task";
@@ -22,6 +26,8 @@ import { redis } from "@/lib/redis";
 export interface ToolSetResult {
   /** Tools filtered to exclude auto-reject and disabled entries, built with correct needsApproval */
   tools: Record<string, unknown>;
+  /** Maps toolName → conditions and logic for tools with conditional auto-confirm */
+  conditionalAutoConfirm: Record<string, { conditions: ToolCondition[]; logic: "and" | "or" }>;
 }
 
 /**
@@ -32,17 +38,35 @@ async function loadMcpTools(
   mcpUrl: string,
   auth: AuthConfig,
   toolPermissions: ToolPermission[] | null,
-): Promise<Record<string, unknown>> {
+): Promise<{
+  tools: Record<string, unknown>;
+  conditionalAutoConfirm: Record<string, { conditions: ToolCondition[]; logic: "and" | "or" }>;
+}> {
   try {
     // First fetch tools to discover their names
     const rawTools = await createGenericMcp(mcpUrl, auth, {});
     const needsApproval: Record<string, boolean> = {};
+    const conditionalAutoConfirm: Record<
+      string,
+      { conditions: ToolCondition[]; logic: "and" | "or" }
+    > = {};
 
     // Build needsApproval map based on permissions
     for (const toolName of Object.keys(rawTools)) {
-      const perm = resolvePermission(`${prefix}${toolName}`, toolPermissions);
-      if (perm === "auto-reject" || perm === "disabled") continue;
-      needsApproval[toolName] = perm === "manual-confirm";
+      const prefixedName = `${prefix}${toolName}`;
+      const { permission, conditions, conditionLogic } = resolvePermissionWithConditions(
+        prefixedName,
+        toolPermissions,
+      );
+      if (permission === "auto-reject" || permission === "disabled") continue;
+      const hasConditions = permission === "auto-confirm" && conditions && conditions.length > 0;
+      needsApproval[toolName] = permission === "manual-confirm" || !!hasConditions;
+      if (hasConditions) {
+        conditionalAutoConfirm[prefixedName] = {
+          conditions,
+          logic: conditionLogic ?? "and",
+        };
+      }
     }
 
     // Fetch tools again with correct needsApproval settings
@@ -51,15 +75,18 @@ async function loadMcpTools(
     // Prefix tool names and filter out auto-rejected tools
     const prefixed: Record<string, unknown> = {};
     for (const [toolName, tool] of Object.entries(mcpTools)) {
-      const perm = resolvePermission(`${prefix}${toolName}`, toolPermissions);
-      if (perm === "auto-reject" || perm === "disabled") continue;
+      const { permission } = resolvePermissionWithConditions(
+        `${prefix}${toolName}`,
+        toolPermissions,
+      );
+      if (permission === "auto-reject" || permission === "disabled") continue;
       prefixed[`${prefix}${toolName}`] = tool as unknown;
     }
 
-    return prefixed;
+    return { tools: prefixed, conditionalAutoConfirm };
   } catch (error) {
     console.warn(`[loadMcpTools] Failed to load ${prefix} MCP tools:`, error);
-    return {};
+    return { tools: {}, conditionalAutoConfirm: {} };
   }
 }
 
@@ -223,12 +250,31 @@ export async function buildToolSet(
 
   // Build permission-aware tools
   const filtered: Record<string, unknown> = {};
+  const conditionalAutoConfirm: Record<
+    string,
+    { conditions: ToolCondition[]; logic: "and" | "or" }
+  > = {};
   for (const { name, create } of toolDefs) {
     // Skip task tools and ask_question when running in task context (agent runs autonomously)
-    if (isTaskContext && (name === CREATE_TASK_TOOL_NAME || name === UPDATE_TASK_TOOL_NAME || name === ASK_QUESTION_TOOL_NAME)) continue;
-    const perm = resolvePermission(name, toolPermissions);
-    if (perm === "auto-reject" || perm === "disabled") continue;
-    const needsApproval = autoConfirmOverrides.has(name) ? false : perm === "manual-confirm";
+    if (
+      isTaskContext &&
+      (name === CREATE_TASK_TOOL_NAME ||
+        name === UPDATE_TASK_TOOL_NAME ||
+        name === ASK_QUESTION_TOOL_NAME)
+    )
+      continue;
+    const { permission, conditions, conditionLogic } = resolvePermissionWithConditions(
+      name,
+      toolPermissions,
+    );
+    if (permission === "auto-reject" || permission === "disabled") continue;
+    const hasConditions = permission === "auto-confirm" && conditions && conditions.length > 0;
+    const needsApproval = autoConfirmOverrides.has(name)
+      ? false
+      : permission === "manual-confirm" || !!hasConditions;
+    if (hasConditions) {
+      conditionalAutoConfirm[name] = { conditions, logic: conditionLogic ?? "and" };
+    }
     filtered[name] = create(needsApproval);
   }
 
@@ -264,7 +310,8 @@ export async function buildToolSet(
     for (let i = 0; i < mcpResults.length; i++) {
       const result = mcpResults[i];
       if (result.status === "fulfilled") {
-        Object.assign(filtered, result.value);
+        Object.assign(filtered, result.value.tools);
+        Object.assign(conditionalAutoConfirm, result.value.conditionalAutoConfirm);
       } else {
         console.error(
           `[buildToolSet] MCP ${enabledExtensions[i].prefix} failed to load:`,
@@ -274,13 +321,21 @@ export async function buildToolSet(
     }
   }
 
-  return { tools: filtered };
+  return { tools: filtered, conditionalAutoConfirm };
 }
+
+export type ToolParameterMeta = {
+  name: string;
+  type: "string" | "number" | "boolean" | "array";
+  description?: string;
+  required: boolean;
+};
 
 export type ToolMetadata = {
   name: string;
   description: string;
   needsApproval: boolean;
+  parameters?: ToolParameterMeta[];
 };
 
 export type ToolMetadataResult = { data: ToolMetadata[]; fromCache: boolean };
@@ -321,6 +376,68 @@ export async function getToolMetadataList(
   return { data: metadata, fromCache: false };
 }
 
+/**
+ * Map a Zod type name to a simple type string for parameter metadata.
+ */
+function zodTypeToSimple(def: {
+  typeName?: string;
+  innerType?: { _def: { typeName?: string; innerType?: { _def: { typeName?: string } } } };
+}): ToolParameterMeta["type"] {
+  const typeName = def.typeName;
+  if (typeName === "ZodOptional" || typeName === "ZodNullable") {
+    return zodTypeToSimple(def.innerType?._def ?? {});
+  }
+  switch (typeName) {
+    case "ZodString":
+      return "string";
+    case "ZodNumber":
+    case "ZodBigInt":
+      return "number";
+    case "ZodBoolean":
+      return "boolean";
+    case "ZodArray":
+      return "array";
+    default:
+      return "string";
+  }
+}
+
+export function extractParameters(tool: unknown): ToolParameterMeta[] | undefined {
+  try {
+    const t = tool as {
+      inputSchema?: {
+        shape?: Record<string, { _def?: Record<string, unknown> }>;
+        _def?: { shape?: () => Record<string, { _def?: Record<string, unknown> }> };
+      };
+    };
+    const schema = t.inputSchema;
+    if (!schema) return undefined;
+
+    // Zod v3: shape is a property on ZodObject
+    const shape = schema.shape ?? schema._def?.shape?.();
+    if (!shape || typeof shape !== "object") return undefined;
+
+    return Object.entries(shape).map(([paramName, zodField]) => {
+      const def = zodField?._def;
+      if (!def) return { name: paramName, type: "string" as const, required: true };
+      const isOptional = def.typeName === "ZodOptional";
+      const description =
+        (def.description as string | undefined) ??
+        (isOptional
+          ? (def.innerType as { _def?: { description?: string } })?._def?.description
+          : undefined);
+      return {
+        name: paramName,
+        type: zodTypeToSimple(def as Parameters<typeof zodTypeToSimple>[0]),
+        description: description || undefined,
+        required: !isOptional,
+      };
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 function extractMetadata(result: ToolSetResult): ToolMetadata[] {
   return Object.entries(result.tools).map(([name, tool]) => {
     const t = tool as { description?: string; needsApproval?: boolean };
@@ -328,6 +445,7 @@ function extractMetadata(result: ToolSetResult): ToolMetadata[] {
       name,
       description: t.description ?? "",
       needsApproval: t.needsApproval ?? false,
+      parameters: extractParameters(tool),
     };
   });
 }
