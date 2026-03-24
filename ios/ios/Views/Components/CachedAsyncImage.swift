@@ -3,9 +3,11 @@ import SwiftUI
 
 #if canImport(UIKit)
     import UIKit
+
     typealias PlatformImage = UIImage
 #elseif canImport(AppKit)
     import AppKit
+
     typealias PlatformImage = NSImage
 #endif
 
@@ -75,10 +77,10 @@ struct CachedAsyncImage<Content: View>: View {
 }
 
 extension CachedAsyncImage where Content == AnyView {
-    init<I: View, P: View>(
+    init(
         url: URL?,
-        @ViewBuilder content: @escaping (Image) -> I,
-        @ViewBuilder placeholder: @escaping () -> P
+        @ViewBuilder content: @escaping (Image) -> some View,
+        @ViewBuilder placeholder: @escaping () -> some View
     ) {
         let wrappedContent = content
         let wrappedPlaceholder = placeholder

@@ -21,6 +21,7 @@ import { availableModelSchema, calculateCostUsd, DEFAULT_MODEL } from "./models"
 import { createQuestion, sendQuestionGroupNotification } from "./question";
 import { buildToolSet } from "./tools";
 import { ASK_QUESTION_TOOL_NAME } from "./tools/ask-question";
+import { evaluateConditions } from "./tools/conditions";
 import { GET_LOCATION_TOOL_NAME } from "./tools/get-location";
 import { loadAssigneePermissions, resolvePermission } from "./tools/permission";
 
@@ -444,14 +445,21 @@ async function resolvePendingToolCalls(
           status: "cancelled",
           resolvedAt: sql`(datetime('now'))`,
         })
-        .where(eq(confirmations.toolCallId, toolCallId));
+        .where(
+          and(
+            eq(confirmations.chatSessionId, sessionId),
+            eq(confirmations.toolCallId, toolCallId),
+          ),
+        );
       await db
         .update(questions)
         .set({
           status: "rejected",
           answeredAt: sql`(datetime('now'))`,
         })
-        .where(eq(questions.toolCallId, toolCallId));
+        .where(
+          and(eq(questions.chatSessionId, sessionId), eq(questions.toolCallId, toolCallId)),
+        );
 
       // Update the tool-call annotation in messages so it persists as "cancelled".
       // Check for both confirmation and question annotations.
@@ -516,15 +524,22 @@ async function resolvePendingToolCalls(
       const info = toolCallInfo.get(toolCallId);
       if (!info) continue;
 
-      // Query confirmations table for this tool call
+      // Query confirmations table for this tool call (scoped to current session)
       const [confirmation] = await db
         .select()
         .from(confirmations)
-        .where(eq(confirmations.toolCallId, toolCallId));
+        .where(
+          and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.toolCallId, toolCallId)),
+        );
 
       // If no confirmation found, check questions table (for ask_question tool)
       const [questionRecord] = !confirmation
-        ? await db.select().from(questions).where(eq(questions.toolCallId, toolCallId))
+        ? await db
+            .select()
+            .from(questions)
+            .where(
+              and(eq(questions.chatSessionId, sessionId), eq(questions.toolCallId, toolCallId)),
+            )
         : [undefined];
 
       // If no confirmation or question found, check Redis for location request
@@ -790,7 +805,8 @@ export async function runAgent(options: AgentRunOptions) {
   if (!session) throw new Error("Session not found");
 
   // Load task context if session is linked to a task
-  let taskContext: { title: string; description: string | null; timezone: string | null } | null = null;
+  let taskContext: { title: string; description: string | null; timezone: string | null } | null =
+    null;
   if (session.taskId) {
     const [task] = await db
       .select({ title: tasks.title, description: tasks.description })
@@ -848,7 +864,13 @@ export async function runAgent(options: AgentRunOptions) {
     }
   }
 
-  const { tools } = await buildToolSet(userId, session.assigneeId ?? null, accessToken, sessionId, !!taskContext);
+  const { tools, conditionalAutoConfirm } = await buildToolSet(
+    userId,
+    session.assigneeId ?? null,
+    accessToken,
+    sessionId,
+    !!taskContext,
+  );
   const messages = await getActiveSessionMessages(sessionId);
 
   // Search mem0 for relevant long-term memories
@@ -1211,6 +1233,98 @@ export async function runAgent(options: AgentRunOptions) {
           hasLocationRequest = true;
         }
 
+        // Evaluate conditional auto-confirm: execute tools whose conditions pass
+        const conditionallyApproved: typeof confirmationApprovals = [];
+        const remainingConfirmations: typeof confirmationApprovals = [];
+        for (const approval of confirmationApprovals) {
+          const entry = conditionalAutoConfirm[approval.toolCall.toolName];
+          if (entry) {
+            const params = (approval.toolCall.input ?? {}) as Record<string, unknown>;
+            if (evaluateConditions(entry.conditions, params, entry.logic)) {
+              conditionallyApproved.push(approval);
+              continue;
+            }
+          }
+          remainingConfirmations.push(approval);
+        }
+
+        // Execute conditionally auto-approved tools inline
+        for (const approval of conditionallyApproved) {
+          const toolDef = tools[approval.toolCall.toolName] as {
+            execute?: (input: unknown, opts: { toolCallId: string }) => Promise<unknown>;
+          };
+          if (toolDef?.execute) {
+            try {
+              const output = await toolDef.execute(approval.toolCall.input, {
+                toolCallId: approval.toolCall.toolCallId,
+              });
+              const toolResultMsg = {
+                id: crypto.randomUUID(),
+                role: "tool" as const,
+                content: [
+                  {
+                    type: "tool-result" as const,
+                    toolCallId: approval.toolCall.toolCallId,
+                    toolName: approval.toolCall.toolName,
+                    output,
+                    approveStatus: "auto-approved",
+                  },
+                ],
+              } as unknown as ModelMessage;
+              currentMessages.push(toolResultMsg);
+              await onEvent?.("tool-call", {
+                id,
+                toolCallId: approval.toolCall.toolCallId,
+                toolName: approval.toolCall.toolName,
+                input: approval.toolCall.input,
+              });
+              await onEvent?.("tool-result", {
+                id,
+                toolCallId: approval.toolCall.toolCallId,
+                toolName: approval.toolCall.toolName,
+                output,
+              });
+            } catch (err) {
+              const errorStr = err instanceof Error ? err.message : String(err);
+              const toolResultMsg = {
+                id: crypto.randomUUID(),
+                role: "tool" as const,
+                content: [
+                  {
+                    type: "tool-result" as const,
+                    toolCallId: approval.toolCall.toolCallId,
+                    toolName: approval.toolCall.toolName,
+                    output: { error: errorStr },
+                    isError: true,
+                    approveStatus: "auto-approved",
+                  },
+                ],
+              } as unknown as ModelMessage;
+              currentMessages.push(toolResultMsg);
+              await onEvent?.("tool-result", {
+                id,
+                toolCallId: approval.toolCall.toolCallId,
+                toolName: approval.toolCall.toolName,
+                output: { error: errorStr },
+                isError: true,
+                error: errorStr,
+              });
+            }
+          }
+        }
+
+        // If ALL approvals were auto-approved (no questions, no locations, no remaining confirmations)
+        if (
+          remainingConfirmations.length === 0 &&
+          questionApprovals.length === 0 &&
+          locationApprovals.length === 0
+        ) {
+          // Persist and continue loop like the auto-executed path
+          await insertMessages(sessionId, currentMessages.slice(persistedCount));
+          persistedCount = currentMessages.length;
+          continue;
+        }
+
         // Handle confirmation approvals (create records + annotate in-memory, no events yet)
         const createdConfirmations: Array<{ confirmationId: string; toolName: string }> = [];
         const confirmationEvents: Array<{
@@ -1219,7 +1333,7 @@ export async function runAgent(options: AgentRunOptions) {
           toolName: string;
           parameters: unknown;
         }> = [];
-        for (const approval of confirmationApprovals) {
+        for (const approval of remainingConfirmations) {
           const confirmation = await createConfirmation({
             userId,
             chatSessionId: sessionId,

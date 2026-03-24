@@ -231,9 +231,15 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
     (lastText.includes("[TOOL:send_email]") || lastText.includes("[TOOL:send_email:auto]")) &&
     (!availableTools || availableTools.has("send_email"))
   ) {
+    // Extract email address from message if present, otherwise default
+    const emailMatch = lastText.match(/[\w.-]+@[\w.-]+\.\w+/);
+    const to = emailMatch ? emailMatch[0] : "test@example.com";
+    // Extract subject from "with subject ..." if present
+    const subjectMatch = lastText.match(/with subject\s+(.+?)$/i);
+    const subject = subjectMatch ? subjectMatch[1].trim() : "Test Email";
     const input = JSON.stringify({
-      to: "test@example.com",
-      subject: "Test Email",
+      to,
+      subject,
       body: "<p>Test body</p>",
     });
     return {

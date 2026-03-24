@@ -24,18 +24,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   if (!item) return errorJson("Assignee not found", 404);
 
-  const { data: metadata } = await getToolMetadataList(auth.userId, item.id, auth.accessToken);
-  const toolNames = metadata.map((t) => t.name);
-  // User-requested permission handling via buildToolSet; do not change.
-  const toolPermissions = toolNames.map((toolName) => {
-    const existing = item.toolPermissions?.find((permission) => permission.toolName === toolName);
-    return {
-      toolName,
-      permission: existing?.permission ?? "manual-confirm",
-    };
-  });
+  try {
+    const { data: metadata } = await getToolMetadataList(auth.userId, item.id, auth.accessToken);
+    const toolNames = metadata.map((t) => t.name);
+    // User-requested permission handling via buildToolSet; do not change.
+    const toolPermissions = toolNames.map((toolName) => {
+      const existing = item.toolPermissions?.find((permission) => permission.toolName === toolName);
+      return {
+        toolName,
+        permission: existing?.permission ?? "manual-confirm",
+        conditions: existing?.conditions,
+      };
+    });
 
-  return successJson({ ...item, toolPermissions });
+    return successJson({ ...item, toolPermissions });
+  } catch (err) {
+    console.error("[GET /api/assignees/:id] Error loading tool metadata:", err);
+    // Fallback: return assignee without enriched tool permissions
+    return successJson(item);
+  }
 }
 
 /**
@@ -73,6 +80,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return {
       toolName,
       permission: existing?.permission ?? "manual-confirm",
+      conditions: existing?.conditions,
     };
   });
 

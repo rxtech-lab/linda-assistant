@@ -16,6 +16,7 @@ public enum AppEvent: Sendable {
     case extensionCreated(Extension)
     case extensionDeleted(String)
     case assigneeExtensionUpdated(String, String) // assigneeId, extensionId
+    case taskExtensionUpdated(String, String) // taskId, extensionId
     case documentDeleted(String)
     case confirmationResolved(String, String)
     case questionAnswered(String, String)

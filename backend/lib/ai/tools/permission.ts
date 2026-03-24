@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { assignees } from "@/lib/db/schema";
-import type { ToolPermission } from "@/lib/db/schema";
+import type { ToolPermission, ToolCondition } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 /**
@@ -41,6 +41,30 @@ export async function checkPermission(
   if (!assigneeId) return "manual-confirm";
   const permissions = await loadAssigneePermissions(assigneeId);
   return resolvePermission(toolName, permissions);
+}
+
+/**
+ * Resolve permission level AND conditions for a tool.
+ * Used by buildToolSet to determine needsApproval and carry conditions.
+ */
+export function resolvePermissionWithConditions(
+  toolName: string,
+  toolPermissions?: ToolPermission[] | null,
+): {
+  permission: ToolPermission["permission"];
+  conditions?: ToolCondition[];
+  conditionLogic?: "and" | "or";
+} {
+  if (!toolPermissions || toolPermissions.length === 0) {
+    return { permission: "manual-confirm" };
+  }
+  const entry = toolPermissions.find((tp) => tp.toolName === toolName);
+  if (!entry) return { permission: "manual-confirm" };
+  return {
+    permission: entry.permission,
+    conditions: entry.conditions,
+    conditionLogic: entry.conditionLogic,
+  };
 }
 
 /** Discriminated union result from runToolWithPermissionCheck */

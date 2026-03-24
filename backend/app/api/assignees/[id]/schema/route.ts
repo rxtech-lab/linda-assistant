@@ -1,5 +1,5 @@
 import { authenticate } from "@/lib/auth/middleware";
-import { buildToolSet } from "@/lib/ai/tools";
+import { buildToolSet, extractParameters } from "@/lib/ai/tools";
 import { AVAILABLE_MODEL_IDS } from "@/lib/ai/models";
 import { db } from "@/lib/db";
 import { assignees } from "@/lib/db/schema";
@@ -33,6 +33,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return {
       toolName,
       permission: existing?.permission ?? ("manual-confirm" as const),
+      conditions: existing?.conditions,
     };
   });
 
@@ -47,6 +48,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       defaultPermission: toolObj.needsApproval
         ? ("manual-confirm" as const)
         : ("auto-confirm" as const),
+      parameters: extractParameters(tool),
     };
   });
 

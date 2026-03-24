@@ -10,6 +10,8 @@ final class OnboardingViewModel {
     var availableModels: [String] = []
     var availableTools: [AgentTool] = []
     var toolPermissions: [String: String] = [:]
+    var toolConditions: [String: [ToolCondition]] = [:]
+    var toolConditionLogics: [String: String] = [:]
     var isLoadingModelsAndTools = false
     var isSubmitting = false
     var isComplete = false
@@ -19,13 +21,6 @@ final class OnboardingViewModel {
         !name.trimmingCharacters(in: .whitespaces).isEmpty &&
             !email.trimmingCharacters(in: .whitespaces).isEmpty &&
             email.contains("@")
-    }
-
-    func bindingForTool(_ toolName: String) -> Binding<String> {
-        Binding(
-            get: { self.toolPermissions[toolName] ?? "auto-confirm" },
-            set: { self.toolPermissions[toolName] = $0 }
-        )
     }
 
     func loadModelsAndTools(apiClient: APIClient) async {
@@ -52,7 +47,13 @@ final class OnboardingViewModel {
         isSubmitting = true
         error = nil
 
-        let permissions = toolPermissions.map { ToolPermission(toolName: $0.key, permission: $0.value) }
+        let permissions = toolPermissions.map { entry in
+            let conditions: [ToolCondition]? = entry.value == "auto-confirm"
+                ? (toolConditions[entry.key]?.isEmpty == false ? toolConditions[entry.key] : nil)
+                : nil
+            let logic: String? = conditions != nil ? toolConditionLogics[entry.key] : nil
+            return ToolPermission(toolName: entry.key, permission: entry.value, conditions: conditions, conditionLogic: logic)
+        }
 
         let body = CreateAssignee(
             name: name.trimmingCharacters(in: .whitespaces),

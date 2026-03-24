@@ -66,24 +66,26 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationDestination(for: AppDestination.self) { destination in
             switch destination {
-            case let .task(id): TaskDetailView(taskId: id)
-            case let .chatSession(id): ChatDetailView(sessionId: id)
-            case let .email(id): EmailDetailView(emailId: id)
-            case let .assignee(id, name): AssigneeDetailView(assigneeId: id, assigneeName: name)
-            case let .assigneeExtensions(assigneeId): AssigneeExtensionListView(assigneeId: assigneeId)
-            case let .extensionDetail(extensionId, assigneeId):
-                ExtensionDetailView(extensionId: extensionId, assigneeId: assigneeId)
-            case .extensionList:
-                ExtensionListView()
-                #if os(iOS)
-                    .toolbar(.hidden, for: .tabBar)
-                #endif
-            case .assigneeList:
-                AssigneeListView()
-                #if os(iOS)
-                    .toolbar(.hidden, for: .tabBar)
-                #endif
-            case .usage: UsageView()
+                case let .task(id): TaskDetailView(taskId: id)
+                case let .chatSession(id): ChatDetailView(sessionId: id)
+                case let .email(id): EmailDetailView(emailId: id)
+                case let .assignee(id, name): AssigneeDetailView(assigneeId: id, assigneeName: name)
+                case let .assigneeExtensions(assigneeId): AssigneeExtensionListView(assigneeId: assigneeId)
+                case let .taskToolPermissions(taskId): TaskToolPermissionsView(taskId: taskId)
+                case let .taskExtensions(taskId): TaskExtensionListView(taskId: taskId)
+                case let .extensionDetail(extensionId, assigneeId, taskId):
+                    ExtensionDetailView(extensionId: extensionId, assigneeId: assigneeId, taskId: taskId)
+                case .extensionList:
+                    ExtensionListView()
+                    #if os(iOS)
+                        .toolbar(.hidden, for: .tabBar)
+                    #endif
+                case .assigneeList:
+                    AssigneeListView()
+                    #if os(iOS)
+                        .toolbar(.hidden, for: .tabBar)
+                    #endif
+                case .usage: UsageView()
             }
         }
     }

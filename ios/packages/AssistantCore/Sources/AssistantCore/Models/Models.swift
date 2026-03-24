@@ -14,14 +14,99 @@ public struct Assignee: Codable, Identifiable, Sendable {
     public let updatedAt: String?
 }
 
+public struct ToolCondition: Codable, Sendable, Hashable {
+    public let parameterName: String
+    public let parameterType: String // "string", "number", "boolean", "array"
+    public let `operator`: String
+    public let value: ToolConditionValue?
+
+    public init(parameterName: String, parameterType: String, operator: String, value: ToolConditionValue? = nil) {
+        self.parameterName = parameterName
+        self.parameterType = parameterType
+        self.operator = `operator`
+        self.value = value
+    }
+}
+
+public enum ToolConditionValue: Codable, Sendable, Hashable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case stringArray([String])
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let v = try? container.decode(Bool.self) {
+            self = .bool(v)
+        } else if let v = try? container.decode(Double.self) {
+            self = .number(v)
+        } else if let v = try? container.decode(String.self) {
+            self = .string(v)
+        } else if let v = try? container.decode([String].self) {
+            self = .stringArray(v)
+        } else {
+            throw DecodingError.typeMismatch(
+                ToolConditionValue.self,
+                .init(codingPath: decoder.codingPath, debugDescription: "Unsupported value type")
+            )
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+            case let .string(v): try container.encode(v)
+            case let .number(v): try container.encode(v)
+            case let .bool(v): try container.encode(v)
+            case let .stringArray(v): try container.encode(v)
+        }
+    }
+
+    public var stringValue: String? {
+        if case let .string(v) = self { return v }
+        return nil
+    }
+
+    public var numberValue: Double? {
+        if case let .number(v) = self { return v }
+        return nil
+    }
+
+    public var boolValue: Bool? {
+        if case let .bool(v) = self { return v }
+        return nil
+    }
+
+    public var stringArrayValue: [String]? {
+        if case let .stringArray(v) = self { return v }
+        return nil
+    }
+}
+
 public struct ToolPermission: Codable, Sendable, Hashable {
     public let toolName: String
     public let permission: String
+    public let conditions: [ToolCondition]?
+    public let conditionLogic: String?
 
-    public init(toolName: String, permission: String) {
+    public init(
+        toolName: String,
+        permission: String,
+        conditions: [ToolCondition]? = nil,
+        conditionLogic: String? = nil
+    ) {
         self.toolName = toolName
         self.permission = permission
+        self.conditions = conditions
+        self.conditionLogic = conditionLogic
     }
+}
+
+public struct ToolParameter: Codable, Sendable, Hashable {
+    public let name: String
+    public let type: String // "string", "number", "boolean", "array"
+    public let description: String?
+    public let required: Bool
 }
 
 public struct AssigneeFormSchema: Codable, Sendable {
@@ -89,8 +174,15 @@ public struct LindaTask: Codable, Identifiable, Sendable {
     public let isCronEnabled: Bool?
     public let runsAt: String?
     public let nextRunAt: Int?
+    public let toolPermissions: [ToolPermission]?
     public let createdAt: String?
     public let updatedAt: String?
+}
+
+public struct EnabledExtension: Codable, Identifiable, Sendable {
+    public let id: String
+    public let title: String
+    public let prefix: String
 }
 
 public struct TaskDetail: Codable, Identifiable, Sendable {
@@ -106,6 +198,8 @@ public struct TaskDetail: Codable, Identifiable, Sendable {
     public let isCronEnabled: Bool?
     public let runsAt: String?
     public let nextRunAt: Int?
+    public let toolPermissions: [ToolPermission]?
+    public let enabledExtensions: [EnabledExtension]?
     public let createdAt: String?
     public let updatedAt: String?
     public let chatSessions: [SessionSummary]
@@ -121,6 +215,7 @@ public struct CreateTask: Codable, Sendable {
     public let cronSchedule: String?
     public let isCronEnabled: Bool?
     public let runsAt: String?
+    public let toolPermissions: [ToolPermission]?
 
     public init(
         title: String,
@@ -130,7 +225,8 @@ public struct CreateTask: Codable, Sendable {
         assigneeId: String? = nil,
         cronSchedule: String? = nil,
         isCronEnabled: Bool? = nil,
-        runsAt: String? = nil
+        runsAt: String? = nil,
+        toolPermissions: [ToolPermission]? = nil
     ) {
         self.title = title
         self.description = description
@@ -140,6 +236,7 @@ public struct CreateTask: Codable, Sendable {
         self.cronSchedule = cronSchedule
         self.isCronEnabled = isCronEnabled
         self.runsAt = runsAt
+        self.toolPermissions = toolPermissions
     }
 }
 
@@ -152,6 +249,7 @@ public struct UpdateTask: Codable, Sendable {
     public let cronSchedule: String?
     public let isCronEnabled: Bool?
     public let runsAt: String?
+    public let toolPermissions: [ToolPermission]?
 
     public init(
         title: String? = nil,
@@ -161,7 +259,8 @@ public struct UpdateTask: Codable, Sendable {
         assigneeId: String? = nil,
         cronSchedule: String? = nil,
         isCronEnabled: Bool? = nil,
-        runsAt: String? = nil
+        runsAt: String? = nil,
+        toolPermissions: [ToolPermission]? = nil
     ) {
         self.title = title
         self.description = description
@@ -171,6 +270,7 @@ public struct UpdateTask: Codable, Sendable {
         self.cronSchedule = cronSchedule
         self.isCronEnabled = isCronEnabled
         self.runsAt = runsAt
+        self.toolPermissions = toolPermissions
     }
 }
 
@@ -607,6 +707,7 @@ public struct AgentTool: Codable, Sendable, Identifiable {
     public let name: String
     public let description: String
     public let defaultPermission: String
+    public let parameters: [ToolParameter]?
 }
 
 // MARK: - Upload
@@ -733,6 +834,16 @@ public struct CreateExtension: Codable, Sendable {
 }
 
 public struct AssigneeExtensionSettings: Codable, Sendable {
+    public let enabled: Bool
+    public let toolPermissions: [ToolPermission]?
+
+    public init(enabled: Bool, toolPermissions: [ToolPermission]? = nil) {
+        self.enabled = enabled
+        self.toolPermissions = toolPermissions
+    }
+}
+
+public struct TaskExtensionSettings: Codable, Sendable {
     public let enabled: Bool
     public let toolPermissions: [ToolPermission]?
 

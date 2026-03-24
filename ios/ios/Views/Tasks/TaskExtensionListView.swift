@@ -1,8 +1,8 @@
 import AssistantCore
 import SwiftUI
 
-struct AssigneeExtensionListView: View {
-    let assigneeId: String
+struct TaskExtensionListView: View {
+    let taskId: String
 
     @Environment(AuthManager.self) private var authManager
     @Environment(EventManager.self) private var eventManager
@@ -34,7 +34,8 @@ struct AssigneeExtensionListView: View {
                     ForEach(extensions) { ext in
                         NavigationLink(value: AppDestination.extensionDetail(
                             extensionId: ext.id,
-                            assigneeId: assigneeId
+                            assigneeId: nil,
+                            taskId: taskId
                         )) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -80,7 +81,7 @@ struct AssigneeExtensionListView: View {
         .task {
             for await event in eventManager.stream {
                 switch event {
-                    case let .assigneeExtensionUpdated(aId, _) where aId == assigneeId:
+                    case let .taskExtensionUpdated(tId, _) where tId == taskId:
                         await loadExtensions()
                     case .extensionCreated, .extensionDeleted:
                         await loadExtensions()
@@ -95,7 +96,7 @@ struct AssigneeExtensionListView: View {
         isLoading = extensions.isEmpty
         error = nil
         do {
-            extensions = try await apiClient.listAssigneeExtensions(assigneeId: assigneeId)
+            extensions = try await apiClient.listTaskExtensions(taskId: taskId)
         } catch {
             self.error = error.localizedDescription
         }
@@ -106,15 +107,15 @@ struct AssigneeExtensionListView: View {
         isToggling = true
         defer { isToggling = false }
         do {
-            let updated = try await apiClient.updateAssigneeExtension(
-                assigneeId: assigneeId,
+            let updated = try await apiClient.updateTaskExtension(
+                taskId: taskId,
                 extensionId: ext.id,
-                AssigneeExtensionSettings(enabled: enabled)
+                TaskExtensionSettings(enabled: enabled)
             )
             if let index = extensions.firstIndex(where: { $0.id == ext.id }) {
                 extensions[index] = updated
             }
-            eventManager.emit(.assigneeExtensionUpdated(assigneeId, ext.id))
+            eventManager.emit(.taskExtensionUpdated(taskId, ext.id))
         } catch {
             self.error = error.localizedDescription
         }

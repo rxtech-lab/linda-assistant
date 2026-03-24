@@ -19,6 +19,8 @@ struct AssigneeFormSheet: View {
     @State private var availableModels: [String] = []
     @State private var availableTools: [AgentTool] = []
     @State private var toolPermissions: [String: String] = [:]
+    @State private var toolConditions: [String: [ToolCondition]] = [:]
+    @State private var toolConditionLogics: [String: String] = [:]
     @State private var isSubmitting = false
     @State private var isLoadingFormData = false
     @State private var error: String?
@@ -59,23 +61,24 @@ struct AssigneeFormSheet: View {
                 if !availableTools.isEmpty {
                     Section("Tool Permissions") {
                         ForEach(availableTools) { tool in
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(tool.name).font(.body)
-                                    if let markdown = try? AttributedString(markdown: tool.description) {
-                                        Text(markdown).font(.caption).foregroundStyle(.secondary)
-                                    } else {
-                                        Text(tool.description).font(.caption).foregroundStyle(.secondary)
-                                    }
+                            ToolPermissionRow(
+                                permission: ToolPermission(
+                                    toolName: tool.name,
+                                    permission: toolPermissions[tool.name] ?? tool.defaultPermission,
+                                    conditions: toolConditions[tool.name],
+                                    conditionLogic: toolConditionLogics[tool.name]
+                                ),
+                                tool: tool
+                            ) { newPermission in
+                                toolPermissions[tool.name] = newPermission
+                                if newPermission != "auto-confirm" {
+                                    toolConditions[tool.name] = nil
+                                    toolConditionLogics[tool.name] = nil
                                 }
-                                Spacer()
-                                Picker("", selection: bindingForTool(tool.name)) {
-                                    Text("Auto").tag("auto-confirm")
-                                    Text("Manual").tag("manual-confirm")
-                                    Text("Reject").tag("auto-reject")
-                                    Text("Disabled").tag("disabled")
-                                }
-                                .labelsHidden()
+                            } onConditionsChange: { newConditions in
+                                toolConditions[tool.name] = newConditions.isEmpty ? nil : newConditions
+                            } onConditionLogicChange: { newLogic in
+                                toolConditionLogics[tool.name] = newLogic
                             }
                         }
                     }
@@ -138,13 +141,6 @@ struct AssigneeFormSheet: View {
         .presentationDetents([.large])
     }
 
-    private func bindingForTool(_ toolName: String) -> Binding<String> {
-        Binding(
-            get: { toolPermissions[toolName] ?? "auto-confirm" },
-            set: { toolPermissions[toolName] = $0 }
-        )
-    }
-
     private func loadFormData() async {
         isLoadingFormData = true
         defer { isLoadingFormData = false }
@@ -165,6 +161,12 @@ struct AssigneeFormSheet: View {
                 if let perms = assignee.toolPermissions {
                     for perm in perms {
                         toolPermissions[perm.toolName] = perm.permission
+                        if let conditions = perm.conditions, !conditions.isEmpty {
+                            toolConditions[perm.toolName] = conditions
+                        }
+                        if let logic = perm.conditionLogic {
+                            toolConditionLogics[perm.toolName] = logic
+                        }
                     }
                 }
             }
@@ -184,7 +186,13 @@ struct AssigneeFormSheet: View {
         isSubmitting = true
         error = nil
 
-        let permissions = toolPermissions.map { ToolPermission(toolName: $0.key, permission: $0.value) }
+        let permissions = toolPermissions.map { entry in
+            let conditions: [ToolCondition]? = entry.value == "auto-confirm"
+                ? (toolConditions[entry.key]?.isEmpty == false ? toolConditions[entry.key] : nil)
+                : nil
+            let logic: String? = conditions != nil ? toolConditionLogics[entry.key] : nil
+            return ToolPermission(toolName: entry.key, permission: entry.value, conditions: conditions, conditionLogic: logic)
+        }
 
         do {
             if case let .edit(assigneeId) = mode {

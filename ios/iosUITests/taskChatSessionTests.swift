@@ -77,12 +77,15 @@ final class TaskChatSessionTests: XCTestCase {
         // Wait for sheet to dismiss and find the new chat session row
         sleep(2)
 
+        app.swipeUp()
+
         app/*@START_MENU_TOKEN@*/ .buttons["start-chat-button"]
             .staticTexts/*[[".buttons[\"start-chat-button\"].staticTexts",".buttons.staticTexts[\"Start New Chat Session\"]",".staticTexts[\"Start New Chat Session\"]"],[[[-1,2],[-1,1],[-1,0]]],[2]]@END_MENU_TOKEN@*/
             .firstMatch.tap()
 
         app.buttons["create-new-chat"].firstMatch.tap()
 
+        app.swipeUp()
         // Wait for the chat session row to appear and tap it
         let chatRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'chat-session-row-'")).firstMatch
         XCTAssertTrue(chatRow.waitForExistence(timeout: 10))

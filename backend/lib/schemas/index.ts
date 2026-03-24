@@ -2,12 +2,63 @@ import { z } from "zod";
 import { availableModelSchema, DEFAULT_MODEL } from "@/lib/ai/models";
 import { isValidCronExpression } from "@/lib/utils/cron";
 
+// Tool condition schemas — discriminated by parameterType
+const stringConditionSchema = z.object({
+  parameterName: z.string().describe("Name of the parameter to check"),
+  parameterType: z.literal("string"),
+  operator: z
+    .enum(["startsWith", "endsWith", "contains", "equals", "regex"])
+    .describe("Comparison operator"),
+  value: z.string().describe("Value to compare against"),
+});
+
+const numberConditionSchema = z.object({
+  parameterName: z.string().describe("Name of the parameter to check"),
+  parameterType: z.literal("number"),
+  operator: z.enum(["gt", "gte", "lt", "lte", "regex"]).describe("Comparison operator"),
+  value: z
+    .union([z.number(), z.string()])
+    .describe("Number for comparison or string for regex pattern"),
+});
+
+const booleanConditionSchema = z.object({
+  parameterName: z.string().describe("Name of the parameter to check"),
+  parameterType: z.literal("boolean"),
+  operator: z.enum(["isTrue", "isFalse"]).describe("Boolean check operator"),
+});
+
+const arrayConditionSchema = z.object({
+  parameterName: z.string().describe("Name of the parameter to check"),
+  parameterType: z.literal("array"),
+  operator: z
+    .enum(["contains", "equals", "lengthGt", "lengthLt", "lengthGte", "lengthLte"])
+    .describe("Array comparison operator"),
+  value: z
+    .union([z.string(), z.array(z.string()), z.number()])
+    .describe("String for contains, string[] for equals, number for length ops"),
+});
+
+export const toolConditionSchema = z.discriminatedUnion("parameterType", [
+  stringConditionSchema,
+  numberConditionSchema,
+  booleanConditionSchema,
+  arrayConditionSchema,
+]);
+
 // Tool permissions
 export const toolPermissionSchema = z.object({
   toolName: z.string().describe("Name of the tool"),
   permission: z
     .enum(["auto-confirm", "manual-confirm", "auto-reject", "disabled"])
     .describe("Permission level for the tool"),
+  conditions: z
+    .array(toolConditionSchema)
+    .optional()
+    .describe("Conditions for conditional auto-confirm"),
+  conditionLogic: z
+    .enum(["and", "or"])
+    .optional()
+    .describe("Logic operator for combining conditions (default: and)"),
 });
 
 // ---- Assignees ----
