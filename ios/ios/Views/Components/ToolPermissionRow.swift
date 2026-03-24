@@ -75,19 +75,14 @@ struct ToolPermissionRow: View {
                 hasConditions: hasConditions
             )
 
-            if !isPermissionChangeDisabled {
-                Image(systemName: "chevron.right")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-            }
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
-        .opacity(isPermissionChangeDisabled ? 0.6 : 1.0)
         .onTapGesture {
-            if !isPermissionChangeDisabled {
-                showingDetailSheet = true
-            }
+            showingDetailSheet = true
         }
         .sheet(isPresented: $showingDetailSheet) {
             ToolDetailSheet(
@@ -97,6 +92,7 @@ struct ToolPermissionRow: View {
                 description: tool?.description,
                 hasParameters: hasParameters,
                 parameters: tool?.parameters ?? [],
+                isDisabled: isPermissionChangeDisabled,
                 selectedPermission: $selectedPermission,
                 hasConditions: $hasConditions,
                 conditions: $conditions,
@@ -146,6 +142,7 @@ private struct ToolDetailSheet: View {
     let description: String?
     let hasParameters: Bool
     let parameters: [ToolParameter]
+    let isDisabled: Bool
     @Binding var selectedPermission: String
     @Binding var hasConditions: Bool
     @Binding var conditions: [ToolCondition]
@@ -271,7 +268,14 @@ private struct ToolDetailSheet: View {
                     }
                 } header: {
                     Text("Approval")
+                } footer: {
+                    if isDisabled {
+                        Text("This is a system tool. Its permission cannot be changed.")
+                            .accessibilityIdentifier("system-tool-disabled-text")
+                    }
                 }
+                .disabled(isDisabled)
+                .allowsHitTesting(!isDisabled)
 
                 // Conditions summary (when conditional is selected)
                 if hasConditions {

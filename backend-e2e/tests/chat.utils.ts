@@ -75,15 +75,27 @@ export async function getAssignee(assigneeId: string): Promise<{
   return res.json() as any;
 }
 
+/** System tools that always auto-execute and cannot have permissions changed. */
+const SYSTEM_TOOLS = new Set([
+  "update_document",
+  "create_document",
+  "search_documents",
+  "create_briefing",
+  "send_notification",
+]);
+
 export async function updateAssigneePermissions(
   assigneeId: string,
   toolPermissions: Array<{ toolName: string; permission: string }>,
 ): Promise<void> {
   const token = loadToken();
+  const filtered = toolPermissions.filter(
+    (tp) => !SYSTEM_TOOLS.has(tp.toolName),
+  );
   const res = await fetch(`${BASE_URL}/api/assignees/${assigneeId}`, {
     method: "PUT",
     headers: authHeaders(token),
-    body: JSON.stringify({ toolPermissions }),
+    body: JSON.stringify({ toolPermissions: filtered }),
   });
   if (!res.ok)
     throw new Error(

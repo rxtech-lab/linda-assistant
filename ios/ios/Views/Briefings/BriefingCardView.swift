@@ -15,10 +15,10 @@ struct BriefingCardView: View {
                                 .aspectRatio(contentMode: .fill)
                                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                                 .clipped()
-                        case .failure:
+                                .transition(.opacity)
+                        default:
                             placeholderBackground
-                        @unknown default:
-                            placeholderBackground
+                                .transition(.opacity)
                     }
                 }
             } else {

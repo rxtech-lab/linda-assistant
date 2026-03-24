@@ -31,7 +31,7 @@ const test = base.extend<{ assigneeId: string }>({
     const id = await createAssignee(`e2e-queue-${testInfo.testId}`);
     console.log(`Created assignee ${id} for: ${testInfo.title}`);
 
-    // Set create_document to auto-confirm so agent can create docs without user interaction
+    // Set non-system tools to manual-confirm so agent needs approval
     const assignee = await getAssignee(id);
     const permissions = assignee.toolPermissions.map((tp) => ({
       toolName: tp.toolName,

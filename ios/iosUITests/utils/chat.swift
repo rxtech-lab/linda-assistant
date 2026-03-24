@@ -12,6 +12,10 @@ extension XCUIApplication {
         textFields["chat-input"].firstMatch
     }
 
+    var systemToolDisabledText: XCUIElement {
+        staticTexts["system-tool-disabled-text"].firstMatch
+    }
+
     var stopSendingBUtton: XCUIElement {
         buttons["stop-button"].firstMatch
     }
