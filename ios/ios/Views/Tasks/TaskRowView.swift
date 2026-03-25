@@ -56,7 +56,7 @@ struct TaskRowView: View {
             }
         }
         .swipeActions(edge: .leading) {
-            if task.assigneeId != nil {
+            if task.assigneeId != nil && (task.status == "running" || task.status == "pending") {
                 Button {
                     onRunNow?()
                 } label: {

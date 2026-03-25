@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, inArray } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { insertTaskSchema, selectTaskSchema } from "@/lib/schemas";
 import { parsePagination } from "@/lib/utils/pagination";
@@ -10,6 +10,7 @@ import { registerCronTask, scheduleOnceTask } from "@/lib/celery/client";
 import { getNextRunSeconds } from "@/lib/utils/cron";
 import { inheritAssigneeToolset } from "@/lib/db/task-toolset";
 import { z } from "zod";
+import { chatSessions } from "@/lib/db/schema";
 
 const listResponseSchema = z.object({
   data: z.array(selectTaskSchema),
@@ -33,17 +34,65 @@ export async function GET(request: NextRequest) {
   const { limit, offset } = parsePagination(request.nextUrl.searchParams);
 
   const [items, countResult] = await Promise.all([
-    db.select().from(tasks).where(eq(tasks.userId, auth.userId)).limit(limit).offset(offset),
-    db.select({ count: sql<number>`count(*)` }).from(tasks).where(eq(tasks.userId, auth.userId)),
+    db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.userId, auth.userId))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(tasks)
+      .where(eq(tasks.userId, auth.userId)),
   ]);
 
   const itemsWithNextRun = items.map((task) => ({
     ...task,
     nextRunAt:
-      task.isCronEnabled && task.cronSchedule ? getNextRunSeconds(task.cronSchedule) : null,
+      task.isCronEnabled && task.cronSchedule
+        ? getNextRunSeconds(task.cronSchedule)
+        : null,
   }));
 
-  return paginatedJson(itemsWithNextRun, countResult[0].count, limit, offset);
+  // Derive status from active chat sessions
+  const taskIds = items.map((t) => t.id);
+  let activeTaskIds = new Set<string>();
+  if (taskIds.length > 0) {
+    const activeSessions = await db
+      .select({ taskId: chatSessions.taskId })
+      .from(chatSessions)
+      .where(
+        inArray(chatSessions.status, [
+          "starting",
+          "in_progress",
+          "waiting_confirmation",
+        ]),
+      );
+    activeTaskIds = new Set(
+      activeSessions
+        .filter((s) => s.taskId && taskIds.includes(s.taskId))
+        .map((s) => s.taskId!),
+    );
+  }
+
+  const itemsWithDerivedStatus = itemsWithNextRun.map((task) => ({
+    ...task,
+    status:
+      task.status === "stopped" ||
+      task.status === "finished" ||
+      task.status === "cancelled"
+        ? task.status
+        : activeTaskIds.has(task.id)
+          ? "running"
+          : "pending",
+  }));
+
+  return paginatedJson(
+    itemsWithDerivedStatus,
+    countResult[0].count,
+    limit,
+    offset,
+  );
 }
 
 /**
@@ -64,11 +113,9 @@ export async function POST(request: NextRequest) {
     return errorJson(msg, 422);
   }
 
-  const status = parsed.data.isCronEnabled || parsed.data.runsAt ? "running" : "pending";
-
   const [created] = await db
     .insert(tasks)
-    .values({ ...parsed.data, userId: auth.userId, status })
+    .values({ ...parsed.data, userId: auth.userId, status: "pending" })
     .returning();
 
   // Inherit assignee's tool permissions and enabled extensions
@@ -79,7 +126,10 @@ export async function POST(request: NextRequest) {
       auth.userId,
     );
     if (toolPermissions) {
-      await db.update(tasks).set({ toolPermissions }).where(eq(tasks.id, created.id));
+      await db
+        .update(tasks)
+        .set({ toolPermissions })
+        .where(eq(tasks.id, created.id));
       created.toolPermissions = toolPermissions;
     }
   }

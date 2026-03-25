@@ -12,14 +12,26 @@ import { successJson, errorJson } from "@/lib/utils/response";
  * @pathParams idParamSchema
  * @response selectTaskSchema
  */
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
   const { id } = await params;
+
+  const [existing] = await db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.id, id), eq(tasks.userId, auth.userId)));
+  if (!existing) return errorJson("Task not found", 404);
+  if (existing.status === "pending")
+    return errorJson("Task is already pending", 400);
+
   const [updated] = await db
     .update(tasks)
-    .set({ status: "running", updatedAt: sql`(datetime('now'))` })
+    .set({ status: "pending", updatedAt: sql`(datetime('now'))` })
     .where(and(eq(tasks.id, id), eq(tasks.userId, auth.userId)))
     .returning();
 

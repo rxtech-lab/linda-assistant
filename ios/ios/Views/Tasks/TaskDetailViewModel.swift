@@ -5,17 +5,28 @@ import SwiftUI
 final class TaskDetailViewModel {
     var task: TaskDetail?
     var isLoading = true
-    var error: String?
+    var loadingError: String?
+    var actionError: String?
 
     func loadTask(id: String, apiClient: APIClient) async {
         isLoading = true
-        error = nil
+        loadingError = nil
         do {
             task = try await apiClient.getTask(id: id)
         } catch {
-            self.error = error.localizedDescription
+            self.loadingError = error.localizedDescription
         }
         isLoading = false
+    }
+
+    func refreshTask(id: String, apiClient: APIClient) async {
+        do {
+            task = try await apiClient.getTask(id: id)
+        } catch {
+            if task == nil {
+                self.loadingError = error.localizedDescription
+            }
+        }
     }
 
     func deleteTask(apiClient: APIClient, eventManager: EventManager) async {
@@ -24,7 +35,7 @@ final class TaskDetailViewModel {
             try await apiClient.deleteTask(id: task.id)
             eventManager.emit(.taskDeleted(task.id))
         } catch {
-            self.error = error.localizedDescription
+            self.actionError = error.localizedDescription
         }
     }
 
@@ -65,7 +76,7 @@ final class TaskDetailViewModel {
             )
             eventManager.emit(.taskUpdated(updated))
         } catch {
-            self.error = error.localizedDescription
+            self.actionError = error.localizedDescription
         }
     }
 
@@ -75,7 +86,7 @@ final class TaskDetailViewModel {
             let updated = try await apiClient.startTask(id: task.id)
             eventManager.emit(.taskUpdated(updated))
         } catch {
-            self.error = error.localizedDescription
+            self.actionError = error.localizedDescription
         }
     }
 
@@ -85,7 +96,7 @@ final class TaskDetailViewModel {
             let updated = try await apiClient.stopTask(id: task.id)
             eventManager.emit(.taskUpdated(updated))
         } catch {
-            self.error = error.localizedDescription
+            self.actionError = error.localizedDescription
         }
     }
 
@@ -95,7 +106,7 @@ final class TaskDetailViewModel {
             _ = try await apiClient.executeTaskNow(id: task.id)
             await loadTask(id: task.id, apiClient: apiClient)
         } catch {
-            self.error = error.localizedDescription
+            self.actionError = error.localizedDescription
         }
     }
 
@@ -108,7 +119,7 @@ final class TaskDetailViewModel {
                 try await apiClient.deleteChatSession(id: session.id)
                 eventManager.emit(.chatSessionDeleted(session.id))
             } catch {
-                self.error = error.localizedDescription
+                self.actionError = error.localizedDescription
             }
         }
         await loadTask(id: task.id, apiClient: apiClient)

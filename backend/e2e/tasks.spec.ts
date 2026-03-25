@@ -13,7 +13,7 @@ const user2Headers = { "x-test-user-id": "e2e-user-2" };
 test.describe("Tasks CRUD", () => {
   let taskId: string;
 
-  test("POST /api/tasks creates a task with pending status", async ({ request }) => {
+  test.beforeAll(async ({ request }) => {
     const res = await request.post("/api/tasks", {
       data: {
         title: "Test Task",
@@ -22,22 +22,38 @@ test.describe("Tasks CRUD", () => {
         categories: ["testing"],
       },
     });
+    const body = await res.json();
+    taskId = body.id;
+  });
+
+  test("POST /api/tasks creates a task with pending status", async ({
+    request,
+  }) => {
+    const res = await request.post("/api/tasks", {
+      data: {
+        title: "Creation Test Task",
+        description: "Testing creation",
+        tags: ["create"],
+        categories: ["test"],
+      },
+    });
     expect(res.status()).toBe(201);
     const body = await res.json();
     taskResponseSchema.parse(body);
     expect(body).toMatchObject({
-      title: "Test Task",
-      description: "A test task description",
-      tags: ["test", "e2e"],
-      categories: ["testing"],
+      title: "Creation Test Task",
+      description: "Testing creation",
+      tags: ["create"],
+      categories: ["test"],
     });
     expect(body.status).toBe("pending");
     expect(body.id).toBeTruthy();
     expect(body.userId).toBe("e2e-test-user");
-    taskId = body.id;
   });
 
-  test("POST /api/tasks with cron enabled defaults to running status", async ({ request }) => {
+  test("POST /api/tasks with cron enabled defaults to pending status", async ({
+    request,
+  }) => {
     const res = await request.post("/api/tasks", {
       data: {
         title: "Cron Default Task",
@@ -47,7 +63,7 @@ test.describe("Tasks CRUD", () => {
     });
     expect(res.status()).toBe(201);
     const body = await res.json();
-    expect(body.status).toBe("running");
+    expect(body.status).toBe("pending");
   });
 
   test("GET /api/tasks lists tasks with pagination", async ({ request }) => {
@@ -65,7 +81,9 @@ test.describe("Tasks CRUD", () => {
     expect(found).toBeTruthy();
   });
 
-  test("GET /api/tasks/:id returns task with relations", async ({ request }) => {
+  test("GET /api/tasks/:id returns task with relations", async ({
+    request,
+  }) => {
     const res = await request.get(`/api/tasks/${taskId}`);
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -76,7 +94,9 @@ test.describe("Tasks CRUD", () => {
     expect(body.emails).toEqual([]);
   });
 
-  test("PUT /api/tasks/:id updates and preserves unchanged fields", async ({ request }) => {
+  test("PUT /api/tasks/:id updates and preserves unchanged fields", async ({
+    request,
+  }) => {
     const res = await request.put(`/api/tasks/${taskId}`, {
       data: { title: "Updated Task" },
     });
@@ -88,21 +108,25 @@ test.describe("Tasks CRUD", () => {
     expect(body.tags).toEqual(["test", "e2e"]);
   });
 
-  test("POST /api/tasks/:id/start sets status to running", async ({ request }) => {
-    const res = await request.post(`/api/tasks/${taskId}/start`);
-    expect(res.ok()).toBeTruthy();
-    const body = await res.json();
-    taskResponseSchema.parse(body);
-    expect(body.status).toBe("running");
-    expect(body.id).toBe(taskId);
-  });
-
-  test("POST /api/tasks/:id/stop sets status to stopped", async ({ request }) => {
+  test("POST /api/tasks/:id/stop sets status to stopped", async ({
+    request,
+  }) => {
     const res = await request.post(`/api/tasks/${taskId}/stop`);
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     taskResponseSchema.parse(body);
     expect(body.status).toBe("stopped");
+    expect(body.id).toBe(taskId);
+  });
+
+  test("POST /api/tasks/:id/start sets status to pending", async ({
+    request,
+  }) => {
+    const res = await request.post(`/api/tasks/${taskId}/start`);
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    taskResponseSchema.parse(body);
+    expect(body.status).toBe("pending");
     expect(body.id).toBe(taskId);
   });
 
@@ -297,15 +321,19 @@ test.describe("Task chat sessions relationship", () => {
     taskId = taskBody.id;
   });
 
-  test("GET /api/tasks/:id/chat-sessions returns empty initially", async ({ request }) => {
+  test("GET /api/tasks/:id/chat-sessions returns empty initially", async ({
+    request,
+  }) => {
     const res = await request.get(`/api/tasks/${taskId}/chat-sessions`);
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
-    taskSessionsResponseSchema.parse(body);
-    expect(body).toEqual([]);
+    expect(body.data).toEqual([]);
+    expect(body.pagination).toBeTruthy();
   });
 
-  test("chat sessions linked to task appear in response", async ({ request }) => {
+  test("chat sessions linked to task appear in response", async ({
+    request,
+  }) => {
     // Create a session linked to the task
     const sessionRes = await request.post("/api/chat-sessions", {
       data: { assigneeId, taskId },
@@ -323,9 +351,8 @@ test.describe("Task chat sessions relationship", () => {
     // Also check the dedicated endpoint
     const sessionsRes = await request.get(`/api/tasks/${taskId}/chat-sessions`);
     const sessionsBody = await sessionsRes.json();
-    taskSessionsResponseSchema.parse(sessionsBody);
-    expect(sessionsBody).toHaveLength(1);
-    expect(sessionsBody[0].id).toBe(sessionBody.id);
+    expect(sessionsBody.data).toHaveLength(1);
+    expect(sessionsBody.data[0].id).toBe(sessionBody.id);
   });
 
   test("user2 cannot access task chat sessions", async ({ request }) => {
@@ -347,7 +374,9 @@ test.describe("Task tool permissions validation", () => {
     taskId = body.id;
   });
 
-  test("PUT rejects permission change for system tools", async ({ request }) => {
+  test("PUT rejects permission change for system tools", async ({
+    request,
+  }) => {
     const systemTools = [
       "update_document",
       "create_document",
@@ -364,20 +393,28 @@ test.describe("Task tool permissions validation", () => {
       expect(res.status()).toBe(400);
       const body = await res.json();
       errorResponseSchema.parse(body);
-      expect(body.error).toContain("Cannot change permissions for system tools");
+      expect(body.error).toContain(
+        "Cannot change permissions for system tools",
+      );
       expect(body.error).toContain(toolName);
     }
   });
 
-  test("PUT allows permission change for regular tools", async ({ request }) => {
+  test("PUT allows permission change for regular tools", async ({
+    request,
+  }) => {
     const res = await request.put(`/api/tasks/${taskId}`, {
       data: {
-        toolPermissions: [{ toolName: "send_email", permission: "auto-confirm" }],
+        toolPermissions: [
+          { toolName: "send_email", permission: "auto-confirm" },
+        ],
       },
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     taskResponseSchema.parse(body);
-    expect(body.toolPermissions).toEqual([{ toolName: "send_email", permission: "auto-confirm" }]);
+    expect(body.toolPermissions).toEqual([
+      { toolName: "send_email", permission: "auto-confirm" },
+    ]);
   });
 });

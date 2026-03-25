@@ -8,7 +8,7 @@ import {
   taskExtensions,
   extensions,
 } from "@/lib/db/schema";
-import { eq, and, sql, or, inArray } from "drizzle-orm";
+import { eq, and, sql, or, inArray, desc } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { NO_PERMISSION_CHANGE_TOOLS } from "@/lib/ai/tools";
 import {
@@ -33,6 +33,7 @@ const taskDetailSchema = selectTaskSchema.extend({
       id: z.string(),
       title: z.string().nullable(),
       status: z.string().nullable(),
+      createdAt: z.string().nullable(),
       updatedAt: z.string().nullable(),
     }),
   ),
@@ -54,7 +55,10 @@ const taskDetailSchema = selectTaskSchema.extend({
  * @pathParams idParamSchema
  * @response taskDetailSchema
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -72,10 +76,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         id: chatSessions.id,
         title: chatSessions.title,
         status: chatSessions.status,
+        createdAt: chatSessions.createdAt,
         updatedAt: chatSessions.updatedAt,
       })
       .from(chatSessions)
-      .where(eq(chatSessions.taskId, id)),
+      .where(eq(chatSessions.taskId, id))
+      .orderBy(desc(chatSessions.createdAt))
+      .limit(10),
     db
       .select({
         id: emailInbox.id,
@@ -92,11 +99,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   ]);
 
   // Build enabled extensions list
-  const enabledExtensionIds = teRows.filter((te) => te.enabled).map((te) => te.extensionId);
-  let enabledExtensions: Array<{ id: string; title: string; prefix: string }> = [];
+  const enabledExtensionIds = teRows
+    .filter((te) => te.enabled)
+    .map((te) => te.extensionId);
+  let enabledExtensions: Array<{ id: string; title: string; prefix: string }> =
+    [];
   if (enabledExtensionIds.length > 0) {
     enabledExtensions = await db
-      .select({ id: extensions.id, title: extensions.title, prefix: extensions.prefix })
+      .select({
+        id: extensions.id,
+        title: extensions.title,
+        prefix: extensions.prefix,
+      })
       .from(extensions)
       .where(
         and(
@@ -109,18 +123,40 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const lastRunAt =
     sessions.length > 0
       ? sessions.reduce(
-          (latest, s) => (s.updatedAt && (!latest || s.updatedAt > latest) ? s.updatedAt : latest),
+          (latest, s) =>
+            s.updatedAt && (!latest || s.updatedAt > latest)
+              ? s.updatedAt
+              : latest,
           null as string | null,
         )
       : null;
 
   const nextRunAt =
     task.isCronEnabled && task.cronSchedule
-      ? getNextRunSeconds(task.cronSchedule, lastRunAt ? new Date(lastRunAt) : null)
+      ? getNextRunSeconds(
+          task.cronSchedule,
+          lastRunAt ? new Date(lastRunAt) : null,
+        )
       : null;
+
+  // Derive status from active chat sessions
+  const hasActiveSession = sessions.some(
+    (s) =>
+      s.status &&
+      ["starting", "in_progress", "waiting_confirmation"].includes(s.status),
+  );
+  const derivedStatus =
+    task.status === "stopped" ||
+    task.status === "finished" ||
+    task.status === "cancelled"
+      ? task.status
+      : hasActiveSession
+        ? "running"
+        : "pending";
 
   return successJson({
     ...task,
+    status: derivedStatus,
     chatSessions: sessions,
     emails: linkedEmails,
     nextRunAt,
@@ -135,7 +171,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
  * @body updateTaskSchema
  * @response selectTaskSchema
  */
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -154,7 +193,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .filter((tp) => NO_PERMISSION_CHANGE_TOOLS.has(tp.toolName))
       .map((tp) => tp.toolName);
     if (forbidden.length > 0) {
-      return errorJson(`Cannot change permissions for system tools: ${forbidden.join(", ")}`, 400);
+      return errorJson(
+        `Cannot change permissions for system tools: ${forbidden.join(", ")}`,
+        400,
+      );
     }
   }
 
@@ -166,7 +208,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!existing) return errorJson("Task not found", 404);
 
   // Clear conflicting fields when switching schedule type
-  const updates: Record<string, unknown> = { ...parsed.data, updatedAt: sql`(datetime('now'))` };
+  const updates: Record<string, unknown> = {
+    ...parsed.data,
+    updatedAt: sql`(datetime('now'))`,
+  };
   if (parsed.data.isCronEnabled && parsed.data.runsAt === undefined) {
     updates.runsAt = null; // Switching to cron → clear runsAt
   }
@@ -176,10 +221,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   // Validate after auto-clear: reject only explicit conflicts
-  const willBeCron = (updates.isCronEnabled as boolean | undefined) ?? existing.isCronEnabled;
-  const willHaveRunsAt = updates.runsAt !== undefined ? updates.runsAt : existing.runsAt;
+  const willBeCron =
+    (updates.isCronEnabled as boolean | undefined) ?? existing.isCronEnabled;
+  const willHaveRunsAt =
+    updates.runsAt !== undefined ? updates.runsAt : existing.runsAt;
   if (willBeCron && willHaveRunsAt) {
-    return errorJson("A task cannot have both cron scheduling and a one-shot runsAt schedule", 422);
+    return errorJson(
+      "A task cannot have both cron scheduling and a one-shot runsAt schedule",
+      422,
+    );
   }
 
   const [updated] = await db

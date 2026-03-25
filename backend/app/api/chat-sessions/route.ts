@@ -1,9 +1,12 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { chatSessions } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { chatSessions, tasks } from "@/lib/db/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import { insertChatSessionSchema, selectChatSessionSchema } from "@/lib/schemas";
+import {
+  insertChatSessionSchema,
+  selectChatSessionSchema,
+} from "@/lib/schemas";
 import { parsePagination } from "@/lib/utils/pagination";
 import { successJson, errorJson, paginatedJson } from "@/lib/utils/response";
 import { z } from "zod";
@@ -68,6 +71,18 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const parsed = insertChatSessionSchema.safeParse(body);
   if (!parsed.success) return errorJson(parsed.error.message, 422);
+
+  if (parsed.data.taskId) {
+    const [task] = await db
+      .select({ status: tasks.status })
+      .from(tasks)
+      .where(
+        and(eq(tasks.id, parsed.data.taskId), eq(tasks.userId, auth.userId)),
+      );
+    if (task?.status === "stopped") {
+      return errorJson("Cannot create chat session for a stopped task", 422);
+    }
+  }
 
   const [created] = await db
     .insert(chatSessions)

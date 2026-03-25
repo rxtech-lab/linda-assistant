@@ -81,12 +81,11 @@ test.describe("Queue task execution", () => {
         { headers },
       );
       if (sessionsRes.ok) {
-        const sessions = (await sessionsRes.json()) as Array<{
-          id: string;
-          status: string;
-        }>;
-        if (sessions.length > 0) {
-          sessionId = sessions[0]!.id;
+        const body = (await sessionsRes.json()) as {
+          data: Array<{ id: string; status: string }>;
+        };
+        if (body.data.length > 0) {
+          sessionId = body.data[0]!.id;
           console.log(
             `Chat session created: ${sessionId} (after ${i + 1} polls)`,
           );
@@ -139,12 +138,11 @@ test.describe("Queue task execution", () => {
         { headers },
       );
       if (sessionsRes.ok) {
-        const sessions = (await sessionsRes.json()) as Array<{
-          id: string;
-          status: string;
-        }>;
-        if (sessions.length > 0) {
-          sessionId = sessions[0]!.id;
+        const body = (await sessionsRes.json()) as {
+          data: Array<{ id: string; status: string }>;
+        };
+        if (body.data.length > 0) {
+          sessionId = body.data[0]!.id;
           console.log(
             `Chat session created: ${sessionId} (after ${i + 1} polls)`,
           );

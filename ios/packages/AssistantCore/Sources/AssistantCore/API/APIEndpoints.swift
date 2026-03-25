@@ -102,8 +102,15 @@ public extension APIClient {
         try await request(path: "tasks/\(id)/execute-now", method: "POST")
     }
 
-    func listTaskChatSessions(taskId: String) async throws -> [SessionSummary] {
-        try await request(path: "tasks/\(taskId)/chat-sessions")
+    func listTaskChatSessions(taskId: String, limit: Int = 20, offset: Int = 0, search: String? = nil) async throws -> PaginatedResponse<SessionSummary> {
+        var queryItems = [
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)"),
+        ]
+        if let search, !search.isEmpty {
+            queryItems.append(URLQueryItem(name: "search", value: search))
+        }
+        return try await request(path: "tasks/\(taskId)/chat-sessions", queryItems: queryItems)
     }
 
     // MARK: - Chat Sessions

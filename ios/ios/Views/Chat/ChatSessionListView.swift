@@ -7,6 +7,7 @@ struct ChatSessionListView: View {
     @Environment(EventManager.self) private var eventManager
     @State private var viewModel = ChatSessionListViewModel()
     @State private var showingNewChat = false
+    @State private var searchText = ""
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -30,8 +31,8 @@ struct ChatSessionListView: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(session.title ?? "Untitled")
                                         .font(.body)
-                                    if let updatedAt = session.updatedAt {
-                                        Text(updatedAt)
+                                    if let createdAt = session.createdAt {
+                                        Text(formatDateTime(createdAt))
                                             .font(.caption)
                                             .foregroundStyle(.tertiary)
                                     }
@@ -42,18 +43,53 @@ struct ChatSessionListView: View {
                                 }
                             }
                         }
+                        .onAppear {
+                            if session.id == viewModel.sessions.last?.id {
+                                Task {
+                                    await viewModel.loadMore(
+                                        taskId: taskId,
+                                        apiClient: apiClient,
+                                        search: searchText
+                                    )
+                                }
+                            }
+                        }
                     }
                     .onDelete { offsets in
-                        Task { await viewModel.deleteSessions(
-                            at: offsets,
-                            apiClient: apiClient,
-                            eventManager: eventManager
-                        ) }
+                        Task {
+                            await viewModel.deleteSessions(
+                                at: offsets,
+                                apiClient: apiClient,
+                                eventManager: eventManager
+                            )
+                        }
+                    }
+
+                    if viewModel.isLoadingMore {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                            Spacer()
+                        }
                     }
                 }
                 .refreshable {
-                    await viewModel.loadSessions(taskId: taskId, apiClient: apiClient)
+                    await viewModel.loadSessions(
+                        taskId: taskId,
+                        apiClient: apiClient,
+                        search: searchText
+                    )
                 }
+            }
+        }
+        .searchable(text: $searchText, prompt: "Search sessions")
+        .onChange(of: searchText) {
+            Task {
+                await viewModel.loadSessions(
+                    taskId: taskId,
+                    apiClient: apiClient,
+                    search: searchText
+                )
             }
         }
         .navigationTitle("Chat Sessions")
@@ -68,6 +104,7 @@ struct ChatSessionListView: View {
                 case let .taskExtensions(taskId): TaskExtensionListView(taskId: taskId)
                 case let .extensionDetail(extensionId, assigneeId, taskId):
                     ExtensionDetailView(extensionId: extensionId, assigneeId: assigneeId, taskId: taskId)
+                case let .taskChatSessions(taskId): ChatSessionListView(taskId: taskId)
                 case .extensionList: ExtensionListView()
                 case .assigneeList: AssigneeListView()
                 case .usage: UsageView()
@@ -88,5 +125,22 @@ struct ChatSessionListView: View {
         .task {
             await viewModel.loadSessions(taskId: taskId, apiClient: apiClient)
         }
+    }
+
+    private func formatDateTime(_ dateString: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = formatter.date(from: dateString) else {
+            formatter.formatOptions = [.withInternetDateTime]
+            guard let date = formatter.date(from: dateString) else { return dateString }
+            return formatDate(date)
+        }
+        return formatDate(date)
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return df.string(from: date)
     }
 }

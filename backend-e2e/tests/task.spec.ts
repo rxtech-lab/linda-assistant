@@ -176,7 +176,7 @@ test.describe.serial("Agent task creation", () => {
     };
     expect(task.title).toBe("Daily Report");
     expect(task.cronSchedule).toBeTruthy();
-    expect(task.status).toBe("running");
+    expect(task.status).toBe("pending");
 
     // Verify in chat history
     const history = await getChatHistory(assigneeId);
@@ -244,7 +244,7 @@ test.describe.serial("Agent task creation", () => {
     expect(task.title).toBe("Send Weekly Summary");
     expect(task.runsAt).toBeTruthy();
     expect(task.cronSchedule).toBeNull();
-    expect(task.status).toBe("running");
+    expect(task.status).toBe("pending");
 
     // Verify in chat history
     const history = await getChatHistory(assigneeId);
