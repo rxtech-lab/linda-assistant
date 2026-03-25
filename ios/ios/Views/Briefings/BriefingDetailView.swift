@@ -127,11 +127,10 @@ struct BriefingDetailView: View {
                             .frame(maxWidth: .infinity, minHeight: 400)
                             .frame(height: 400)
                             .clipped()
-                    case .failure:
+                            .transition(.opacity)
+                    default:
                         placeholderGradient
-                    @unknown default:
-                        ProgressView()
-                            .frame(maxWidth: .infinity, minHeight: 400)
+                            .transition(.opacity)
                 }
             }
         } else {

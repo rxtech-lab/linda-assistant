@@ -47,7 +47,6 @@ struct TaskDetailView: View {
                 )
             }
         }
-        .navigationTitle(viewModel.task?.title ?? "Task")
         .navigationDestination(for: AppDestination.self) { destination in
             switch destination {
                 case let .task(id): TaskDetailView(taskId: id)

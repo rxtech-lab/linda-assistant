@@ -119,20 +119,27 @@ struct TaskToolPermissionsView: View {
         permission: String,
         conditions newConditions: [ToolCondition]? = nil
     ) async {
+        // Skip tools that cannot have their permission changed
+        if tools.first(where: { $0.name == toolName })?.disablePermissionChange == true {
+            return
+        }
+
         permissions[toolName] = permission
         if let newConditions {
             conditions[toolName] = newConditions.isEmpty ? nil : newConditions
         }
-        let allPermissions = tools.map { tool in
-            let perm = permissions[tool.name] ?? tool.defaultPermission
-            let isConditional = perm == "auto-confirm" && conditions[tool.name] != nil
-            return ToolPermission(
-                toolName: tool.name,
-                permission: perm,
-                conditions: perm == "auto-confirm" ? conditions[tool.name] : nil,
-                conditionLogic: isConditional ? conditionLogics[tool.name] : nil
-            )
-        }
+        let allPermissions = tools
+            .filter { $0.disablePermissionChange != true }
+            .map { tool in
+                let perm = permissions[tool.name] ?? tool.defaultPermission
+                let isConditional = perm == "auto-confirm" && conditions[tool.name] != nil
+                return ToolPermission(
+                    toolName: tool.name,
+                    permission: perm,
+                    conditions: perm == "auto-confirm" ? conditions[tool.name] : nil,
+                    conditionLogic: isConditional ? conditionLogics[tool.name] : nil
+                )
+            }
         do {
             let updated = try await apiClient.updateTask(
                 id: taskId,

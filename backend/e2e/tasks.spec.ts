@@ -335,3 +335,49 @@ test.describe("Task chat sessions relationship", () => {
     expect(res.status()).toBe(404);
   });
 });
+
+test.describe("Task tool permissions validation", () => {
+  let taskId: string;
+
+  test.beforeAll(async ({ request }) => {
+    const res = await request.post("/api/tasks", {
+      data: { title: "Tool Perms Task" },
+    });
+    const body = await res.json();
+    taskId = body.id;
+  });
+
+  test("PUT rejects permission change for system tools", async ({ request }) => {
+    const systemTools = [
+      "update_document",
+      "create_document",
+      "search_documents",
+      "create_briefing",
+      "send_notification",
+    ];
+    for (const toolName of systemTools) {
+      const res = await request.put(`/api/tasks/${taskId}`, {
+        data: {
+          toolPermissions: [{ toolName, permission: "disabled" }],
+        },
+      });
+      expect(res.status()).toBe(400);
+      const body = await res.json();
+      errorResponseSchema.parse(body);
+      expect(body.error).toContain("Cannot change permissions for system tools");
+      expect(body.error).toContain(toolName);
+    }
+  });
+
+  test("PUT allows permission change for regular tools", async ({ request }) => {
+    const res = await request.put(`/api/tasks/${taskId}`, {
+      data: {
+        toolPermissions: [{ toolName: "send_email", permission: "auto-confirm" }],
+      },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    taskResponseSchema.parse(body);
+    expect(body.toolPermissions).toEqual([{ toolName: "send_email", permission: "auto-confirm" }]);
+  });
+});

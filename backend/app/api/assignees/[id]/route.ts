@@ -1,5 +1,9 @@
 import { authenticate } from "@/lib/auth/middleware";
-import { getToolMetadataList, invalidateToolMetadataCache } from "@/lib/ai/tools";
+import {
+  getToolMetadataList,
+  invalidateToolMetadataCache,
+  NO_PERMISSION_CHANGE_TOOLS,
+} from "@/lib/ai/tools";
 import { db } from "@/lib/db";
 import { assignees } from "@/lib/db/schema";
 import { updateAssigneeSchema } from "@/lib/schemas";
@@ -60,6 +64,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const body = await request.json();
   const parsed = updateAssigneeSchema.safeParse(body);
   if (!parsed.success) return errorJson(parsed.error.message, 422);
+
+  // Reject permission changes for system tools that always auto-execute
+  if (parsed.data.toolPermissions) {
+    const forbidden = parsed.data.toolPermissions
+      .filter((tp) => NO_PERMISSION_CHANGE_TOOLS.has(tp.toolName))
+      .map((tp) => tp.toolName);
+    if (forbidden.length > 0) {
+      return errorJson(`Cannot change permissions for system tools: ${forbidden.join(", ")}`, 400);
+    }
+  }
 
   const [updated] = await db
     .update(assignees)

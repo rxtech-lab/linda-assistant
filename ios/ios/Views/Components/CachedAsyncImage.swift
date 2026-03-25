@@ -51,26 +51,37 @@ struct CachedAsyncImage<Content: View>: View {
     }
 
     private func load() async {
-        loadedImage = nil
+        // Don't reset loadedImage — keep showing current image while loading the new one
         loadError = nil
         hasLoaded = false
 
-        print("[CachedAsyncImage] task fired, url: \(url?.absoluteString ?? "nil")")
-
-        guard let url else { return }
+        guard let url else {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                loadedImage = nil
+            }
+            return
+        }
         do {
             let data = try await ImageCacheManager.shared.data(for: url)
             logger.debug("Got \(data.count) bytes for: \(url.absoluteString)")
             if let platformImage = PlatformImage(data: data) {
-                loadedImage = platformImage
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    loadedImage = platformImage
+                }
                 logger.debug("Image decoded successfully: \(url.absoluteString)")
             } else {
                 logger.error("Failed to decode image data: \(url.absoluteString)")
-                loadError = URLError(.cannotDecodeContentData)
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    loadedImage = nil
+                    loadError = URLError(.cannotDecodeContentData)
+                }
             }
         } catch {
             logger.error("Failed to load image: \(url.absoluteString) — \(error.localizedDescription)")
-            loadError = error
+            withAnimation(.easeInOut(duration: 0.3)) {
+                loadedImage = nil
+                loadError = error
+            }
         }
         hasLoaded = true
     }

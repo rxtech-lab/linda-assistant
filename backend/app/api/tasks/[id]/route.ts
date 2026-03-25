@@ -10,6 +10,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, sql, or, inArray } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
+import { NO_PERMISSION_CHANGE_TOOLS } from "@/lib/ai/tools";
 import {
   updateTaskSchema,
   selectTaskSchema,
@@ -145,6 +146,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const msg = parsed.error.issues.map((i) => i.message).join("; ");
     console.error("[Tasks] Validation error:", msg, parsed.error.issues);
     return errorJson(msg, 422);
+  }
+
+  // Reject permission changes for system tools that always auto-execute
+  if (parsed.data.toolPermissions) {
+    const forbidden = parsed.data.toolPermissions
+      .filter((tp) => NO_PERMISSION_CHANGE_TOOLS.has(tp.toolName))
+      .map((tp) => tp.toolName);
+    if (forbidden.length > 0) {
+      return errorJson(`Cannot change permissions for system tools: ${forbidden.join(", ")}`, 400);
+    }
   }
 
   // Check mutual exclusivity against existing task state

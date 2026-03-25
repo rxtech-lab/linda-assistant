@@ -1,5 +1,5 @@
 import { authenticate } from "@/lib/auth/middleware";
-import { buildToolSet, extractParameters } from "@/lib/ai/tools";
+import { buildToolSet, extractParameters, NO_PERMISSION_CHANGE_TOOLS } from "@/lib/ai/tools";
 import { AVAILABLE_MODEL_IDS } from "@/lib/ai/models";
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
         ? ("manual-confirm" as const)
         : ("auto-confirm" as const),
       parameters: extractParameters(tool),
+      disablePermissionChange: NO_PERMISSION_CHANGE_TOOLS.has(name) || undefined,
     };
   });
 

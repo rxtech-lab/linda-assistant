@@ -15,6 +15,10 @@ struct ToolPermissionRow: View {
     @State private var showingConditionsSheet = false
     @State private var showingDetailSheet = false
 
+    private var isPermissionChangeDisabled: Bool {
+        tool?.disablePermissionChange == true
+    }
+
     static let permissionOptions: [(value: String, label: String)] = [
         ("auto-confirm", "Auto"),
         ("manual-confirm", "Confirm"),
@@ -88,6 +92,7 @@ struct ToolPermissionRow: View {
                 description: tool?.description,
                 hasParameters: hasParameters,
                 parameters: tool?.parameters ?? [],
+                isDisabled: isPermissionChangeDisabled,
                 selectedPermission: $selectedPermission,
                 hasConditions: $hasConditions,
                 conditions: $conditions,
@@ -137,6 +142,7 @@ private struct ToolDetailSheet: View {
     let description: String?
     let hasParameters: Bool
     let parameters: [ToolParameter]
+    let isDisabled: Bool
     @Binding var selectedPermission: String
     @Binding var hasConditions: Bool
     @Binding var conditions: [ToolCondition]
@@ -262,7 +268,14 @@ private struct ToolDetailSheet: View {
                     }
                 } header: {
                     Text("Approval")
+                } footer: {
+                    if isDisabled {
+                        Text("This is a system tool. Its permission cannot be changed.")
+                            .accessibilityIdentifier("system-tool-disabled-text")
+                    }
                 }
+                .disabled(isDisabled)
+                .allowsHitTesting(!isDisabled)
 
                 // Conditions summary (when conditional is selected)
                 if hasConditions {

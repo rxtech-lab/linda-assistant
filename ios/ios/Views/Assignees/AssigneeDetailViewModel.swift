@@ -66,8 +66,17 @@ final class AssigneeDetailViewModel {
     ) async {
         guard let assignee else { return }
 
+        // Skip tools that cannot have their permission changed
+        if tools.first(where: { $0.name == toolName })?.disablePermissionChange == true {
+            return
+        }
+
         // Build updated permissions array, preserving existing conditions/logic unless explicitly provided
-        var updatedPermissions = assignee.toolPermissions ?? []
+        var updatedPermissions = (assignee.toolPermissions ?? [])
+            .filter { perm in
+                // Exclude tools that cannot have their permission changed
+                !(tools.first(where: { $0.name == perm.toolName })?.disablePermissionChange == true)
+            }
         let existing = updatedPermissions.first(where: { $0.toolName == toolName })
         let newConditions = conditions ?? existing?.conditions
         let newLogic = conditionLogic ?? existing?.conditionLogic

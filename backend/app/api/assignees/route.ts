@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { assignees } from "@/lib/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
+import { NO_PERMISSION_CHANGE_TOOLS } from "@/lib/ai/tools";
 import { insertAssigneeSchema, selectAssigneeSchema } from "@/lib/schemas";
 import { parsePagination } from "@/lib/utils/pagination";
 import { successJson, errorJson, paginatedJson } from "@/lib/utils/response";
@@ -49,6 +50,16 @@ export async function POST(request: NextRequest) {
   const parsed = insertAssigneeSchema.safeParse(body);
   if (!parsed.success) {
     return errorJson(parsed.error.message, 422);
+  }
+
+  // Reject permission changes for system tools that always auto-execute
+  if (parsed.data.toolPermissions) {
+    const forbidden = parsed.data.toolPermissions
+      .filter((tp) => NO_PERMISSION_CHANGE_TOOLS.has(tp.toolName))
+      .map((tp) => tp.toolName);
+    if (forbidden.length > 0) {
+      return errorJson(`Cannot change permissions for system tools: ${forbidden.join(", ")}`, 400);
+    }
   }
 
   const [created] = await db

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth/middleware";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getToolMetadataList } from "@/lib/ai/tools";
+import { getToolMetadataList, NO_PERMISSION_CHANGE_TOOLS } from "@/lib/ai/tools";
 
 const toolParameterSchema = z.object({
   name: z.string(),
@@ -16,6 +16,7 @@ const toolSchema = z.object({
   description: z.string(),
   defaultPermission: z.enum(["auto-confirm", "manual-confirm", "auto-reject", "disabled"]),
   parameters: z.array(toolParameterSchema).optional(),
+  disablePermissionChange: z.boolean().optional(),
 });
 
 const toolsListSchema = z.array(toolSchema);
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
     description: tool.description,
     defaultPermission: tool.needsApproval ? ("manual-confirm" as const) : ("auto-confirm" as const),
     parameters: tool.parameters,
+    disablePermissionChange: NO_PERMISSION_CHANGE_TOOLS.has(tool.name) || undefined,
   }));
 
   return NextResponse.json(toolsList, {
