@@ -55,10 +55,7 @@ const taskDetailSchema = selectTaskSchema.extend({
  * @pathParams idParamSchema
  * @response taskDetailSchema
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -99,11 +96,8 @@ export async function GET(
   ]);
 
   // Build enabled extensions list
-  const enabledExtensionIds = teRows
-    .filter((te) => te.enabled)
-    .map((te) => te.extensionId);
-  let enabledExtensions: Array<{ id: string; title: string; prefix: string }> =
-    [];
+  const enabledExtensionIds = teRows.filter((te) => te.enabled).map((te) => te.extensionId);
+  let enabledExtensions: Array<{ id: string; title: string; prefix: string }> = [];
   if (enabledExtensionIds.length > 0) {
     enabledExtensions = await db
       .select({
@@ -123,32 +117,22 @@ export async function GET(
   const lastRunAt =
     sessions.length > 0
       ? sessions.reduce(
-          (latest, s) =>
-            s.updatedAt && (!latest || s.updatedAt > latest)
-              ? s.updatedAt
-              : latest,
+          (latest, s) => (s.updatedAt && (!latest || s.updatedAt > latest) ? s.updatedAt : latest),
           null as string | null,
         )
       : null;
 
   const nextRunAt =
     task.isCronEnabled && task.cronSchedule
-      ? getNextRunSeconds(
-          task.cronSchedule,
-          lastRunAt ? new Date(lastRunAt) : null,
-        )
+      ? getNextRunSeconds(task.cronSchedule, lastRunAt ? new Date(lastRunAt) : null)
       : null;
 
   // Derive status from active chat sessions
   const hasActiveSession = sessions.some(
-    (s) =>
-      s.status &&
-      ["starting", "in_progress", "waiting_confirmation"].includes(s.status),
+    (s) => s.status && ["starting", "in_progress", "waiting_confirmation"].includes(s.status),
   );
   const derivedStatus =
-    task.status === "stopped" ||
-    task.status === "finished" ||
-    task.status === "cancelled"
+    task.status === "stopped" || task.status === "finished" || task.status === "cancelled"
       ? task.status
       : hasActiveSession
         ? "running"
@@ -171,10 +155,7 @@ export async function GET(
  * @body updateTaskSchema
  * @response selectTaskSchema
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -193,10 +174,7 @@ export async function PUT(
       .filter((tp) => NO_PERMISSION_CHANGE_TOOLS.has(tp.toolName))
       .map((tp) => tp.toolName);
     if (forbidden.length > 0) {
-      return errorJson(
-        `Cannot change permissions for system tools: ${forbidden.join(", ")}`,
-        400,
-      );
+      return errorJson(`Cannot change permissions for system tools: ${forbidden.join(", ")}`, 400);
     }
   }
 
@@ -221,15 +199,10 @@ export async function PUT(
   }
 
   // Validate after auto-clear: reject only explicit conflicts
-  const willBeCron =
-    (updates.isCronEnabled as boolean | undefined) ?? existing.isCronEnabled;
-  const willHaveRunsAt =
-    updates.runsAt !== undefined ? updates.runsAt : existing.runsAt;
+  const willBeCron = (updates.isCronEnabled as boolean | undefined) ?? existing.isCronEnabled;
+  const willHaveRunsAt = updates.runsAt !== undefined ? updates.runsAt : existing.runsAt;
   if (willBeCron && willHaveRunsAt) {
-    return errorJson(
-      "A task cannot have both cron scheduling and a one-shot runsAt schedule",
-      422,
-    );
+    return errorJson("A task cannot have both cron scheduling and a one-shot runsAt schedule", 422);
   }
 
   const [updated] = await db

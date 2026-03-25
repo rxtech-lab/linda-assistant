@@ -34,9 +34,7 @@ export async function loadAssigneePermissions(
 /**
  * Load tool permissions for a task from the database.
  */
-export async function loadTaskPermissions(
-  taskId: string,
-): Promise<ToolPermission[] | null> {
+export async function loadTaskPermissions(taskId: string): Promise<ToolPermission[] | null> {
   const [row] = await db
     .select({ toolPermissions: tasks.toolPermissions })
     .from(tasks)

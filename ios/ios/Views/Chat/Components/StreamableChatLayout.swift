@@ -21,6 +21,7 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var messageText = ""
     @State private var selectedToolCall: ToolCallInfo?
     @State private var selectedDocumentItem: DocumentSheetItem?
+    @State private var selectedBriefingId: String?
     @State private var errorDismissTask: Task<Void, Never>?
     @State private var presentedConfirmation: ConfirmationPayload?
     @State private var presentedQuestion: QuestionPayload?
@@ -134,6 +135,9 @@ struct StreamableChatLayout<Header: View>: View {
                 onToolCallTap: handleToolCallTap,
                 onDocumentTap: { item in
                     selectedDocumentItem = item
+                },
+                onBriefingTap: { briefingId in
+                    selectedBriefingId = briefingId
                 }
             )
             .listRowSeparator(.hidden)
@@ -438,6 +442,25 @@ struct StreamableChatLayout<Header: View>: View {
         }
         .sheet(item: $selectedDocumentItem) { item in
             DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
+        }
+        .sheet(isPresented: Binding(
+            get: { selectedBriefingId != nil },
+            set: { if !$0 { selectedBriefingId = nil } }
+        )) {
+            if let briefingId = selectedBriefingId {
+                NavigationStack {
+                    BriefingDetailView(briefingId: briefingId)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button {
+                                    selectedBriefingId = nil
+                                } label: {
+                                    Image(systemName: "xmark")
+                                }
+                            }
+                        }
+                }
+            }
         }
     }
 }

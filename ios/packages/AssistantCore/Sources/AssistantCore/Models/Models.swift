@@ -161,6 +161,28 @@ public struct UpdateAssignee: Codable, Sendable {
 
 // MARK: - Task (LindaTask to avoid Swift.Task collision)
 
+public enum TaskSource: String, CaseIterable, Codable, Sendable {
+    case manual
+    case agent
+    case email
+
+    public var displayName: String {
+        switch self {
+            case .manual: "Manual"
+            case .agent: "Agent"
+            case .email: "Email"
+        }
+    }
+
+    public var iconName: String {
+        switch self {
+            case .manual: "person.fill"
+            case .agent: "cpu"
+            case .email: "envelope.fill"
+        }
+    }
+}
+
 public struct LindaTask: Codable, Identifiable, Sendable {
     public let id: String
     public let userId: String
@@ -168,6 +190,7 @@ public struct LindaTask: Codable, Identifiable, Sendable {
     public let title: String
     public let description: String?
     public let status: String?
+    public let source: String?
     public let tags: [String]?
     public let categories: [String]?
     public let cronSchedule: String?
@@ -192,6 +215,7 @@ public struct TaskDetail: Codable, Identifiable, Sendable {
     public let title: String
     public let description: String?
     public let status: String?
+    public let source: String?
     public let tags: [String]?
     public let categories: [String]?
     public let cronSchedule: String?
@@ -203,12 +227,24 @@ public struct TaskDetail: Codable, Identifiable, Sendable {
     public let createdAt: String?
     public let updatedAt: String?
     public let chatSessions: [SessionSummary]
-    public let emails: [Email]
+    public let emails: [TaskEmailSummary]
+}
+
+public struct TaskEmailSummary: Codable, Identifiable, Sendable {
+    public let id: String
+    public let fromEmail: String
+    public let fromName: String?
+    public let subject: String?
+    public let receivedAt: String
+    public let isRead: Bool?
 }
 
 public struct CreateTask: Codable, Sendable {
     public let title: String
     public let description: String?
+    public let source: String?
+    public let emailId: String?
+    public let execute: Bool?
     public let tags: [String]?
     public let categories: [String]?
     public let assigneeId: String?
@@ -220,6 +256,9 @@ public struct CreateTask: Codable, Sendable {
     public init(
         title: String,
         description: String? = nil,
+        source: String? = nil,
+        emailId: String? = nil,
+        execute: Bool? = nil,
         tags: [String]? = nil,
         categories: [String]? = nil,
         assigneeId: String? = nil,
@@ -230,6 +269,9 @@ public struct CreateTask: Codable, Sendable {
     ) {
         self.title = title
         self.description = description
+        self.source = source
+        self.emailId = emailId
+        self.execute = execute
         self.tags = tags
         self.categories = categories
         self.assigneeId = assigneeId
@@ -277,6 +319,24 @@ public struct UpdateTask: Codable, Sendable {
 public struct ExecuteNowResponse: Codable, Sendable {
     public let sessionId: String
     public let queued: Bool
+}
+
+// MARK: - User Settings
+
+public struct UserSettings: Codable, Sendable {
+    public let id: String
+    public let userId: String
+    public let defaultEmailAssigneeId: String?
+    public let createdAt: String?
+    public let updatedAt: String?
+}
+
+public struct UpdateUserSettings: Codable, Sendable {
+    public let defaultEmailAssigneeId: String?
+
+    public init(defaultEmailAssigneeId: String?) {
+        self.defaultEmailAssigneeId = defaultEmailAssigneeId
+    }
 }
 
 // MARK: - Document

@@ -2,11 +2,12 @@ import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { Webhook } from "svix";
 import { db } from "@/lib/db";
-import { assignees, emailInbox } from "@/lib/db/schema";
+import { assignees, emailInbox, tasks, taskEmails, userSettings } from "@/lib/db/schema";
 import { resend } from "@/lib/resend";
 import { downloadAndUploadToS3 } from "@/lib/s3";
 import { resendWebhookPayloadSchema } from "@/lib/schemas";
 import { createAssigneeFollowUp } from "@/lib/utils/chat-session";
+import { inheritAssigneeToolset } from "@/lib/db/task-toolset";
 import { replaceInlineImages } from "@/lib/utils/html";
 import { errorJson } from "@/lib/utils/response";
 
@@ -280,8 +281,30 @@ export async function POST(request: NextRequest) {
     throw error;
   }
 
-  // Auto-dispatch: create a chat session and queue the agent to process the email
+  // Auto-dispatch: create a task, link the email, and trigger execution
   try {
+    // Look up the stored email row to get its internal ID
+    const [storedEmail] = await db
+      .select({ id: emailInbox.id })
+      .from(emailInbox)
+      .where(eq(emailInbox.emailId, emailId));
+
+    // Check user settings for default email assignee override
+    let taskAssignee = assignee;
+    const [settings] = await db
+      .select()
+      .from(userSettings)
+      .where(eq(userSettings.userId, assignee.userId));
+    if (settings?.defaultEmailAssigneeId) {
+      const [defaultAssignee] = await db
+        .select()
+        .from(assignees)
+        .where(eq(assignees.id, settings.defaultEmailAssigneeId));
+      if (defaultAssignee) {
+        taskAssignee = defaultAssignee;
+      }
+    }
+
     const emailContent = [
       "You received a new email. Please process it and respond appropriately.",
       "",
@@ -293,13 +316,36 @@ export async function POST(request: NextRequest) {
       textBody || "(no text body)",
     ].join("\n");
 
-    const session = await createAssigneeFollowUp(
-      emailContent,
-      assignee,
-      `Email: ${subject || "(no subject)"}`,
-    );
+    const taskTitle = `Email: ${subject || "(no subject)"}`;
 
-    log(`auto-dispatched to session ${session.id}`);
+    // Create task with source=email
+    const [task] = await db
+      .insert(tasks)
+      .values({
+        userId: assignee.userId,
+        assigneeId: taskAssignee.id,
+        title: taskTitle,
+        description: emailContent,
+        source: "email",
+        status: "pending",
+      })
+      .returning();
+
+    // Link email to task
+    if (storedEmail) {
+      await db.insert(taskEmails).values({ taskId: task.id, emailId: storedEmail.id });
+    }
+
+    // Inherit assignee toolset
+    const toolPermissions = await inheritAssigneeToolset(task.id, taskAssignee.id, assignee.userId);
+    if (toolPermissions) {
+      await db.update(tasks).set({ toolPermissions }).where(eq(tasks.id, task.id));
+    }
+
+    // Trigger execution
+    const session = await createAssigneeFollowUp(emailContent, taskAssignee, taskTitle, task.id);
+
+    log(`auto-dispatched via task ${task.id} to session ${session.id}`);
   } catch (dispatchError) {
     // Log but don't fail the webhook — the email is already stored
     console.error("[webhook:resend] Auto-dispatch failed:", dispatchError);

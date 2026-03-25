@@ -46,9 +46,7 @@ test.describe("Task timezone handling", () => {
     expect(session!.timezone).toBe("America/New_York");
   });
 
-  test("chat session updates timezone on subsequent messages", async ({
-    request,
-  }) => {
+  test("chat session updates timezone on subsequent messages", async ({ request }) => {
     // Send another message with a different timezone
     const msgRes = await request.post(`/api/chat/${assigneeId}/message`, {
       data: { content: "Hello again", timezone: "Asia/Tokyo" },
@@ -61,9 +59,7 @@ test.describe("Task timezone handling", () => {
     expect(session!.timezone).toBe("Asia/Tokyo");
   });
 
-  test("chat session preserves timezone when message omits it", async ({
-    request,
-  }) => {
+  test("chat session preserves timezone when message omits it", async ({ request }) => {
     // Send a message without timezone
     const msgRes = await request.post(`/api/chat/${assigneeId}/message`, {
       data: { content: "No timezone this time" },
@@ -76,9 +72,7 @@ test.describe("Task timezone handling", () => {
     expect(session!.timezone).toBe("Asia/Tokyo");
   });
 
-  test("creating a task with runsAt uses timezone offset as-is", async ({
-    request,
-  }) => {
+  test("creating a task with runsAt uses timezone offset as-is", async ({ request }) => {
     // runsAt with explicit timezone offset is stored as-is
     const res = await request.post("/api/tasks", {
       data: {

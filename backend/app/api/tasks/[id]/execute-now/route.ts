@@ -18,10 +18,7 @@ const executeNowResponseSchema = z.object({
  * @pathParams idParamSchema
  * @response executeNowResponseSchema
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -33,8 +30,7 @@ export async function POST(
     .where(and(eq(tasks.id, id), eq(tasks.userId, auth.userId)));
 
   if (!task) return errorJson("Task not found", 404);
-  if (!task.assigneeId)
-    return errorJson("Task has no assignee configured", 422);
+  if (!task.assigneeId) return errorJson("Task has no assignee configured", 422);
   if (task.status === "stopped") return errorJson("Task is stopped", 422);
 
   const activeSessions = await db
@@ -43,11 +39,7 @@ export async function POST(
     .where(
       and(
         eq(chatSessions.taskId, id),
-        inArray(chatSessions.status, [
-          "starting",
-          "in_progress",
-          "waiting_confirmation",
-        ]),
+        inArray(chatSessions.status, ["starting", "in_progress", "waiting_confirmation"]),
       ),
     );
 

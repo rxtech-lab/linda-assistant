@@ -23,6 +23,12 @@ struct TaskRowView: View {
                     StatusBadge(status: status)
                 }
 
+                if let source = task.source, let taskSource = TaskSource(rawValue: source) {
+                    Label(taskSource.displayName, systemImage: taskSource.iconName)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
                 if task.isCronEnabled == true {
                     Label(task.cronSchedule ?? "cron", systemImage: "clock.arrow.2.circlepath")
                         .font(.caption2)
@@ -56,7 +62,7 @@ struct TaskRowView: View {
             }
         }
         .swipeActions(edge: .leading) {
-            if task.assigneeId != nil && (task.status == "running" || task.status == "pending") {
+            if task.assigneeId != nil, task.status == "running" || task.status == "pending" {
                 Button {
                     onRunNow?()
                 } label: {
@@ -77,7 +83,19 @@ struct TaskRowView: View {
     private func relativeTime(_ dateString: String) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = formatter.date(from: dateString) else { return dateString }
+        var date = formatter.date(from: dateString)
+        if date == nil {
+            formatter.formatOptions = [.withInternetDateTime]
+            date = formatter.date(from: dateString)
+        }
+        if date == nil {
+            // Try plain datetime format (e.g. "2026-03-24 19:45:05")
+            let df = DateFormatter()
+            df.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            df.timeZone = .current
+            date = df.date(from: dateString)
+        }
+        guard let date else { return dateString }
         let relative = RelativeDateTimeFormatter()
         relative.unitsStyle = .abbreviated
         return relative.localizedString(for: date, relativeTo: .now)

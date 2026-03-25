@@ -9,7 +9,17 @@ import {
   insertMessages,
   updateMessageContent,
 } from "@/lib/db/messages";
-import { assignees, chatSessions, confirmations, questions, tasks, usage } from "@/lib/db/schema";
+import {
+  type EmailAttachment,
+  assignees,
+  chatSessions,
+  confirmations,
+  emailInbox,
+  questions,
+  taskEmails,
+  tasks,
+  usage,
+} from "@/lib/db/schema";
 import { createMem0Client } from "@/lib/mem0/client";
 import { redis } from "@/lib/redis";
 import { setStreamActive } from "@/lib/streaming/manager";
@@ -339,7 +349,19 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
 
 export function buildSystemPrompt(
   assignee?: { name: string; personality: string | null } | null,
-  taskContext?: { title: string; description: string | null; timezone: string | null } | null,
+  taskContext?: {
+    title: string;
+    description: string | null;
+    timezone: string | null;
+    emails?: Array<{
+      fromEmail: string;
+      fromName: string | null;
+      subject: string | null;
+      textBody: string | null;
+      receivedAt: string;
+      attachments?: EmailAttachment[] | null;
+    }>;
+  } | null,
 ): string {
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -364,9 +386,29 @@ If the user rejects your questions, do NOT retry with the same or similar questi
 
   const drawingGuidance = `\nUse the create_drawing tool when the user asks for a chart, graph, plot, or data visualization. The tool generates a chart image using Python/matplotlib and returns its URL. You can embed the chart in documents or briefings using markdown image syntax: ![chart description](url). When creating documents or briefings that involve data, proactively offer to include charts to make the content more visual and informative.`;
 
-  const taskGuidance = taskContext
-    ? `\nYou are currently running within a task: "${taskContext.title}".${taskContext.timezone ? ` The task's timezone is ${taskContext.timezone}.` : ""} You do not need to create any tasks. Follow the user's instructions directly and perform the requested actions on their behalf. Do not ask the user any questions — proceed autonomously with reasonable defaults.`
-    : "";
+  let taskGuidance = "";
+  if (taskContext) {
+    taskGuidance = `\nYou are currently running within a task: "${taskContext.title}".${taskContext.timezone ? ` The task's timezone is ${taskContext.timezone}.` : ""} You do not need to create any tasks. Follow the user's instructions directly and perform the requested actions on their behalf. Do not ask the user any questions — proceed autonomously with reasonable defaults.`;
+
+    if (taskContext.emails && taskContext.emails.length > 0) {
+      const emailSummaries = taskContext.emails
+        .map((e) => {
+          const from = e.fromName ? `${e.fromName} <${e.fromEmail}>` : e.fromEmail;
+          const subject = e.subject || "(no subject)";
+          const body = e.textBody || "(no body)";
+          let text = `From: ${from}\nSubject: ${subject}\nReceived: ${e.receivedAt}\n\n${body}`;
+          if (e.attachments && e.attachments.length > 0) {
+            const attachmentList = e.attachments
+              .map((a) => `- [${a.name}](${a.url}) (${a.type})`)
+              .join("\n");
+            text += `\n\nAttachments:\n${attachmentList}`;
+          }
+          return text;
+        })
+        .join("\n\n---\n\n");
+      taskGuidance += `\n\n<attached_emails>\nThe following emails are attached to this task. Use their content as context for completing the task.\n\n${emailSummaries}\n</attached_emails>`;
+    }
+  }
 
   if (!assignee)
     return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${taskGuidance}`;
@@ -448,10 +490,7 @@ async function resolvePendingToolCalls(
           resolvedAt: sql`(datetime('now'))`,
         })
         .where(
-          and(
-            eq(confirmations.chatSessionId, sessionId),
-            eq(confirmations.toolCallId, toolCallId),
-          ),
+          and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.toolCallId, toolCallId)),
         );
       await db
         .update(questions)
@@ -459,9 +498,7 @@ async function resolvePendingToolCalls(
           status: "rejected",
           answeredAt: sql`(datetime('now'))`,
         })
-        .where(
-          and(eq(questions.chatSessionId, sessionId), eq(questions.toolCallId, toolCallId)),
-        );
+        .where(and(eq(questions.chatSessionId, sessionId), eq(questions.toolCallId, toolCallId)));
 
       // Update the tool-call annotation in messages so it persists as "cancelled".
       // Check for both confirmation and question annotations.
@@ -807,14 +844,41 @@ export async function runAgent(options: AgentRunOptions) {
   if (!session) throw new Error("Session not found");
 
   // Load task context if session is linked to a task
-  let taskContext: { title: string; description: string | null; timezone: string | null } | null =
-    null;
+  let taskContext: {
+    title: string;
+    description: string | null;
+    timezone: string | null;
+    emails: Array<{
+      fromEmail: string;
+      fromName: string | null;
+      subject: string | null;
+      textBody: string | null;
+      receivedAt: string;
+      attachments: EmailAttachment[] | null;
+    }>;
+  } | null = null;
   if (session.taskId) {
     const [task] = await db
       .select({ title: tasks.title, description: tasks.description })
       .from(tasks)
       .where(eq(tasks.id, session.taskId));
-    if (task) taskContext = { ...task, timezone: session.timezone ?? null };
+    if (task) {
+      // Fetch linked emails with attachments
+      const linkedEmails = await db
+        .select({
+          fromEmail: emailInbox.fromEmail,
+          fromName: emailInbox.fromName,
+          subject: emailInbox.subject,
+          textBody: emailInbox.textBody,
+          receivedAt: emailInbox.receivedAt,
+          attachments: emailInbox.attachments,
+        })
+        .from(taskEmails)
+        .innerJoin(emailInbox, eq(taskEmails.emailId, emailInbox.id))
+        .where(eq(taskEmails.taskId, session.taskId));
+
+      taskContext = { ...task, timezone: session.timezone ?? null, emails: linkedEmails };
+    }
   }
 
   // Load assignee for personality and model config
