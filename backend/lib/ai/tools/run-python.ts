@@ -7,9 +7,15 @@ import { z } from "zod";
  *
  * @param code - The Python code to execute.
  * @param packages - Optional list of pip packages to install before execution.
- * @returns The stdout output of the script (truncated to 10 000 chars).
+ * @returns The stdout output of the script (truncated if needed).
  */
 async function executePython(code: string, packages?: string[]): Promise<string> {
+  if (!process.env.VERCEL_TEAM_ID || !process.env.VERCEL_PROJECT_ID || !process.env.VERCEL_TOKEN) {
+    throw new Error(
+      "Missing required Vercel credentials: VERCEL_TEAM_ID, VERCEL_PROJECT_ID, and VERCEL_TOKEN must be set.",
+    );
+  }
+
   console.log(
     "[executePython] Creating sandbox with teamId:",
     process.env.VERCEL_TEAM_ID,
@@ -19,9 +25,9 @@ async function executePython(code: string, packages?: string[]): Promise<string>
     !!process.env.VERCEL_TOKEN,
   );
   const sandbox = await Sandbox.create({
-    teamId: process.env.VERCEL_TEAM_ID!,
-    projectId: process.env.VERCEL_PROJECT_ID!,
-    token: process.env.VERCEL_TOKEN!,
+    teamId: process.env.VERCEL_TEAM_ID,
+    projectId: process.env.VERCEL_PROJECT_ID,
+    token: process.env.VERCEL_TOKEN,
     runtime: "python3.13",
   });
   console.log("[executePython] Sandbox created successfully");
