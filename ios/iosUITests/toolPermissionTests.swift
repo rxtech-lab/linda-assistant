@@ -110,13 +110,19 @@ final class ToolPermissionTests: XCTestCase {
         app/*@START_MENU_TOKEN@*/ .buttons["Linda, linda@e2e.test"]/*[[".buttons",".containing(.image, identifier: \"chevron.forward\")",".containing(.staticText, identifier: \"linda@e2e.test\")",".containing(.staticText, identifier: \"Linda\")",".cells.buttons",".otherElements.buttons[\"Linda, linda@e2e.test\"]",".buttons[\"Linda, linda@e2e.test\"]"],[[[-1,6],[-1,5],[-1,4],[-1,0,1]],[[-1,3],[-1,2],[-1,1]]],[0]]@END_MENU_TOKEN@*/ .firstMatch.tap()
 
         // Wait for assignee detail to load
-        sleep(2)
+        sleep(3)
 
         // Scroll down to find System Tools section with tool permissions
-        app.swipeUp()
+        let sendNotification = app.staticTexts["Send Notification"].firstMatch
+        // Retry swipe up until Send Notification is visible (CI simulators may need multiple swipes)
+        for _ in 0 ..< 3 {
+            app.swipeUp()
+            if sendNotification.waitForExistence(timeout: 3) {
+                break
+            }
+        }
 
         // Tap on Send Notification (a system tool)
-        let sendNotification = app.staticTexts["Send Notification"].firstMatch
         XCTAssertTrue(sendNotification.waitForExistence(timeout: 5), "Send Notification tool should exist")
         sendNotification.tap()
 

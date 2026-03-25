@@ -126,7 +126,9 @@ async function createChart(
           inputSchema: z.object({
             path: z
               .string()
-              .describe("The file path of the image to export (e.g. /tmp/chart.png)"),
+              .describe(
+                "The file path of the image to export (e.g. /tmp/chart.png)",
+              ),
           }),
           execute: async ({ path }) => {
             console.log("[exportImage] Reading file:", path);
@@ -153,7 +155,10 @@ async function createChart(
     for (let i = steps.length - 1; i >= 0; i--) {
       const step = steps[i];
       for (const toolResult of step.toolResults) {
-        if (toolResult.toolName === "exportImage" && typeof toolResult.output === "string") {
+        if (
+          toolResult.toolName === "exportImage" &&
+          typeof toolResult.output === "string"
+        ) {
           return toolResult.output;
         }
       }

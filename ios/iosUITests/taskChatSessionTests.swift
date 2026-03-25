@@ -74,17 +74,27 @@ final class TaskChatSessionTests: XCTestCase {
         let taskRow = app.buttons.matching(taskPredicate).firstMatch
         XCTAssertTrue(taskRow.waitForExistence(timeout: 10), "Task row should appear in list")
         taskRow.tap()
-        // Wait for sheet to dismiss and find the new chat session row
-        sleep(2)
+        // Wait for task detail to fully load
+        sleep(3)
 
-        app.swipeUp()
-
-        app/*@START_MENU_TOKEN@*/ .buttons["start-chat-button"]
+        // Scroll down and wait for start-chat-button to appear (CI may need multiple swipes)
+        let startChatButton = app/*@START_MENU_TOKEN@*/ .buttons["start-chat-button"]
             .staticTexts/*[[".buttons[\"start-chat-button\"].staticTexts",".buttons.staticTexts[\"Start New Chat Session\"]",".staticTexts[\"Start New Chat Session\"]"],[[[-1,2],[-1,1],[-1,0]]],[2]]@END_MENU_TOKEN@*/
-            .firstMatch.tap()
+            .firstMatch
+        for _ in 0 ..< 3 {
+            app.swipeUp()
+            if startChatButton.waitForExistence(timeout: 3) {
+                break
+            }
+        }
+        XCTAssertTrue(startChatButton.waitForExistence(timeout: 5), "Start chat button should appear")
+        startChatButton.tap()
 
-        app.buttons["create-new-chat"].firstMatch.tap()
+        let createNewChatButton = app.buttons["create-new-chat"].firstMatch
+        XCTAssertTrue(createNewChatButton.waitForExistence(timeout: 10), "Create new chat button should appear")
+        createNewChatButton.tap()
 
+        sleep(2)
         app.swipeUp()
         // Wait for the chat session row to appear and tap it
         let chatRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'chat-session-row-'")).firstMatch

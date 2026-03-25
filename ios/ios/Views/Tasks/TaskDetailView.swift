@@ -15,13 +15,15 @@ struct TaskDetailView: View {
     }
 
     var body: some View {
-        Group {
+        ZStack {
             if viewModel.isLoading {
                 ProgressView()
-            } else if let error = viewModel.error {
+                    .transition(.opacity.combined(with: .scale))
+            } else if let error = viewModel.loadingError {
                 ErrorRetryView(message: error) {
                     Task { await viewModel.loadTask(id: taskId, apiClient: apiClient) }
                 }
+                .transition(.opacity.combined(with: .scale))
             } else if let task = viewModel.task {
                 TaskDetailContentView(
                     task: task,
@@ -45,8 +47,11 @@ struct TaskDetailView: View {
                         Task { await viewModel.executeNow(apiClient: apiClient, eventManager: eventManager) }
                     }
                 )
+                .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.isLoading)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.loadingError)
         .navigationDestination(for: AppDestination.self) { destination in
             switch destination {
                 case let .task(id): TaskDetailView(taskId: id)
@@ -58,6 +63,7 @@ struct TaskDetailView: View {
                 case let .taskExtensions(taskId): TaskExtensionListView(taskId: taskId)
                 case let .extensionDetail(extensionId, assigneeId, taskId):
                     ExtensionDetailView(extensionId: extensionId, assigneeId: assigneeId, taskId: taskId)
+                case let .taskChatSessions(taskId): ChatSessionListView(taskId: taskId)
                 case .extensionList: ExtensionListView()
                 case .assigneeList: AssigneeListView()
                 case .usage: UsageView()
@@ -100,12 +106,29 @@ struct TaskDetailView: View {
             await viewModel.loadTask(id: taskId, apiClient: apiClient)
             await viewModel.subscribeToEvents(taskId: taskId, eventManager: eventManager, apiClient: apiClient)
         }
+        .task(id: taskId) {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(10))
+                await viewModel.refreshTask(id: taskId, apiClient: apiClient)
+            }
+        }
+        .alert(
+            "Error",
+            isPresented: Binding(
+                get: { viewModel.actionError != nil },
+                set: { if !$0 { viewModel.actionError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.actionError ?? "")
+        }
     }
 }
 
 // MARK: - Content View
 
-private struct TaskDetailContentView: View {
+struct TaskDetailContentView: View {
     let task: TaskDetail
     var onDeleteSessions: (IndexSet) -> Void
     var onNewChat: () -> Void
@@ -218,7 +241,15 @@ private struct TaskDetailContentView: View {
                     ForEach(task.chatSessions) { session in
                         NavigationLink(value: AppDestination.chatSession(id: session.id)) {
                             HStack {
-                                Text(session.title ?? "Untitled")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(session.title ?? "Untitled")
+                                        .font(.body)
+                                    if let createdAt = session.createdAt {
+                                        Text(formatSessionDateTime(createdAt))
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
                                 Spacer()
                                 if let status = session.status {
                                     StatusBadge(status: status)
@@ -232,14 +263,25 @@ private struct TaskDetailContentView: View {
                     }
                 }
 
-                Button {
-                    onNewChat()
-                } label: {
-                    Label("Start New Chat Session", systemImage: "plus.bubble")
+                if task.status == "running" || task.status == "pending" {
+                    Button {
+                        onNewChat()
+                    } label: {
+                        Label("Start New Chat Session", systemImage: "plus.bubble")
+                    }
+                    .accessibilityIdentifier("start-chat-button")
                 }
-                .accessibilityIdentifier("start-chat-button")
             } header: {
-                Label("Chat Sessions (\(task.chatSessions.count))", systemImage: "bubble.left.and.bubble.right")
+                NavigationLink(value: AppDestination.taskChatSessions(taskId: task.id)) {
+                    HStack {
+                        Label("Chat Sessions (\(task.chatSessions.count))", systemImage: "bubble.left.and.bubble.right")
+                        Spacer()
+                        Text("See All")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    }
+                }
+                .accessibilityIdentifier("chat-sessions-header")
             }
 
             // Related Emails
@@ -374,11 +416,18 @@ private struct TaskDetailContentView: View {
             default: .secondary
         }
     }
+
+    private func formatSessionDateTime(_ dateString: String) -> String {
+        guard let date = parseISO8601(dateString) else { return dateString }
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return df.string(from: date)
+    }
 }
 
 // MARK: - Header Card
 
-private struct TaskHeaderCard: View {
+struct TaskHeaderCard: View {
     let task: TaskDetail
 
     var body: some View {
@@ -476,7 +525,7 @@ private struct TaskHeaderCard: View {
 
 // MARK: - Flow Layout
 
-private struct FlowLayout: View {
+struct FlowLayout: View {
     let tags: [String]
 
     var body: some View {
@@ -497,7 +546,7 @@ private struct FlowLayout: View {
 
 // MARK: - Action Buttons
 
-private struct TaskActionButtons: View {
+struct TaskActionButtons: View {
     let task: TaskDetail
     var onStart: () -> Void
     var onStop: () -> Void
@@ -505,6 +554,14 @@ private struct TaskActionButtons: View {
 
     private var isRunning: Bool {
         task.status == "running"
+    }
+
+    private var isPending: Bool {
+        task.status == "pending"
+    }
+
+    private var isActiveOrPending: Bool {
+        task.status == "running" || task.status == "pending"
     }
 
     private var hasAssignee: Bool {
@@ -515,16 +572,30 @@ private struct TaskActionButtons: View {
         HStack {
             Spacer()
 
-            // Start/Stop button
-            ContactStyleButton(
-                title: isRunning ? "Stop" : "Start",
-                icon: isRunning ? "stop.fill" : "play.fill",
-                action: isRunning ? onStop : onStart
-            )
-            .accessibilityIdentifier(isRunning ? "stop-task-button" : "start-task-button")
+            // Stop button when running or pending; Start button otherwise
+            ZStack {
+                if isRunning || isPending {
+                    ContactStyleButton(
+                        title: "Stop",
+                        icon: "stop.fill",
+                        action: onStop
+                    )
+                    .accessibilityIdentifier("stop-task-button")
+                    .transition(.scale.combined(with: .opacity))
+                } else {
+                    ContactStyleButton(
+                        title: "Start",
+                        icon: "play.fill",
+                        action: onStart
+                    )
+                    .accessibilityIdentifier("start-task-button")
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isRunning)
 
-            // Run Now button (only if has assignee)
-            if hasAssignee {
+            // Run Now button (shown in running and pending states with an assignee)
+            if hasAssignee && isActiveOrPending {
                 Spacer()
 
                 ContactStyleButton(
@@ -533,15 +604,17 @@ private struct TaskActionButtons: View {
                     action: onRunNow
                 )
                 .accessibilityIdentifier("run-now-button")
+                .transition(.opacity)
             }
 
             Spacer()
         }
         .frame(maxWidth: .infinity)
+        .animation(.easeInOut(duration: 0.2), value: isActiveOrPending)
     }
 }
 
-private struct ContactStyleButton: View {
+struct ContactStyleButton: View {
     let title: String
     let icon: String
     let action: () -> Void
@@ -564,7 +637,7 @@ private struct ContactStyleButton: View {
     }
 }
 
-private struct ScaleButtonStyle: ButtonStyle {
+struct ScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .opacity(configuration.isPressed ? 0.6 : 1.0)

@@ -70,6 +70,7 @@ struct TaskListView: View {
                 case let .taskExtensions(taskId): TaskExtensionListView(taskId: taskId)
                 case let .extensionDetail(extensionId, assigneeId, taskId):
                     ExtensionDetailView(extensionId: extensionId, assigneeId: assigneeId, taskId: taskId)
+                case let .taskChatSessions(taskId): ChatSessionListView(taskId: taskId)
                 case .extensionList: ExtensionListView()
                 case .assigneeList: AssigneeListView()
                 case .usage: UsageView()

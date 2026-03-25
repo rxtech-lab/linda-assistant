@@ -9,6 +9,7 @@ enum AppDestination: Hashable {
     case taskToolPermissions(taskId: String)
     case taskExtensions(taskId: String)
     case extensionDetail(extensionId: String, assigneeId: String?, taskId: String? = nil)
+    case taskChatSessions(taskId: String)
     case extensionList
     case assigneeList
     case usage
