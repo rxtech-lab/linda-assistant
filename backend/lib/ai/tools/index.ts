@@ -22,6 +22,7 @@ import { SEND_NOTIFICATION_TOOL_NAME, sendNotificationTool } from "./send-notifi
 import { SEARCH_DOCUMENTS_TOOL_NAME, searchDocumentsTool } from "./search-documents";
 import { CREATE_BRIEFING_TOOL_NAME, createBriefingTool } from "./create-briefing";
 import { CREATE_DRAWING_TOOL_NAME, createDrawingTool } from "./create-drawing";
+import { RUN_PYTHON_TOOL_NAME, runPythonTool } from "./run-python";
 import { type AuthConfig, createGenericMcp } from "./mcps/generic";
 import { redis } from "@/lib/redis";
 
@@ -316,6 +317,9 @@ export async function buildToolSet(
   // Drawing tool — never require confirmation
   filtered[CREATE_DRAWING_TOOL_NAME] = createDrawingTool();
 
+  // Python execution tool — never require confirmation
+  filtered[RUN_PYTHON_TOOL_NAME] = runPythonTool();
+
   // Notification tool — never require confirmation
   filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(userId, chatSessionId);
 
@@ -492,6 +496,7 @@ export {
   CREATE_TASK_TOOL_NAME,
   GET_CURRENT_TIME_TOOL_NAME,
   GET_LOCATION_TOOL_NAME,
+  RUN_PYTHON_TOOL_NAME,
   SEARCH_DOCUMENTS_TOOL_NAME,
   SEARCH_EMAILS_TOOL_NAME,
   SEND_EMAIL_TOOL_NAME,

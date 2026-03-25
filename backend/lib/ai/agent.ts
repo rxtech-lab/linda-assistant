@@ -364,15 +364,17 @@ If the user rejects your questions, do NOT retry with the same or similar questi
 
   const drawingGuidance = `\nUse the create_drawing tool when the user asks for a chart, graph, plot, or data visualization. The tool generates a chart image using Python/matplotlib and returns its URL. You can embed the chart in documents or briefings using markdown image syntax: ![chart description](url). When creating documents or briefings that involve data, proactively offer to include charts to make the content more visual and informative.`;
 
+  const pythonGuidance = `\nUse the run_python tool when the user asks you to run Python code, perform calculations, data analysis, text processing, or any general-purpose computation that benefits from actual code execution. You can install pip packages (e.g. numpy, pandas, requests) by specifying them in the packages parameter. The tool returns the standard output of the script. Do NOT use this tool for chart/graph generation — use create_drawing instead.`;
+
   const taskGuidance = taskContext
     ? `\nYou are currently running within a task: "${taskContext.title}".${taskContext.timezone ? ` The task's timezone is ${taskContext.timezone}.` : ""} You do not need to create any tasks. Follow the user's instructions directly and perform the requested actions on their behalf. Do not ask the user any questions — proceed autonomously with reasonable defaults.`
     : "";
 
   if (!assignee)
-    return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${taskGuidance}`;
+    return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${pythonGuidance}${taskGuidance}`;
   if (assignee.personality)
-    return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${taskGuidance}`;
-  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${taskGuidance}`;
+    return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${pythonGuidance}${taskGuidance}`;
+  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${pythonGuidance}${taskGuidance}`;
 }
 
 /**
@@ -448,10 +450,7 @@ async function resolvePendingToolCalls(
           resolvedAt: sql`(datetime('now'))`,
         })
         .where(
-          and(
-            eq(confirmations.chatSessionId, sessionId),
-            eq(confirmations.toolCallId, toolCallId),
-          ),
+          and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.toolCallId, toolCallId)),
         );
       await db
         .update(questions)
@@ -459,9 +458,7 @@ async function resolvePendingToolCalls(
           status: "rejected",
           answeredAt: sql`(datetime('now'))`,
         })
-        .where(
-          and(eq(questions.chatSessionId, sessionId), eq(questions.toolCallId, toolCallId)),
-        );
+        .where(and(eq(questions.chatSessionId, sessionId), eq(questions.toolCallId, toolCallId)));
 
       // Update the tool-call annotation in messages so it persists as "cancelled".
       // Check for both confirmation and question annotations.
