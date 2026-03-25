@@ -197,11 +197,12 @@ export async function buildToolSet(
 ): Promise<ToolSetResult> {
   const isE2E = process.env.IS_E2E?.toLowerCase() === "true";
   // In task context, use task-specific permissions; otherwise use assignee permissions
-  const toolPermissions = taskId
-    ? await loadTaskPermissions(taskId)
-    : assigneeId
-      ? await loadAssigneePermissions(assigneeId)
-      : null;
+  let toolPermissions: Awaited<ReturnType<typeof loadTaskPermissions>> = null;
+  if (taskId) {
+    toolPermissions = await loadTaskPermissions(taskId);
+  } else if (assigneeId) {
+    toolPermissions = await loadAssigneePermissions(assigneeId);
+  }
 
   // In E2E mode, parse [TOOL:name:auto] patterns from the latest user message
   // to dynamically override specific tools' needsApproval to false
