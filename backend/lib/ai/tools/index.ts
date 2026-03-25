@@ -7,6 +7,7 @@ import { CREATE_DOCUMENT_TOOL_NAME, createDocumentTool } from "./create-document
 import { getActiveSessionMessages } from "@/lib/db/messages";
 import {
   loadAssigneePermissions,
+  loadTaskPermissions,
   resolvePermission,
   resolvePermissionWithConditions,
 } from "./permission";
@@ -192,9 +193,15 @@ export async function buildToolSet(
   accessToken: string,
   chatSessionId?: string,
   isTaskContext?: boolean,
+  taskId?: string,
 ): Promise<ToolSetResult> {
   const isE2E = process.env.IS_E2E?.toLowerCase() === "true";
-  const toolPermissions = assigneeId ? await loadAssigneePermissions(assigneeId) : null;
+  // In task context, use task-specific permissions; otherwise use assignee permissions
+  const toolPermissions = taskId
+    ? await loadTaskPermissions(taskId)
+    : assigneeId
+      ? await loadAssigneePermissions(assigneeId)
+      : null;
 
   // In E2E mode, parse [TOOL:name:auto] patterns from the latest user message
   // to dynamically override specific tools' needsApproval to false

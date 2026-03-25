@@ -535,6 +535,79 @@ export async function executeTaskNow(
   return res.json() as any;
 }
 
+export async function executeTaskNowRaw(
+  taskId: string,
+): Promise<Response> {
+  const token = loadToken();
+  return fetch(`${BASE_URL}/api/tasks/${taskId}/execute-now`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+}
+
+export async function stopTask(taskId: string): Promise<void> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/tasks/${taskId}/stop`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(
+      `POST /api/tasks/${taskId}/stop failed (${res.status}): ${text}`,
+    );
+  }
+}
+
+export async function getTask(taskId: string): Promise<{
+  id: string;
+  status: string;
+  toolPermissions: Array<{
+    toolName: string;
+    permission: string;
+    conditions?: unknown[];
+    conditionLogic?: string;
+  }> | null;
+  [key: string]: unknown;
+}> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/tasks/${taskId}`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok)
+    throw new Error(`GET /api/tasks/${taskId} failed (${res.status})`);
+  return res.json() as any;
+}
+
+export async function updateTaskPermissions(
+  taskId: string,
+  toolPermissions: Array<{
+    toolName: string;
+    permission: string;
+    conditions?: Array<{
+      parameterName: string;
+      parameterType: string;
+      operator: string;
+      value: string | number;
+    }>;
+    conditionLogic?: string;
+  }>,
+): Promise<void> {
+  const token = loadToken();
+  const filtered = toolPermissions.filter(
+    (tp) => !SYSTEM_TOOLS.has(tp.toolName),
+  );
+  const res = await fetch(`${BASE_URL}/api/tasks/${taskId}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify({ toolPermissions: filtered }),
+  });
+  if (!res.ok)
+    throw new Error(
+      `PUT /api/tasks/${taskId} failed (${res.status}): ${await res.text()}`,
+    );
+}
+
 // ---- Session-based helpers (for task chat) ----
 
 export function consumeSessionStream(

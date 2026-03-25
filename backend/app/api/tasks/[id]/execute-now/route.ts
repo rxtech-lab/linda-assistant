@@ -31,6 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (!task) return errorJson("Task not found", 404);
   if (!task.assigneeId) return errorJson("Task has no assignee configured", 422);
+  if (task.status === "stopped") return errorJson("Task is stopped", 422);
 
   const activeSessions = await db
     .select({ id: chatSessions.id })

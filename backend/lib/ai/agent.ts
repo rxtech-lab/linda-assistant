@@ -872,6 +872,7 @@ export async function runAgent(options: AgentRunOptions) {
     accessToken,
     sessionId,
     !!taskContext,
+    session.taskId ?? undefined,
   );
   const messages = await getActiveSessionMessages(sessionId);
 

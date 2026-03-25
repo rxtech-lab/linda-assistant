@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { assignees } from "@/lib/db/schema";
+import { assignees, tasks } from "@/lib/db/schema";
 import type { ToolPermission, ToolCondition } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -28,6 +28,19 @@ export async function loadAssigneePermissions(
     .select({ toolPermissions: assignees.toolPermissions })
     .from(assignees)
     .where(eq(assignees.id, assigneeId));
+  return row?.toolPermissions ?? null;
+}
+
+/**
+ * Load tool permissions for a task from the database.
+ */
+export async function loadTaskPermissions(
+  taskId: string,
+): Promise<ToolPermission[] | null> {
+  const [row] = await db
+    .select({ toolPermissions: tasks.toolPermissions })
+    .from(tasks)
+    .where(eq(tasks.id, taskId));
   return row?.toolPermissions ?? null;
 }
 
