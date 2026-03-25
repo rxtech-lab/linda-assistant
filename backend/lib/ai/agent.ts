@@ -362,15 +362,17 @@ If the user rejects your questions, do NOT retry with the same or similar questi
 
   const briefingGuidance = `\nUse the create_briefing tool when the user asks for a briefing, digest, or summary report that should appear in their Briefing feed. Briefings are rich reports with a cover image and markdown content. Use the search_documents tool first if you need to find and link existing documents to the briefing. Provide a short, evocative imageDescription for the cover image (e.g. 'morning coffee and newspaper on a wooden desk').`;
 
+  const drawingGuidance = `\nUse the create_drawing tool when the user asks for a chart, graph, plot, or data visualization. The tool generates a chart image using Python/matplotlib and returns its URL. You can embed the chart in documents or briefings using markdown image syntax: ![chart description](url). When creating documents or briefings that involve data, proactively offer to include charts to make the content more visual and informative.`;
+
   const taskGuidance = taskContext
     ? `\nYou are currently running within a task: "${taskContext.title}".${taskContext.timezone ? ` The task's timezone is ${taskContext.timezone}.` : ""} You do not need to create any tasks. Follow the user's instructions directly and perform the requested actions on their behalf. Do not ask the user any questions — proceed autonomously with reasonable defaults.`
     : "";
 
   if (!assignee)
-    return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${taskGuidance}`;
+    return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${taskGuidance}`;
   if (assignee.personality)
-    return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${taskGuidance}`;
-  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${taskGuidance}`;
+    return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${taskGuidance}`;
+  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${taskGuidance}`;
 }
 
 /**
