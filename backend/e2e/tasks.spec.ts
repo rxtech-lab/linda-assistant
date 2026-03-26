@@ -12,18 +12,36 @@ const user2Headers = { "x-test-user-id": "e2e-user-2" };
 
 test.describe("Tasks CRUD", () => {
   let taskId: string;
+  let assigneeId: string;
 
   test.beforeAll(async ({ request }) => {
+    // Create assignee for task creation (required)
+    const assigneeRes = await request.post("/api/assignees", {
+      data: { name: "Task CRUD Assignee", email: "task-crud@example.com" },
+    });
+    assigneeId = (await assigneeRes.json()).id;
+
     const res = await request.post("/api/tasks", {
       data: {
         title: "Test Task",
         description: "A test task description",
         tags: ["test", "e2e"],
         categories: ["testing"],
+        assigneeId,
       },
     });
     const body = await res.json();
     taskId = body.id;
+  });
+
+  test("POST /api/tasks rejects creation without assignee", async ({ request }) => {
+    const res = await request.post("/api/tasks", {
+      data: { title: "No Assignee Task" },
+    });
+    expect(res.status()).toBe(422);
+    const body = await res.json();
+    errorResponseSchema.parse(body);
+    expect(body.error).toContain("assignee");
   });
 
   test("POST /api/tasks creates a task with pending status", async ({ request }) => {
@@ -33,6 +51,7 @@ test.describe("Tasks CRUD", () => {
         description: "Testing creation",
         tags: ["create"],
         categories: ["test"],
+        assigneeId,
       },
     });
     expect(res.status()).toBe(201);
@@ -55,6 +74,7 @@ test.describe("Tasks CRUD", () => {
         title: "Cron Default Task",
         isCronEnabled: true,
         cronSchedule: "0 9 * * *",
+        assigneeId,
       },
     });
     expect(res.status()).toBe(201);
@@ -148,8 +168,14 @@ test.describe("Tasks cross-user isolation", () => {
   let user1TaskId: string;
 
   test.beforeAll(async ({ request }) => {
+    // Create assignee first
+    const assigneeRes = await request.post("/api/assignees", {
+      data: { name: "Isolation Assignee", email: "isolation@example.com" },
+    });
+    const assigneeId = (await assigneeRes.json()).id;
+
     const res = await request.post("/api/tasks", {
-      data: { title: "User1 Task" },
+      data: { title: "User1 Task", assigneeId },
     });
     const body = await res.json();
     user1TaskId = body.id;
@@ -241,12 +267,18 @@ test.describe("Tasks partial update", () => {
   let taskId: string;
 
   test.beforeAll(async ({ request }) => {
+    const assigneeRes = await request.post("/api/assignees", {
+      data: { name: "Partial Assignee", email: "partial@example.com" },
+    });
+    const assigneeId = (await assigneeRes.json()).id;
+
     const res = await request.post("/api/tasks", {
       data: {
         title: "Partial Task",
         description: "Original description",
         tags: ["original"],
         categories: ["cat1"],
+        assigneeId,
       },
     });
     const body = await res.json();
@@ -303,7 +335,7 @@ test.describe("Task chat sessions relationship", () => {
 
     // Create task
     const taskRes = await request.post("/api/tasks", {
-      data: { title: "Task With Sessions" },
+      data: { title: "Task With Sessions", assigneeId },
     });
     const taskBody = await taskRes.json();
     taskId = taskBody.id;
@@ -351,8 +383,13 @@ test.describe("Task tool permissions validation", () => {
   let taskId: string;
 
   test.beforeAll(async ({ request }) => {
+    const assigneeRes = await request.post("/api/assignees", {
+      data: { name: "Perms Assignee", email: "perms@example.com" },
+    });
+    const assigneeId = (await assigneeRes.json()).id;
+
     const res = await request.post("/api/tasks", {
-      data: { title: "Tool Perms Task" },
+      data: { title: "Tool Perms Task", assigneeId },
     });
     const body = await res.json();
     taskId = body.id;

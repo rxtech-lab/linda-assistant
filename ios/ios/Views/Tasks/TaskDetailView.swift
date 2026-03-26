@@ -16,10 +16,10 @@ struct TaskDetailView: View {
 
     var body: some View {
         ZStack {
-            if viewModel.isLoading {
+            if viewModel.task == nil, viewModel.isLoading {
                 ProgressView()
                     .transition(.opacity.combined(with: .scale))
-            } else if let error = viewModel.loadingError {
+            } else if viewModel.task == nil, let error = viewModel.loadingError {
                 ErrorRetryView(message: error) {
                     Task { await viewModel.loadTask(id: taskId, apiClient: apiClient) }
                 }
@@ -48,6 +48,20 @@ struct TaskDetailView: View {
                     }
                 )
                 .transition(.opacity)
+                .overlay {
+                    if viewModel.isLoading {
+                        VStack(spacing: 8) {
+                            ProgressView()
+                            Text("Loading...")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(20)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .transition(.opacity)
+                    }
+                }
             }
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.isLoading)
@@ -165,14 +179,45 @@ struct TaskDetailContentView: View {
                         icon: "arrow.right.circle",
                         iconColor: .blue,
                         label: "Next Run",
-                        value: formatNextRun(nextRunAt)
+                        value: formatCountdown(nextRunAt)
                     )
-                } else if let runsAt = task.runsAt {
+                }
+
+                if let runsAt = task.runsAt {
                     infoRow(
-                        icon: "arrow.right.circle",
+                        icon: "calendar.badge.clock",
                         iconColor: .blue,
                         label: "Runs At",
                         value: formatDate(runsAt)
+                    )
+
+                    if task.nextRunAt == nil, let seconds = secondsUntilDate(runsAt), seconds > 0 {
+                        infoRow(
+                            icon: "arrow.right.circle",
+                            iconColor: .blue,
+                            label: "Runs In",
+                            value: formatCountdown(seconds)
+                        )
+                    }
+                }
+
+                if let tz = task.timezone {
+                    infoRow(
+                        icon: "globe",
+                        iconColor: .secondary,
+                        label: "Timezone",
+                        value: tz
+                    )
+                }
+
+                if let runsAt = task.runsAt, timezoneOffsetDiffers(runsAt),
+                   let localTime = formatDateInLocalTimezone(runsAt)
+                {
+                    infoRow(
+                        icon: "clock",
+                        iconColor: .secondary,
+                        label: "Local Time",
+                        value: localTime
                     )
                 }
 
@@ -389,8 +434,8 @@ struct TaskDetailContentView: View {
         if task.isCronEnabled == true, let cron = task.cronSchedule {
             return cron
         }
-        if let runsAt = task.runsAt {
-            return formatDate(runsAt)
+        if task.runsAt != nil {
+            return "Scheduled"
         }
         return "Manual"
     }
@@ -403,22 +448,76 @@ struct TaskDetailContentView: View {
         return dates.max()
     }
 
+    // MARK: - Timezone Helpers
+
+    private func timezoneOffsetDiffers(_ dateString: String) -> Bool {
+        guard let tz = parseTimezoneOffset(dateString) else { return false }
+        return TimeZone.current.secondsFromGMT() != tz.secondsFromGMT()
+    }
+
+    private func formatDateInLocalTimezone(_ dateString: String) -> String? {
+        guard let date = parseISO8601(dateString) else { return nil }
+        let df = DateFormatter()
+        df.timeZone = .current
+        df.dateFormat = "MMM d 'at' h:mm a"
+        let seconds = TimeZone.current.secondsFromGMT()
+        let hours = seconds / 3600
+        let mins = abs(seconds / 60 % 60)
+        let offset = mins == 0
+            ? String(format: "GMT%+d", hours)
+            : String(format: "GMT%+d:%02d", hours, mins)
+        return "\(df.string(from: date)) (\(TimeZone.current.identifier), \(offset))"
+    }
+
     // MARK: - Formatting
 
-    private func formatNextRun(_ seconds: Int) -> String {
-        let target = Date.now.addingTimeInterval(TimeInterval(seconds))
-        if seconds < 86400 {
-            let formatter = RelativeDateTimeFormatter()
-            formatter.unitsStyle = .full
-            return formatter.localizedString(for: target, relativeTo: .now)
+    private func formatCountdown(_ seconds: Int) -> String {
+        if seconds <= 0 { return "now" }
+        let days = seconds / 86400
+        let hours = (seconds % 86400) / 3600
+        let minutes = (seconds % 3600) / 60
+        if days > 0, hours > 0 {
+            return "\(days)d \(hours)h"
+        } else if days > 0 {
+            return "\(days)d"
+        } else if hours > 0, minutes > 0 {
+            return "\(hours)h \(minutes)m"
+        } else if hours > 0 {
+            return "\(hours)h"
         } else {
-            return target.formatted(.dateTime.month().day().hour().minute())
+            return "\(minutes)m"
         }
+    }
+
+    private func secondsUntilDate(_ dateString: String) -> Int? {
+        guard let date = parseISO8601(dateString) else { return nil }
+        return Int(date.timeIntervalSince(.now))
     }
 
     private func formatDate(_ dateString: String) -> String {
         guard let date = parseISO8601(dateString) else { return dateString }
+        // Display in the original timezone from the ISO8601 string
+        if let tz = parseTimezoneOffset(dateString) {
+            let df = DateFormatter()
+            df.timeZone = tz
+            df.dateFormat = "MMM d 'at' h:mm a"
+            return df.string(from: date)
+        }
         return date.formatted(.dateTime.month().day().hour().minute())
+    }
+
+    private func parseTimezoneOffset(_ dateString: String) -> TimeZone? {
+        if dateString.hasSuffix("Z") { return TimeZone(identifier: "UTC") }
+        let pattern = /[+-]\d{2}:\d{2}$/
+        guard let match = dateString.firstMatch(of: pattern) else { return nil }
+        let offsetStr = String(match.output)
+        let sign = offsetStr.hasPrefix("-") ? -1 : 1
+        let parts = offsetStr.dropFirst().split(separator: ":")
+        guard parts.count == 2,
+              let hours = Int(parts[0]),
+              let minutes = Int(parts[1])
+        else { return nil }
+        return TimeZone(secondsFromGMT: sign * (hours * 3600 + minutes * 60))
     }
 
     private func formatRelativeDate(_ date: Date) -> String {

@@ -182,6 +182,7 @@ export const selectTaskSchema = z.object({
   cronSchedule: z.string().nullable().describe("Cron expression e.g. '0 9 * * *'"),
   isCronEnabled: z.boolean().nullable().describe("Whether cron scheduling is active"),
   runsAt: z.string().nullable().describe("ISO datetime for one-shot scheduled execution"),
+  timezone: z.string().nullable().optional().describe("IANA timezone (e.g. 'America/New_York') for interpreting schedule times"),
   toolPermissions: z
     .array(toolPermissionSchema)
     .nullable()
@@ -231,10 +232,15 @@ export const insertTaskSchema = z
       .optional()
       .nullable()
       .describe("ISO datetime for one-shot scheduled execution"),
+    timezone: z.string().optional().nullable().describe("IANA timezone (e.g. 'America/New_York') for interpreting schedule times"),
   })
   .refine((data) => !(data.isCronEnabled && data.runsAt), {
     message: "A task cannot have both cron scheduling and a one-shot runsAt schedule",
     path: ["runsAt"],
+  })
+  .refine((data) => !data.isCronEnabled || (data.cronSchedule && data.cronSchedule.trim() !== ""), {
+    message: "A cron expression is required when cron scheduling is enabled",
+    path: ["cronSchedule"],
   });
 
 export const updateTaskSchema = z
@@ -259,6 +265,7 @@ export const updateTaskSchema = z
       .optional()
       .nullable()
       .describe("ISO datetime for one-shot scheduled execution"),
+    timezone: z.string().optional().nullable().describe("IANA timezone (e.g. 'America/New_York') for interpreting schedule times"),
     toolPermissions: z
       .array(toolPermissionSchema)
       .optional()
@@ -268,7 +275,18 @@ export const updateTaskSchema = z
   .refine((data) => !(data.isCronEnabled && data.runsAt), {
     message: "A task cannot have both cron scheduling and a one-shot runsAt schedule",
     path: ["runsAt"],
-  });
+  })
+  .refine(
+    (data) => {
+      // Only validate when both fields are present in the update payload
+      if (data.isCronEnabled === undefined || data.cronSchedule === undefined) return true;
+      return !data.isCronEnabled || (data.cronSchedule !== null && data.cronSchedule.trim() !== "");
+    },
+    {
+      message: "A cron expression is required when cron scheduling is enabled",
+      path: ["cronSchedule"],
+    },
+  );
 
 // ---- Task Emails ----
 

@@ -170,17 +170,13 @@ test.describe("Cron Task Scheduling", () => {
     expect(taskBody.chatSessions.some((s: { id: string }) => s.id === body.sessionId)).toBe(true);
   });
 
-  test("execute without assigneeId returns 422", async ({ request }) => {
-    // Create task without assignee
-    const createRes = await request.post("/api/tasks", {
+  test("creating a task without assignee returns 422", async ({ request }) => {
+    const res = await request.post("/api/tasks", {
       data: { title: "No Assignee Task" },
     });
-    const task = await createRes.json();
-
-    const res = await request.post(`/api/tasks/${task.id}/execute`, {
-      headers: { authorization: `Bearer ${CELERY_ADMIN_KEY}` },
-    });
     expect(res.status()).toBe(422);
+    const body = await res.json();
+    expect(body.error).toContain("assignee");
   });
 
   test("execute without admin key returns 401", async ({ request }) => {
@@ -200,6 +196,30 @@ test.describe("Cron Task Scheduling", () => {
       headers: { authorization: `Bearer ${CELERY_ADMIN_KEY}` },
     });
     expect(res.status()).toBe(404);
+  });
+
+  test("creating a cron task with empty cron expression returns 422", async ({ request }) => {
+    const res = await request.post("/api/tasks", {
+      data: {
+        title: "Empty Cron Task",
+        assigneeId,
+        cronSchedule: "",
+        isCronEnabled: true,
+      },
+    });
+    expect(res.status()).toBe(422);
+  });
+
+  test("creating a cron task with whitespace-only cron expression returns 422", async ({ request }) => {
+    const res = await request.post("/api/tasks", {
+      data: {
+        title: "Whitespace Cron Task",
+        assigneeId,
+        cronSchedule: "   ",
+        isCronEnabled: true,
+      },
+    });
+    expect(res.status()).toBe(422);
   });
 
   test("creating a task with invalid cron expression returns 422", async ({ request }) => {

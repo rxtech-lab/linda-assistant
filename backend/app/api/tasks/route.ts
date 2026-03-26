@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
   const itemsWithNextRun = items.map((task) => ({
     ...task,
     nextRunAt:
-      task.isCronEnabled && task.cronSchedule ? getNextRunSeconds(task.cronSchedule) : null,
+      task.isCronEnabled && task.cronSchedule ? getNextRunSeconds(task.cronSchedule, null, task.timezone) : null,
   }));
 
   // Derive status from active chat sessions
@@ -97,6 +97,11 @@ export async function POST(request: NextRequest) {
 
   const { emailId, execute, source, ...taskData } = parsed.data;
 
+  // All tasks require an assignee
+  if (!taskData.assigneeId) {
+    return errorJson("An assignee is required to create a task", 422);
+  }
+
   // If emailId is provided but source isn't, default to "email"
   const resolvedSource = source ?? (emailId ? "email" : "manual");
 
@@ -108,10 +113,6 @@ export async function POST(request: NextRequest) {
       .where(and(eq(emailInbox.id, emailId), eq(emailInbox.userId, auth.userId)));
     if (!email) {
       return errorJson("Email not found", 404);
-    }
-    // Email tasks require an assignee to process
-    if (!taskData.assigneeId) {
-      return errorJson("An assignee is required to create a task from an email", 422);
     }
   }
 
