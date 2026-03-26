@@ -30,6 +30,7 @@ SDK="${SDK:-iphonesimulator}"
 BUILD_DIR="${BUILD_DIR:-$PROJECT_ROOT/.build}"
 RESULT_BUNDLE_PATH="${RESULT_BUNDLE_PATH:-$PROJECT_ROOT/test-results.xcresult}"
 TEST_ITERATIONS="${TEST_ITERATIONS:-3}"
+PARALLEL_TESTING_WORKERS="${PARALLEL_TESTING_WORKERS:-0}"
 
 # Determine destination based on SDK
 if [ -z "$DESTINATION" ]; then
@@ -66,6 +67,9 @@ echo -e "${BLUE}🎯 Destination:${NC} $DESTINATION"
 echo -e "${BLUE}📂 Build Directory:${NC} $BUILD_DIR"
 echo -e "${BLUE}📊 Result Bundle:${NC} $RESULT_BUNDLE_PATH"
 echo -e "${BLUE}🔁 Test Iterations:${NC} $TEST_ITERATIONS"
+if [ "$PARALLEL_TESTING_WORKERS" -gt 0 ] 2>/dev/null; then
+    echo -e "${BLUE}⚡ Parallel Workers:${NC} $PARALLEL_TESTING_WORKERS"
+fi
 echo ""
 
 # Health check backend server
@@ -125,6 +129,19 @@ else
     )
 fi
 
+# Build parallel testing flags
+# Uses xcodebuild's native parallel testing which automatically clones
+# simulators and distributes test classes (both unit and UI) across workers.
+PARALLEL_ARGS=()
+if [ "$PARALLEL_TESTING_WORKERS" -gt 0 ] 2>/dev/null; then
+    echo -e "${BLUE}⚡ Parallel testing enabled with $PARALLEL_TESTING_WORKERS workers${NC}"
+    PARALLEL_ARGS+=(
+        -parallel-testing-enabled YES
+        -parallel-testing-worker-count "$PARALLEL_TESTING_WORKERS"
+    )
+    echo ""
+fi
+
 set +e  # Temporarily disable exit on error to capture the exit code
 
 if command -v xcbeautify &> /dev/null; then
@@ -141,6 +158,7 @@ if command -v xcbeautify &> /dev/null; then
         -retry-tests-on-failure \
         -test-iterations "$TEST_ITERATIONS" \
         -test-repetition-relaunch-enabled YES \
+        "${PARALLEL_ARGS[@]}" \
         "${EXTRA_BUILD_SETTINGS[@]}" \
         2>&1 | xcbeautify
     TEST_EXIT_CODE=${PIPESTATUS[0]}
@@ -158,6 +176,7 @@ else
         -retry-tests-on-failure \
         -test-iterations "$TEST_ITERATIONS" \
         -test-repetition-relaunch-enabled YES \
+        "${PARALLEL_ARGS[@]}" \
         "${EXTRA_BUILD_SETTINGS[@]}" \
         2>&1
     TEST_EXIT_CODE=$?
