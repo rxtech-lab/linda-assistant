@@ -26,11 +26,7 @@ struct TaskListView: View {
     var body: some View {
         List {
             Section {
-                if viewModel.isLoading, viewModel.tasks.isEmpty {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 200)
-                        .listRowSeparator(.hidden)
-                } else if let error = viewModel.error, viewModel.tasks.isEmpty {
+                if let error = viewModel.error, viewModel.tasks.isEmpty {
                     ErrorRetryView(message: error) {
                         Task { await viewModel.loadTasks(apiClient: apiClient) }
                     }
@@ -74,11 +70,17 @@ struct TaskListView: View {
         }
         .listStyle(.plain)
         .overlay {
-            if viewModel.isSwitchingSource, !viewModel.tasks.isEmpty {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(.ultraThinMaterial)
-                    .transition(.opacity)
+            if viewModel.isLoading || viewModel.isSwitchingSource {
+                VStack(spacing: 8) {
+                    ProgressView()
+                    Text("Loading...")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(20)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .transition(.opacity)
             }
         }
         .refreshable {
