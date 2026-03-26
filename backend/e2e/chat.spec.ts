@@ -447,4 +447,62 @@ test.describe("Chat Endpoints", () => {
     const res = await request.post("/api/chat/nonexistent-assignee/stop");
     expect(res.status()).toBe(404);
   });
+
+  test("summary messages from compaction are excluded from chat history", async ({ request }) => {
+    // Create a fresh assignee
+    const assigneeRes = await request.post("/api/assignees", {
+      data: {
+        name: "Summary Filter Assistant",
+        email: "summary-filter@example.com",
+      },
+    });
+    expect(assigneeRes.ok()).toBeTruthy();
+    const testAssigneeId = (await assigneeRes.json()).id;
+
+    // Send a message to auto-create session
+    const msgRes = await request.post(`/api/chat/${testAssigneeId}/message`, {
+      data: { content: "Hello" },
+    });
+    expect(msgRes.ok()).toBeTruthy();
+    const sessionId = await waitForStopped(request, testAssigneeId);
+
+    // Verify we have 2 messages (user + assistant)
+    const beforeRes = await request.get(`/api/chat/${testAssigneeId}/messages`);
+    expect(beforeRes.ok()).toBeTruthy();
+    const beforeBody = await beforeRes.json();
+    expect(beforeBody.messages.length).toBe(2);
+
+    // Inject a summary message directly into the DB (simulating compaction)
+    const client = createClient({ url: `file:${dbPath}` });
+    const summaryContent = JSON.stringify([
+      {
+        type: "text",
+        text: "[CONVERSATION SUMMARY]\nThis is a test summary of previous conversation.\n[END SUMMARY]\n\nThe conversation continues below:",
+      },
+    ]);
+    await client.execute({
+      sql: "INSERT INTO messages (id, chat_session_id, seq, role, content, is_compacted) VALUES (?, ?, ?, ?, ?, ?)",
+      args: ["summary-msg-id", sessionId, -1, "user", summaryContent, 0],
+    });
+    client.close();
+
+    // Fetch messages again — summary should NOT appear
+    const afterRes = await request.get(`/api/chat/${testAssigneeId}/messages`);
+    expect(afterRes.ok()).toBeTruthy();
+    const afterBody = await afterRes.json();
+
+    // Should still be 2 messages (summary is filtered out)
+    expect(afterBody.messages.length).toBe(2);
+
+    // Verify no message contains the summary text
+    for (const msg of afterBody.messages) {
+      if (Array.isArray(msg.content)) {
+        for (const part of msg.content) {
+          if (part.type === "text") {
+            expect(part.text).not.toContain("[CONVERSATION SUMMARY]");
+          }
+        }
+      }
+    }
+  });
 });

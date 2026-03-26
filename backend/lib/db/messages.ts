@@ -1,7 +1,7 @@
 import type { ModelMessage } from "ai";
+import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { messages } from "@/lib/db/schema";
-import { eq, and, lt, gte, sql, asc, desc } from "drizzle-orm";
 
 /** Load all messages for a session (including compacted), ordered by seq */
 export async function getSessionMessages(chatSessionId: string): Promise<ModelMessage[]> {
@@ -132,7 +132,7 @@ export async function getPagedMessages(
   const nextCursor = hasMore ? (pageRows[0]?.id ?? null) : null;
 
   return {
-    messages: pageRows.map(rowToModelMessage),
+    messages: pageRows.filter((row) => !isSummaryMessage(row)).map(rowToModelMessage),
     nextCursor,
   };
 }
@@ -197,6 +197,19 @@ export async function getMessageCount(chatSessionId: string): Promise<number> {
 /** Delete all messages for a session */
 export async function deleteSessionMessages(chatSessionId: string): Promise<void> {
   await db.delete(messages).where(eq(messages.chatSessionId, chatSessionId));
+}
+
+/** Check if a message row is a conversation summary (injected by compaction). */
+function isSummaryMessage(row: typeof messages.$inferSelect): boolean {
+  const content = row.content;
+  if (!Array.isArray(content)) return false;
+  const parts = content as Array<{ type?: string; text?: string }>;
+  return parts.some(
+    (p) =>
+      p.type === "text" &&
+      typeof p.text === "string" &&
+      p.text.startsWith("[CONVERSATION SUMMARY]"),
+  );
 }
 
 function rowToModelMessage(row: typeof messages.$inferSelect): ModelMessage {
