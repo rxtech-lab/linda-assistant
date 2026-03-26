@@ -286,7 +286,8 @@ private struct ToolDetailSheet: View {
                             HStack {
                                 Label(
                                     conditions.isEmpty
-                                        ? "Add Conditions" : "\(conditions.count) Condition\(conditions.count == 1 ? "" : "s")",
+                                        ? "Add Conditions" :
+                                        "\(conditions.count) Condition\(conditions.count == 1 ? "" : "s")",
                                     systemImage: "slider.horizontal.3"
                                 )
                                 .foregroundStyle(.primary)
@@ -310,10 +311,10 @@ private struct ToolDetailSheet: View {
                     }
                 }
             }
-#if os(iOS)
+            #if os(iOS)
             .listStyle(.insetGrouped)
             .navigationBarTitleDisplayMode(.inline)
-#endif
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

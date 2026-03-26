@@ -13,6 +13,13 @@ private extension Bundle {
 
 struct SettingsView: View {
     @Environment(AuthManager.self) private var authManager
+    @State private var assignees: [Assignee] = []
+    @State private var defaultEmailAssigneeId: String?
+    @State private var isLoadingSettings = false
+
+    private var apiClient: APIClient {
+        APIClient(authManager: authManager)
+    }
 
     var body: some View {
         Form {
@@ -51,6 +58,18 @@ struct SettingsView: View {
                 NavigationLink("Usage", value: AppDestination.usage)
             }
 
+            Section("Email") {
+                Picker("Default Email Agent", selection: $defaultEmailAssigneeId) {
+                    Text("None").tag(String?.none)
+                    ForEach(assignees, id: \.id) { assignee in
+                        Text(assignee.name).tag(Optional(assignee.id))
+                    }
+                }
+                .onChange(of: defaultEmailAssigneeId) { _, newValue in
+                    Task { await saveDefaultEmailAgent(newValue) }
+                }
+            }
+
             Section("About") {
                 LabeledContent("Version", value: Bundle.main.appVersion)
                 LabeledContent("Build", value: Bundle.main.buildNumber)
@@ -64,6 +83,9 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Settings")
+        .task {
+            await loadSettings()
+        }
         .navigationDestination(for: AppDestination.self) { destination in
             switch destination {
                 case let .task(id): TaskDetailView(taskId: id)
@@ -88,6 +110,28 @@ struct SettingsView: View {
                     #endif
                 case .usage: UsageView()
             }
+        }
+    }
+
+    private func loadSettings() async {
+        do {
+            async let fetchedAssignees = apiClient.listAssignees()
+            async let fetchedSettings = apiClient.getUserSettings()
+            assignees = try await fetchedAssignees.data
+            let settings = try await fetchedSettings
+            defaultEmailAssigneeId = settings.defaultEmailAssigneeId
+        } catch {
+            // Non-critical, settings will show defaults
+        }
+    }
+
+    private func saveDefaultEmailAgent(_ assigneeId: String?) async {
+        do {
+            _ = try await apiClient.updateUserSettings(
+                UpdateUserSettings(defaultEmailAssigneeId: assigneeId)
+            )
+        } catch {
+            // Revert on failure would be ideal but keep simple for now
         }
     }
 }

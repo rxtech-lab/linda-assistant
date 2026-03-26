@@ -196,7 +196,12 @@ struct AssigneeFormSheet: View {
                     ? (toolConditions[entry.key]?.isEmpty == false ? toolConditions[entry.key] : nil)
                     : nil
                 let logic: String? = conditions != nil ? toolConditionLogics[entry.key] : nil
-                return ToolPermission(toolName: entry.key, permission: entry.value, conditions: conditions, conditionLogic: logic)
+                return ToolPermission(
+                    toolName: entry.key,
+                    permission: entry.value,
+                    conditions: conditions,
+                    conditionLogic: logic
+                )
             }
 
         do {

@@ -13,10 +13,34 @@ final class TaskDetailViewModel {
         loadingError = nil
         do {
             task = try await apiClient.getTask(id: id)
+        } catch let decodingError as DecodingError {
+            let detail = Self.describeDecodingError(decodingError)
+            print("[TaskDetail] Decoding error: \(detail)")
+            self.loadingError = detail
         } catch {
+            print("[TaskDetail] Load error: \(error)")
             self.loadingError = error.localizedDescription
         }
         isLoading = false
+    }
+
+    private static func describeDecodingError(_ error: DecodingError) -> String {
+        switch error {
+        case let .keyNotFound(key, context):
+            let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+            return "Missing key '\(key.stringValue)' at path: \(path)"
+        case let .typeMismatch(type, context):
+            let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+            return "Type mismatch for \(type) at path: \(path) — \(context.debugDescription)"
+        case let .valueNotFound(type, context):
+            let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+            return "Value not found for \(type) at path: \(path)"
+        case let .dataCorrupted(context):
+            let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+            return "Data corrupted at path: \(path) — \(context.debugDescription)"
+        @unknown default:
+            return error.localizedDescription
+        }
     }
 
     func refreshTask(id: String, apiClient: APIClient) async {

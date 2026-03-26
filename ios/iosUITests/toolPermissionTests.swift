@@ -1,5 +1,5 @@
 //
-//  usageViewTests.swift
+//  toolPermissionTests.swift
 //  iosUITests
 //
 //  Created by Qiwei Li on 3/17/26.
@@ -81,13 +81,19 @@ final class ToolPermissionTests: XCTestCase {
         app.swipeUp()
 
         // check system tool disabled text
-        XCTAssertTrue(app.systemToolDisabledText.waitForExistence(timeout: 5), "System tool disabled text should appear")
+        XCTAssertTrue(
+            app.systemToolDisabledText.waitForExistence(timeout: 5),
+            "System tool disabled text should appear"
+        )
 
         // The checkmark should still be on Auto Approve (not moved to Require Confirmation)
         // Since allowsHitTesting is false, the tap should have no effect
         // Verify no error appears (the old bug would trigger a backend error)
         let errorView = app.staticTexts["Error"].firstMatch
-        XCTAssertFalse(errorView.waitForExistence(timeout: 3), "No error should appear when tapping disabled permission")
+        XCTAssertFalse(
+            errorView.waitForExistence(timeout: 3),
+            "No error should appear when tapping disabled permission"
+        )
     }
 
     @MainActor
@@ -107,7 +113,9 @@ final class ToolPermissionTests: XCTestCase {
         XCTAssertTrue(assistantsLink.waitForExistence(timeout: 10), "Assistants link should appear")
         assistantsLink.tap()
 
-        app/*@START_MENU_TOKEN@*/ .buttons["Linda, linda@e2e.test"]/*[[".buttons",".containing(.image, identifier: \"chevron.forward\")",".containing(.staticText, identifier: \"linda@e2e.test\")",".containing(.staticText, identifier: \"Linda\")",".cells.buttons",".otherElements.buttons[\"Linda, linda@e2e.test\"]",".buttons[\"Linda, linda@e2e.test\"]"],[[[-1,6],[-1,5],[-1,4],[-1,0,1]],[[-1,3],[-1,2],[-1,1]]],[0]]@END_MENU_TOKEN@*/ .firstMatch.tap()
+        app/*@START_MENU_TOKEN@*/
+            .buttons["Linda, linda@e2e.test"]/*[[".buttons",".containing(.image, identifier: \"chevron.forward\")",".containing(.staticText, identifier: \"linda@e2e.test\")",".containing(.staticText, identifier: \"Linda\")",".cells.buttons",".otherElements.buttons[\"Linda, linda@e2e.test\"]",".buttons[\"Linda, linda@e2e.test\"]"],[[[-1,6],[-1,5],[-1,4],[-1,0,1]],[[-1,3],[-1,2],[-1,1]]],[0]]@END_MENU_TOKEN@*/
+            .firstMatch.tap()
 
         // Wait for assignee detail to load
         sleep(3)
@@ -133,10 +141,16 @@ final class ToolPermissionTests: XCTestCase {
         app.swipeUp()
 
         // Check system tool disabled text
-        XCTAssertTrue(app.systemToolDisabledText.waitForExistence(timeout: 5), "System tool disabled text should appear")
+        XCTAssertTrue(
+            app.systemToolDisabledText.waitForExistence(timeout: 5),
+            "System tool disabled text should appear"
+        )
 
         // Verify no error appears when tapping disabled permission
         let errorView = app.staticTexts["Error"].firstMatch
-        XCTAssertFalse(errorView.waitForExistence(timeout: 3), "No error should appear when tapping disabled permission")
+        XCTAssertFalse(
+            errorView.waitForExistence(timeout: 3),
+            "No error should appear when tapping disabled permission"
+        )
     }
 }

@@ -9,8 +9,10 @@ struct MessageList: View {
     var onConfirmationTap: (() -> Void)?
     var onToolCallTap: ((ToolCallInfo) -> Void)?
     var onDocumentTap: ((DocumentSheetItem) -> Void)?
+    var onBriefingTap: ((String) -> Void)?
 
     private static let documentToolNames: Set<String> = ["create_document", "update_document"]
+    private static let briefingToolNames: Set<String> = ["create_briefing"]
 
     /// Disable animation initially, enable after view has loaded
     @State private var animationEnabled = false
@@ -60,6 +62,11 @@ struct MessageList: View {
                             if Self.documentToolNames.contains(toolCall.toolName) {
                                 DocumentToolCard(toolCall: toolCall) { doc in
                                     onDocumentTap?(doc)
+                                }
+                                .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
+                            } else if Self.briefingToolNames.contains(toolCall.toolName) {
+                                BriefingToolCard(toolCall: toolCall) { briefingId in
+                                    onBriefingTap?(briefingId)
                                 }
                                 .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                             } else {

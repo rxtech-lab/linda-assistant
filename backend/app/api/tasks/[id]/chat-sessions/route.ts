@@ -68,10 +68,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .orderBy(desc(chatSessions.createdAt))
       .limit(limit)
       .offset(offset),
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(chatSessions)
-      .where(baseWhere),
+    db.select({ count: sql<number>`count(*)` }).from(chatSessions).where(baseWhere),
   ]);
 
   return paginatedJson(items, countResult[0].count, limit, offset);

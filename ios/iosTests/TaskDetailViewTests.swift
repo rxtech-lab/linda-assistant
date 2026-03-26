@@ -37,8 +37,7 @@ private func makeLindaTask(status: String, assigneeId: String? = "assignee-1") -
 // MARK: - TaskActionButtons: Run Now visibility
 
 final class TaskActionButtonsRunNowTests: XCTestCase {
-
-    func testRunningStatus_showsRunNowButton() throws {
+    func testRunningStatus_showsRunNowButton() {
         let task = makeTaskDetail(status: "running")
         let sut = TaskActionButtons(task: task, onStart: {}, onStop: {}, onRunNow: {})
 
@@ -46,7 +45,7 @@ final class TaskActionButtonsRunNowTests: XCTestCase {
         XCTAssertNotNil(found, "Run Now button should be visible when status is running")
     }
 
-    func testPendingStatus_showsRunNowButton() throws {
+    func testPendingStatus_showsRunNowButton() {
         let task = makeTaskDetail(status: "pending")
         let sut = TaskActionButtons(task: task, onStart: {}, onStop: {}, onRunNow: {})
 
@@ -54,7 +53,7 @@ final class TaskActionButtonsRunNowTests: XCTestCase {
         XCTAssertNotNil(found, "Run Now button should be visible when status is pending")
     }
 
-    func testStoppedStatus_hidesRunNowButton() throws {
+    func testStoppedStatus_hidesRunNowButton() {
         let task = makeTaskDetail(status: "stopped")
         let sut = TaskActionButtons(task: task, onStart: {}, onStop: {}, onRunNow: {})
 
@@ -62,7 +61,7 @@ final class TaskActionButtonsRunNowTests: XCTestCase {
         XCTAssertNil(found, "Run Now button should be hidden when status is stopped")
     }
 
-    func testFinishedStatus_hidesRunNowButton() throws {
+    func testFinishedStatus_hidesRunNowButton() {
         let task = makeTaskDetail(status: "finished")
         let sut = TaskActionButtons(task: task, onStart: {}, onStop: {}, onRunNow: {})
 
@@ -70,7 +69,7 @@ final class TaskActionButtonsRunNowTests: XCTestCase {
         XCTAssertNil(found, "Run Now button should be hidden when status is finished")
     }
 
-    func testCancelledStatus_hidesRunNowButton() throws {
+    func testCancelledStatus_hidesRunNowButton() {
         let task = makeTaskDetail(status: "cancelled")
         let sut = TaskActionButtons(task: task, onStart: {}, onStop: {}, onRunNow: {})
 
@@ -78,7 +77,7 @@ final class TaskActionButtonsRunNowTests: XCTestCase {
         XCTAssertNil(found, "Run Now button should be hidden when status is cancelled")
     }
 
-    func testRunningButNoAssignee_hidesRunNowButton() throws {
+    func testRunningButNoAssignee_hidesRunNowButton() {
         let task = makeTaskDetail(status: "running", assigneeId: nil)
         let sut = TaskActionButtons(task: task, onStart: {}, onStop: {}, onRunNow: {})
 
@@ -86,7 +85,7 @@ final class TaskActionButtonsRunNowTests: XCTestCase {
         XCTAssertNil(found, "Run Now button should be hidden when there is no assignee")
     }
 
-    func testPendingButNoAssignee_hidesRunNowButton() throws {
+    func testPendingButNoAssignee_hidesRunNowButton() {
         let task = makeTaskDetail(status: "pending", assigneeId: nil)
         let sut = TaskActionButtons(task: task, onStart: {}, onStop: {}, onRunNow: {})
 
@@ -98,8 +97,7 @@ final class TaskActionButtonsRunNowTests: XCTestCase {
 // MARK: - TaskActionButtons: Start button visibility
 
 final class TaskActionButtonsStartTests: XCTestCase {
-
-    func testPendingStatus_hidesStartButton() throws {
+    func testPendingStatus_hidesStartButton() {
         let task = makeTaskDetail(status: "pending")
         let sut = TaskActionButtons(task: task, onStart: {}, onStop: {}, onRunNow: {})
 
@@ -107,7 +105,7 @@ final class TaskActionButtonsStartTests: XCTestCase {
         XCTAssertNil(found, "Start button should be hidden when status is pending")
     }
 
-    func testPendingStatus_showsStopButton() throws {
+    func testPendingStatus_showsStopButton() {
         let task = makeTaskDetail(status: "pending")
         let sut = TaskActionButtons(task: task, onStart: {}, onStop: {}, onRunNow: {})
 
@@ -115,7 +113,7 @@ final class TaskActionButtonsStartTests: XCTestCase {
         XCTAssertNotNil(found, "Stop button should be visible when status is pending")
     }
 
-    func testStoppedStatus_showsStartButton() throws {
+    func testStoppedStatus_showsStartButton() {
         let task = makeTaskDetail(status: "stopped")
         let sut = TaskActionButtons(task: task, onStart: {}, onStop: {}, onRunNow: {})
 
@@ -123,7 +121,7 @@ final class TaskActionButtonsStartTests: XCTestCase {
         XCTAssertNotNil(found, "Start button should be visible when status is stopped")
     }
 
-    func testRunningStatus_showsStopButton() throws {
+    func testRunningStatus_showsStopButton() {
         let task = makeTaskDetail(status: "running")
         let sut = TaskActionButtons(task: task, onStart: {}, onStop: {}, onRunNow: {})
 
@@ -131,22 +129,19 @@ final class TaskActionButtonsStartTests: XCTestCase {
         XCTAssertNotNil(found, "Stop button should be visible when status is running")
     }
 
-    func testRunningStatus_hidesStartButton() throws {
+    func testRunningStatus_hidesStartButton() {
         let task = makeTaskDetail(status: "running")
         let sut = TaskActionButtons(task: task, onStart: {}, onStop: {}, onRunNow: {})
 
         let found = try? sut.inspect().find(viewWithAccessibilityIdentifier: "start-task-button")
         XCTAssertNil(found, "Start button should be hidden when status is running")
     }
-
-
 }
 
 // MARK: - TaskDetailContentView: Start New Chat Session visibility
 
 final class TaskDetailStartNewChatTests: XCTestCase {
-
-    func testRunningStatus_showsStartNewChatButton() throws {
+    func testRunningStatus_showsStartNewChatButton() {
         let task = makeTaskDetail(status: "running")
         let sut = TaskDetailContentView(
             task: task,
@@ -161,7 +156,7 @@ final class TaskDetailStartNewChatTests: XCTestCase {
         XCTAssertNotNil(found, "Start New Chat Session button should be visible when status is running")
     }
 
-    func testPendingStatus_showsStartNewChatButton() throws {
+    func testPendingStatus_showsStartNewChatButton() {
         let task = makeTaskDetail(status: "pending")
         let sut = TaskDetailContentView(
             task: task,
@@ -176,7 +171,7 @@ final class TaskDetailStartNewChatTests: XCTestCase {
         XCTAssertNotNil(found, "Start New Chat Session button should be visible when status is pending")
     }
 
-    func testStoppedStatus_hidesStartNewChatButton() throws {
+    func testStoppedStatus_hidesStartNewChatButton() {
         let task = makeTaskDetail(status: "stopped")
         let sut = TaskDetailContentView(
             task: task,
@@ -191,7 +186,7 @@ final class TaskDetailStartNewChatTests: XCTestCase {
         XCTAssertNil(found, "Start New Chat Session button should be hidden when status is stopped")
     }
 
-    func testFinishedStatus_hidesStartNewChatButton() throws {
+    func testFinishedStatus_hidesStartNewChatButton() {
         let task = makeTaskDetail(status: "finished")
         let sut = TaskDetailContentView(
             task: task,
@@ -206,7 +201,7 @@ final class TaskDetailStartNewChatTests: XCTestCase {
         XCTAssertNil(found, "Start New Chat Session button should be hidden when status is finished")
     }
 
-    func testCancelledStatus_hidesStartNewChatButton() throws {
+    func testCancelledStatus_hidesStartNewChatButton() {
         let task = makeTaskDetail(status: "cancelled")
         let sut = TaskDetailContentView(
             task: task,
@@ -225,8 +220,7 @@ final class TaskDetailStartNewChatTests: XCTestCase {
 // MARK: - TaskRowView: Run Now swipe action visibility
 
 final class TaskRowRunNowSwipeTests: XCTestCase {
-
-    func testRunningStatusWithAssignee_showsRunNowSwipe() throws {
+    func testRunningStatusWithAssignee_showsRunNowSwipe() {
         var runNowCalled = false
         let task = makeLindaTask(status: "running")
         let sut = TaskRowView(task: task, onDelete: nil, onRunNow: { runNowCalled = true })
@@ -235,7 +229,7 @@ final class TaskRowRunNowSwipeTests: XCTestCase {
         XCTAssertNotNil(found, "Task row should exist")
     }
 
-    func testPendingStatusWithAssignee_showsRunNowSwipe() throws {
+    func testPendingStatusWithAssignee_showsRunNowSwipe() {
         let task = makeLindaTask(status: "pending")
         let sut = TaskRowView(task: task, onDelete: nil, onRunNow: {})
 

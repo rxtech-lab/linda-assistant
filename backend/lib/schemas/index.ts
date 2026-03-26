@@ -176,6 +176,7 @@ export const selectTaskSchema = z.object({
   title: z.string().describe("Task title"),
   description: z.string().nullable().describe("Detailed task description"),
   status: z.string().nullable().describe("Current status"),
+  source: z.string().nullable().describe("Task creation source: manual, agent, or email"),
   tags: z.array(z.string()).nullable().describe("Freeform tags"),
   categories: z.array(z.string()).nullable().describe("Category labels"),
   cronSchedule: z.string().nullable().describe("Cron expression e.g. '0 9 * * *'"),
@@ -197,11 +198,22 @@ export const selectTaskSchema = z.object({
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
 
+export const taskSourceSchema = z.enum(["manual", "agent", "email"]);
+
 export const insertTaskSchema = z
   .object({
     assigneeId: z.string().optional().nullable().describe("Linked assignee ID"),
     title: z.string().min(1).max(200).describe("Task title"),
     description: z.string().max(5000).optional().describe("Detailed task description"),
+    source: taskSourceSchema.optional().describe("Task creation source (defaults to manual)"),
+    emailId: z
+      .string()
+      .optional()
+      .describe("Email ID to link this task to (auto-sets source to email)"),
+    execute: z
+      .boolean()
+      .optional()
+      .describe("If true, immediately trigger task execution after creation"),
     tags: z.array(z.string()).optional().describe("Freeform tags"),
     categories: z.array(z.string()).optional().describe("Category labels"),
     cronSchedule: z
@@ -742,6 +754,27 @@ export const usageResponseSchema = z.object({
   daily: z.array(usageDailyEntrySchema).describe("Daily token usage breakdown"),
   byAssignee: z.array(usageByAssigneeSchema).describe("Token usage grouped by assignee"),
   total: usageTotalSchema.describe("Aggregate totals for the period"),
+});
+
+// ---- User Settings ----
+
+export const selectUserSettingsSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  defaultEmailAssigneeId: z
+    .string()
+    .nullable()
+    .describe("Default assignee ID for processing incoming emails"),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
+});
+
+export const updateUserSettingsSchema = z.object({
+  defaultEmailAssigneeId: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Default assignee ID for processing incoming emails"),
 });
 
 // ---- Common path params ----

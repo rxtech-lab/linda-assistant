@@ -136,6 +136,8 @@ struct TaskDetailContentView: View {
     var onStop: () -> Void
     var onRunNow: () -> Void
 
+    @State private var sessionOffsetsToDelete: IndexSet?
+
     var body: some View {
         List {
             // Hero Header & Actions
@@ -259,7 +261,7 @@ struct TaskDetailContentView: View {
                         .accessibilityIdentifier("chat-session-row-\(session.id)")
                     }
                     .onDelete { offsets in
-                        onDeleteSessions(offsets)
+                        sessionOffsetsToDelete = offsets
                     }
                 }
 
@@ -288,17 +290,43 @@ struct TaskDetailContentView: View {
             if !task.emails.isEmpty {
                 Section {
                     ForEach(task.emails) { email in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(email.subject ?? "No Subject")
-                                .font(.body)
-                            Text("from: \(email.fromEmail)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        NavigationLink(value: AppDestination.email(id: email.id)) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(email.subject ?? "No Subject")
+                                    .font(.body)
+                                Text("from: \(email.fromEmail)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 } header: {
                     Label("Related Emails (\(task.emails.count))", systemImage: "envelope")
                 }
+            }
+        }
+        .confirmationDialog(
+            "Delete Chat Session?",
+            isPresented: Binding(
+                get: { sessionOffsetsToDelete != nil },
+                set: { if !$0 { sessionOffsetsToDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let offsets = sessionOffsetsToDelete {
+                    onDeleteSessions(offsets)
+                }
+            }
+        } message: {
+            if let offsets = sessionOffsetsToDelete,
+               let index = offsets.first,
+               index < task.chatSessions.count
+            {
+                let session = task.chatSessions[index]
+                Text("\"\(session.title ?? "Untitled")\" will be permanently deleted.")
+            } else {
+                Text("This chat session will be permanently deleted.")
             }
         }
     }
@@ -595,7 +623,7 @@ struct TaskActionButtons: View {
             .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isRunning)
 
             // Run Now button (shown in running and pending states with an assignee)
-            if hasAssignee && isActiveOrPending {
+            if hasAssignee, isActiveOrPending {
                 Spacer()
 
                 ContactStyleButton(

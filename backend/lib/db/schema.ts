@@ -1,11 +1,5 @@
 import { sql } from "drizzle-orm";
-import {
-  integer,
-  real,
-  sqliteTable,
-  text,
-  uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
 
 // Discriminated union by parameterType — each type allows only its valid operators
@@ -32,21 +26,11 @@ export type BooleanCondition = {
 export type ArrayCondition = {
   parameterName: string;
   parameterType: "array";
-  operator:
-    | "contains"
-    | "equals"
-    | "lengthGt"
-    | "lengthLt"
-    | "lengthGte"
-    | "lengthLte";
+  operator: "contains" | "equals" | "lengthGt" | "lengthLt" | "lengthGte" | "lengthLte";
   value: string | string[] | number; // string for contains, string[] for equals, number for length ops
 };
 
-export type ToolCondition =
-  | StringCondition
-  | NumberCondition
-  | BooleanCondition
-  | ArrayCondition;
+export type ToolCondition = StringCondition | NumberCondition | BooleanCondition | ArrayCondition;
 
 export type ToolPermission = {
   toolName: string;
@@ -70,9 +54,7 @@ export const assignees = sqliteTable("assignees", {
   email: text("email").notNull(),
   personality: text("personality"),
   model: text("model"),
-  toolPermissions: text("tool_permissions", { mode: "json" }).$type<
-    ToolPermission[]
-  >(),
+  toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
@@ -109,14 +91,13 @@ export const tasks = sqliteTable("tasks", {
   title: text("title").notNull(),
   description: text("description"),
   status: text("status").default("pending"),
+  source: text("source").default("manual"), // "manual" | "agent" | "email"
   tags: text("tags", { mode: "json" }).$type<string[]>(),
   categories: text("categories", { mode: "json" }).$type<string[]>(),
   cronSchedule: text("cron_schedule"),
   isCronEnabled: integer("is_cron_enabled", { mode: "boolean" }).default(false),
   runsAt: text("runs_at"),
-  toolPermissions: text("tool_permissions", { mode: "json" }).$type<
-    ToolPermission[]
-  >(),
+  toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
@@ -180,9 +161,7 @@ export const messages = sqliteTable("messages", {
   seq: integer("seq").notNull(),
   role: text("role").notNull(),
   content: text("content", { mode: "json" }).$type<unknown>(),
-  isCompacted: integer("is_compacted", { mode: "boolean" })
-    .notNull()
-    .default(false),
+  isCompacted: integer("is_compacted", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
 });
 
@@ -197,9 +176,7 @@ export const confirmations = sqliteTable("confirmations", {
   toolCallId: text("tool_call_id").notNull(),
   toolName: text("tool_name").notNull(),
   approvalId: text("approval_id").notNull(),
-  parameters: text("parameters", { mode: "json" }).$type<
-    Record<string, unknown>
-  >(),
+  parameters: text("parameters", { mode: "json" }).$type<Record<string, unknown>>(),
   status: text("status").default("pending"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   resolvedAt: text("resolved_at"),
@@ -290,9 +267,7 @@ export const extensions = sqliteTable("extensions", {
   mcpUrl: text("mcp_url").notNull(),
   prefix: text("prefix").notNull(),
   authType: text("auth_type").notNull().default("rxauth"), // "rxauth" | "api_key" | "none"
-  authConfig: text("auth_config", { mode: "json" }).$type<
-    Record<string, unknown>
-  >(),
+  authConfig: text("auth_config", { mode: "json" }).$type<Record<string, unknown>>(),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
@@ -308,9 +283,7 @@ export const assigneeExtensions = sqliteTable("assignee_extensions", {
     .notNull()
     .references(() => extensions.id, { onDelete: "cascade" }),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
-  toolPermissions: text("tool_permissions", { mode: "json" }).$type<
-    ToolPermission[]
-  >(),
+  toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
@@ -328,17 +301,12 @@ export const taskExtensions = sqliteTable(
       .notNull()
       .references(() => extensions.id, { onDelete: "cascade" }),
     enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
-    toolPermissions: text("tool_permissions", { mode: "json" }).$type<
-      ToolPermission[]
-    >(),
+    toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
     createdAt: text("created_at").default(sql`(datetime('now'))`),
     updatedAt: text("updated_at").default(sql`(datetime('now'))`),
   },
   (table) => [
-    uniqueIndex("task_extensions_task_id_extension_id_unique").on(
-      table.taskId,
-      table.extensionId,
-    ),
+    uniqueIndex("task_extensions_task_id_extension_id_unique").on(table.taskId, table.extensionId),
   ],
 );
 
@@ -352,6 +320,18 @@ export const scheduledNotifications = sqliteTable("scheduled_notifications", {
   scheduledAt: text("scheduled_at").notNull(), // UTC ISO datetime
   sent: integer("sent", { mode: "boolean" }).default(false),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
+export const userSettings = sqliteTable("user_settings", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull().unique(),
+  defaultEmailAssigneeId: text("default_email_assignee_id").references(() => assignees.id, {
+    onDelete: "set null",
+  }),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
 
 export const devices = sqliteTable("devices", {

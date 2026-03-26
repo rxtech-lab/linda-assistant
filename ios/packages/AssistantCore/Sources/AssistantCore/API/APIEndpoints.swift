@@ -64,14 +64,19 @@ public extension APIClient {
 
     // MARK: - Tasks
 
-    func listTasks(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<LindaTask> {
-        try await request(
-            path: "tasks",
-            queryItems: [
-                URLQueryItem(name: "limit", value: "\(limit)"),
-                URLQueryItem(name: "offset", value: "\(offset)"),
-            ]
-        )
+    func listTasks(
+        source: String? = nil,
+        limit: Int = 20,
+        offset: Int = 0
+    ) async throws -> PaginatedResponse<LindaTask> {
+        var queryItems = [
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)"),
+        ]
+        if let source {
+            queryItems.append(URLQueryItem(name: "source", value: source))
+        }
+        return try await request(path: "tasks", queryItems: queryItems)
     }
 
     func getTask(id: String) async throws -> TaskDetail {
@@ -102,7 +107,12 @@ public extension APIClient {
         try await request(path: "tasks/\(id)/execute-now", method: "POST")
     }
 
-    func listTaskChatSessions(taskId: String, limit: Int = 20, offset: Int = 0, search: String? = nil) async throws -> PaginatedResponse<SessionSummary> {
+    func listTaskChatSessions(
+        taskId: String,
+        limit: Int = 20,
+        offset: Int = 0,
+        search: String? = nil
+    ) async throws -> PaginatedResponse<SessionSummary> {
         var queryItems = [
             URLQueryItem(name: "limit", value: "\(limit)"),
             URLQueryItem(name: "offset", value: "\(offset)"),
@@ -344,6 +354,16 @@ public extension APIClient {
 
     func deleteDevice(id: String) async throws {
         try await requestNoContent(path: "devices/\(id)")
+    }
+
+    // MARK: - User Settings
+
+    func getUserSettings() async throws -> UserSettings {
+        try await request(path: "user-settings")
+    }
+
+    func updateUserSettings(_ body: UpdateUserSettings) async throws -> UserSettings {
+        try await request(path: "user-settings", method: "PUT", body: body)
     }
 
     // MARK: - Uploads

@@ -37,20 +37,12 @@ export const createTaskTool = (
           "ISO datetime for one-shot scheduled execution (e.g. '2025-01-15T09:00:00'). Specify in the user's local timezone.",
         ),
     }),
-    execute: async ({
-      title,
-      description,
-      tags,
-      categories,
-      cronSchedule,
-      runsAt,
-    }) => {
+    execute: async ({ title, description, tags, categories, cronSchedule, runsAt }) => {
       const assigneeId = defaultAssigneeId ?? undefined;
       // Validate mutual exclusivity
       if (cronSchedule && runsAt) {
         return {
-          error:
-            "A task cannot have both cron scheduling and a one-shot runsAt schedule",
+          error: "A task cannot have both cron scheduling and a one-shot runsAt schedule",
         };
       }
 
@@ -65,12 +57,7 @@ export const createTaskTool = (
         const [session] = await db
           .select({ timezone: chatSessions.timezone })
           .from(chatSessions)
-          .where(
-            and(
-              eq(chatSessions.id, sessionId),
-              eq(chatSessions.userId, userId),
-            ),
-          );
+          .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, userId)));
         sessionTimezone = session?.timezone ?? null;
       }
 
@@ -78,9 +65,7 @@ export const createTaskTool = (
       const utcCronSchedule = cronSchedule
         ? convertCronToUTC(cronSchedule, sessionTimezone)
         : undefined;
-      const utcRunsAt = runsAt
-        ? convertRunsAtToUTC(runsAt, sessionTimezone)
-        : undefined;
+      const utcRunsAt = runsAt ? convertRunsAtToUTC(runsAt, sessionTimezone) : undefined;
 
       const isCronEnabled = !!utcCronSchedule;
 
@@ -93,9 +78,8 @@ export const createTaskTool = (
           tags,
           categories,
           assigneeId,
-          ...(utcCronSchedule !== undefined
-            ? { cronSchedule: utcCronSchedule }
-            : {}),
+          source: "agent",
+          ...(utcCronSchedule !== undefined ? { cronSchedule: utcCronSchedule } : {}),
           isCronEnabled,
           status: "running",
           ...(utcRunsAt !== undefined ? { runsAt: utcRunsAt } : {}),
@@ -112,16 +96,9 @@ export const createTaskTool = (
 
       // Inherit assignee's tool permissions and enabled extensions
       if (assigneeId) {
-        const toolPermissions = await inheritAssigneeToolset(
-          created.id,
-          assigneeId,
-          userId,
-        );
+        const toolPermissions = await inheritAssigneeToolset(created.id, assigneeId, userId);
         if (toolPermissions) {
-          await db
-            .update(tasks)
-            .set({ toolPermissions })
-            .where(eq(tasks.id, created.id));
+          await db.update(tasks).set({ toolPermissions }).where(eq(tasks.id, created.id));
         }
       }
 
