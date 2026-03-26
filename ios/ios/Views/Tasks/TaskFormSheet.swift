@@ -27,6 +27,7 @@ struct TaskFormSheet: View {
     @State private var scheduleType: ScheduleType = .none
     @State private var cronSchedule = ""
     @State private var runsAtDate = Date().addingTimeInterval(3600)
+    @State private var selectedTimezone = TimeZone.current.identifier
     @State private var isSubmitting = false
     @State private var error: String?
 
@@ -71,6 +72,12 @@ struct TaskFormSheet: View {
                     switch scheduleType {
                         case .cron:
                             CronExpressionView(cronExpression: $cronSchedule)
+                            Picker("Timezone", selection: $selectedTimezone) {
+                                ForEach(TimeZone.knownTimeZoneIdentifiers, id: \.self) { tz in
+                                    Text(timezoneLabel(tz)).tag(tz)
+                                }
+                            }
+                            .accessibilityIdentifier("task-cron-timezone-picker")
                         case .scheduled:
                             DatePicker(
                                 "Run at",
@@ -79,6 +86,12 @@ struct TaskFormSheet: View {
                                 displayedComponents: [.date, .hourAndMinute]
                             )
                             .accessibilityIdentifier("task-runs-at-picker")
+                            Picker("Timezone", selection: $selectedTimezone) {
+                                ForEach(TimeZone.knownTimeZoneIdentifiers, id: \.self) { tz in
+                                    Text(timezoneLabel(tz)).tag(tz)
+                                }
+                            }
+                            .accessibilityIdentifier("task-timezone-picker")
                         case .none:
                             EmptyView()
                     }
@@ -127,6 +140,11 @@ struct TaskFormSheet: View {
                 }
             }
             .onAppear { populateForEdit() }
+            .onChange(of: scheduleType) { _, newValue in
+                if newValue == .cron, cronSchedule.trimmingCharacters(in: .whitespaces).isEmpty {
+                    cronSchedule = CronGUIState().toCronExpression()
+                }
+            }
             .task { await loadAssignees() }
             .alert("Error", isPresented: .init(
                 get: { error != nil },
@@ -158,14 +176,37 @@ struct TaskFormSheet: View {
         selectedAssigneeId = task.assigneeId
         cronSchedule = task.cronSchedule ?? ""
 
+        // Use server-stored timezone if available
+        if let tz = task.timezone, TimeZone(identifier: tz) != nil {
+            selectedTimezone = tz
+        }
+
         if task.isCronEnabled == true {
             scheduleType = .cron
         } else if let runsAt = task.runsAt, let date = ISO8601DateFormatter().date(from: runsAt) {
             scheduleType = .scheduled
-            runsAtDate = date
+            // Convert the stored date to wall-clock components in the task's timezone for the DatePicker
+            let taskTZ = TimeZone(identifier: selectedTimezone) ?? .current
+            var sourceCal = Calendar.current
+            sourceCal.timeZone = taskTZ
+            let components = sourceCal.dateComponents(
+                [.year, .month, .day, .hour, .minute, .second], from: date
+            )
+            runsAtDate = Calendar.current.date(from: components) ?? date
         } else {
             scheduleType = .none
         }
+    }
+
+    private func timezoneLabel(_ identifier: String) -> String {
+        guard let tz = TimeZone(identifier: identifier) else { return identifier }
+        let seconds = tz.secondsFromGMT()
+        let hours = seconds / 3600
+        let minutes = abs(seconds / 60 % 60)
+        let offset = minutes == 0
+            ? String(format: "GMT%+d", hours)
+            : String(format: "GMT%+d:%02d", hours, minutes)
+        return "\(identifier) (\(offset))"
     }
 
     private func parseTags(_ text: String) -> [String]? {
@@ -182,15 +223,24 @@ struct TaskFormSheet: View {
             : nil
         let effectiveRunsAt: String? = if scheduleType == .scheduled {
             {
+                let targetTZ = TimeZone(identifier: selectedTimezone) ?? .current
+                // DatePicker shows time in local timezone — reinterpret as target timezone
+                let localComponents = Calendar.current.dateComponents(
+                    [.year, .month, .day, .hour, .minute, .second], from: runsAtDate
+                )
+                var targetCalendar = Calendar.current
+                targetCalendar.timeZone = targetTZ
+                let targetDate = targetCalendar.date(from: localComponents) ?? runsAtDate
                 let formatter = ISO8601DateFormatter()
-                formatter.timeZone = .current
+                formatter.timeZone = targetTZ
                 formatter.formatOptions = [.withInternetDateTime]
-                return formatter.string(from: runsAtDate)
+                return formatter.string(from: targetDate)
             }()
         } else {
             nil
         }
         let effectiveIsCronEnabled = scheduleType == .cron
+        let effectiveTimezone = scheduleType != .none ? selectedTimezone : nil
 
         do {
             if case let .edit(existing) = mode {
@@ -202,7 +252,8 @@ struct TaskFormSheet: View {
                     assigneeId: selectedAssigneeId,
                     cronSchedule: effectiveCronSchedule,
                     isCronEnabled: effectiveIsCronEnabled,
-                    runsAt: effectiveRunsAt
+                    runsAt: effectiveRunsAt,
+                    timezone: effectiveTimezone
                 )
                 let updated = try await apiClient.updateTask(id: existing.id, body)
                 onSave(updated)
@@ -215,7 +266,8 @@ struct TaskFormSheet: View {
                     assigneeId: selectedAssigneeId,
                     cronSchedule: effectiveCronSchedule,
                     isCronEnabled: effectiveIsCronEnabled,
-                    runsAt: effectiveRunsAt
+                    runsAt: effectiveRunsAt,
+                    timezone: effectiveTimezone
                 )
                 let created = try await apiClient.createTask(body)
                 onSave(created)

@@ -73,19 +73,82 @@ test.describe("Task timezone handling", () => {
   });
 
   test("creating a task with runsAt uses timezone offset as-is", async ({ request }) => {
-    // runsAt with explicit timezone offset is stored as-is
     const res = await request.post("/api/tasks", {
       data: {
         title: "Scheduled Task with TZ",
         assigneeId,
-        runsAt: "2025-06-15T09:00:00+05:30",
+        runsAt: "2026-06-15T09:00:00+05:30",
       },
     });
     expect(res.status()).toBe(201);
     const body = await res.json();
     taskResponseSchema.parse(body);
-    expect(body.runsAt).toBe("2025-06-15T09:00:00+05:30");
+    expect(body.runsAt).toBe("2026-06-15T09:00:00+05:30");
     expect(body.status).toBe("pending");
+  });
+
+  test("cron task detail returns nextRunAt in seconds", async ({ request }) => {
+    const res = await request.post("/api/tasks", {
+      data: {
+        title: "Cron NextRun Task",
+        assigneeId,
+        cronSchedule: "0 9 * * *",
+        isCronEnabled: true,
+        timezone: "America/New_York",
+      },
+    });
+    expect(res.status()).toBe(201);
+    const created = await res.json();
+
+    const detailRes = await request.get(`/api/tasks/${created.id}`);
+    expect(detailRes.ok()).toBeTruthy();
+    const detail = await detailRes.json();
+    expect(typeof detail.nextRunAt).toBe("number");
+    expect(detail.nextRunAt).toBeGreaterThan(0);
+    // Daily cron: nextRunAt should be within 24 hours
+    expect(detail.nextRunAt).toBeLessThanOrEqual(86400);
+  });
+
+  test("non-cron task detail returns null nextRunAt", async ({ request }) => {
+    const res = await request.post("/api/tasks", {
+      data: {
+        title: "No Cron Task",
+        assigneeId,
+        runsAt: "2026-12-01T10:00:00+00:00",
+      },
+    });
+    expect(res.status()).toBe(201);
+    const created = await res.json();
+
+    const detailRes = await request.get(`/api/tasks/${created.id}`);
+    expect(detailRes.ok()).toBeTruthy();
+    const detail = await detailRes.json();
+    expect(detail.nextRunAt).toBeNull();
+  });
+
+  test("list tasks includes nextRunAt for cron tasks", async ({ request }) => {
+    // Create a cron task
+    const cronRes = await request.post("/api/tasks", {
+      data: {
+        title: "Cron List NextRun",
+        assigneeId,
+        cronSchedule: "30 14 * * *",
+        isCronEnabled: true,
+        timezone: "Europe/London",
+      },
+    });
+    expect(cronRes.status()).toBe(201);
+    const cronTask = await cronRes.json();
+
+    const listRes = await request.get("/api/tasks");
+    expect(listRes.ok()).toBeTruthy();
+    const list = await listRes.json();
+
+    const found = list.data.find((t: any) => t.id === cronTask.id);
+    expect(found).toBeTruthy();
+    expect(typeof found.nextRunAt).toBe("number");
+    expect(found.nextRunAt).toBeGreaterThan(0);
+    expect(found.nextRunAt).toBeLessThanOrEqual(86400);
   });
 
   test("session detail includes timezone field", async ({ request }) => {

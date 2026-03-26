@@ -124,7 +124,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const nextRunAt =
     task.isCronEnabled && task.cronSchedule
-      ? getNextRunSeconds(task.cronSchedule, lastRunAt ? new Date(lastRunAt) : null)
+      ? getNextRunSeconds(task.cronSchedule, lastRunAt ? new Date(lastRunAt) : null, task.timezone)
       : null;
 
   // Derive status from active chat sessions

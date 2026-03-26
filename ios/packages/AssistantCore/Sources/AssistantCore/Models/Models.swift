@@ -196,6 +196,7 @@ public struct LindaTask: Codable, Identifiable, Sendable {
     public let cronSchedule: String?
     public let isCronEnabled: Bool?
     public let runsAt: String?
+    public let timezone: String?
     public let nextRunAt: Int?
     public let toolPermissions: [ToolPermission]?
     public let createdAt: String?
@@ -221,6 +222,7 @@ public struct TaskDetail: Codable, Identifiable, Sendable {
     public let cronSchedule: String?
     public let isCronEnabled: Bool?
     public let runsAt: String?
+    public let timezone: String?
     public let nextRunAt: Int?
     public let toolPermissions: [ToolPermission]?
     public let enabledExtensions: [EnabledExtension]?
@@ -251,6 +253,7 @@ public struct CreateTask: Codable, Sendable {
     public let cronSchedule: String?
     public let isCronEnabled: Bool?
     public let runsAt: String?
+    public let timezone: String?
     public let toolPermissions: [ToolPermission]?
 
     public init(
@@ -265,6 +268,7 @@ public struct CreateTask: Codable, Sendable {
         cronSchedule: String? = nil,
         isCronEnabled: Bool? = nil,
         runsAt: String? = nil,
+        timezone: String? = nil,
         toolPermissions: [ToolPermission]? = nil
     ) {
         self.title = title
@@ -278,6 +282,7 @@ public struct CreateTask: Codable, Sendable {
         self.cronSchedule = cronSchedule
         self.isCronEnabled = isCronEnabled
         self.runsAt = runsAt
+        self.timezone = timezone
         self.toolPermissions = toolPermissions
     }
 }
@@ -291,6 +296,7 @@ public struct UpdateTask: Codable, Sendable {
     public let cronSchedule: String?
     public let isCronEnabled: Bool?
     public let runsAt: String?
+    public let timezone: String?
     public let toolPermissions: [ToolPermission]?
 
     public init(
@@ -302,6 +308,7 @@ public struct UpdateTask: Codable, Sendable {
         cronSchedule: String? = nil,
         isCronEnabled: Bool? = nil,
         runsAt: String? = nil,
+        timezone: String? = nil,
         toolPermissions: [ToolPermission]? = nil
     ) {
         self.title = title
@@ -312,6 +319,7 @@ public struct UpdateTask: Codable, Sendable {
         self.cronSchedule = cronSchedule
         self.isCronEnabled = isCronEnabled
         self.runsAt = runsAt
+        self.timezone = timezone
         self.toolPermissions = toolPermissions
     }
 }
