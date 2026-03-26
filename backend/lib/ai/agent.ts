@@ -29,6 +29,7 @@ import { createLocationRequest } from "./location";
 import { getModelProvider } from "./model";
 import { availableModelSchema, calculateCostUsd, DEFAULT_MODEL } from "./models";
 import { createQuestion, sendQuestionGroupNotification } from "./question";
+import { compressToolCallContent } from "./tool-content-compression";
 import { buildToolSet } from "./tools";
 import { ASK_QUESTION_TOOL_NAME } from "./tools/ask-question";
 import { evaluateConditions } from "./tools/conditions";
@@ -1011,7 +1012,7 @@ export async function runAgent(options: AgentRunOptions) {
   const preprocessed = await resolvePendingToolCalls(sessionId, messages, tools, onEvent, taskType);
 
   let stepCount = 0;
-  let currentMessages: ModelMessage[] = [...preprocessed.messages];
+  let currentMessages: ModelMessage[] = compressToolCallContent([...preprocessed.messages]);
   let persistedCount = messages.length + preprocessed.persistCount;
 
   // Accumulated token usage across all steps
