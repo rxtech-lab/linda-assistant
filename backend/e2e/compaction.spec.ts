@@ -1,10 +1,10 @@
-import { test, expect, type APIRequestContext } from "@playwright/test";
-import { consumeSSE } from "./helpers/sse-client";
+import { type APIRequestContext, expect, test } from "@playwright/test";
 import {
   assigneeResponseSchema,
   chatSessionResponseSchema,
   sendMessageResponseSchema,
 } from "./helpers/schemas";
+import { consumeSSE } from "./helpers/sse-client";
 
 async function waitForStatus(
   request: APIRequestContext,
@@ -103,8 +103,9 @@ test.describe("Compaction", () => {
     // Verify messages in DB still contain old messages (compaction preserves history)
     const msgsAfter = await request.get(`/api/chat-sessions/${sessionId}/messages`);
     const msgsAfterBody = await msgsAfter.json();
-    // After compaction: old messages (compacted) + summary + recent messages + new user + new assistant
-    // Total should be >= before + 2 (at least the new user message, new assistant response, and summary)
+    // After compaction: old messages (compacted) + recent messages + new user + new assistant
+    // (summary message is excluded from paginated API responses)
+    // Total should be >= before + 2 (at least the new user message and new assistant response)
     expect(msgsAfterBody.messages.length).toBeGreaterThanOrEqual(
       msgsBeforeBody.messages.length + 2,
     );
@@ -115,7 +116,7 @@ test.describe("Compaction", () => {
     );
     expect(compactedMsgs.length).toBeGreaterThan(0);
 
-    // Non-compacted messages should include the summary and recent messages
+    // Non-compacted messages should include recent messages (summary is excluded from API)
     const activeMsgs = msgsAfterBody.messages.filter(
       (m: { isCompacted?: boolean }) => !m.isCompacted,
     );
