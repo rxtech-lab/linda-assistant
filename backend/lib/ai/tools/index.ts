@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import type { ToolPermission, ToolCondition } from "@/lib/db/schema";
-import { assignees, extensions, assigneeExtensions } from "@/lib/db/schema";
+import { assignees, extensions, assigneeExtensions, taskExtensions } from "@/lib/db/schema";
 import { eq, and, or } from "drizzle-orm";
 import { CREATE_TASK_TOOL_NAME, createTaskTool } from "./create-task";
 import { CREATE_DOCUMENT_TOOL_NAME, createDocumentTool } from "./create-document";
@@ -179,6 +179,59 @@ async function getEnabledExtensions(
 }
 
 /**
+ * Get enabled extensions for a task, including auth config
+ */
+async function getEnabledTaskExtensions(
+  userId: string,
+  taskId: string,
+  accessToken: string,
+): Promise<
+  Array<{
+    prefix: string;
+    mcpUrl: string;
+    auth: AuthConfig;
+    extToolPermissions: ToolPermission[] | null;
+  }>
+> {
+  // Get all extensions available to this user (system + user's own)
+  const allExtensions = await db
+    .select()
+    .from(extensions)
+    .where(or(eq(extensions.type, "system"), eq(extensions.userId, userId)));
+
+  if (allExtensions.length === 0) return [];
+
+  // Get task extension settings
+  const teRows = await db
+    .select()
+    .from(taskExtensions)
+    .where(eq(taskExtensions.taskId, taskId));
+
+  const teMap = new Map(teRows.map((te) => [te.extensionId, te]));
+
+  const result: Array<{
+    prefix: string;
+    mcpUrl: string;
+    auth: AuthConfig;
+    extToolPermissions: ToolPermission[] | null;
+  }> = [];
+
+  for (const ext of allExtensions) {
+    const te = teMap.get(ext.id);
+    if (!te?.enabled) continue; // Skip disabled or not-configured extensions
+
+    result.push({
+      prefix: ext.prefix,
+      mcpUrl: ext.mcpUrl,
+      auth: buildAuthConfig(ext.authType, ext.authConfig, accessToken),
+      extToolPermissions: te.toolPermissions,
+    });
+  }
+
+  return result;
+}
+
+/**
  * Build the tool set for the agent with permission-aware needsApproval.
  *
  * Each tool is built with `needsApproval` derived from the assignee's permission:
@@ -321,8 +374,10 @@ export async function buildToolSet(
 
   // Skip MCP tools in E2E test mode (no valid OAuth tokens for external services)
   if (!isE2E) {
-    // Query enabled extensions for this assignee from DB
-    const enabledExtensions = await getEnabledExtensions(userId, assigneeId, accessToken);
+    // Query enabled extensions from DB — use task extensions in task context
+    const enabledExtensions = taskId
+      ? await getEnabledTaskExtensions(userId, taskId, accessToken)
+      : await getEnabledExtensions(userId, assigneeId, accessToken);
 
     // Load all enabled extension MCP tools in parallel
     const mcpResults = await Promise.allSettled(

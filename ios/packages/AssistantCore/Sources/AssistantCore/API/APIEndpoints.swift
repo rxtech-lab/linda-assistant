@@ -256,6 +256,10 @@ public extension APIClient {
         try await request(path: "assignees/\(assigneeId)/extensions")
     }
 
+    func getAssigneeExtension(assigneeId: String, extensionId: String) async throws -> ExtensionWithStatus {
+        try await request(path: "assignees/\(assigneeId)/extensions/\(extensionId)")
+    }
+
     func updateAssigneeExtension(
         assigneeId: String,
         extensionId: String,
@@ -272,6 +276,10 @@ public extension APIClient {
 
     func listTaskExtensions(taskId: String) async throws -> [ExtensionWithStatus] {
         try await request(path: "tasks/\(taskId)/extensions")
+    }
+
+    func getTaskExtension(taskId: String, extensionId: String) async throws -> ExtensionWithStatus {
+        try await request(path: "tasks/\(taskId)/extensions/\(extensionId)")
     }
 
     func updateTaskExtension(

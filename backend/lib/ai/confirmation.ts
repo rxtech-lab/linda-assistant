@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import type { ModelMessage } from "ai";
 import { db } from "@/lib/db";
-import { confirmations, chatSessions, assignees } from "@/lib/db/schema";
+import { confirmations, chatSessions, assignees, tasks } from "@/lib/db/schema";
 import type { ToolPermission } from "@/lib/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { sendPushNotification } from "@/lib/push";
@@ -264,28 +264,52 @@ export async function resolveConfirmation(
     );
   }
 
-  // Handle alwaysAllow — update assignee's toolPermissions to auto-confirm this tool
-  if (action === "confirm" && options?.alwaysAllow && session.assigneeId) {
-    const [assignee] = await db
-      .select({ toolPermissions: assignees.toolPermissions })
-      .from(assignees)
-      .where(eq(assignees.id, session.assigneeId));
+  // Handle alwaysAllow — update toolPermissions to auto-confirm this tool
+  // In task context, update the task's permissions; otherwise update the assignee's
+  if (action === "confirm" && options?.alwaysAllow) {
+    if (session.taskId) {
+      const [task] = await db
+        .select({ toolPermissions: tasks.toolPermissions })
+        .from(tasks)
+        .where(eq(tasks.id, session.taskId));
 
-    const perms: ToolPermission[] = (assignee?.toolPermissions as ToolPermission[]) ?? [];
-    const idx = perms.findIndex((tp) => tp.toolName === confirmation.toolName);
-    if (idx >= 0) {
-      perms[idx].permission = "auto-confirm";
-    } else {
-      perms.push({
-        toolName: confirmation.toolName,
-        permission: "auto-confirm",
-      });
+      const perms: ToolPermission[] = (task?.toolPermissions as ToolPermission[]) ?? [];
+      const idx = perms.findIndex((tp) => tp.toolName === confirmation.toolName);
+      if (idx >= 0) {
+        perms[idx].permission = "auto-confirm";
+      } else {
+        perms.push({
+          toolName: confirmation.toolName,
+          permission: "auto-confirm",
+        });
+      }
+
+      await db
+        .update(tasks)
+        .set({ toolPermissions: perms, updatedAt: sql`(datetime('now'))` })
+        .where(eq(tasks.id, session.taskId));
+    } else if (session.assigneeId) {
+      const [assignee] = await db
+        .select({ toolPermissions: assignees.toolPermissions })
+        .from(assignees)
+        .where(eq(assignees.id, session.assigneeId));
+
+      const perms: ToolPermission[] = (assignee?.toolPermissions as ToolPermission[]) ?? [];
+      const idx = perms.findIndex((tp) => tp.toolName === confirmation.toolName);
+      if (idx >= 0) {
+        perms[idx].permission = "auto-confirm";
+      } else {
+        perms.push({
+          toolName: confirmation.toolName,
+          permission: "auto-confirm",
+        });
+      }
+
+      await db
+        .update(assignees)
+        .set({ toolPermissions: perms, updatedAt: sql`(datetime('now'))` })
+        .where(eq(assignees.id, session.assigneeId));
     }
-
-    await db
-      .update(assignees)
-      .set({ toolPermissions: perms, updatedAt: sql`(datetime('now'))` })
-      .where(eq(assignees.id, session.assigneeId));
   }
 
   // Sync task status if applicable

@@ -140,6 +140,48 @@ async function updateTaskExtension(
   return (await res.json()) as ExtensionWithStatus;
 }
 
+interface ExtensionDetail extends ExtensionWithStatus {
+  tools: Array<{ name: string; description: string }>;
+}
+
+async function getTaskExtension(
+  taskId: string,
+  extensionId: string,
+): Promise<ExtensionDetail> {
+  const token = loadToken();
+  const res = await fetch(
+    `${BASE_URL}/api/tasks/${taskId}/extensions/${extensionId}`,
+    {
+      headers: authHeaders(token),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `GET /api/tasks/${taskId}/extensions/${extensionId} failed (${res.status}): ${await res.text()}`,
+    );
+  }
+  return (await res.json()) as ExtensionDetail;
+}
+
+async function getAssigneeExtension(
+  assigneeId: string,
+  extensionId: string,
+): Promise<ExtensionDetail> {
+  const token = loadToken();
+  const res = await fetch(
+    `${BASE_URL}/api/assignees/${assigneeId}/extensions/${extensionId}`,
+    {
+      headers: authHeaders(token),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `GET /api/assignees/${assigneeId}/extensions/${extensionId} failed (${res.status}): ${await res.text()}`,
+    );
+  }
+  return (await res.json()) as ExtensionDetail;
+}
+
 async function listAssigneeExtensions(
   assigneeId: string,
 ): Promise<ExtensionWithStatus[]> {
@@ -416,5 +458,74 @@ test.describe("Task toolsets and extensions", () => {
     for (const ext of otherExts) {
       expect(ext.enabled).toBe(false);
     }
+  });
+
+  test("GET task extension detail returns correct enabled status after PUT", async () => {
+    // Enable the extension via PUT
+    await updateTaskExtension(taskId, systemExtensionId, {
+      enabled: true,
+      toolPermissions: [
+        { toolName: "test_tool", permission: "auto-confirm" },
+      ],
+    });
+
+    // GET the extension detail — should reflect the enabled state
+    const detail = await getTaskExtension(taskId, systemExtensionId);
+    expect(detail.id).toBe(systemExtensionId);
+    expect(detail.enabled).toBe(true);
+    expect(detail.toolPermissions).toEqual([
+      { toolName: "test_tool", permission: "auto-confirm" },
+    ]);
+    expect(detail).toHaveProperty("tools");
+    expect(Array.isArray(detail.tools)).toBe(true);
+
+    // Disable the extension via PUT
+    await updateTaskExtension(taskId, systemExtensionId, {
+      enabled: false,
+    });
+
+    // GET again — should now be disabled
+    const detailAfter = await getTaskExtension(taskId, systemExtensionId);
+    expect(detailAfter.enabled).toBe(false);
+
+    // Re-enable for subsequent tests
+    await updateTaskExtension(taskId, systemExtensionId, {
+      enabled: true,
+    });
+  });
+
+  test("GET assignee extension detail returns correct enabled status after PUT", async () => {
+    // Enable the extension on assignee
+    await updateAssigneeExtension(assigneeId, systemExtensionId, {
+      enabled: true,
+    });
+
+    // GET the assignee extension detail — should be enabled
+    const detail = await getAssigneeExtension(assigneeId, systemExtensionId);
+    expect(detail.id).toBe(systemExtensionId);
+    expect(detail.enabled).toBe(true);
+    expect(detail).toHaveProperty("tools");
+    expect(Array.isArray(detail.tools)).toBe(true);
+
+    // Disable via PUT
+    await updateAssigneeExtension(assigneeId, systemExtensionId, {
+      enabled: false,
+    });
+
+    // GET again — should now be disabled
+    const detailAfter = await getAssigneeExtension(assigneeId, systemExtensionId);
+    expect(detailAfter.enabled).toBe(false);
+  });
+
+  test("task and assignee extension detail are independent", async () => {
+    // Enable on task, disable on assignee
+    await updateTaskExtension(taskId, systemExtensionId, { enabled: true });
+    await updateAssigneeExtension(assigneeId, systemExtensionId, { enabled: false });
+
+    const taskDetail = await getTaskExtension(taskId, systemExtensionId);
+    const assigneeDetail = await getAssigneeExtension(assigneeId, systemExtensionId);
+
+    expect(taskDetail.enabled).toBe(true);
+    expect(assigneeDetail.enabled).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
 import AssistantCore
+import MarkdownUI
 import SwiftUI
 
 struct ExtensionDetailView: View {
@@ -78,14 +79,14 @@ struct ExtensionDetailView: View {
                     if let tools = ext.tools, !tools.isEmpty {
                         Section {
                             ForEach(tools) { tool in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(tool.name)
-                                        .font(.body.weight(.medium))
-                                    Text(tool.description)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .padding(.vertical, 2)
+                                let prefixedName = "\(ext.prefix)\(tool.name)"
+                                let permission = ext.toolPermissions?.first(where: { $0.toolName == prefixedName })
+                                    ?? ToolPermission(toolName: prefixedName, permission: "manual-confirm")
+                                ExtensionToolRow(
+                                    tool: tool,
+                                    prefix: ext.prefix,
+                                    permission: permission
+                                )
                             }
                         } header: {
                             Label("Tools (\(tools.count))", systemImage: "wrench.and.screwdriver")
@@ -122,7 +123,13 @@ struct ExtensionDetailView: View {
         isLoading = true
         error = nil
         do {
-            ext = try await apiClient.getExtension(id: extensionId, assigneeId: assigneeId)
+            if let taskId {
+                ext = try await apiClient.getTaskExtension(taskId: taskId, extensionId: extensionId)
+            } else if let assigneeId {
+                ext = try await apiClient.getAssigneeExtension(assigneeId: assigneeId, extensionId: extensionId)
+            } else {
+                ext = try await apiClient.getExtension(id: extensionId)
+            }
         } catch {
             self.error = error.localizedDescription
         }
@@ -151,5 +158,169 @@ struct ExtensionDetailView: View {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+}
+
+// MARK: - Extension Tool Row
+
+private struct ExtensionToolRow: View {
+    let tool: ExtensionTool
+    let prefix: String
+    let permission: ToolPermission
+
+    @State private var showingDetail = false
+
+    private var prefixedName: String {
+        "\(prefix)\(tool.name)"
+    }
+
+    private var formattedName: String {
+        prefixedName
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
+    }
+
+    private var iconName: String {
+        switch prefixedName.lowercased() {
+        case let n where n.contains("email"): "envelope"
+        case let n where n.contains("search"): "magnifyingglass"
+        case let n where n.contains("calendar"): "calendar"
+        case let n where n.contains("file"): "doc"
+        case let n where n.contains("web") || n.contains("scrape") || n.contains("crawl"): "globe"
+        case let n where n.contains("message"): "message"
+        case let n where n.contains("invoice"): "doc.text"
+        case let n where n.contains("create") || n.contains("add"): "plus.circle"
+        case let n where n.contains("list") || n.contains("get"): "list.bullet"
+        case let n where n.contains("update") || n.contains("edit"): "pencil"
+        case let n where n.contains("delete") || n.contains("remove"): "trash"
+        default: "gearshape"
+        }
+    }
+
+    private var iconColor: Color {
+        switch prefixedName.lowercased() {
+        case let n where n.contains("email"): .blue
+        case let n where n.contains("search"): .purple
+        case let n where n.contains("calendar"): .red
+        case let n where n.contains("web") || n.contains("scrape") || n.contains("crawl"): .green
+        case let n where n.contains("invoice"): .orange
+        default: .secondary
+        }
+    }
+
+    var body: some View {
+        HStack {
+            Image(systemName: iconName)
+                .font(.body)
+                .foregroundStyle(iconColor)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(formattedName)
+                    .font(.body)
+                if !tool.description.isEmpty {
+                    if let md = try? AttributedString(markdown: tool.description) {
+                        Text(md)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    } else {
+                        Text(tool.description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: 4)
+
+            PermissionBadge(
+                permission: permission.permission,
+                hasConditions: !(permission.conditions ?? []).isEmpty
+            )
+            .fixedSize()
+
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            showingDetail = true
+        }
+        .sheet(isPresented: $showingDetail) {
+            ExtensionToolDetailSheet(
+                name: formattedName,
+                iconName: iconName,
+                iconColor: iconColor,
+                description: tool.description,
+                permission: permission
+            )
+        }
+    }
+}
+
+// MARK: - Extension Tool Detail Sheet
+
+private struct ExtensionToolDetailSheet: View {
+    let name: String
+    let iconName: String
+    let iconColor: Color
+    let description: String
+    let permission: ToolPermission
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    VStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(iconColor.gradient)
+                                .frame(width: 64, height: 64)
+                            Image(systemName: iconName)
+                                .font(.title2.weight(.semibold))
+                                .foregroundStyle(.white)
+                        }
+
+                        Text(name)
+                            .font(.title3.weight(.semibold))
+
+                        PermissionBadge(
+                            permission: permission.permission,
+                            hasConditions: !(permission.conditions ?? []).isEmpty
+                        )
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .listRowBackground(Color.clear)
+                }
+
+                if !description.isEmpty {
+                    Section {
+                        Markdown(description)
+                            .markdownTheme(.chat)
+                            .textSelection(.enabled)
+                    } header: {
+                        Text("Description")
+                    }
+                }
+            }
+            #if os(iOS)
+            .listStyle(.insetGrouped)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
