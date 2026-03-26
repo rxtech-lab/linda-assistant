@@ -52,6 +52,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     { userId: task.userId, id: task.assigneeId },
     task.title,
     task.id,
+    auth.accessToken,
   );
 
   return successJson({ sessionId: session.id, queued: true });

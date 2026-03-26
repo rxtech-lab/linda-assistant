@@ -56,7 +56,7 @@ jobs:
   run:
     name: ${{ inputs.job-name }}
     runs-on: ${{ fromJSON(inputs.runs-on) }}
-    timeout-minutes: 40
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code

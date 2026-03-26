@@ -66,12 +66,19 @@ async function loadMcpTools(
     > = {};
 
     // Build needsApproval map based on permissions
+    // Extension tool permissions may store names with or without prefix,
+    // so we check both the prefixed name and the raw (unprefixed) name.
     for (const toolName of Object.keys(rawTools)) {
       const prefixedName = `${prefix}${toolName}`;
-      const { permission, conditions, conditionLogic } = resolvePermissionWithConditions(
-        prefixedName,
-        toolPermissions,
-      );
+      let resolved = resolvePermissionWithConditions(prefixedName, toolPermissions);
+      // Fallback: try unprefixed name (extension-level permissions use raw MCP tool names)
+      if (resolved.permission === "manual-confirm" && toolPermissions?.length) {
+        const unprefixed = resolvePermissionWithConditions(toolName, toolPermissions);
+        if (unprefixed.permission !== "manual-confirm") {
+          resolved = unprefixed;
+        }
+      }
+      const { permission, conditions, conditionLogic } = resolved;
       if (permission === "auto-reject" || permission === "disabled") continue;
       const hasConditions = permission === "auto-confirm" && conditions && conditions.length > 0;
       needsApproval[toolName] = permission === "manual-confirm" || !!hasConditions;
@@ -89,10 +96,14 @@ async function loadMcpTools(
     // Prefix tool names and filter out auto-rejected tools
     const prefixed: Record<string, unknown> = {};
     for (const [toolName, tool] of Object.entries(mcpTools)) {
-      const { permission } = resolvePermissionWithConditions(
-        `${prefix}${toolName}`,
-        toolPermissions,
-      );
+      let resolved = resolvePermissionWithConditions(`${prefix}${toolName}`, toolPermissions);
+      if (resolved.permission === "manual-confirm" && toolPermissions?.length) {
+        const unprefixed = resolvePermissionWithConditions(toolName, toolPermissions);
+        if (unprefixed.permission !== "manual-confirm") {
+          resolved = unprefixed;
+        }
+      }
+      const { permission } = resolved;
       if (permission === "auto-reject" || permission === "disabled") continue;
       prefixed[`${prefix}${toolName}`] = tool as unknown;
     }

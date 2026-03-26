@@ -78,7 +78,7 @@ struct ExtensionDetailView: View {
                     // Tools list
                     if let tools = ext.tools, !tools.isEmpty {
                         Section {
-                            ForEach(tools) { tool in
+                            ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
                                 let prefixedName = "\(ext.prefix)\(tool.name)"
                                 let permission = ext.toolPermissions?.first(where: { $0.toolName == prefixedName })
                                     ?? ToolPermission(toolName: prefixedName, permission: "manual-confirm")
@@ -87,6 +87,7 @@ struct ExtensionDetailView: View {
                                     prefix: ext.prefix,
                                     permission: permission
                                 )
+                                .accessibilityIdentifier("tool-row-\(index)")
                             }
                         } header: {
                             Label("Tools (\(tools.count))", systemImage: "wrench.and.screwdriver")

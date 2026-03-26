@@ -16,6 +16,7 @@ export async function createAssigneeFollowUp(
   assignee: Assignee,
   title?: string,
   taskId?: string,
+  accessToken?: string,
 ) {
   const [session] = await db
     .insert(chatSessions)
@@ -25,6 +26,7 @@ export async function createAssigneeFollowUp(
       taskId: taskId ?? null,
       title: title ?? textContent.slice(0, 80),
       status: "starting",
+      accessToken: accessToken ?? null,
     })
     .returning();
 

@@ -31,7 +31,7 @@ struct AssigneeExtensionListView: View {
                 )
             } else {
                 List {
-                    ForEach(extensions) { ext in
+                    ForEach(Array(extensions.enumerated()), id: \.element.id) { index, ext in
                         NavigationLink(value: AppDestination.extensionDetail(
                             extensionId: ext.id,
                             assigneeId: assigneeId
@@ -57,8 +57,10 @@ struct AssigneeExtensionListView: View {
                                     }
                                 ))
                                 .labelsHidden()
+                                .accessibilityIdentifier("extension-toggle-\(index)")
                             }
                         }
+                        .accessibilityIdentifier("extension-row-\(index)")
                     }
                 }
             }
