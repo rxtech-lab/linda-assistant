@@ -97,6 +97,7 @@ export const tasks = sqliteTable("tasks", {
   cronSchedule: text("cron_schedule"),
   isCronEnabled: integer("is_cron_enabled", { mode: "boolean" }).default(false),
   runsAt: text("runs_at"),
+  timezone: text("timezone"),
   toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),

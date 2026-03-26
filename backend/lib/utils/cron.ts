@@ -18,13 +18,15 @@ export function isValidCronExpression(expr: string): boolean {
  * falls back to the next occurrence from now.
  * Returns null if the expression is invalid or parsing fails.
  */
-export function getNextRunSeconds(expr: string, lastRunAt?: Date | null): number | null {
+export function getNextRunSeconds(expr: string, lastRunAt?: Date | null, tz?: string | null): number | null {
   try {
     const now = new Date(Date.now());
+    const options: { currentDate?: Date; tz?: string } = {};
+    if (tz) options.tz = tz;
 
     if (lastRunAt) {
       const afterLastRun = cronParser
-        .parseExpression(expr, { currentDate: lastRunAt })
+        .parseExpression(expr, { ...options, currentDate: lastRunAt })
         .next()
         .toDate();
       if (afterLastRun > now) {
@@ -33,7 +35,7 @@ export function getNextRunSeconds(expr: string, lastRunAt?: Date | null): number
     }
 
     // Fallback: next occurrence from now
-    const next = cronParser.parseExpression(expr).next().toDate();
+    const next = cronParser.parseExpression(expr, options).next().toDate();
     return Math.floor((next.getTime() - now.getTime()) / 1000);
   } catch {
     return null;
