@@ -109,6 +109,44 @@ describe("findSafeSplitPoint", () => {
   });
 });
 
+// ── Helpers with unique toolCallIds ─────────────────────────────────────
+
+function toolCallMsgId(
+  toolCallId: string,
+  toolName: string,
+  input: Record<string, unknown>,
+): ModelMessage {
+  return {
+    role: "assistant",
+    content: [{ type: "tool-call", toolCallId, toolName, input }],
+  } as unknown as ModelMessage;
+}
+
+function toolResultMsgId(
+  toolCallId: string,
+  toolName: string,
+  output: unknown,
+): ModelMessage {
+  return {
+    role: "tool",
+    content: [{ type: "tool-result", toolCallId, toolName, output }],
+  } as unknown as ModelMessage;
+}
+
+function multiToolCallMsg(
+  calls: Array<{ toolCallId: string; toolName: string; input: Record<string, unknown> }>,
+): ModelMessage {
+  return {
+    role: "assistant",
+    content: calls.map((c) => ({
+      type: "tool-call",
+      toolCallId: c.toolCallId,
+      toolName: c.toolName,
+      input: c.input,
+    })),
+  } as unknown as ModelMessage;
+}
+
 // ── splitMessages ──────────────────────────────────────────────────────
 
 describe("splitMessages", () => {
@@ -153,6 +191,94 @@ describe("splitMessages", () => {
     );
     if (hasToolCall) {
       expect(hasToolResult).toBe(true);
+    }
+  });
+
+  test("moves split backward when tool-result in recent has no matching tool-call", () => {
+    // A non-tool message sits between the assistant tool-call and its result.
+    // With minRecent=4, rawSplitIndex=3, findSafeSplitPoint walks back from
+    // tool msg at 3 → user at 2 → returns 2. Old=[0,1], Recent=[2,3,4,5,6].
+    // Recent has tool-result tc-A (index 3) but tool-call tc-A (index 1) is
+    // in old — the validation loop detects this and moves the split backward.
+    const msgs = [
+      textMsg("user", "Hi"),                                     // 0
+      toolCallMsgId("tc-A", "send_email", { to: "a@b.com" }),   // 1
+      textMsg("user", "What about this?"),                       // 2
+      toolResultMsgId("tc-A", "send_email", { sent: true }),     // 3
+      textMsg("user", "Thanks"),                                 // 4
+      textMsg("assistant", "Done"),                               // 5
+      textMsg("user", "Bye"),                                     // 6
+    ];
+    const { oldMessages, recentMessages } = splitMessages(msgs, 4);
+
+    // After fix: tool-call and tool-result for tc-A must both be in the same group
+    const recentCallIds = new Set<string>();
+    const recentResultIds = new Set<string>();
+    for (const m of recentMessages) {
+      if (!Array.isArray(m.content)) continue;
+      for (const p of m.content as Record<string, unknown>[]) {
+        if (p.type === "tool-call" && typeof p.toolCallId === "string")
+          recentCallIds.add(p.toolCallId);
+        if (p.type === "tool-result" && typeof p.toolCallId === "string")
+          recentResultIds.add(p.toolCallId);
+      }
+    }
+    // Every tool-result in recent must have its tool-call in recent
+    for (const id of recentResultIds) {
+      expect(recentCallIds.has(id)).toBe(true);
+    }
+    // And old should not have orphans either
+    const oldCallIds = new Set<string>();
+    const oldResultIds = new Set<string>();
+    for (const m of oldMessages) {
+      if (!Array.isArray(m.content)) continue;
+      for (const p of m.content as Record<string, unknown>[]) {
+        if (p.type === "tool-call" && typeof p.toolCallId === "string")
+          oldCallIds.add(p.toolCallId);
+        if (p.type === "tool-result" && typeof p.toolCallId === "string")
+          oldResultIds.add(p.toolCallId);
+      }
+    }
+    for (const id of oldResultIds) {
+      expect(oldCallIds.has(id)).toBe(true);
+    }
+  });
+
+  test("handles multiple tool pairs with split falling between call and result", () => {
+    // An assistant message has two tool-calls (tc-X, tc-Y). The result for
+    // tc-Y is separated from the assistant by a text message. With minRecent=4,
+    // rawSplitIndex=4 → findSafeSplitPoint walks back from tool-result at 4
+    // → assistant without tool-calls at 3 → returns 3. Old=[0,1,2],
+    // Recent=[3,4,5,6,7]. tc-Y result is in recent but its call (index 1) is
+    // in old — validation moves the split backward to reunite them.
+    const msgs = [
+      textMsg("user", "Start"),                                   // 0
+      multiToolCallMsg([                                          // 1
+        { toolCallId: "tc-X", toolName: "search", input: {} },
+        { toolCallId: "tc-Y", toolName: "create", input: {} },
+      ]),
+      toolResultMsgId("tc-X", "search", { found: true }),        // 2
+      textMsg("assistant", "Processing..."),                       // 3
+      toolResultMsgId("tc-Y", "create", { id: "1" }),            // 4
+      textMsg("user", "OK"),                                       // 5
+      textMsg("assistant", "All done"),                            // 6
+      textMsg("user", "Bye"),                                      // 7
+    ];
+    const { recentMessages } = splitMessages(msgs, 4);
+
+    const recentCallIds = new Set<string>();
+    const recentResultIds = new Set<string>();
+    for (const m of recentMessages) {
+      if (!Array.isArray(m.content)) continue;
+      for (const p of m.content as Record<string, unknown>[]) {
+        if (p.type === "tool-call" && typeof p.toolCallId === "string")
+          recentCallIds.add(p.toolCallId);
+        if (p.type === "tool-result" && typeof p.toolCallId === "string")
+          recentResultIds.add(p.toolCallId);
+      }
+    }
+    for (const id of recentResultIds) {
+      expect(recentCallIds.has(id)).toBe(true);
     }
   });
 });
