@@ -206,10 +206,10 @@ final class ExtensionDetailTests: XCTestCase {
         let extensionsTitle = app.navigationBars["Extensions"].firstMatch
         XCTAssertTrue(extensionsTitle.waitForExistence(timeout: 5), "Extensions navigation title should appear")
 
-        // Tap the Invoice extension row (system extension)
-        let settingsInvoiceText = app.staticTexts["Invoice"].firstMatch
-        XCTAssertTrue(settingsInvoiceText.waitForExistence(timeout: 10), "Invoice extension should exist in settings")
-        settingsInvoiceText.tap()
+        // Tap the first extension row (system extension)
+        let settingsExtRow = app.descendants(matching: .any)["extension-row-0"].firstMatch
+        XCTAssertTrue(settingsExtRow.waitForExistence(timeout: 10), "Extension row should exist in settings")
+        settingsExtRow.tap()
         sleep(2)
 
         // There should be no Enabled toggle (no assigneeId/taskId context)

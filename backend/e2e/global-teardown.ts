@@ -3,6 +3,7 @@ import path from "path";
 
 const WORKER_PID_FILE = path.resolve(__dirname, "..", "e2e-worker.pid");
 const CELERY_MOCK_PID_FILE = path.resolve(__dirname, "..", "e2e-celery-mock.pid");
+const MCP_MOCK_PID_FILE = path.resolve(__dirname, "..", "e2e-mcp-mock.pid");
 
 function killPidFile(pidFile: string) {
   if (fs.existsSync(pidFile)) {
@@ -22,6 +23,9 @@ export default async function globalTeardown() {
 
   // Kill Celery mock server
   killPidFile(CELERY_MOCK_PID_FILE);
+
+  // Kill MCP mock server
+  killPidFile(MCP_MOCK_PID_FILE);
 
   // Clean up test DB
   const dbPath = path.resolve(__dirname, "..", "e2e-test.db");

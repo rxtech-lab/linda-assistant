@@ -54,6 +54,7 @@ async function deleteChatSession(token: AuthToken, id: string): Promise<void> {
 }
 
 test.describe("PDF generation", () => {
+  test.skip(!process.env.CI, "Skipped outside CI");
   let token: AuthToken;
   let chatSessionId: string;
 
@@ -72,7 +73,8 @@ test.describe("PDF generation", () => {
     const docId = await createDocument(token, chatSessionId, {
       title: "Test Markdown Document",
       format: "markdown",
-      content: "# Hello World\n\nThis is a **test** document.\n\n- Item 1\n- Item 2\n",
+      content:
+        "# Hello World\n\nThis is a **test** document.\n\n- Item 1\n- Item 2\n",
     });
 
     const res = await fetch(`${BASE_URL}/api/documents/${docId}/pdf`, {
@@ -81,7 +83,9 @@ test.describe("PDF generation", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/pdf");
-    expect(res.headers.get("content-disposition")).toContain("Test Markdown Document.pdf");
+    expect(res.headers.get("content-disposition")).toContain(
+      "Test Markdown Document.pdf",
+    );
 
     const buffer = await res.arrayBuffer();
     expect(buffer.byteLength).toBeGreaterThan(0);
@@ -96,7 +100,8 @@ test.describe("PDF generation", () => {
     const docId = await createDocument(token, chatSessionId, {
       title: "Test HTML Document",
       format: "html",
-      content: "<h2>HTML Content</h2><p>This is an <strong>HTML</strong> document.</p>",
+      content:
+        "<h2>HTML Content</h2><p>This is an <strong>HTML</strong> document.</p>",
     });
 
     const res = await fetch(`${BASE_URL}/api/documents/${docId}/pdf`, {
@@ -116,7 +121,8 @@ test.describe("PDF generation", () => {
     const docId = await createDocument(token, chatSessionId, {
       title: "中文测试文档",
       format: "markdown",
-      content: "# 你好世界\n\n这是一个包含中文的测试文档。\n\n日本語テスト。한국어 테스트.",
+      content:
+        "# 你好世界\n\n这是一个包含中文的测试文档。\n\n日本語テスト。한국어 테스트.",
     });
 
     const res = await fetch(`${BASE_URL}/api/documents/${docId}/pdf`, {

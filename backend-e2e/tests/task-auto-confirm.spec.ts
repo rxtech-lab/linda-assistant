@@ -19,9 +19,7 @@ import {
 const test = base.extend<{ assigneeId: string }>({
   assigneeId: async ({}, use, testInfo) => {
     await ensureOnboarded();
-    const id = await createAssignee(
-      `e2e-task-auto-confirm-${testInfo.testId}`,
-    );
+    const id = await createAssignee(`e2e-task-auto-confirm-${testInfo.testId}`);
     console.log(`Created assignee ${id} for: ${testInfo.title}`);
 
     // Set assignee permissions: get_current_time to manual-confirm
@@ -40,7 +38,7 @@ const test = base.extend<{ assigneeId: string }>({
   },
 });
 
-test.describe.serial("Task auto-confirm via alwaysAllow", () => {
+test.describe("Task auto-confirm via alwaysAllow", () => {
   test.setTimeout(300_000);
 
   test("alwaysAllow in task chat updates task permissions, not assignee, and re-execution auto-confirms", async ({
@@ -61,7 +59,7 @@ test.describe.serial("Task auto-confirm via alwaysAllow", () => {
         (tp: { toolName: string }) => tp.toolName === "get_current_time",
       );
       expect(timePerm).toBeDefined();
-      expect(timePerm.permission).toBe("manual-confirm");
+      expect(timePerm!.permission).toBe("manual-confirm");
 
       // --- First execution: should require confirmation ---
       const { sessionId: sessionId1 } = await executeTaskNow(taskId);
@@ -78,11 +76,13 @@ test.describe.serial("Task auto-confirm via alwaysAllow", () => {
       expect(confirmEvent.data.toolName).toBe("get_current_time");
       console.log("Got confirmation_required for get_current_time");
 
-      // Find the pending confirmation
+      // Find the pending confirmation scoped to this session
       const pendingConfirmations = await listConfirmations();
       const timeConfirmation = pendingConfirmations.find(
         (c) =>
-          c.toolName === "get_current_time" && c.status === "pending",
+          c.toolName === "get_current_time" &&
+          c.status === "pending" &&
+          c.chatSessionId === sessionId1,
       );
       expect(timeConfirmation).toBeTruthy();
 
@@ -102,7 +102,7 @@ test.describe.serial("Task auto-confirm via alwaysAllow", () => {
         (tp: { toolName: string }) => tp.toolName === "get_current_time",
       );
       expect(timePermAfter).toBeDefined();
-      expect(timePermAfter.permission).toBe("auto-confirm");
+      expect(timePermAfter!.permission).toBe("auto-confirm");
       console.log("Task permission updated to auto-confirm");
 
       // --- Verify: assignee permissions unchanged (still manual-confirm) ---
@@ -135,8 +135,7 @@ test.describe.serial("Task auto-confirm via alwaysAllow", () => {
 
       const toolResultEvents = stream2.events.filter(
         (e) =>
-          e.event === "tool-result" &&
-          e.data.toolName === "get_current_time",
+          e.event === "tool-result" && e.data.toolName === "get_current_time",
       );
       expect(toolResultEvents.length).toBeGreaterThanOrEqual(1);
 

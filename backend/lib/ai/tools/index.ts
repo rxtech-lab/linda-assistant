@@ -383,31 +383,28 @@ export async function buildToolSet(
   // Notification tool — never require confirmation
   filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(userId, chatSessionId);
 
-  // Skip MCP tools in E2E test mode (no valid OAuth tokens for external services)
-  if (!isE2E) {
-    // Query enabled extensions from DB — use task extensions in task context
-    const enabledExtensions = taskId
-      ? await getEnabledTaskExtensions(userId, taskId, accessToken)
-      : await getEnabledExtensions(userId, assigneeId, accessToken);
+  // Query enabled extensions from DB — use task extensions in task context
+  const enabledExtensions = taskId
+    ? await getEnabledTaskExtensions(userId, taskId, accessToken)
+    : await getEnabledExtensions(userId, assigneeId, accessToken);
 
-    // Load all enabled extension MCP tools in parallel
-    const mcpResults = await Promise.allSettled(
-      enabledExtensions.map(({ prefix, mcpUrl, auth, extToolPermissions }) =>
-        loadMcpTools(prefix, mcpUrl, auth, extToolPermissions ?? toolPermissions),
-      ),
-    );
+  // Load all enabled extension MCP tools in parallel
+  const mcpResults = await Promise.allSettled(
+    enabledExtensions.map(({ prefix, mcpUrl, auth, extToolPermissions }) =>
+      loadMcpTools(prefix, mcpUrl, auth, extToolPermissions ?? toolPermissions),
+    ),
+  );
 
-    for (let i = 0; i < mcpResults.length; i++) {
-      const result = mcpResults[i];
-      if (result.status === "fulfilled") {
-        Object.assign(filtered, result.value.tools);
-        Object.assign(conditionalAutoConfirm, result.value.conditionalAutoConfirm);
-      } else {
-        console.error(
-          `[buildToolSet] MCP ${enabledExtensions[i].prefix} failed to load:`,
-          result.reason,
-        );
-      }
+  for (let i = 0; i < mcpResults.length; i++) {
+    const result = mcpResults[i];
+    if (result.status === "fulfilled") {
+      Object.assign(filtered, result.value.tools);
+      Object.assign(conditionalAutoConfirm, result.value.conditionalAutoConfirm);
+    } else {
+      console.error(
+        `[buildToolSet] MCP ${enabledExtensions[i].prefix} failed to load:`,
+        result.reason,
+      );
     }
   }
 

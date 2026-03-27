@@ -383,6 +383,7 @@ export async function getChatHistory(
 
 interface Confirmation {
   id: string;
+  chatSessionId: string;
   toolName: string;
   toolCallId: string;
   status: string;

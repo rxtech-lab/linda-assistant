@@ -48,6 +48,7 @@ const test = base.extend<{ assigneeId: string }>({
 });
 
 test.describe("Queue task execution", () => {
+  test.skip(!process.env.CI, "Skipped outside CI");
   test.setTimeout(120_000);
 
   test("scheduled task creates a document via the agent", async ({

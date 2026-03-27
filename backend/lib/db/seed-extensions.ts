@@ -31,6 +31,13 @@ const SYSTEM_EXTENSIONS = [
     prefix: "transport_",
     envVar: "TRANSPORT_MCP_URL",
   },
+  {
+    slug: "e2e_test",
+    title: "E2E Test",
+    description: "Mock MCP server for e2e testing",
+    prefix: "e2e_test_",
+    envVar: "E2E_MCP_URL",
+  },
 ] as const;
 
 export async function ensureSystemExtensions(): Promise<void> {

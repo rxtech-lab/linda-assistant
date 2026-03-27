@@ -50,7 +50,7 @@ jobs:
       artifact-path: test.log
       upload-test-results: true
       start-backend: true
-      parallel-testing-workers: 2
+      parallel-testing-workers: 3
     secrets: inherit
 
   test-macos:

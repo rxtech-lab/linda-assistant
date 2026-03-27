@@ -162,10 +162,13 @@ test.describe.serial("Task conditional tool permissions", () => {
       expect(confirmEvent).toBeTruthy();
       expect(confirmEvent.data.toolName).toBe("send_email");
 
-      // Verify: a confirmation record was created
+      // Verify: a confirmation record was created (scoped to this session)
       const confirmations = await listConfirmations();
       const sendEmailConfirmation = confirmations.find(
-        (c) => c.toolName === "send_email" && c.status === "pending",
+        (c) =>
+          c.toolName === "send_email" &&
+          c.status === "pending" &&
+          c.chatSessionId === sessionId,
       );
       expect(sendEmailConfirmation).toBeTruthy();
 
