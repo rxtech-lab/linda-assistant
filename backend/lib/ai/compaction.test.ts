@@ -195,9 +195,11 @@ describe("splitMessages", () => {
   });
 
   test("moves split backward when tool-result in recent has no matching tool-call", () => {
-    // Simulate an abnormal ordering where a non-tool message sits between
-    // the assistant tool-call and its tool-result. findSafeSplitPoint alone
-    // would stop at the user message, leaving the tool-call in old.
+    // A non-tool message sits between the assistant tool-call and its result.
+    // With minRecent=4, rawSplitIndex=3, findSafeSplitPoint walks back from
+    // tool msg at 3 → user at 2 → returns 2. Old=[0,1], Recent=[2,3,4,5,6].
+    // Recent has tool-result tc-A (index 3) but tool-call tc-A (index 1) is
+    // in old — the validation loop detects this and moves the split backward.
     const msgs = [
       textMsg("user", "Hi"),                                     // 0
       toolCallMsgId("tc-A", "send_email", { to: "a@b.com" }),   // 1
@@ -207,17 +209,6 @@ describe("splitMessages", () => {
       textMsg("assistant", "Done"),                               // 5
       textMsg("user", "Bye"),                                     // 6
     ];
-    // minRecent=3 → rawSplitIndex = 7-3 = 4
-    // findSafeSplitPoint(msgs, 4) sees user msg → returns 4
-    // Old would be [0,1,2,3], Recent=[4,5,6]
-    // BUT tool-result tc-A is in recent-side msg 3 while its tool-call is in old-side msg 1
-    // Wait — with rawSplitIndex=4, old=[0,1,2,3], that includes both.
-    //
-    // Let's use minRecent=4 → rawSplitIndex = 7-4 = 3
-    // findSafeSplitPoint(msgs, 3) sees tool msg → walks back to idx=2 (user) → break → returns 2
-    // Old=[0,1], Recent=[2,3,4,5,6]
-    // Recent has tool-result tc-A at index 3 but tool-call tc-A at index 1 is in old!
-    // The validation loop should detect this and move the split backward.
     const { oldMessages, recentMessages } = splitMessages(msgs, 4);
 
     // After fix: tool-call and tool-result for tc-A must both be in the same group
@@ -254,6 +245,12 @@ describe("splitMessages", () => {
   });
 
   test("handles multiple tool pairs with split falling between call and result", () => {
+    // An assistant message has two tool-calls (tc-X, tc-Y). The result for
+    // tc-Y is separated from the assistant by a text message. With minRecent=4,
+    // rawSplitIndex=4 → findSafeSplitPoint walks back from tool-result at 4
+    // → assistant without tool-calls at 3 → returns 3. Old=[0,1,2],
+    // Recent=[3,4,5,6,7]. tc-Y result is in recent but its call (index 1) is
+    // in old — validation moves the split backward to reunite them.
     const msgs = [
       textMsg("user", "Start"),                                   // 0
       multiToolCallMsg([                                          // 1
@@ -267,16 +264,6 @@ describe("splitMessages", () => {
       textMsg("assistant", "All done"),                            // 6
       textMsg("user", "Bye"),                                      // 7
     ];
-    // minRecent=3 → rawSplitIndex = 8-3 = 5 → user msg at 5 → returns 5
-    // Old=[0,1,2,3,4], Recent=[5,6,7]
-    // tc-Y result at 4 is in old, tc-Y call at 1 is in old → OK
-    // tc-X result at 2 is in old, tc-X call at 1 is in old → OK
-    //
-    // minRecent=4 → rawSplitIndex = 8-4 = 4 → tool-result at 4
-    // findSafeSplitPoint walks back: idx=3 (assistant no tool-calls → break) → returns 3
-    // Old=[0,1,2], Recent=[3,4,5,6,7]
-    // tc-Y result at 4 is in recent but tc-Y call at 1 is in old! Orphan!
-    // Validation should move split backward to include the call.
     const { recentMessages } = splitMessages(msgs, 4);
 
     const recentCallIds = new Set<string>();
