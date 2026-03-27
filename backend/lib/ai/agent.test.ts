@@ -259,4 +259,83 @@ describe("cleanMessagesForModel", () => {
     expect(injectedParts[0].toolCallId).toBe("tc2");
     expect(injectedParts[0].toolName).toBe("send_email");
   });
+
+  test("drops orphan tool-results whose tool-call was compacted away", () => {
+    // Simulate post-compaction state: summary replaces old messages including
+    // the assistant tool-call, but the tool-result remains as a non-compacted message.
+    const messages = [
+      msg("user", [
+        {
+          type: "text",
+          text: "[CONVERSATION SUMMARY]\nUser asked to send email. Tool send_email was called.\n[END SUMMARY]",
+        },
+      ]),
+      // Orphan tool-result: its tool-call was compacted into the summary above
+      msg("tool", [
+        {
+          type: "tool-result",
+          toolCallId: "tc_compacted",
+          toolName: "send_email",
+          output: { type: "json", value: { sent: true } },
+        },
+      ]),
+      msg("user", [{ type: "text", text: "What happened next?" }]),
+      msg("assistant", [{ type: "text", text: "The email was sent successfully." }]),
+    ];
+
+    const result = cleanMessagesForModel(messages);
+
+    // The orphan tool-result should be dropped, not appended
+    const allToolResults = result.flatMap((m) =>
+      Array.isArray(m.content)
+        ? (m.content as Record<string, unknown>[]).filter((p) => p.type === "tool-result")
+        : [],
+    );
+    expect(allToolResults).toHaveLength(0);
+
+    // Should have: summary, user, assistant (3 messages, tool msg dropped)
+    expect(result).toHaveLength(3);
+    expect(result[0].role).toBe("user"); // summary
+    expect(result[1].role).toBe("user"); // follow-up
+    expect(result[2].role).toBe("assistant");
+  });
+
+  test("drops orphan tool-results while keeping valid tool-call/result pairs", () => {
+    const messages = [
+      msg("user", [{ type: "text", text: "[CONVERSATION SUMMARY]\n..." }]),
+      // Orphan tool-result from compacted tool-call
+      msg("tool", [
+        {
+          type: "tool-result",
+          toolCallId: "tc_old",
+          toolName: "search_emails",
+          output: { type: "json", value: [] },
+        },
+      ]),
+      // Valid tool-call/result pair
+      msg("assistant", [
+        { type: "tool-call", toolCallId: "tc_new", toolName: "create_task", input: { title: "x" } },
+      ]),
+      msg("tool", [
+        {
+          type: "tool-result",
+          toolCallId: "tc_new",
+          toolName: "create_task",
+          output: { type: "json", value: { id: "t1" } },
+        },
+      ]),
+      msg("assistant", [{ type: "text", text: "Task created." }]),
+    ];
+
+    const result = cleanMessagesForModel(messages);
+
+    const allToolResults = result.flatMap((m) =>
+      Array.isArray(m.content)
+        ? (m.content as Record<string, unknown>[]).filter((p) => p.type === "tool-result")
+        : [],
+    );
+    // Only the valid tc_new result should remain
+    expect(allToolResults).toHaveLength(1);
+    expect(allToolResults[0].toolCallId).toBe("tc_new");
+  });
 });

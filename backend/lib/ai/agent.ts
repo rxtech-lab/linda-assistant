@@ -329,7 +329,9 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
     }
   }
 
-  // Step 3: Append any remaining tool-results that didn't match an assistant message
+  // Step 3: Drop orphan tool-results whose tool-calls no longer exist in the
+  // message history (e.g. compacted away). Appending them would cause
+  // "No tool call found for function call output" errors from the LLM API.
   for (const i of toolResultMsgIndices) {
     const msg = result[i];
     if (!Array.isArray(msg.content)) continue;
@@ -341,16 +343,11 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
         !placedCallIds.has(p.toolCallId as string),
     );
     if (unplaced.length > 0) {
-      // Preserve providerMetadata from the original tool message
-      const msgRecord = msg as Record<string, unknown>;
-      const metadata: Record<string, unknown> = {};
-      if (msgRecord.providerMetadata) metadata.providerMetadata = msgRecord.providerMetadata;
-      if (msgRecord.providerOptions) metadata.providerOptions = msgRecord.providerOptions;
-      finalResult.push({
-        role: "tool",
-        content: unplaced,
-        ...metadata,
-      } as unknown as ModelMessage);
+      for (const p of unplaced) {
+        console.warn(
+          `[cleanMessagesForModel] Dropping orphan tool-result: toolCallId=${p.toolCallId} toolName=${p.toolName} (no matching tool-call in messages)`,
+        );
+      }
     }
   }
 

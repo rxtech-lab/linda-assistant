@@ -95,10 +95,39 @@ export function findSafeSplitPoint(messages: ModelMessage[], targetIndex: number
 }
 
 /**
+ * Collect all tool-call and tool-result IDs from a set of messages.
+ */
+function collectToolCallIds(msgs: ModelMessage[]): {
+  callIds: Set<string>;
+  resultIds: Set<string>;
+} {
+  const callIds = new Set<string>();
+  const resultIds = new Set<string>();
+  for (const msg of msgs) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (part.type === "tool-call" && typeof part.toolCallId === "string") {
+        callIds.add(part.toolCallId);
+      }
+      if (part.type === "tool-result" && typeof part.toolCallId === "string") {
+        resultIds.add(part.toolCallId);
+      }
+    }
+  }
+  return { callIds, resultIds };
+}
+
+/**
  * Split messages into old (to compact) and recent (to keep).
  * Returns { oldMessages, recentMessages, splitSeq }.
  *
  * `splitSeq` is the seq value of the first recent message (for DB compaction).
+ *
+ * After the initial safe-split, validates that every tool-result in the
+ * recent group has its matching tool-call also in the recent group (and vice
+ * versa for the old group). If an orphan is detected the split point is moved
+ * backward until the pair is reunited, preventing compaction from stranding
+ * a tool-result without its tool-call.
  */
 export function splitMessages(
   messages: ModelMessage[],
@@ -113,7 +142,21 @@ export function splitMessages(
   }
 
   const rawSplitIndex = messages.length - minRecent;
-  const safeSplitIndex = findSafeSplitPoint(messages, rawSplitIndex);
+  let safeSplitIndex = findSafeSplitPoint(messages, rawSplitIndex);
+
+  // Validate: ensure every tool-result in 'recent' has its tool-call there too.
+  // If not, walk the split backward until the pair is included in 'recent'.
+  while (safeSplitIndex > 0) {
+    const recentMessages = messages.slice(safeSplitIndex);
+    const { callIds: recentCalls, resultIds: recentResults } = collectToolCallIds(recentMessages);
+
+    // Find tool-result IDs in recent that have no matching tool-call in recent
+    const orphanResults = [...recentResults].filter((id) => !recentCalls.has(id));
+    if (orphanResults.length === 0) break;
+
+    // Move split backward by 1 and re-run findSafeSplitPoint from the new position
+    safeSplitIndex = findSafeSplitPoint(messages, safeSplitIndex - 1);
+  }
 
   return {
     oldMessages: messages.slice(0, safeSplitIndex),
