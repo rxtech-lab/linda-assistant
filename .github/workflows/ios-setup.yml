@@ -51,6 +51,11 @@ on:
         required: false
         type: boolean
         default: false
+      parallel-testing-workers:
+        description: 'Number of parallel testing workers (0 = default/no parallel)'
+        required: false
+        type: number
+        default: 0
 
 jobs:
   run:
@@ -176,6 +181,7 @@ jobs:
           SCHEME: ${{ inputs.scheme }}
           CONFIGURATION: ${{ inputs.configuration }}
           SDK: ${{ inputs.sdk }}
+          PARALLEL_TESTING_WORKERS: ${{ inputs.parallel-testing-workers }}
 
       - name: Upload Logs
         if: ${{ inputs.upload-test-results && failure() }}

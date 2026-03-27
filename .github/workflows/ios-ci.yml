@@ -50,6 +50,7 @@ jobs:
       artifact-path: test.log
       upload-test-results: true
       start-backend: true
+      parallel-testing-workers: 2
     secrets: inherit
 
   test-macos:
@@ -57,7 +58,7 @@ jobs:
     name: Run macOS Tests
     uses: ./.github/workflows/ios-setup.yml
     with:
-      runs-on: '["self-hosted", "macOS"]'
+      runs-on: '["self-hosted", "macOS", "ui-tests"]'
       job-name: Run macOS Tests
       script: ios-test-plan.sh
       scheme: LindaAssistant
