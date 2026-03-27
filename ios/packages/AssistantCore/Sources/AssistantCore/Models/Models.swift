@@ -944,6 +944,22 @@ public struct TaskExtensionSettings: Codable, Sendable {
     }
 }
 
+// MARK: - Task History
+
+public struct TaskHistory: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let taskId: String
+    public let chatSessionId: String
+    public let assigneeId: String?
+    public let summary: String
+    public let toolCalls: [String]?
+    public let status: String?
+    public let durationSecs: Int?
+    public let taskTitle: String?
+    public let score: Double?
+    public let createdAt: String?
+}
+
 // MARK: - Preview Helpers
 
 public extension Assignee {

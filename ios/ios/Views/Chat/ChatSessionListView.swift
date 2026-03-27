@@ -108,6 +108,9 @@ struct ChatSessionListView: View {
                 case .extensionList: ExtensionListView()
                 case .assigneeList: AssigneeListView()
                 case .usage: UsageView()
+                case .history: HistoryListView()
+                case let .historyDetail(history): HistoryDetailView(history: history)
+                case let .assigneeHistory(assigneeId): HistoryListView(assigneeId: assigneeId)
             }
         }
         .toolbar {

@@ -117,6 +117,15 @@ extension XCUIApplication {
         logger.info("✅ Sign-in form submitted, waiting for callback...")
 
         // Wait for assignee button to appear (indicates successful sign-in)
+        // Dismiss any system alerts (e.g. notification permission) that may block the UI
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allowButton = springboard.buttons["Allow"].firstMatch
+        if allowButton.waitForExistence(timeout: 5) {
+            NSLog("📱 Dismissing notification permission alert...")
+            allowButton.tap()
+            sleep(1)
+        }
+
         let assigneeButton = buttons["assignee-button"].firstMatch
         NSLog("⏱️  Waiting for assignee button...")
         logger.info("⏱️  Waiting for assignee button...")

@@ -55,6 +55,7 @@ struct SettingsView: View {
             Section("General") {
                 NavigationLink("Assistants", value: AppDestination.assigneeList)
                 NavigationLink("Extensions", value: AppDestination.extensionList)
+                NavigationLink("History", value: AppDestination.history)
                 NavigationLink("Usage", value: AppDestination.usage)
             }
 
@@ -109,6 +110,9 @@ struct SettingsView: View {
                         .toolbar(.hidden, for: .tabBar)
                     #endif
                 case .usage: UsageView()
+                case .history: HistoryListView()
+                case let .historyDetail(history): HistoryDetailView(history: history)
+                case let .assigneeHistory(assigneeId): HistoryListView(assigneeId: assigneeId)
             }
         }
     }

@@ -175,6 +175,15 @@ jobs:
         if: inputs.sdk == 'macosx'
         run: killall Reminders 2>/dev/null || true
 
+      - name: Prepare Simulators
+        if: inputs.sdk == 'iphonesimulator'
+        run: |
+          echo "Shutting down all simulators..."
+          xcrun simctl shutdown all 2>/dev/null || true
+          echo "Erasing all simulators..."
+          xcrun simctl erase all 2>/dev/null || true
+          echo "Simulators ready"
+
       - name: Run Script
         run: ./scripts/${{ inputs.script }}
         env:

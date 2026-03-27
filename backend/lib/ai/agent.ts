@@ -29,6 +29,8 @@ import { createLocationRequest } from "./location";
 import { getModelProvider } from "./model";
 import { availableModelSchema, calculateCostUsd, DEFAULT_MODEL } from "./models";
 import { createQuestion, sendQuestionGroupNotification } from "./question";
+import { formatHistoryContext, generateTaskHistory, getRecentHistory } from "./history";
+import { HISTORY_CONTEXT_LIMIT } from "./context";
 import { compressToolCallContent } from "./tool-content-compression";
 import { buildToolSet } from "./tools";
 import { ASK_QUESTION_TOOL_NAME } from "./tools/ask-question";
@@ -970,6 +972,23 @@ export async function runAgent(options: AgentRunOptions) {
     }
   }
 
+  // Inject recent task history context for standalone chat sessions
+  if (!taskContext && session.assigneeId) {
+    try {
+      const recentHistory = await getRecentHistory(
+        userId,
+        session.assigneeId,
+        HISTORY_CONTEXT_LIMIT,
+      );
+      const historyContext = formatHistoryContext(recentHistory);
+      if (historyContext) {
+        systemPrompt += historyContext;
+      }
+    } catch (err) {
+      console.warn("[agent] Failed to load task history context:", err);
+    }
+  }
+
   console.log(
     `[agent] Starting agent run for session=${sessionId} model=${modelId} tools=${Object.keys(tools).join(",")}`,
   );
@@ -1595,6 +1614,13 @@ export async function runAgent(options: AgentRunOptions) {
           { agentId: session.assigneeId ?? undefined, runId: sessionId },
         )
         .catch((err) => console.warn("[agent] mem0 addMemories failed:", err));
+    }
+
+    // Fire-and-forget: generate task history if this is a task session
+    if (session.taskId) {
+      generateTaskHistory(session.taskId, sessionId).catch((err) =>
+        console.warn("[agent] History generation failed:", err),
+      );
     }
 
     await onEvent?.("status", { status: "stopped" });

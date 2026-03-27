@@ -118,6 +118,70 @@ test.describe("Cron Task Scheduling", () => {
     expect(deleteCall).toBeTruthy();
   });
 
+  test("switching from scheduled (runsAt) to none clears schedule fields", async ({ request }) => {
+    // Create task with runsAt schedule
+    const futureDate = new Date(Date.now() + 86400000).toISOString();
+    const createRes = await request.post("/api/tasks", {
+      data: {
+        title: "Scheduled To None Task",
+        assigneeId,
+        runsAt: futureDate,
+        timezone: "America/New_York",
+      },
+    });
+    expect(createRes.status()).toBe(201);
+    const task = await createRes.json();
+    expect(task.runsAt).toBeTruthy();
+    expect(task.timezone).toBe("America/New_York");
+
+    // Switch to none — iOS sends only isCronEnabled: false (runsAt omitted = undefined)
+    const res = await request.put(`/api/tasks/${task.id}`, {
+      data: { isCronEnabled: false },
+    });
+    expect(res.ok()).toBeTruthy();
+    const updated = await res.json();
+    expect(updated.runsAt).toBeNull();
+    expect(updated.cronSchedule).toBeNull();
+    expect(updated.timezone).toBeNull();
+    expect(updated.isCronEnabled).toBe(false);
+  });
+
+  test("switching from cron to none clears all schedule fields", async ({ request }) => {
+    // Create task with cron
+    const createRes = await request.post("/api/tasks", {
+      data: {
+        title: "Cron To None Task",
+        assigneeId,
+        cronSchedule: "0 9 * * *",
+        isCronEnabled: true,
+        timezone: "Europe/London",
+      },
+    });
+    expect(createRes.status()).toBe(201);
+    const task = await createRes.json();
+    expect(task.isCronEnabled).toBe(true);
+    expect(task.cronSchedule).toBe("0 9 * * *");
+    await resetCeleryCalls();
+
+    // Switch to none
+    const res = await request.put(`/api/tasks/${task.id}`, {
+      data: { isCronEnabled: false },
+    });
+    expect(res.ok()).toBeTruthy();
+    const updated = await res.json();
+    expect(updated.runsAt).toBeNull();
+    expect(updated.cronSchedule).toBeNull();
+    expect(updated.timezone).toBeNull();
+    expect(updated.isCronEnabled).toBe(false);
+
+    // Verify Celery delete was called
+    const calls = await getCeleryCalls();
+    const deleteCall = calls.find(
+      (c) => c.method === "DELETE" && c.path === `/schedules/${task.id}`,
+    );
+    expect(deleteCall).toBeTruthy();
+  });
+
   test("deleting a cron task removes Celery entry", async ({ request }) => {
     // Create task with cron
     const createRes = await request.post("/api/tasks", {
