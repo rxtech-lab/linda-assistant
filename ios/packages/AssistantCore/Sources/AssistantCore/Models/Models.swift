@@ -161,16 +161,25 @@ public struct UpdateAssignee: Codable, Sendable {
 
 // MARK: - Task (LindaTask to avoid Swift.Task collision)
 
-public enum TaskSource: String, CaseIterable, Codable, Sendable {
+/// Task creation sources stored in the database.
+public enum TaskSource: String, Codable, Sendable {
     case manual
     case agent
     case email
+    case webhook
+}
+
+/// Filter options for the task list UI — includes "inbox" which combines email + webhook.
+public enum TaskSourceFilter: String, CaseIterable, Sendable {
+    case manual
+    case agent
+    case inbox
 
     public var displayName: String {
         switch self {
             case .manual: "Manual"
             case .agent: "Agent"
-            case .email: "Email"
+            case .inbox: "Inbox"
         }
     }
 
@@ -178,7 +187,27 @@ public enum TaskSource: String, CaseIterable, Codable, Sendable {
         switch self {
             case .manual: "person.fill"
             case .agent: "cpu"
+            case .inbox: "tray.and.arrow.down"
+        }
+    }
+}
+
+public extension TaskSource {
+    var displayName: String {
+        switch self {
+            case .manual: "Manual"
+            case .agent: "Agent"
+            case .email: "Email"
+            case .webhook: "Webhook"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+            case .manual: "person.fill"
+            case .agent: "cpu"
             case .email: "envelope.fill"
+            case .webhook: "arrow.turn.down.right"
         }
     }
 }
@@ -665,6 +694,51 @@ public struct UpdateEmail: Codable, Sendable {
     public init(isRead: Bool? = nil, assigneeId: String? = nil) {
         self.isRead = isRead
         self.assigneeId = assigneeId
+    }
+}
+
+// MARK: - Webhook
+
+public struct Webhook: Codable, Identifiable, Sendable {
+    public let id: String
+    public let userId: String
+    public let source: String
+    public let event: String?
+    public let summary: String?
+    public let payload: [String: AnyCodable]?
+    public let receivedAt: String
+    public let isRead: Bool?
+    public let metadata: [String: AnyCodable]?
+}
+
+public struct UpdateWebhook: Codable, Sendable {
+    public let isRead: Bool?
+    public let metadata: [String: AnyCodable]?
+
+    public init(isRead: Bool? = nil, metadata: [String: AnyCodable]? = nil) {
+        self.isRead = isRead
+        self.metadata = metadata
+    }
+}
+
+// MARK: - Inbox Category
+
+public enum InboxCategory: String, CaseIterable, Codable, Sendable {
+    case email
+    case webhook
+
+    public var displayName: String {
+        switch self {
+            case .email: "Email"
+            case .webhook: "Webhook"
+        }
+    }
+
+    public var iconName: String {
+        switch self {
+            case .email: "envelope.fill"
+            case .webhook: "arrow.down.circle.fill"
+        }
     }
 }
 

@@ -137,6 +137,35 @@ export const updateEmailSchema = z.object({
   assigneeId: z.string().optional().nullable().describe("Assigned assistant ID"),
 });
 
+// ---- Webhook Inbox ----
+
+export const selectWebhookSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  source: z.string().describe("Webhook source (e.g. github, stripe, custom)"),
+  event: z.string().nullable().describe("Event type (e.g. push, payment.succeeded)"),
+  summary: z.string().nullable().describe("Human-readable summary"),
+  payload: z.record(z.unknown()).nullable().describe("Raw webhook payload"),
+  receivedAt: z.string().describe("When the webhook was received"),
+  isRead: z.boolean().nullable().describe("Whether the webhook has been read"),
+  metadata: z.record(z.unknown()).nullable().describe("Additional metadata"),
+});
+
+export const insertWebhookSchema = z.object({
+  source: z.string().min(1).describe("Webhook source (e.g. github, stripe, custom)"),
+  event: z.string().nullable().optional().describe("Event type"),
+  summary: z.string().nullable().optional().describe("Human-readable summary"),
+  payload: z.record(z.unknown()).nullable().optional().describe("Raw webhook payload"),
+  receivedAt: z.string().describe("When the webhook was received"),
+  isRead: z.boolean().optional().describe("Whether the webhook has been read"),
+  metadata: z.record(z.unknown()).nullable().optional().describe("Additional metadata"),
+});
+
+export const updateWebhookSchema = z.object({
+  isRead: z.boolean().optional().describe("Whether the webhook has been read"),
+  metadata: z.record(z.unknown()).optional().describe("Additional metadata"),
+});
+
 // ---- Resend Webhook ----
 
 export const resendWebhookAttachmentSchema = z.object({
@@ -203,7 +232,10 @@ export const selectTaskSchema = z.object({
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
 
-export const taskSourceSchema = z.enum(["manual", "agent", "email"]);
+export const taskSourceSchema = z.enum(["manual", "agent", "email", "webhook"]);
+
+/** Accepted values for the `source` query filter — includes "inbox" which maps to email+webhook. */
+export const taskSourceFilterSchema = z.enum(["manual", "agent", "email", "webhook", "inbox"]);
 
 export const insertTaskSchema = z
   .object({

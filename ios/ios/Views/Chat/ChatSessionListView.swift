@@ -98,6 +98,7 @@ struct ChatSessionListView: View {
                 case let .task(id): TaskDetailView(taskId: id)
                 case let .chatSession(id): ChatDetailView(sessionId: id)
                 case let .email(id): EmailDetailView(emailId: id)
+                case let .webhook(id): WebhookDetailView(webhookId: id)
                 case let .assignee(id, name): AssigneeDetailView(assigneeId: id, assigneeName: name)
                 case let .assigneeExtensions(assigneeId): AssigneeExtensionListView(assigneeId: assigneeId)
                 case let .taskToolPermissions(taskId): TaskToolPermissionsView(taskId: taskId)

@@ -7,7 +7,7 @@ final class TaskListViewModel {
     var isLoading = false
     var isSwitchingSource = false
     var error: String?
-    var selectedSource: TaskSource?
+    var selectedSource: TaskSourceFilter?
 
     func loadTasks(apiClient: APIClient, animated: Bool = false) async {
         isLoading = true
@@ -51,7 +51,7 @@ final class TaskListViewModel {
         }
     }
 
-    func selectSource(_ source: TaskSource?, apiClient: APIClient) async {
+    func selectSource(_ source: TaskSourceFilter?, apiClient: APIClient) async {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             selectedSource = source
             isSwitchingSource = true

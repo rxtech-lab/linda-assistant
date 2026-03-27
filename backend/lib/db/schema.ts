@@ -343,6 +343,20 @@ export const userSettings = sqliteTable("user_settings", {
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
 
+export const webhookInbox = sqliteTable("webhook_inbox", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull(),
+  source: text("source").notNull(), // e.g. "github", "stripe", "custom"
+  event: text("event"), // event type e.g. "push", "payment.succeeded"
+  summary: text("summary"), // human-readable summary
+  payload: text("payload", { mode: "json" }).$type<Record<string, unknown>>(),
+  receivedAt: text("received_at").notNull(),
+  isRead: integer("is_read", { mode: "boolean" }).default(false),
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+});
+
 export const devices = sqliteTable("devices", {
   id: text("id")
     .primaryKey()

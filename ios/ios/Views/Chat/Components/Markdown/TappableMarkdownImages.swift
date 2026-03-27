@@ -9,7 +9,7 @@ private struct TappableMarkdownImagesModifier: ViewModifier {
             .markdownImageProvider(TappableImageProvider(onTap: { url in
                 selectedImageURL = url
             }))
-            #if os(iOS)
+        #if os(iOS)
             .fullScreenCover(isPresented: Binding(
                 get: { selectedImageURL != nil },
                 set: { if !$0 { selectedImageURL = nil } }
@@ -34,26 +34,26 @@ private struct TappableMarkdownImagesModifier: ViewModifier {
                     }
                 }
             }
-            #else
+        #else
             .sheet(isPresented: Binding(
-                get: { selectedImageURL != nil },
-                set: { if !$0 { selectedImageURL = nil } }
-            )) {
-                if let url = selectedImageURL {
-                    NavigationStack {
-                        ImageViewerView(imageURL: url)
-                            .toolbar {
-                                ToolbarItem(placement: .cancellationAction) {
-                                    Button("Done") {
-                                        selectedImageURL = nil
+                    get: { selectedImageURL != nil },
+                    set: { if !$0 { selectedImageURL = nil } }
+                )) {
+                    if let url = selectedImageURL {
+                        NavigationStack {
+                            ImageViewerView(imageURL: url)
+                                .toolbar {
+                                    ToolbarItem(placement: .cancellationAction) {
+                                        Button("Done") {
+                                            selectedImageURL = nil
+                                        }
                                     }
                                 }
-                            }
+                        }
+                        .frame(minWidth: 600, minHeight: 500)
                     }
-                    .frame(minWidth: 600, minHeight: 500)
                 }
-            }
-            #endif
+        #endif
     }
 }
 

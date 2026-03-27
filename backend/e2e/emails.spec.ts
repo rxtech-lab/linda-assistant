@@ -12,8 +12,8 @@ const user2Headers = { "x-test-user-id": "e2e-user-2" };
 test.describe("Emails CRUD", () => {
   let emailId: string;
 
-  test("POST /api/emails creates an email", async ({ request }) => {
-    const res = await request.post("/api/emails", {
+  test("POST /api/inbox/emails creates an email", async ({ request }) => {
+    const res = await request.post("/api/inbox/emails", {
       data: {
         emailId: nanoid(),
         fromEmail: "sender@example.com",
@@ -38,8 +38,8 @@ test.describe("Emails CRUD", () => {
     emailId = body.id;
   });
 
-  test("GET /api/emails lists emails with pagination", async ({ request }) => {
-    const res = await request.get("/api/emails");
+  test("GET /api/inbox/emails lists emails with pagination", async ({ request }) => {
+    const res = await request.get("/api/inbox/emails");
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     emailListResponseSchema.parse(body);
@@ -53,8 +53,10 @@ test.describe("Emails CRUD", () => {
     expect(found).toBeTruthy();
   });
 
-  test("GET /api/emails/:id returns a single email and marks it as read", async ({ request }) => {
-    const res = await request.get(`/api/emails/${emailId}`);
+  test("GET /api/inbox/emails/:id returns a single email and marks it as read", async ({
+    request,
+  }) => {
+    const res = await request.get(`/api/inbox/emails/${emailId}`);
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     emailResponseSchema.parse(body);
@@ -64,8 +66,8 @@ test.describe("Emails CRUD", () => {
     expect(body.isRead).toBe(true);
   });
 
-  test("PUT /api/emails/:id updates email fields", async ({ request }) => {
-    const res = await request.put(`/api/emails/${emailId}`, {
+  test("PUT /api/inbox/emails/:id updates email fields", async ({ request }) => {
+    const res = await request.put(`/api/inbox/emails/${emailId}`, {
       data: { isRead: true },
     });
     expect(res.ok()).toBeTruthy();
@@ -77,8 +79,8 @@ test.describe("Emails CRUD", () => {
     expect(body.fromEmail).toBe("sender@example.com");
   });
 
-  test("PUT /api/emails/:id updates metadata", async ({ request }) => {
-    const res = await request.put(`/api/emails/${emailId}`, {
+  test("PUT /api/inbox/emails/:id updates metadata", async ({ request }) => {
+    const res = await request.put(`/api/inbox/emails/${emailId}`, {
       data: { metadata: { starred: true, label: "important" } },
     });
     expect(res.ok()).toBeTruthy();
@@ -88,14 +90,14 @@ test.describe("Emails CRUD", () => {
     expect(body.isRead).toBe(true);
   });
 
-  test("DELETE /api/emails/:id removes the email", async ({ request }) => {
-    const res = await request.delete(`/api/emails/${emailId}`);
+  test("DELETE /api/inbox/emails/:id removes the email", async ({ request }) => {
+    const res = await request.delete(`/api/inbox/emails/${emailId}`);
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     deleteResponseSchema.parse(body);
     expect(body.deleted).toBe(true);
 
-    const getRes = await request.get(`/api/emails/${emailId}`);
+    const getRes = await request.get(`/api/inbox/emails/${emailId}`);
     expect(getRes.status()).toBe(404);
   });
 });
@@ -104,7 +106,7 @@ test.describe("Emails cross-user isolation", () => {
   let user1EmailId: string;
 
   test.beforeAll(async ({ request }) => {
-    const res = await request.post("/api/emails", {
+    const res = await request.post("/api/inbox/emails", {
       data: {
         emailId: nanoid(),
         fromEmail: "from@example.com",
@@ -118,7 +120,7 @@ test.describe("Emails cross-user isolation", () => {
   });
 
   test("user2 cannot list user1 emails", async ({ request }) => {
-    const res = await request.get("/api/emails", { headers: user2Headers });
+    const res = await request.get("/api/inbox/emails", { headers: user2Headers });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     const found = body.data.find((e: { id: string }) => e.id === user1EmailId);
@@ -126,20 +128,20 @@ test.describe("Emails cross-user isolation", () => {
   });
 
   test("user2 cannot GET user1 email", async ({ request }) => {
-    const res = await request.get(`/api/emails/${user1EmailId}`, {
+    const res = await request.get(`/api/inbox/emails/${user1EmailId}`, {
       headers: user2Headers,
     });
     expect(res.status()).toBe(404);
   });
 
   test("user2 cannot PUT user1 email", async ({ request }) => {
-    const res = await request.put(`/api/emails/${user1EmailId}`, {
+    const res = await request.put(`/api/inbox/emails/${user1EmailId}`, {
       headers: user2Headers,
       data: { isRead: true },
     });
     expect(res.status()).toBe(404);
 
-    const getRes = await request.get(`/api/emails/${user1EmailId}`);
+    const getRes = await request.get(`/api/inbox/emails/${user1EmailId}`);
     const body = await getRes.json();
     // isRead is now true because GET auto-marks as read
     expect(body.isRead).toBe(true);
@@ -148,12 +150,12 @@ test.describe("Emails cross-user isolation", () => {
   });
 
   test("user2 cannot DELETE user1 email", async ({ request }) => {
-    const res = await request.delete(`/api/emails/${user1EmailId}`, {
+    const res = await request.delete(`/api/inbox/emails/${user1EmailId}`, {
       headers: user2Headers,
     });
     expect(res.status()).toBe(404);
 
-    const getRes = await request.get(`/api/emails/${user1EmailId}`);
+    const getRes = await request.get(`/api/inbox/emails/${user1EmailId}`);
     expect(getRes.ok()).toBeTruthy();
   });
 });
@@ -162,7 +164,7 @@ test.describe("Emails non-existing resource", () => {
   const fakeId = "nonexistent-email-12345";
 
   test("GET non-existing email returns 404", async ({ request }) => {
-    const res = await request.get(`/api/emails/${fakeId}`);
+    const res = await request.get(`/api/inbox/emails/${fakeId}`);
     expect(res.status()).toBe(404);
     const body = await res.json();
     errorResponseSchema.parse(body);
@@ -170,7 +172,7 @@ test.describe("Emails non-existing resource", () => {
   });
 
   test("PUT non-existing email returns 404", async ({ request }) => {
-    const res = await request.put(`/api/emails/${fakeId}`, {
+    const res = await request.put(`/api/inbox/emails/${fakeId}`, {
       data: { isRead: true },
     });
     expect(res.status()).toBe(404);
@@ -180,7 +182,7 @@ test.describe("Emails non-existing resource", () => {
   });
 
   test("DELETE non-existing email returns 404", async ({ request }) => {
-    const res = await request.delete(`/api/emails/${fakeId}`);
+    const res = await request.delete(`/api/inbox/emails/${fakeId}`);
     expect(res.status()).toBe(404);
     const body = await res.json();
     errorResponseSchema.parse(body);

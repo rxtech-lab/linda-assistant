@@ -41,7 +41,7 @@ test.describe("Resend webhook inline images", () => {
     });
     expect(res.ok()).toBeTruthy();
 
-    const listRes = await request.get("/api/emails");
+    const listRes = await request.get("/api/inbox/emails");
     const list = await listRes.json();
     const email = list.data.find((e: { emailId: string }) => e.emailId === "e2e-attachments-only");
     expect(email).toBeTruthy();
@@ -71,7 +71,7 @@ test.describe("Resend webhook inline images", () => {
     });
     expect(res.ok()).toBeTruthy();
 
-    const listRes = await request.get("/api/emails");
+    const listRes = await request.get("/api/inbox/emails");
     const list = await listRes.json();
     const email = list.data.find(
       (e: { emailId: string }) => e.emailId === "e2e-both-attachment-and-base64",
@@ -98,7 +98,7 @@ test.describe("Resend webhook inline images", () => {
     });
     expect(res.ok()).toBeTruthy();
 
-    const listRes = await request.get("/api/emails");
+    const listRes = await request.get("/api/inbox/emails");
     const list = await listRes.json();
     const email = list.data.find((e: { emailId: string }) => e.emailId === "e2e-base64-only");
     expect(email).toBeTruthy();
@@ -124,7 +124,7 @@ test.describe("Resend webhook inline images", () => {
     });
     expect(res.ok()).toBeTruthy();
 
-    const listRes = await request.get("/api/emails");
+    const listRes = await request.get("/api/inbox/emails");
     const list = await listRes.json();
     const email = list.data.find((e: { emailId: string }) => e.emailId === "e2e-no-images");
     expect(email).toBeTruthy();
@@ -158,7 +158,7 @@ test.describe("Resend webhook auto-dispatch", () => {
     expect(res.ok()).toBeTruthy();
 
     // Verify email was stored
-    const emailsRes = await request.get("/api/emails");
+    const emailsRes = await request.get("/api/inbox/emails");
     const emails = await emailsRes.json();
     const email = emails.data.find((e: { emailId: string }) => e.emailId === emailId);
     expect(email).toBeTruthy();

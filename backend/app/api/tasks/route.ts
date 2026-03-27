@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { tasks, taskEmails, emailInbox, chatSessions } from "@/lib/db/schema";
 import { eq, sql, and, inArray, desc } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
-import { insertTaskSchema, selectTaskSchema, taskSourceSchema } from "@/lib/schemas";
+import { insertTaskSchema, selectTaskSchema, taskSourceFilterSchema } from "@/lib/schemas";
 import { parsePagination } from "@/lib/utils/pagination";
 import { successJson, errorJson, paginatedJson } from "@/lib/utils/response";
 import { registerCronTask, scheduleOnceTask } from "@/lib/celery/client";
@@ -34,10 +34,12 @@ export async function GET(request: NextRequest) {
   const { limit, offset } = parsePagination(request.nextUrl.searchParams);
   const sourceParam = request.nextUrl.searchParams.get("source");
   const sourceFilter =
-    sourceParam && taskSourceSchema.safeParse(sourceParam).success ? sourceParam : null;
+    sourceParam && taskSourceFilterSchema.safeParse(sourceParam).success ? sourceParam : null;
 
   const whereClause = sourceFilter
-    ? and(eq(tasks.userId, auth.userId), eq(tasks.source, sourceFilter))
+    ? sourceFilter === "inbox"
+      ? and(eq(tasks.userId, auth.userId), inArray(tasks.source, ["email", "webhook"]))
+      : and(eq(tasks.userId, auth.userId), eq(tasks.source, sourceFilter))
     : eq(tasks.userId, auth.userId);
 
   const [items, countResult] = await Promise.all([

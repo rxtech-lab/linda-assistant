@@ -20,29 +20,29 @@ private struct TappableMarkdownImage: View {
             } label: {
                 CachedAsyncImage(url: url) { phase in
                     switch phase {
-                    case let .success(image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
+                        case let .success(image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: .infinity)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        case .failure:
+                            VStack(spacing: 8) {
+                                Image(systemName: "photo")
+                                    .font(.system(size: 32))
+                                    .foregroundStyle(.secondary)
+                                Text("Image unavailable")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                             .frame(maxWidth: .infinity)
+                            .frame(height: 120)
+                            .background(.quaternary)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
-                    case .failure:
-                        VStack(spacing: 8) {
-                            Image(systemName: "photo")
-                                .font(.system(size: 32))
-                                .foregroundStyle(.secondary)
-                            Text("Image unavailable")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 120)
-                        .background(.quaternary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    default:
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 200)
+                        default:
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 200)
                     }
                 }
             }
