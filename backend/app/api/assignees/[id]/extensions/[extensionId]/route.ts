@@ -7,6 +7,7 @@ import { assigneeExtensionSettingsSchema, extensionWithStatusSchema } from "@/li
 import { errorJson } from "@/lib/utils/response";
 import { invalidateToolMetadataCache } from "@/lib/ai/tools";
 import { createGenericMcp, type AuthConfig } from "@/lib/ai/tools/mcps/generic";
+import { resolvePermission } from "@/lib/ai/tools/permission";
 
 /**
  * @openapi
@@ -58,8 +59,15 @@ export async function GET(
       ),
     );
 
+  // Load assignee-level tool permissions for effective permission resolution
+  const [assigneeRow] = await db
+    .select({ toolPermissions: assignees.toolPermissions })
+    .from(assignees)
+    .where(eq(assignees.id, assigneeId));
+  const assigneeToolPerms = assigneeRow?.toolPermissions ?? null;
+
   // Discover tools from MCP server
-  let tools: Array<{ name: string; description: string }> = [];
+  let tools: Array<{ name: string; description: string; effectivePermission: string }> = [];
   try {
     const authConfig: AuthConfig =
       ext.authType === "api_key"
@@ -69,10 +77,22 @@ export async function GET(
           : { type: "rxauth", accessToken: auth.accessToken };
 
     const mcpTools = await createGenericMcp(ext.mcpUrl, authConfig, {});
-    tools = Object.entries(mcpTools).map(([name, tool]) => ({
-      name,
-      description: (tool as any).description ?? "",
-    }));
+    tools = Object.entries(mcpTools).map(([name, tool]) => {
+      const prefixedName = `${ext.prefix}${name}`;
+      // Resolve effective permission: extension-level (unprefixed) → assignee-level (prefixed) → default
+      let perm = resolvePermission(name, ae?.toolPermissions);
+      if (perm === "manual-confirm") {
+        const assigneePerm = resolvePermission(prefixedName, assigneeToolPerms);
+        if (assigneePerm !== "manual-confirm") {
+          perm = assigneePerm;
+        }
+      }
+      return {
+        name,
+        description: (tool as any).description ?? "",
+        effectivePermission: perm,
+      };
+    });
   } catch {
     // MCP server may be unavailable — return extension without tools
   }

@@ -50,6 +50,7 @@ struct TaskDocumentListSheet: View {
                                         .clipShape(Capsule())
                                 }
                             }
+                            .buttonStyle(.plain)
                             .onAppear {
                                 if doc.id == viewModel.documents.last?.id {
                                     Task {
@@ -91,18 +92,20 @@ struct TaskDocumentListSheet: View {
                 }
             }
             .navigationTitle("Documents")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+            #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { dismiss() }
+                    }
                 }
-            }
-            .sheet(item: $selectedDocument) { item in
-                DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
-            }
-            .task {
-                await viewModel.loadDocuments(taskId: taskId, apiClient: apiClient)
-            }
+                .sheet(item: $selectedDocument) { item in
+                    DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
+                }
+                .task {
+                    await viewModel.loadDocuments(taskId: taskId, apiClient: apiClient)
+                }
         }
     }
 

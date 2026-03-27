@@ -95,18 +95,20 @@ struct TaskBriefingListSheet: View {
                 }
             }
             .navigationTitle("Briefings")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: String.self) { briefingId in
-                BriefingDetailView(briefingId: briefingId)
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+            #endif
+                .navigationDestination(for: String.self) { briefingId in
+                    BriefingDetailView(briefingId: briefingId)
                 }
-            }
-            .task {
-                await viewModel.loadBriefings(taskId: taskId, apiClient: apiClient)
-            }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { dismiss() }
+                    }
+                }
+                .task {
+                    await viewModel.loadBriefings(taskId: taskId, apiClient: apiClient)
+                }
         }
     }
 

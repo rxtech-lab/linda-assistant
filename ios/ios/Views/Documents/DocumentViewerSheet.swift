@@ -55,6 +55,7 @@ struct DocumentViewerSheet: View {
                             if document.format == "markdown" {
                                 Markdown(document.content)
                                     .markdownTheme(.docC)
+                                    .tappableMarkdownImages()
                                     .padding()
                             } else {
                                 HTMLContentView(htmlString: document.content)

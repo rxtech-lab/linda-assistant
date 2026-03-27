@@ -28,6 +28,7 @@ struct MessageBubble: View {
                     // User messages: keep bubble style with MarkdownUI
                     Markdown(message.textContent)
                         .markdownTheme(.chat)
+                        .tappableMarkdownImages()
                         .markdownTextStyle {
                             ForegroundColor(.primary)
                         }
@@ -41,6 +42,7 @@ struct MessageBubble: View {
                     // No content transition animation - text appears instantly during streaming
                     Markdown(message.textContent)
                         .markdownTheme(.chat)
+                        .tappableMarkdownImages()
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityLabel(message.textContent)

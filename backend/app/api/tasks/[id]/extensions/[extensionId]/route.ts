@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { extensions, taskExtensions, tasks } from "@/lib/db/schema";
+import {
+  extensions,
+  taskExtensions,
+  tasks,
+  assigneeExtensions,
+  assignees,
+  type ToolPermission,
+} from "@/lib/db/schema";
 import { eq, and, or } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { taskExtensionSettingsSchema, extensionWithStatusSchema } from "@/lib/schemas";
@@ -24,7 +31,7 @@ export async function GET(
 
   // Verify task belongs to user
   const [task] = await db
-    .select({ id: tasks.id })
+    .select({ id: tasks.id, assigneeId: tasks.assigneeId })
     .from(tasks)
     .where(and(eq(tasks.id, taskId), eq(tasks.userId, auth.userId)));
 
@@ -60,6 +67,29 @@ export async function GET(
     .where(eq(tasks.id, taskId));
   const taskToolPerms = taskRow?.toolPermissions ?? null;
 
+  // Load assignee-level permissions for fallback (when task was created before permission change)
+  let aeToolPerms: ToolPermission[] | null = null;
+  let assigneeToolPerms: ToolPermission[] | null = null;
+
+  if (task.assigneeId) {
+    const [aeRow] = await db
+      .select({ toolPermissions: assigneeExtensions.toolPermissions })
+      .from(assigneeExtensions)
+      .where(
+        and(
+          eq(assigneeExtensions.assigneeId, task.assigneeId),
+          eq(assigneeExtensions.extensionId, extensionId),
+        ),
+      );
+    aeToolPerms = aeRow?.toolPermissions ?? null;
+
+    const [assigneeRow] = await db
+      .select({ toolPermissions: assignees.toolPermissions })
+      .from(assignees)
+      .where(eq(assignees.id, task.assigneeId));
+    assigneeToolPerms = assigneeRow?.toolPermissions ?? null;
+  }
+
   // Discover tools from MCP server
   let tools: Array<{ name: string; description: string; effectivePermission: string }> = [];
   try {
@@ -73,12 +103,25 @@ export async function GET(
     const mcpTools = await createGenericMcp(ext.mcpUrl, authConfig, {});
     tools = Object.entries(mcpTools).map(([name, tool]) => {
       const prefixedName = `${ext.prefix}${name}`;
-      // Resolve effective permission: extension-level (unprefixed) → task-level (prefixed) → default
+      // Resolve effective permission: task extension (unprefixed) → task level (prefixed)
+      //   → assignee extension (unprefixed) → assignee level (prefixed) → default
       let perm = resolvePermission(name, te?.toolPermissions);
       if (perm === "manual-confirm") {
         const taskPerm = resolvePermission(prefixedName, taskToolPerms);
         if (taskPerm !== "manual-confirm") {
           perm = taskPerm;
+        }
+      }
+      if (perm === "manual-confirm") {
+        const aePerm = resolvePermission(name, aeToolPerms);
+        if (aePerm !== "manual-confirm") {
+          perm = aePerm;
+        }
+      }
+      if (perm === "manual-confirm") {
+        const assigneePerm = resolvePermission(prefixedName, assigneeToolPerms);
+        if (assigneePerm !== "manual-confirm") {
+          perm = assigneePerm;
         }
       }
       return {

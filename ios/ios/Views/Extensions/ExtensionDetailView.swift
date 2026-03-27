@@ -308,6 +308,7 @@ private struct ExtensionToolDetailSheet: View {
                     Section {
                         Markdown(description)
                             .markdownTheme(.chat)
+                            .tappableMarkdownImages()
                             .textSelection(.enabled)
                     } header: {
                         Text("Description")

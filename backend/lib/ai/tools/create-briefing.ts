@@ -15,10 +15,22 @@ export const createBriefingTool = (
   tool({
     description:
       "Create a briefing — an AI-generated report with a cover image, markdown content, and optional linked documents. " +
-      "Use this when the user asks for a briefing, summary report, or digest that should appear in their Briefing feed.",
+      "Use this when the user asks for a briefing, summary report, or digest that should appear in their Briefing feed.\n\n" +
+      "Content guidelines:\n" +
+      "- Use markdown tables to present structured/comparative data (e.g. stats, timelines, comparisons)\n" +
+      "- Use headings (##, ###) to organize sections clearly\n" +
+      "- Use bullet points for lists, bold for emphasis, and blockquotes for key takeaways\n" +
+      "- Keep paragraphs concise and scannable\n" +
+      "- For data-heavy content, prefer tables over prose\n" +
+      "- Include a brief executive summary at the top\n" +
+      "- For complex or abstract topics, use generate_image to create illustrative visuals and embed them via ![alt](url) in the content",
     inputSchema: z.object({
       title: z.string().describe("Briefing title"),
-      content: z.string().describe("Briefing content in markdown format"),
+      content: z
+        .string()
+        .describe(
+          "Briefing content in markdown format. Use markdown tables for structured data, stats, and comparisons. Include an executive summary at the top.",
+        ),
       imageDescription: z
         .string()
         .describe(

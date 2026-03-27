@@ -7,6 +7,7 @@ const SYSTEM_TOOLS_NO_PERMISSION_CHANGE = [
   "search_documents",
   "create_briefing",
   "send_notification",
+  "generate_image",
 ];
 
 test.describe("Tools API", () => {

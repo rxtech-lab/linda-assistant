@@ -644,6 +644,7 @@ export const insertExtensionSchema = z.object({
 export const extensionToolSchema = z.object({
   name: z.string().describe("Tool name (without prefix)"),
   description: z.string().describe("Tool description"),
+  effectivePermission: z.string().optional().describe("Resolved effective permission"),
 });
 
 export const extensionWithStatusSchema = selectExtensionSchema.extend({

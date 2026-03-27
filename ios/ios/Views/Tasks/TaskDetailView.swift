@@ -309,6 +309,7 @@ struct TaskDetailContentView: View {
                                     .clipShape(Capsule())
                             }
                         }
+                        .buttonStyle(.plain)
                     }
                 } header: {
                     Button {
@@ -360,6 +361,7 @@ struct TaskDetailContentView: View {
                                 }
                             }
                         }
+                        .buttonStyle(.plain)
                     }
                 } header: {
                     Button {
