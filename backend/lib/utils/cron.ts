@@ -18,7 +18,11 @@ export function isValidCronExpression(expr: string): boolean {
  * falls back to the next occurrence from now.
  * Returns null if the expression is invalid or parsing fails.
  */
-export function getNextRunSeconds(expr: string, lastRunAt?: Date | null, tz?: string | null): number | null {
+export function getNextRunSeconds(
+  expr: string,
+  lastRunAt?: Date | null,
+  tz?: string | null,
+): number | null {
   try {
     const now = new Date(Date.now());
     const options: { currentDate?: Date; tz?: string } = {};

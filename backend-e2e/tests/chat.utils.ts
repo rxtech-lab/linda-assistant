@@ -82,6 +82,7 @@ const SYSTEM_TOOLS = new Set([
   "search_documents",
   "create_briefing",
   "send_notification",
+  "generate_image",
 ]);
 
 export async function updateAssigneePermissions(
@@ -882,6 +883,81 @@ export function findAllToolResultParts(messages: ChatMessage[]): MessagePart[] {
     }
   }
   return parts;
+}
+
+// ---- Task tools helpers ----
+
+export async function getTaskTools(taskId: string): Promise<
+  Array<{
+    name: string;
+    description: string;
+    defaultPermission: string;
+    parameters?: Array<{ name: string; type: string; description?: string; required: boolean }>;
+    disablePermissionChange?: boolean;
+  }>
+> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/tasks/${taskId}/tools`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `GET /api/tasks/${taskId}/tools failed (${res.status}): ${await res.text()}`,
+    );
+  }
+  return res.json() as any;
+}
+
+export async function getTaskExtensionDetail(
+  taskId: string,
+  extensionId: string,
+): Promise<{
+  id: string;
+  prefix: string;
+  enabled: boolean;
+  toolPermissions: Array<{ toolName: string; permission: string }> | null;
+  tools: Array<{ name: string; description: string; effectivePermission: string }>;
+  [key: string]: unknown;
+}> {
+  const token = loadToken();
+  const res = await fetch(
+    `${BASE_URL}/api/tasks/${taskId}/extensions/${extensionId}`,
+    {
+      headers: authHeaders(token),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `GET /api/tasks/${taskId}/extensions/${extensionId} failed (${res.status}): ${await res.text()}`,
+    );
+  }
+  return res.json() as any;
+}
+
+export async function getAssigneeExtensionDetail(
+  assigneeId: string,
+  extensionId: string,
+): Promise<{
+  id: string;
+  prefix: string;
+  enabled: boolean;
+  toolPermissions: Array<{ toolName: string; permission: string }> | null;
+  tools: Array<{ name: string; description: string; effectivePermission: string }>;
+  [key: string]: unknown;
+}> {
+  const token = loadToken();
+  const res = await fetch(
+    `${BASE_URL}/api/assignees/${assigneeId}/extensions/${extensionId}`,
+    {
+      headers: authHeaders(token),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `GET /api/assignees/${assigneeId}/extensions/${extensionId} failed (${res.status}): ${await res.text()}`,
+    );
+  }
+  return res.json() as any;
 }
 
 // ---- Document helpers ----

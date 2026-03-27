@@ -7,6 +7,8 @@ import {
   emailInbox,
   taskExtensions,
   extensions,
+  documents,
+  briefings,
 } from "@/lib/db/schema";
 import { eq, and, sql, or, inArray, desc } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
@@ -16,6 +18,8 @@ import {
   selectTaskSchema,
   deletedResponseSchema,
   idParamSchema,
+  documentSummarySchema,
+  briefingSummarySchema,
 } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
 import {
@@ -38,6 +42,8 @@ const taskDetailSchema = selectTaskSchema.extend({
     }),
   ),
   emails: z.array(z.any()),
+  documents: z.array(documentSummarySchema),
+  briefings: z.array(briefingSummarySchema),
   enabledExtensions: z
     .array(
       z.object({
@@ -67,7 +73,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   if (!task) return errorJson("Task not found", 404);
 
-  const [sessions, linkedEmails, teRows] = await Promise.all([
+  const [sessions, linkedEmails, teRows, taskDocuments, taskBriefings] = await Promise.all([
     db
       .select({
         id: chatSessions.id,
@@ -93,6 +99,35 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .innerJoin(emailInbox, eq(taskEmails.emailId, emailInbox.id))
       .where(eq(taskEmails.taskId, id)),
     db.select().from(taskExtensions).where(eq(taskExtensions.taskId, id)),
+    db
+      .select({
+        id: documents.id,
+        title: documents.title,
+        format: documents.format,
+        chatSessionId: documents.chatSessionId,
+        createdAt: documents.createdAt,
+        updatedAt: documents.updatedAt,
+      })
+      .from(documents)
+      .innerJoin(chatSessions, eq(documents.chatSessionId, chatSessions.id))
+      .where(eq(chatSessions.taskId, id))
+      .orderBy(desc(documents.createdAt))
+      .limit(10),
+    db
+      .select({
+        id: briefings.id,
+        title: briefings.title,
+        imageUrl: briefings.imageUrl,
+        chatSessionId: briefings.chatSessionId,
+        assigneeId: briefings.assigneeId,
+        createdAt: briefings.createdAt,
+        updatedAt: briefings.updatedAt,
+      })
+      .from(briefings)
+      .innerJoin(chatSessions, eq(briefings.chatSessionId, chatSessions.id))
+      .where(eq(chatSessions.taskId, id))
+      .orderBy(desc(briefings.createdAt))
+      .limit(10),
   ]);
 
   // Build enabled extensions list
@@ -143,6 +178,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     status: derivedStatus,
     chatSessions: sessions,
     emails: linkedEmails,
+    documents: taskDocuments,
+    briefings: taskBriefings,
     nextRunAt,
     enabledExtensions,
   });

@@ -63,7 +63,11 @@ final class ExtensionDetailTests: XCTestCase {
         // Verify the list toggle is now OFF
         let listToggle = app.switches["extension-toggle-0"].firstMatch
         XCTAssertTrue(listToggle.waitForExistence(timeout: 5), "\(context): List toggle should exist after going back")
-        XCTAssertEqual(listToggle.value as? String, "0", "\(context): List toggle should be disabled after detail toggle off")
+        XCTAssertEqual(
+            listToggle.value as? String,
+            "0",
+            "\(context): List toggle should be disabled after detail toggle off"
+        )
     }
 
     @MainActor
@@ -214,7 +218,10 @@ final class ExtensionDetailTests: XCTestCase {
 
         // There should be no Enabled toggle (no assigneeId/taskId context)
         let settingsEnabledToggle = app.switches["Enabled"].firstMatch
-        XCTAssertFalse(settingsEnabledToggle.waitForExistence(timeout: 3), "Enabled toggle should NOT appear in settings extension detail")
+        XCTAssertFalse(
+            settingsEnabledToggle.waitForExistence(timeout: 3),
+            "Enabled toggle should NOT appear in settings extension detail"
+        )
 
         // Verify no error
         let errorView = app.staticTexts["Error"].firstMatch

@@ -42,9 +42,7 @@ export function compressToolCallContent(messages: ModelMessage[]): ModelMessage[
     if (!Array.isArray(msg.content)) return msg;
 
     const parts = msg.content as Record<string, unknown>[];
-    const hasCompressible = parts.some(
-      (p) => p.type === "tool-call" || p.type === "tool-result",
-    );
+    const hasCompressible = parts.some((p) => p.type === "tool-call" || p.type === "tool-result");
     if (!hasCompressible) return msg;
 
     const newParts = parts.map((part) => {

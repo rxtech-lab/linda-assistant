@@ -1,7 +1,7 @@
 import AssistantCore
 import SwiftUI
 #if os(macOS)
-import AppKit
+    import AppKit
 #endif
 
 struct TaskListView: View {
@@ -17,9 +17,9 @@ struct TaskListView: View {
 
     private var chipBackgroundColor: Color {
         #if os(macOS)
-        return Color(nsColor: .systemGray)
+            return Color(nsColor: .systemGray)
         #else
-        return Color(.systemGray5)
+            return Color(.systemGray5)
         #endif
     }
 
@@ -155,7 +155,7 @@ struct TaskListView: View {
             ("All", "tray.full", nil),
         ] + TaskSource.allCases.map { ($0.displayName, $0.iconName, Optional($0)) }
         // Total parts: selected gets 2, others get 1 each → 2 + 3 = 5
-        let totalParts: CGFloat = CGFloat(allSources.count) + 1 // +1 for the extra part on selected
+        let totalParts = CGFloat(allSources.count) + 1 // +1 for the extra part on selected
         let spacing: CGFloat = 8
 
         return GeometryReader { geo in

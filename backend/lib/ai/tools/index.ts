@@ -22,6 +22,7 @@ import { SEND_NOTIFICATION_TOOL_NAME, sendNotificationTool } from "./send-notifi
 import { SEARCH_DOCUMENTS_TOOL_NAME, searchDocumentsTool } from "./search-documents";
 import { CREATE_BRIEFING_TOOL_NAME, createBriefingTool } from "./create-briefing";
 import { CREATE_DRAWING_TOOL_NAME, createDrawingTool } from "./create-drawing";
+import { GENERATE_IMAGE_TOOL_NAME, generateImageTool } from "./generate-image";
 import { type AuthConfig, createGenericMcp } from "./mcps/generic";
 import { redis } from "@/lib/redis";
 
@@ -35,6 +36,7 @@ export const NO_PERMISSION_CHANGE_TOOLS: ReadonlySet<string> = new Set([
   SEARCH_DOCUMENTS_TOOL_NAME,
   CREATE_BRIEFING_TOOL_NAME,
   SEND_NOTIFICATION_TOOL_NAME,
+  GENERATE_IMAGE_TOOL_NAME,
 ]);
 
 export interface ToolSetResult {
@@ -213,10 +215,7 @@ async function getEnabledTaskExtensions(
   if (allExtensions.length === 0) return [];
 
   // Get task extension settings
-  const teRows = await db
-    .select()
-    .from(taskExtensions)
-    .where(eq(taskExtensions.taskId, taskId));
+  const teRows = await db.select().from(taskExtensions).where(eq(taskExtensions.taskId, taskId));
 
   const teMap = new Map(teRows.map((te) => [te.extensionId, te]));
 
@@ -380,6 +379,9 @@ export async function buildToolSet(
   // Drawing tool — never require confirmation
   filtered[CREATE_DRAWING_TOOL_NAME] = createDrawingTool();
 
+  // Image generation tool — never require confirmation
+  filtered[GENERATE_IMAGE_TOOL_NAME] = generateImageTool();
+
   // Notification tool — never require confirmation
   filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(userId, chatSessionId);
 
@@ -525,7 +527,7 @@ export function extractParameters(tool: unknown): ToolParameterMeta[] | undefine
   }
 }
 
-function extractMetadata(result: ToolSetResult): ToolMetadata[] {
+export function extractMetadata(result: ToolSetResult): ToolMetadata[] {
   return Object.entries(result.tools).map(([name, tool]) => {
     const t = tool as { description?: string; needsApproval?: boolean };
     return {
@@ -553,6 +555,7 @@ export {
   CREATE_DOCUMENT_TOOL_NAME,
   CREATE_DRAWING_TOOL_NAME,
   CREATE_TASK_TOOL_NAME,
+  GENERATE_IMAGE_TOOL_NAME,
   GET_CURRENT_TIME_TOOL_NAME,
   GET_LOCATION_TOOL_NAME,
   SEARCH_DOCUMENTS_TOOL_NAME,

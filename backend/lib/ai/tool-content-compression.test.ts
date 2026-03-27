@@ -24,11 +24,7 @@ function toolCallMsg(
   } as unknown as ModelMessage;
 }
 
-function toolResultMsg(
-  toolName: string,
-  output: unknown,
-  toolCallId = "tc-1",
-): ModelMessage {
+function toolResultMsg(toolName: string, output: unknown, toolCallId = "tc-1"): ModelMessage {
   return {
     role: "tool",
     content: [{ type: "tool-result", toolCallId, toolName, output }],

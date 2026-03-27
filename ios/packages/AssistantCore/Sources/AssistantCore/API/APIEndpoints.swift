@@ -123,6 +123,38 @@ public extension APIClient {
         return try await request(path: "tasks/\(taskId)/chat-sessions", queryItems: queryItems)
     }
 
+    func listTaskDocuments(
+        taskId: String,
+        limit: Int = 20,
+        offset: Int = 0,
+        search: String? = nil
+    ) async throws -> PaginatedResponse<DocumentSummary> {
+        var queryItems = [
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)"),
+        ]
+        if let search, !search.isEmpty {
+            queryItems.append(URLQueryItem(name: "search", value: search))
+        }
+        return try await request(path: "tasks/\(taskId)/documents", queryItems: queryItems)
+    }
+
+    func listTaskBriefings(
+        taskId: String,
+        limit: Int = 20,
+        offset: Int = 0,
+        search: String? = nil
+    ) async throws -> PaginatedResponse<BriefingSummary> {
+        var queryItems = [
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)"),
+        ]
+        if let search, !search.isEmpty {
+            queryItems.append(URLQueryItem(name: "search", value: search))
+        }
+        return try await request(path: "tasks/\(taskId)/briefings", queryItems: queryItems)
+    }
+
     // MARK: - Chat Sessions
 
     func listChatSessions(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<ChatSession> {
@@ -270,6 +302,12 @@ public extension APIClient {
             method: "PUT",
             body: body
         )
+    }
+
+    // MARK: - Task Tools
+
+    func listTaskTools(taskId: String) async throws -> [AgentTool] {
+        try await request(path: "tasks/\(taskId)/tools")
     }
 
     // MARK: - Task Extensions

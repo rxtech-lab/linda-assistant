@@ -41,14 +41,22 @@ export async function GET(request: NextRequest) {
     : eq(tasks.userId, auth.userId);
 
   const [items, countResult] = await Promise.all([
-    db.select().from(tasks).where(whereClause).orderBy(desc(tasks.createdAt)).limit(limit).offset(offset),
+    db
+      .select()
+      .from(tasks)
+      .where(whereClause)
+      .orderBy(desc(tasks.createdAt))
+      .limit(limit)
+      .offset(offset),
     db.select({ count: sql<number>`count(*)` }).from(tasks).where(whereClause),
   ]);
 
   const itemsWithNextRun = items.map((task) => ({
     ...task,
     nextRunAt:
-      task.isCronEnabled && task.cronSchedule ? getNextRunSeconds(task.cronSchedule, null, task.timezone) : null,
+      task.isCronEnabled && task.cronSchedule
+        ? getNextRunSeconds(task.cronSchedule, null, task.timezone)
+        : null,
   }));
 
   // Derive status from active chat sessions

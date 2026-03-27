@@ -93,10 +93,15 @@ struct TaskToolPermissionsView: View {
         isLoading = true
         error = nil
         do {
-            async let schemaTask = apiClient.getAssigneeFormSchema()
+            async let toolsTask = apiClient.listTaskTools(taskId: taskId)
             async let taskDetail = apiClient.getTask(id: taskId)
-            let (schema, task) = try await (schemaTask, taskDetail)
-            tools = schema.tools
+            let (taskTools, task) = try await (toolsTask, taskDetail)
+            tools = taskTools
+            // Initialize permissions from the API response (already task-scoped)
+            for tool in taskTools {
+                permissions[tool.name] = tool.defaultPermission
+            }
+            // Override with task-level permissions (includes conditions)
             if let perms = task.toolPermissions {
                 for perm in perms {
                     permissions[perm.toolName] = perm.permission

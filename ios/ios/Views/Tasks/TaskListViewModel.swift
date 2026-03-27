@@ -34,20 +34,20 @@ final class TaskListViewModel {
 
     private static func describeDecodingError(_ error: DecodingError) -> String {
         switch error {
-        case let .keyNotFound(key, context):
-            let path = context.codingPath.map(\.stringValue).joined(separator: ".")
-            return "Missing key '\(key.stringValue)' at path: \(path)"
-        case let .typeMismatch(type, context):
-            let path = context.codingPath.map(\.stringValue).joined(separator: ".")
-            return "Type mismatch for \(type) at path: \(path) — \(context.debugDescription)"
-        case let .valueNotFound(type, context):
-            let path = context.codingPath.map(\.stringValue).joined(separator: ".")
-            return "Value not found for \(type) at path: \(path)"
-        case let .dataCorrupted(context):
-            let path = context.codingPath.map(\.stringValue).joined(separator: ".")
-            return "Data corrupted at path: \(path) — \(context.debugDescription)"
-        @unknown default:
-            return error.localizedDescription
+            case let .keyNotFound(key, context):
+                let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+                return "Missing key '\(key.stringValue)' at path: \(path)"
+            case let .typeMismatch(type, context):
+                let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+                return "Type mismatch for \(type) at path: \(path) — \(context.debugDescription)"
+            case let .valueNotFound(type, context):
+                let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+                return "Value not found for \(type) at path: \(path)"
+            case let .dataCorrupted(context):
+                let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+                return "Data corrupted at path: \(path) — \(context.debugDescription)"
+            @unknown default:
+                return error.localizedDescription
         }
     }
 

@@ -80,7 +80,9 @@ struct ExtensionDetailView: View {
                         Section {
                             ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
                                 let prefixedName = "\(ext.prefix)\(tool.name)"
-                                let permission = ext.toolPermissions?.first(where: { $0.toolName == prefixedName })
+                                let permission = tool.effectivePermission.map {
+                                    ToolPermission(toolName: prefixedName, permission: $0)
+                                } ?? ext.toolPermissions?.first(where: { $0.toolName == prefixedName })
                                     ?? ToolPermission(toolName: prefixedName, permission: "manual-confirm")
                                 ExtensionToolRow(
                                     tool: tool,
@@ -183,29 +185,29 @@ private struct ExtensionToolRow: View {
 
     private var iconName: String {
         switch prefixedName.lowercased() {
-        case let n where n.contains("email"): "envelope"
-        case let n where n.contains("search"): "magnifyingglass"
-        case let n where n.contains("calendar"): "calendar"
-        case let n where n.contains("file"): "doc"
-        case let n where n.contains("web") || n.contains("scrape") || n.contains("crawl"): "globe"
-        case let n where n.contains("message"): "message"
-        case let n where n.contains("invoice"): "doc.text"
-        case let n where n.contains("create") || n.contains("add"): "plus.circle"
-        case let n where n.contains("list") || n.contains("get"): "list.bullet"
-        case let n where n.contains("update") || n.contains("edit"): "pencil"
-        case let n where n.contains("delete") || n.contains("remove"): "trash"
-        default: "gearshape"
+            case let n where n.contains("email"): "envelope"
+            case let n where n.contains("search"): "magnifyingglass"
+            case let n where n.contains("calendar"): "calendar"
+            case let n where n.contains("file"): "doc"
+            case let n where n.contains("web") || n.contains("scrape") || n.contains("crawl"): "globe"
+            case let n where n.contains("message"): "message"
+            case let n where n.contains("invoice"): "doc.text"
+            case let n where n.contains("create") || n.contains("add"): "plus.circle"
+            case let n where n.contains("list") || n.contains("get"): "list.bullet"
+            case let n where n.contains("update") || n.contains("edit"): "pencil"
+            case let n where n.contains("delete") || n.contains("remove"): "trash"
+            default: "gearshape"
         }
     }
 
     private var iconColor: Color {
         switch prefixedName.lowercased() {
-        case let n where n.contains("email"): .blue
-        case let n where n.contains("search"): .purple
-        case let n where n.contains("calendar"): .red
-        case let n where n.contains("web") || n.contains("scrape") || n.contains("crawl"): .green
-        case let n where n.contains("invoice"): .orange
-        default: .secondary
+            case let n where n.contains("email"): .blue
+            case let n where n.contains("search"): .purple
+            case let n where n.contains("calendar"): .red
+            case let n where n.contains("web") || n.contains("scrape") || n.contains("crawl"): .green
+            case let n where n.contains("invoice"): .orange
+            default: .secondary
         }
     }
 
@@ -306,6 +308,7 @@ private struct ExtensionToolDetailSheet: View {
                     Section {
                         Markdown(description)
                             .markdownTheme(.chat)
+                            .tappableMarkdownImages()
                             .textSelection(.enabled)
                     } header: {
                         Text("Description")
