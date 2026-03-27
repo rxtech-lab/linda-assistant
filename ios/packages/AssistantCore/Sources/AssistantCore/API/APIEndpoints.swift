@@ -336,7 +336,7 @@ public extension APIClient {
 
     func listEmails(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Email> {
         try await request(
-            path: "emails",
+            path: "inbox/emails",
             queryItems: [
                 URLQueryItem(name: "limit", value: "\(limit)"),
                 URLQueryItem(name: "offset", value: "\(offset)"),
@@ -345,15 +345,39 @@ public extension APIClient {
     }
 
     func getEmail(id: String) async throws -> Email {
-        try await request(path: "emails/\(id)")
+        try await request(path: "inbox/emails/\(id)")
     }
 
     func updateEmail(id: String, _ body: UpdateEmail) async throws -> Email {
-        try await request(path: "emails/\(id)", method: "PUT", body: body)
+        try await request(path: "inbox/emails/\(id)", method: "PUT", body: body)
     }
 
     func deleteEmail(id: String) async throws {
-        try await requestNoContent(path: "emails/\(id)")
+        try await requestNoContent(path: "inbox/emails/\(id)")
+    }
+
+    // MARK: - Webhooks
+
+    func listWebhooks(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Webhook> {
+        try await request(
+            path: "inbox/webhooks",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)"),
+            ]
+        )
+    }
+
+    func getWebhook(id: String) async throws -> Webhook {
+        try await request(path: "inbox/webhooks/\(id)")
+    }
+
+    func updateWebhook(id: String, _ body: UpdateWebhook) async throws -> Webhook {
+        try await request(path: "inbox/webhooks/\(id)", method: "PUT", body: body)
+    }
+
+    func deleteWebhook(id: String) async throws {
+        try await requestNoContent(path: "inbox/webhooks/\(id)")
     }
 
     // MARK: - Confirmations

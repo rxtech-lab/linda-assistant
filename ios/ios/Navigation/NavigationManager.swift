@@ -5,6 +5,7 @@ enum AppDestination: Hashable {
     case task(id: String)
     case chatSession(id: String)
     case email(id: String)
+    case webhook(id: String)
     case assignee(id: String, name: String)
     case assigneeExtensions(assigneeId: String)
     case taskToolPermissions(taskId: String)
@@ -26,19 +27,19 @@ final class NavigationManager {
     var briefingsPath = NavigationPath()
     var tasksPath = NavigationPath()
     var chatPath = NavigationPath()
-    var emailsPath = NavigationPath()
+    var inboxPath = NavigationPath()
     var settingsPath = NavigationPath()
     enum Tab: String, CaseIterable {
         case briefings
         case tasks
-        case emails
+        case inbox
         case settings
 
         var title: String {
             switch self {
                 case .briefings: "Briefing"
                 case .tasks: "Tasks"
-                case .emails: "Email"
+                case .inbox: "Inbox"
                 case .settings: "Settings"
             }
         }
@@ -47,7 +48,7 @@ final class NavigationManager {
             switch self {
                 case .briefings: "newspaper"
                 case .tasks: "checklist"
-                case .emails: "envelope"
+                case .inbox: "tray.fill"
                 case .settings: "gearshape"
             }
         }
@@ -57,7 +58,7 @@ final class NavigationManager {
         switch selectedTab {
             case .briefings: briefingsPath = NavigationPath()
             case .tasks: tasksPath = NavigationPath()
-            case .emails: emailsPath = NavigationPath()
+            case .inbox: inboxPath = NavigationPath()
             case .settings: settingsPath = NavigationPath()
         }
     }

@@ -6,14 +6,14 @@ struct SidebarNavigationView: View {
     private enum SidebarItem: String, CaseIterable {
         case chat
         case tasks
-        case emails
+        case inbox
         case settings
 
         var title: String {
             switch self {
                 case .chat: "Chat"
                 case .tasks: "Tasks"
-                case .emails: "Email"
+                case .inbox: "Inbox"
                 case .settings: "Settings"
             }
         }
@@ -22,7 +22,7 @@ struct SidebarNavigationView: View {
             switch self {
                 case .chat: "bubble.left.and.bubble.right"
                 case .tasks: "checklist"
-                case .emails: "envelope"
+                case .inbox: "tray.fill"
                 case .settings: "gearshape"
             }
         }
@@ -58,9 +58,9 @@ struct SidebarNavigationView: View {
                     NavigationStack(path: $nav.tasksPath) {
                         TaskListView()
                     }
-                case .emails:
-                    NavigationStack(path: $nav.emailsPath) {
-                        EmailListView()
+                case .inbox:
+                    NavigationStack(path: $nav.inboxPath) {
+                        InboxListView()
                     }
                 case .settings:
                     NavigationStack(path: $nav.settingsPath) {

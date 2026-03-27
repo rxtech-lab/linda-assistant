@@ -1,15 +1,10 @@
 import AssistantCore
 import SwiftUI
-#if os(macOS)
-    import AppKit
-#endif
 
-struct TaskListView: View {
+struct InboxListView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(EventManager.self) private var eventManager
-    @State private var viewModel = TaskListViewModel()
-    @State private var showingNewTask = false
-    @State private var taskToDelete: LindaTask?
+    @State private var viewModel = InboxListViewModel()
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -26,51 +21,45 @@ struct TaskListView: View {
     var body: some View {
         List {
             Section {
-                if let error = viewModel.error, viewModel.tasks.isEmpty {
+                if let error = viewModel.error, viewModel.items.isEmpty {
                     ErrorRetryView(message: error) {
-                        Task { await viewModel.loadTasks(apiClient: apiClient) }
+                        Task { await viewModel.loadItems(apiClient: apiClient) }
                     }
                     .listRowSeparator(.hidden)
-                } else if viewModel.tasks.isEmpty {
+                } else if viewModel.items.isEmpty, !viewModel.isLoading {
                     EmptyStateView(
-                        icon: "checklist",
-                        title: "No Tasks",
-                        message: viewModel.selectedSource != nil
-                            ? "No \(viewModel.selectedSource!.displayName.lowercased()) tasks found."
-                            : "Create your first task to get started."
+                        icon: viewModel.selectedCategory?.iconName ?? "tray",
+                        title: "No Items",
+                        message: emptyMessage
                     )
                     .listRowSeparator(.hidden)
                 } else {
-                    ForEach(viewModel.tasks) { task in
-                        NavigationLink(value: AppDestination.task(id: task.id)) {
-                            TaskRowView(
-                                task: task,
-                                onDelete: {
-                                    taskToDelete = task
-                                },
-                                onRunNow: {
-                                    Task {
-                                        await viewModel.executeTaskNow(
-                                            id: task.id,
-                                            apiClient: apiClient,
-                                            eventManager: eventManager
-                                        )
-                                    }
+                    ForEach(viewModel.items) { item in
+                        let showTag = viewModel.selectedCategory == nil
+                        switch item {
+                            case let .email(email):
+                                NavigationLink(value: AppDestination.email(id: email.id)) {
+                                    EmailRowView(email: email, showCategory: showTag)
                                 }
-                            )
+                            case let .webhook(webhook):
+                                NavigationLink(value: AppDestination.webhook(id: webhook.id)) {
+                                    WebhookRowView(webhook: webhook, showCategory: showTag)
+                                }
                         }
-                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                    }
+                    .onDelete { offsets in
+                        Task { await handleDelete(at: offsets) }
                     }
                 }
             } header: {
-                sourceFilterBar()
+                categoryFilterBar()
                     .padding(.vertical, 4)
                     .textCase(nil)
             }
         }
         .listStyle(.plain)
         .overlay {
-            if viewModel.isLoading || viewModel.isSwitchingSource {
+            if viewModel.isLoading || viewModel.isSwitchingCategory {
                 VStack(spacing: 8) {
                     ProgressView()
                     Text("Loading...")
@@ -84,9 +73,9 @@ struct TaskListView: View {
             }
         }
         .refreshable {
-            await viewModel.loadTasks(apiClient: apiClient)
+            await viewModel.loadItems(apiClient: apiClient)
         }
-        .navigationTitle("Tasks")
+        .navigationTitle("Inbox")
         .navigationDestination(for: AppDestination.self) { destination in
             switch destination {
                 case let .task(id): TaskDetailView(taskId: id)
@@ -108,72 +97,68 @@ struct TaskListView: View {
                 case let .assigneeHistory(assigneeId): HistoryListView(assigneeId: assigneeId)
             }
         }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showingNewTask = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .accessibilityIdentifier("add-task-button")
-            }
-        }
-        .sheet(isPresented: $showingNewTask) {
-            TaskFormSheet(mode: .create) { task in
-                viewModel.tasks.insert(task, at: 0)
-                eventManager.emit(.taskCreated(task))
-            }
-        }
-        .confirmationDialog(
-            "Delete Task?",
-            isPresented: Binding(
-                get: { taskToDelete != nil },
-                set: { if !$0 { taskToDelete = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                if let task = taskToDelete {
-                    Task {
-                        await viewModel.deleteTask(
-                            id: task.id,
-                            apiClient: apiClient,
-                            eventManager: eventManager
-                        )
-                    }
-                }
-            }
-        } message: {
-            Text("\"\(taskToDelete?.title ?? "")\" will be permanently deleted.")
-        }
         .task {
-            await viewModel.loadTasks(apiClient: apiClient)
+            await viewModel.loadItems(apiClient: apiClient)
         }
         .task {
             await viewModel.subscribeToEvents(eventManager: eventManager, apiClient: apiClient)
         }
     }
 
-    private func sourceFilterBar() -> some View {
-        let allSources: [(String, String, TaskSourceFilter?)] = [
+    private var emptyMessage: String {
+        switch viewModel.selectedCategory {
+            case .email: "No emails found."
+            case .webhook: "No webhooks found."
+            case nil: "Incoming emails and webhooks will appear here."
+        }
+    }
+
+    private func handleDelete(at offsets: IndexSet) async {
+        let displayedItems = viewModel.items
+        for index in offsets {
+            let item = displayedItems[index]
+            switch item {
+                case let .email(email):
+                    if let emailIndex = viewModel.emails.firstIndex(where: { $0.id == email.id }) {
+                        await viewModel.deleteEmail(
+                            at: IndexSet(integer: emailIndex),
+                            from: viewModel.emails,
+                            apiClient: apiClient,
+                            eventManager: eventManager
+                        )
+                    }
+                case let .webhook(webhook):
+                    if let webhookIndex = viewModel.webhooks.firstIndex(where: { $0.id == webhook.id }) {
+                        await viewModel.deleteWebhook(
+                            at: IndexSet(integer: webhookIndex),
+                            from: viewModel.webhooks,
+                            apiClient: apiClient,
+                            eventManager: eventManager
+                        )
+                    }
+            }
+        }
+    }
+
+    private func categoryFilterBar() -> some View {
+        let allCategories: [(String, String, InboxCategory?)] = [
             ("All", "tray.full", nil),
-        ] + TaskSourceFilter.allCases.map { ($0.displayName, $0.iconName, Optional($0)) }
-        // Total parts: selected gets 2, others get 1 each → 2 + 3 = 5
-        let totalParts = CGFloat(allSources.count) + 1 // +1 for the extra part on selected
+        ] + InboxCategory.allCases.map { ($0.displayName, $0.iconName, Optional($0)) }
+        let totalParts = CGFloat(allCategories.count) + 1
         let spacing: CGFloat = 8
 
         return GeometryReader { geo in
-            let totalSpacing = spacing * CGFloat(allSources.count - 1)
+            let totalSpacing = spacing * CGFloat(allCategories.count - 1)
             let availableWidth = geo.size.width - totalSpacing
             let unitWidth = availableWidth / totalParts
 
             HStack(spacing: spacing) {
-                ForEach(Array(allSources.enumerated()), id: \.offset) { _, item in
-                    let isSelected = viewModel.selectedSource == item.2
+                ForEach(Array(allCategories.enumerated()), id: \.offset) { _, item in
+                    let isSelected = viewModel.selectedCategory == item.2
                     let chipWidth = isSelected ? unitWidth * 2 : unitWidth
 
                     Button {
-                        Task { await viewModel.selectSource(item.2, apiClient: apiClient) }
+                        Task { await viewModel.selectCategory(item.2, apiClient: apiClient) }
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: item.1)

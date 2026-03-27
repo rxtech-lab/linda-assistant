@@ -3,6 +3,7 @@ import SwiftUI
 
 struct EmailRowView: View {
     let email: Email
+    var showCategory = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -17,10 +18,16 @@ struct EmailRowView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(email.subject ?? "No Subject")
-                    .font(.body)
-                    .fontWeight(email.isRead != true ? .semibold : .regular)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(email.subject ?? "No Subject")
+                        .font(.body)
+                        .fontWeight(email.isRead != true ? .semibold : .regular)
+                        .lineLimit(1)
+
+                    if showCategory {
+                        CategoryTag(category: .email)
+                    }
+                }
 
                 Text("from: \(email.fromName ?? email.fromEmail)")
                     .font(.caption)

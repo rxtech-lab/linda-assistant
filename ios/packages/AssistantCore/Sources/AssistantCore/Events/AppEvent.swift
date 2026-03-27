@@ -6,6 +6,8 @@ public enum AppEvent: Sendable {
     case taskDeleted(String)
     case emailUpdated(Email)
     case emailDeleted(String)
+    case webhookUpdated(Webhook)
+    case webhookDeleted(String)
     case assigneeCreated(Assignee)
     case assigneeUpdated(Assignee)
     case assigneeDeleted(String)

@@ -169,6 +169,13 @@
       "when": 1774616468753,
       "tag": "0023_massive_adam_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1774627835062,
+      "tag": "0024_kind_baron_strucker",
+      "breakpoints": true
     }
   ]
 }

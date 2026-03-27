@@ -59,7 +59,7 @@ async function createEmail(
   subject: string,
 ): Promise<{ id: string; emailId: string }> {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const res = await fetch(`${BASE_URL}/api/emails`, {
+  const res = await fetch(`${BASE_URL}/api/inbox/emails`, {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -75,7 +75,7 @@ async function createEmail(
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`POST /api/emails failed (${res.status}): ${text}`);
+    throw new Error(`POST /api/inbox/emails failed (${res.status}): ${text}`);
   }
   const created = (await res.json()) as { id: string; emailId: string };
   return created;
@@ -84,8 +84,8 @@ async function createEmail(
 async function listEmails(
   headers: Record<string, string>,
 ): Promise<{ data: Array<{ id: string; subject: string; [k: string]: unknown }> }> {
-  const res = await fetch(`${BASE_URL}/api/emails?limit=100`, { headers });
-  if (!res.ok) throw new Error(`GET /api/emails failed (${res.status})`);
+  const res = await fetch(`${BASE_URL}/api/inbox/emails?limit=100`, { headers });
+  if (!res.ok) throw new Error(`GET /api/inbox/emails failed (${res.status})`);
   return res.json() as any;
 }
 
@@ -93,12 +93,12 @@ async function deleteEmail(
   headers: Record<string, string>,
   emailId: string,
 ): Promise<void> {
-  const res = await fetch(`${BASE_URL}/api/emails/${emailId}`, {
+  const res = await fetch(`${BASE_URL}/api/inbox/emails/${emailId}`, {
     method: "DELETE",
     headers,
   });
   if (!res.ok && res.status !== 404) {
-    throw new Error(`DELETE /api/emails/${emailId} failed (${res.status})`);
+    throw new Error(`DELETE /api/inbox/emails/${emailId} failed (${res.status})`);
   }
 }
 

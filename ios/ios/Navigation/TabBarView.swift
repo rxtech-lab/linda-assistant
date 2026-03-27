@@ -32,9 +32,9 @@ import SwiftUI
                 }
                 .accessibilityIdentifier("tasks-tab")
 
-                Tab("Email", systemImage: "envelope", value: .emails) {
-                    NavigationStack(path: $nav.emailsPath) {
-                        EmailListView()
+                Tab("Inbox", systemImage: "tray.fill", value: .inbox) {
+                    NavigationStack(path: $nav.inboxPath) {
+                        InboxListView()
                             .toolbar {
                                 ToolbarItem(placement: .topBarLeading) {
                                     chatButton
@@ -42,7 +42,7 @@ import SwiftUI
                             }
                     }
                 }
-                .accessibilityIdentifier("emails-tab")
+                .accessibilityIdentifier("inbox-tab")
 
                 Tab("Settings", systemImage: "gearshape", value: .settings) {
                     NavigationStack(path: $nav.settingsPath) {

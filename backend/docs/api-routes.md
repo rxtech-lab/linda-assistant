@@ -41,15 +41,25 @@ The middleware calls the RxLab OIDC userinfo endpoint to validate the token and 
 
 Permission values: `auto-confirm` (execute without asking), `manual-confirm` (pause for user approval), `auto-reject` (tool unavailable), `disabled` (tool removed from toolset). Tools not listed default to `manual-confirm`.
 
-### Emails
+### Inbox — Emails
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/emails` | List emails (paginated) |
-| POST | `/api/emails` | Create email manually |
-| GET | `/api/emails/[id]` | Get email detail |
-| PUT | `/api/emails/[id]` | Update (mark read, edit metadata) |
-| DELETE | `/api/emails/[id]` | Delete email |
+| GET | `/api/inbox/emails` | List emails (paginated) |
+| POST | `/api/inbox/emails` | Create email manually |
+| GET | `/api/inbox/emails/[id]` | Get email detail |
+| PUT | `/api/inbox/emails/[id]` | Update (mark read, edit metadata) |
+| DELETE | `/api/inbox/emails/[id]` | Delete email |
+
+### Inbox — Webhooks
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/inbox/webhooks` | List webhooks (paginated) |
+| POST | `/api/inbox/webhooks` | Create webhook entry |
+| GET | `/api/inbox/webhooks/[id]` | Get webhook detail |
+| PUT | `/api/inbox/webhooks/[id]` | Update (mark read, edit metadata) |
+| DELETE | `/api/inbox/webhooks/[id]` | Delete webhook |
 
 ### Tasks
 
