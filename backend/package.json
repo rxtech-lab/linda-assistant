@@ -18,7 +18,7 @@
     "worker": "bun worker/index.ts 2>&1 | tee worker.log",
     "worker:dev": "bun --watch worker/index.ts 2>&1 | tee worker.log",
     "setup:e2e": "bun scripts/setup-e2e-db.ts",
-    "dev:e2e": "bun scripts/setup-e2e-db.ts && bun --env-file=.env.e2e next dev",
+    "dev:e2e": "bash scripts/dev-e2e.sh",
     "worker:e2e": "bun --env-file=.env.e2e worker/index.ts 2>&1 | tee worker.log"
   },
   "dependencies": {
@@ -27,6 +27,7 @@
     "@aws-sdk/client-s3": "^3",
     "@aws-sdk/s3-request-presigner": "^3",
     "@libsql/client": "^0.15",
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@upstash/redis": "^1",
     "@vercel/sandbox": "^1.9.0",

@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import type { ToolPermission, ToolCondition } from "@/lib/db/schema";
-import { assignees, extensions, assigneeExtensions } from "@/lib/db/schema";
+import { assignees, extensions, assigneeExtensions, taskExtensions } from "@/lib/db/schema";
 import { eq, and, or } from "drizzle-orm";
 import { CREATE_TASK_TOOL_NAME, createTaskTool } from "./create-task";
 import { CREATE_DOCUMENT_TOOL_NAME, createDocumentTool } from "./create-document";
@@ -66,12 +66,19 @@ async function loadMcpTools(
     > = {};
 
     // Build needsApproval map based on permissions
+    // Extension tool permissions may store names with or without prefix,
+    // so we check both the prefixed name and the raw (unprefixed) name.
     for (const toolName of Object.keys(rawTools)) {
       const prefixedName = `${prefix}${toolName}`;
-      const { permission, conditions, conditionLogic } = resolvePermissionWithConditions(
-        prefixedName,
-        toolPermissions,
-      );
+      let resolved = resolvePermissionWithConditions(prefixedName, toolPermissions);
+      // Fallback: try unprefixed name (extension-level permissions use raw MCP tool names)
+      if (resolved.permission === "manual-confirm" && toolPermissions?.length) {
+        const unprefixed = resolvePermissionWithConditions(toolName, toolPermissions);
+        if (unprefixed.permission !== "manual-confirm") {
+          resolved = unprefixed;
+        }
+      }
+      const { permission, conditions, conditionLogic } = resolved;
       if (permission === "auto-reject" || permission === "disabled") continue;
       const hasConditions = permission === "auto-confirm" && conditions && conditions.length > 0;
       needsApproval[toolName] = permission === "manual-confirm" || !!hasConditions;
@@ -89,10 +96,14 @@ async function loadMcpTools(
     // Prefix tool names and filter out auto-rejected tools
     const prefixed: Record<string, unknown> = {};
     for (const [toolName, tool] of Object.entries(mcpTools)) {
-      const { permission } = resolvePermissionWithConditions(
-        `${prefix}${toolName}`,
-        toolPermissions,
-      );
+      let resolved = resolvePermissionWithConditions(`${prefix}${toolName}`, toolPermissions);
+      if (resolved.permission === "manual-confirm" && toolPermissions?.length) {
+        const unprefixed = resolvePermissionWithConditions(toolName, toolPermissions);
+        if (unprefixed.permission !== "manual-confirm") {
+          resolved = unprefixed;
+        }
+      }
+      const { permission } = resolved;
       if (permission === "auto-reject" || permission === "disabled") continue;
       prefixed[`${prefix}${toolName}`] = tool as unknown;
     }
@@ -172,6 +183,59 @@ async function getEnabledExtensions(
       mcpUrl: ext.mcpUrl,
       auth: buildAuthConfig(ext.authType, ext.authConfig, accessToken),
       extToolPermissions: ae.toolPermissions,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Get enabled extensions for a task, including auth config
+ */
+async function getEnabledTaskExtensions(
+  userId: string,
+  taskId: string,
+  accessToken: string,
+): Promise<
+  Array<{
+    prefix: string;
+    mcpUrl: string;
+    auth: AuthConfig;
+    extToolPermissions: ToolPermission[] | null;
+  }>
+> {
+  // Get all extensions available to this user (system + user's own)
+  const allExtensions = await db
+    .select()
+    .from(extensions)
+    .where(or(eq(extensions.type, "system"), eq(extensions.userId, userId)));
+
+  if (allExtensions.length === 0) return [];
+
+  // Get task extension settings
+  const teRows = await db
+    .select()
+    .from(taskExtensions)
+    .where(eq(taskExtensions.taskId, taskId));
+
+  const teMap = new Map(teRows.map((te) => [te.extensionId, te]));
+
+  const result: Array<{
+    prefix: string;
+    mcpUrl: string;
+    auth: AuthConfig;
+    extToolPermissions: ToolPermission[] | null;
+  }> = [];
+
+  for (const ext of allExtensions) {
+    const te = teMap.get(ext.id);
+    if (!te?.enabled) continue; // Skip disabled or not-configured extensions
+
+    result.push({
+      prefix: ext.prefix,
+      mcpUrl: ext.mcpUrl,
+      auth: buildAuthConfig(ext.authType, ext.authConfig, accessToken),
+      extToolPermissions: te.toolPermissions,
     });
   }
 
@@ -319,29 +383,28 @@ export async function buildToolSet(
   // Notification tool — never require confirmation
   filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(userId, chatSessionId);
 
-  // Skip MCP tools in E2E test mode (no valid OAuth tokens for external services)
-  if (!isE2E) {
-    // Query enabled extensions for this assignee from DB
-    const enabledExtensions = await getEnabledExtensions(userId, assigneeId, accessToken);
+  // Query enabled extensions from DB — use task extensions in task context
+  const enabledExtensions = taskId
+    ? await getEnabledTaskExtensions(userId, taskId, accessToken)
+    : await getEnabledExtensions(userId, assigneeId, accessToken);
 
-    // Load all enabled extension MCP tools in parallel
-    const mcpResults = await Promise.allSettled(
-      enabledExtensions.map(({ prefix, mcpUrl, auth, extToolPermissions }) =>
-        loadMcpTools(prefix, mcpUrl, auth, extToolPermissions ?? toolPermissions),
-      ),
-    );
+  // Load all enabled extension MCP tools in parallel
+  const mcpResults = await Promise.allSettled(
+    enabledExtensions.map(({ prefix, mcpUrl, auth, extToolPermissions }) =>
+      loadMcpTools(prefix, mcpUrl, auth, extToolPermissions ?? toolPermissions),
+    ),
+  );
 
-    for (let i = 0; i < mcpResults.length; i++) {
-      const result = mcpResults[i];
-      if (result.status === "fulfilled") {
-        Object.assign(filtered, result.value.tools);
-        Object.assign(conditionalAutoConfirm, result.value.conditionalAutoConfirm);
-      } else {
-        console.error(
-          `[buildToolSet] MCP ${enabledExtensions[i].prefix} failed to load:`,
-          result.reason,
-        );
-      }
+  for (let i = 0; i < mcpResults.length; i++) {
+    const result = mcpResults[i];
+    if (result.status === "fulfilled") {
+      Object.assign(filtered, result.value.tools);
+      Object.assign(conditionalAutoConfirm, result.value.conditionalAutoConfirm);
+    } else {
+      console.error(
+        `[buildToolSet] MCP ${enabledExtensions[i].prefix} failed to load:`,
+        result.reason,
+      );
     }
   }
 

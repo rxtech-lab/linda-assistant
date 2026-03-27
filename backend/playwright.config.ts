@@ -49,6 +49,7 @@ export default defineConfig({
       S3_PUBLIC_URL: "http://localhost:9000/e2e-test",
       CELERY_BASE_URL: "http://localhost:8099",
       CELERY_ADMIN_KEY: "e2e-celery-admin-key",
+      E2E_MCP_URL: "http://localhost:8098",
     },
   },
 });

@@ -5,7 +5,7 @@ export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
   timeout: 60_000,
-  retries: 4,
+  retries: 3,
   workers: 4,
   webServer: {
     command: "bun oauth-server.ts",
@@ -24,7 +24,7 @@ export default defineConfig({
     },
     {
       name: "e2e",
-      dependencies: ["queue"],
+      dependencies: ["auth-setup"],
       testMatch: /(?!queue\.).*\.spec\.ts/,
     },
   ],

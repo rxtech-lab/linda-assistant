@@ -18,7 +18,7 @@ jobs:
       configuration: Debug
       sdk: iphonesimulator
       artifact-name: ios-build-logs
-      runs-on: '"self-hosted", "macOS"'
+      runs-on: '["self-hosted", "macOS"]'
       artifact-path: build.log
     secrets: inherit
 
@@ -31,7 +31,7 @@ jobs:
       scheme: LindaAssistant
       configuration: Debug
       sdk: macosx
-      runs-on: '"self-hosted", "macOS"'
+      runs-on: '["self-hosted", "macOS"]'
       artifact-name: macos-build-logs
       artifact-path: build-macos.log
     secrets: inherit
@@ -40,7 +40,7 @@ jobs:
     name: Run iOS Tests
     uses: ./.github/workflows/ios-setup.yml
     with:
-      runs-on: '"self-hosted", "macOS"'
+      runs-on: '["self-hosted", "macOS", "ARM64", "ui-tests"]'
       job-name: Run iOS Tests
       script: ios-test-plan.sh
       scheme: LindaAssistant
@@ -50,6 +50,7 @@ jobs:
       artifact-path: test.log
       upload-test-results: true
       start-backend: true
+      parallel-testing-workers: 3
     secrets: inherit
 
   test-macos:
@@ -57,7 +58,7 @@ jobs:
     name: Run macOS Tests
     uses: ./.github/workflows/ios-setup.yml
     with:
-      runs-on: '"self-hosted", "macOS"'
+      runs-on: '["self-hosted", "macOS", "ui-tests"]'
       job-name: Run macOS Tests
       script: ios-test-plan.sh
       scheme: LindaAssistant

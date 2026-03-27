@@ -6,6 +6,84 @@ import { authenticate } from "@/lib/auth/middleware";
 import { assigneeExtensionSettingsSchema, extensionWithStatusSchema } from "@/lib/schemas";
 import { errorJson } from "@/lib/utils/response";
 import { invalidateToolMetadataCache } from "@/lib/ai/tools";
+import { createGenericMcp, type AuthConfig } from "@/lib/ai/tools/mcps/generic";
+
+/**
+ * @openapi
+ * @operationId getAssigneeExtension
+ * @response extensionWithStatusSchema
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; extensionId: string }> },
+) {
+  const auth = await authenticate(request);
+  if (auth instanceof Response) return auth;
+
+  const { id: assigneeId, extensionId } = await params;
+
+  // Verify assignee belongs to user
+  const [assignee] = await db
+    .select({ id: assignees.id })
+    .from(assignees)
+    .where(and(eq(assignees.id, assigneeId), eq(assignees.userId, auth.userId)));
+
+  if (!assignee) {
+    return errorJson("Assignee not found", 404);
+  }
+
+  // Get extension
+  const [ext] = await db
+    .select()
+    .from(extensions)
+    .where(
+      and(
+        eq(extensions.id, extensionId),
+        or(eq(extensions.type, "system"), eq(extensions.userId, auth.userId)),
+      ),
+    );
+
+  if (!ext) {
+    return errorJson("Extension not found", 404);
+  }
+
+  // Get assignee-specific extension status
+  const [ae] = await db
+    .select()
+    .from(assigneeExtensions)
+    .where(
+      and(
+        eq(assigneeExtensions.assigneeId, assigneeId),
+        eq(assigneeExtensions.extensionId, extensionId),
+      ),
+    );
+
+  // Discover tools from MCP server
+  let tools: Array<{ name: string; description: string }> = [];
+  try {
+    const authConfig: AuthConfig =
+      ext.authType === "api_key"
+        ? { type: "api_key", apiKey: (ext.authConfig?.apiKey as string) ?? "" }
+        : ext.authType === "none"
+          ? { type: "none" }
+          : { type: "rxauth", accessToken: auth.accessToken };
+
+    const mcpTools = await createGenericMcp(ext.mcpUrl, authConfig, {});
+    tools = Object.entries(mcpTools).map(([name, tool]) => ({
+      name,
+      description: (tool as any).description ?? "",
+    }));
+  } catch {
+    // MCP server may be unavailable — return extension without tools
+  }
+
+  return NextResponse.json({
+    ...ext,
+    enabled: ae?.enabled ?? false,
+    toolPermissions: ae?.toolPermissions ?? null,
+    tools,
+  });
+}
 
 /**
  * @openapi

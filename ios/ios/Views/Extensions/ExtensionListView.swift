@@ -33,25 +33,27 @@ struct ExtensionListView: View {
                 List {
                     if !systemExtensions.isEmpty {
                         Section("System Extensions") {
-                            ForEach(systemExtensions) { ext in
+                            ForEach(Array(systemExtensions.enumerated()), id: \.element.id) { index, ext in
                                 NavigationLink(value: AppDestination.extensionDetail(
                                     extensionId: ext.id,
                                     assigneeId: nil
                                 )) {
                                     ExtensionRowView(extension: ext)
                                 }
+                                .accessibilityIdentifier("extension-row-\(index)")
                             }
                         }
                     }
 
                     Section {
-                        ForEach(userExtensions) { ext in
+                        ForEach(Array(userExtensions.enumerated()), id: \.element.id) { index, ext in
                             NavigationLink(value: AppDestination.extensionDetail(
                                 extensionId: ext.id,
                                 assigneeId: nil
                             )) {
                                 ExtensionRowView(extension: ext)
                             }
+                            .accessibilityIdentifier("extension-row-\(systemExtensions.count + index)")
                         }
                         .onDelete(perform: deleteUserExtension)
 

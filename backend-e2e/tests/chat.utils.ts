@@ -383,6 +383,7 @@ export async function getChatHistory(
 
 interface Confirmation {
   id: string;
+  chatSessionId: string;
   toolName: string;
   toolCallId: string;
   status: string;
@@ -401,12 +402,13 @@ export async function listConfirmations(): Promise<Confirmation[]> {
 export async function resolveConfirmation(
   id: string,
   action: "confirm" | "reject",
+  options?: { alwaysAllow?: boolean },
 ): Promise<void> {
   const token = loadToken();
   const res = await fetch(`${BASE_URL}/api/confirmations/${id}/resolve`, {
     method: "POST",
     headers: authHeaders(token),
-    body: JSON.stringify({ action }),
+    body: JSON.stringify({ action, ...options }),
   });
   if (!res.ok) {
     throw new Error(

@@ -1,6 +1,6 @@
 import { redis } from "@/lib/redis";
 import { db } from "@/lib/db";
-import { assignees, chatSessions } from "@/lib/db/schema";
+import { assignees, chatSessions, tasks } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import type { ToolPermission } from "@/lib/db/schema";
 import { sendPushNotification, sendSilentPushNotification } from "@/lib/push";
@@ -167,14 +167,36 @@ export async function resolveLocationRequest(
     timestamp: Date.now(),
   });
 
-  // Handle alwaysAllow — update assignee's toolPermissions to auto-confirm get_location
+  // Handle alwaysAllow — update toolPermissions to auto-confirm get_location
+  // In task context, update the task's permissions; otherwise update the assignee's
   if (action === "confirm" && options?.alwaysAllow) {
     const [session] = await db
-      .select({ assigneeId: chatSessions.assigneeId })
+      .select({
+        assigneeId: chatSessions.assigneeId,
+        taskId: chatSessions.taskId,
+      })
       .from(chatSessions)
       .where(eq(chatSessions.id, chatSessionId));
 
-    if (session?.assigneeId) {
+    if (session?.taskId) {
+      const [task] = await db
+        .select({ toolPermissions: tasks.toolPermissions })
+        .from(tasks)
+        .where(eq(tasks.id, session.taskId));
+
+      const perms: ToolPermission[] = (task?.toolPermissions as ToolPermission[]) ?? [];
+      const idx = perms.findIndex((tp) => tp.toolName === request.toolName);
+      if (idx >= 0) {
+        perms[idx].permission = "auto-confirm";
+      } else {
+        perms.push({ toolName: request.toolName, permission: "auto-confirm" });
+      }
+
+      await db
+        .update(tasks)
+        .set({ toolPermissions: perms, updatedAt: sql`(datetime('now'))` })
+        .where(eq(tasks.id, session.taskId));
+    } else if (session?.assigneeId) {
       const [assignee] = await db
         .select({ toolPermissions: assignees.toolPermissions })
         .from(assignees)

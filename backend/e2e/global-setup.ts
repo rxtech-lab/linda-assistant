@@ -14,6 +14,7 @@ import path from "path";
 
 const WORKER_PID_FILE = path.resolve(__dirname, "..", "e2e-worker.pid");
 const CELERY_MOCK_PID_FILE = path.resolve(__dirname, "..", "e2e-celery-mock.pid");
+const MCP_MOCK_PID_FILE = path.resolve(__dirname, "..", "e2e-mcp-mock.pid");
 
 export default async function globalSetup() {
   const dbPath = path.resolve(__dirname, "..", "e2e-test.db");
@@ -147,6 +148,38 @@ export default async function globalSetup() {
 
   fs.writeFileSync(CELERY_MOCK_PID_FILE, String(celeryMock.pid));
 
+  // Start MCP mock server
+  const mcpMock = spawn("bun", ["e2e/helpers/mcp-mock-server.ts"], {
+    cwd: path.resolve(__dirname, ".."),
+    env: { ...process.env, MCP_MOCK_PORT: "8098" },
+    stdio: "pipe",
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("MCP mock startup timeout")), 10000);
+    mcpMock.stdout?.on("data", (data: Buffer) => {
+      if (data.toString().includes("mcp-mock-ready")) {
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+    mcpMock.stderr?.on("data", (data: Buffer) => {
+      process.stderr.write(`[mcp-mock:err] ${data.toString()}`);
+    });
+    mcpMock.on("error", (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+    mcpMock.on("exit", (code) => {
+      if (code !== null && code !== 0) {
+        clearTimeout(timeout);
+        reject(new Error(`MCP mock exited with code ${code}`));
+      }
+    });
+  });
+
+  fs.writeFileSync(MCP_MOCK_PID_FILE, String(mcpMock.pid));
+
   // Start worker process
   const worker = spawn("bun", ["worker/index.ts"], {
     cwd: path.resolve(__dirname, ".."),
@@ -163,6 +196,7 @@ export default async function globalSetup() {
       S3_API_URL: "http://localhost:9000",
       S3_BUCKET_NAME: "e2e-test",
       S3_PUBLIC_URL: "http://localhost:9000/e2e-test",
+      E2E_MCP_URL: "http://localhost:8098",
     },
     stdio: "pipe",
   });
