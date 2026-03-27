@@ -83,6 +83,7 @@ const SYSTEM_TOOLS = new Set([
   "create_briefing",
   "send_notification",
   "generate_image",
+  "search_history",
 ]);
 
 export async function updateAssigneePermissions(

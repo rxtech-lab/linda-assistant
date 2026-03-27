@@ -149,6 +149,13 @@ struct AssigneeDetailContentView: View {
                 }
             }
 
+            // History section
+            Section {
+                NavigationLink(value: AppDestination.assigneeHistory(assigneeId: assignee.id)) {
+                    Label("Task History", systemImage: "clock.arrow.circlepath")
+                }
+            }
+
             // Tool permissions section
             if let permissions = assignee.toolPermissions, !permissions.isEmpty {
                 Section {

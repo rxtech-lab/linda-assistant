@@ -9,6 +9,7 @@ import {
   tasks,
   taskEmails,
   taskExtensions,
+  taskHistory,
   chatSessions,
   messages,
   confirmations,
@@ -121,6 +122,21 @@ export const taskExtensionsRelations = relations(taskExtensions, ({ one }) => ({
   extension: one(extensions, {
     fields: [taskExtensions.extensionId],
     references: [extensions.id],
+  }),
+}));
+
+export const taskHistoryRelations = relations(taskHistory, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskHistory.taskId],
+    references: [tasks.id],
+  }),
+  chatSession: one(chatSessions, {
+    fields: [taskHistory.chatSessionId],
+    references: [chatSessions.id],
+  }),
+  assignee: one(assignees, {
+    fields: [taskHistory.assigneeId],
+    references: [assignees.id],
   }),
 }));
 

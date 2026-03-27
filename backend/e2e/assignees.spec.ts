@@ -322,6 +322,12 @@ test.describe("Tool permissions", () => {
     assigneeResponseSchema.parse(body);
     expect(sortByToolName(body.toolPermissions)).toEqual(sortByToolName(permissions));
     assigneeId = body.id;
+
+    // Re-fetch tool set with assigneeId to include assignee-specific tools (e.g. search_history)
+    const toolsRes = await request.get(`/api/tools?assigneeId=${assigneeId}`);
+    expect(toolsRes.ok()).toBeTruthy();
+    const toolsBody = await toolsRes.json();
+    toolSet = toolsBody.map((t: { name: string }) => t.name);
   });
 
   test("GET returns correct permissions", async ({ request }) => {

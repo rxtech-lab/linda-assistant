@@ -23,6 +23,7 @@ import { SEARCH_DOCUMENTS_TOOL_NAME, searchDocumentsTool } from "./search-docume
 import { CREATE_BRIEFING_TOOL_NAME, createBriefingTool } from "./create-briefing";
 import { CREATE_DRAWING_TOOL_NAME, createDrawingTool } from "./create-drawing";
 import { GENERATE_IMAGE_TOOL_NAME, generateImageTool } from "./generate-image";
+import { SEARCH_HISTORY_TOOL_NAME, searchHistoryTool } from "./search-history";
 import { type AuthConfig, createGenericMcp } from "./mcps/generic";
 import { redis } from "@/lib/redis";
 
@@ -37,6 +38,7 @@ export const NO_PERMISSION_CHANGE_TOOLS: ReadonlySet<string> = new Set([
   CREATE_BRIEFING_TOOL_NAME,
   SEND_NOTIFICATION_TOOL_NAME,
   GENERATE_IMAGE_TOOL_NAME,
+  SEARCH_HISTORY_TOOL_NAME,
 ]);
 
 export interface ToolSetResult {
@@ -385,6 +387,11 @@ export async function buildToolSet(
   // Notification tool — never require confirmation
   filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(userId, chatSessionId);
 
+  // History search tool — only for standalone chat (not task context), requires assignee
+  if (!isTaskContext && assigneeId) {
+    filtered[SEARCH_HISTORY_TOOL_NAME] = searchHistoryTool(userId, assigneeId);
+  }
+
   // Query enabled extensions from DB — use task extensions in task context
   const enabledExtensions = taskId
     ? await getEnabledTaskExtensions(userId, taskId, accessToken)
@@ -560,6 +567,7 @@ export {
   GET_LOCATION_TOOL_NAME,
   SEARCH_DOCUMENTS_TOOL_NAME,
   SEARCH_EMAILS_TOOL_NAME,
+  SEARCH_HISTORY_TOOL_NAME,
   SEND_EMAIL_TOOL_NAME,
   SEND_NOTIFICATION_TOOL_NAME,
   UPDATE_DOCUMENT_TOOL_NAME,

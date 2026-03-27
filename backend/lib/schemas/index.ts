@@ -887,3 +887,29 @@ export const locationResponseResultSchema = z.object({
   action: z.enum(["confirm", "reject"]).describe("Action taken"),
   toolCallId: z.string().describe("Tool call ID that was resolved"),
 });
+
+// ---- Task History ----
+
+export const selectTaskHistorySchema = z.object({
+  id: z.string(),
+  taskId: z.string(),
+  chatSessionId: z.string(),
+  assigneeId: z.string().nullable(),
+  summary: z.string(),
+  toolCalls: z.array(z.string()).nullable(),
+  status: z.string().nullable(),
+  durationSecs: z.number().nullable(),
+  taskTitle: z.string().optional(),
+  score: z.number().optional(),
+  createdAt: z.string().nullable(),
+});
+
+export const listHistoryResponseSchema = z.object({
+  data: z.array(selectTaskHistorySchema),
+  pagination: z.object({
+    total: z.number(),
+    limit: z.number(),
+    offset: z.number(),
+    hasMore: z.boolean(),
+  }),
+});

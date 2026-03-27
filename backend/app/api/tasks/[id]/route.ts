@@ -234,6 +234,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     updates.isCronEnabled = false; // Setting runsAt → disable cron
     updates.cronSchedule = null;
   }
+  if (parsed.data.isCronEnabled === false && parsed.data.runsAt === undefined) {
+    updates.runsAt = null; // Switching to none → clear runsAt
+    updates.cronSchedule = null;
+    updates.timezone = null;
+  }
 
   // Validate after auto-clear: reject only explicit conflicts
   const willBeCron = (updates.isCronEnabled as boolean | undefined) ?? existing.isCronEnabled;

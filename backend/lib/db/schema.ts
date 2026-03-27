@@ -1,6 +1,14 @@
 import { sql } from "drizzle-orm";
-import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { customType, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
+
+/** Custom column type for Turso's F32_BLOB vector storage. */
+const f32Blob = (dimensions: number) =>
+  customType<{ data: number[]; driverData: Buffer }>({
+    dataType() {
+      return `F32_BLOB(${dimensions})`;
+    },
+  });
 
 // Discriminated union by parameterType — each type allows only its valid operators
 export type StringCondition = {
@@ -342,5 +350,27 @@ export const devices = sqliteTable("devices", {
   userId: text("user_id").notNull(),
   deviceToken: text("device_token").notNull().unique(),
   platform: text("platform").notNull(),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
+export const taskHistory = sqliteTable("task_history", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  chatSessionId: text("chat_session_id")
+    .notNull()
+    .references(() => chatSessions.id, { onDelete: "cascade" }),
+  assigneeId: text("assignee_id").references(() => assignees.id, {
+    onDelete: "set null",
+  }),
+  userId: text("user_id").notNull(),
+  summary: text("summary").notNull(),
+  embedding: f32Blob(768)("embedding"),
+  toolCalls: text("tool_calls", { mode: "json" }).$type<string[]>(),
+  status: text("status"),
+  durationSecs: integer("duration_secs"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
 });

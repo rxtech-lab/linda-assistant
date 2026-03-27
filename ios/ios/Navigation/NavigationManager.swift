@@ -1,3 +1,4 @@
+import AssistantCore
 import SwiftUI
 
 enum AppDestination: Hashable {
@@ -13,6 +14,9 @@ enum AppDestination: Hashable {
     case extensionList
     case assigneeList
     case usage
+    case history
+    case historyDetail(TaskHistory)
+    case assigneeHistory(assigneeId: String)
 }
 
 @Observable

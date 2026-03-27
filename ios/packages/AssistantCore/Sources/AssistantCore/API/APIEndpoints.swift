@@ -417,4 +417,25 @@ public extension APIClient {
     func createPresignedURL(_ body: PresignedURLRequest) async throws -> PresignedURLResponse {
         try await request(path: "uploads/presigned-url", method: "POST", body: body)
     }
+
+    // MARK: - History
+
+    func listHistory(
+        assigneeId: String? = nil,
+        search: String? = nil,
+        limit: Int = 20,
+        offset: Int = 0
+    ) async throws -> PaginatedResponse<TaskHistory> {
+        var queryItems = [
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)"),
+        ]
+        if let assigneeId {
+            queryItems.append(URLQueryItem(name: "assigneeId", value: assigneeId))
+        }
+        if let search, !search.isEmpty {
+            queryItems.append(URLQueryItem(name: "search", value: search))
+        }
+        return try await request(path: "history", queryItems: queryItems)
+    }
 }

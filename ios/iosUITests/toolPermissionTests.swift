@@ -66,7 +66,9 @@ final class ToolPermissionTests: XCTestCase {
         toolPermissionsLink.tap()
 
         // Wait for tool list to load
-        sleep(2)
+        sleep(5)
+
+        app.swipeUp()
 
         app.swipeUp()
         // Tap on Send Notification (a system tool)
@@ -118,7 +120,7 @@ final class ToolPermissionTests: XCTestCase {
             .firstMatch.tap()
 
         // Wait for assignee detail to load
-        sleep(3)
+        sleep(5)
 
         // Scroll down to find System Tools section with tool permissions
         let sendNotification = app.staticTexts["Send Notification"].firstMatch
