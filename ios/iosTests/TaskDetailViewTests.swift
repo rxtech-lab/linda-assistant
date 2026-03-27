@@ -294,7 +294,7 @@ final class TaskDetailTimezoneTests: XCTestCase {
 
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
-        let date = iso.date(from: runsAt)!
+        let date = try XCTUnwrap(iso.date(from: runsAt))
         let df = DateFormatter()
         df.timeZone = .current
         df.dateFormat = "MMM d 'at' h:mm a"
@@ -312,7 +312,7 @@ final class TaskDetailTimezoneTests: XCTestCase {
         }
     }
 
-    func testNoTimezone_hidesTimezoneRow() throws {
+    func testNoTimezone_hidesTimezoneRow() {
         let task = makeTaskDetail(status: "pending")
         let sut = TaskDetailContentView(
             task: task,

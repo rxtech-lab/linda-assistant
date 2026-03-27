@@ -16,7 +16,10 @@ export interface McpMock {
  */
 export async function startMcpMock(port = 8098): Promise<McpMock> {
   // Track active sessions so multi-request flows (initialize → tools/list) work
-  const sessions = new Map<string, { server: McpServer; transport: StreamableHTTPServerTransport }>();
+  const sessions = new Map<
+    string,
+    { server: McpServer; transport: StreamableHTTPServerTransport }
+  >();
 
   function createSessionServer(): McpServer {
     const server = new McpServer({
@@ -26,14 +29,29 @@ export async function startMcpMock(port = 8098): Promise<McpMock> {
 
     // Simple echo tool — returns the input message
     // @ts-expect-error -- MCP SDK overload causes TS2589 with Zod; runtime works fine
-    server.tool("echo", "Returns the input message as-is", { message: z.string() }, async (args: { message: string }) => ({
-      content: [{ type: "text" as const, text: args.message }],
-    }));
+    server.tool(
+      "echo",
+      "Returns the input message as-is",
+      { message: z.string() },
+      async (args: { message: string }) => ({
+        content: [{ type: "text" as const, text: args.message }],
+      }),
+    );
 
     // Fake weather tool — returns deterministic weather data
-    server.tool("get_weather", "Returns fake weather data for a city", { city: z.string() }, async (args: { city: string }) => ({
-      content: [{ type: "text" as const, text: JSON.stringify({ city: args.city, temp: 22, condition: "sunny" }) }],
-    }));
+    server.tool(
+      "get_weather",
+      "Returns fake weather data for a city",
+      { city: z.string() },
+      async (args: { city: string }) => ({
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ city: args.city, temp: 22, condition: "sunny" }),
+          },
+        ],
+      }),
+    );
 
     return server;
   }

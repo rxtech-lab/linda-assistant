@@ -209,6 +209,25 @@ public struct EnabledExtension: Codable, Identifiable, Sendable {
     public let prefix: String
 }
 
+public struct DocumentSummary: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let format: String
+    public let chatSessionId: String
+    public let createdAt: String?
+    public let updatedAt: String?
+}
+
+public struct BriefingSummary: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let imageUrl: String?
+    public let chatSessionId: String?
+    public let assigneeId: String?
+    public let createdAt: String?
+    public let updatedAt: String?
+}
+
 public struct TaskDetail: Codable, Identifiable, Sendable {
     public let id: String
     public let userId: String
@@ -230,6 +249,8 @@ public struct TaskDetail: Codable, Identifiable, Sendable {
     public let updatedAt: String?
     public let chatSessions: [SessionSummary]
     public let emails: [TaskEmailSummary]
+    public let documents: [DocumentSummary]?
+    public let briefings: [BriefingSummary]?
 }
 
 public struct TaskEmailSummary: Codable, Identifiable, Sendable {
@@ -857,6 +878,7 @@ public struct ExtensionTool: Codable, Sendable, Identifiable {
 
     public let name: String
     public let description: String
+    public let effectivePermission: String?
 }
 
 public struct ExtensionWithStatus: Codable, Identifiable, Sendable {

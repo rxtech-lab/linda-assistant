@@ -44,14 +44,32 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const teRows = await db.select().from(taskExtensions).where(eq(taskExtensions.taskId, taskId));
 
+  // Load task-level tool permissions for merging
+  const [taskRow] = await db
+    .select({ toolPermissions: tasks.toolPermissions })
+    .from(tasks)
+    .where(eq(tasks.id, taskId));
+  const taskToolPerms = taskRow?.toolPermissions ?? [];
+
   const teMap = new Map(teRows.map((te) => [te.extensionId, te]));
 
   const result = allExtensions.map((ext) => {
     const te = teMap.get(ext.id);
+    // Merge extension-level permissions with task-level permissions for this extension's prefix
+    const extPerms = te?.toolPermissions ?? [];
+    const taskPermsForExt = taskToolPerms
+      .filter((tp) => tp.toolName.startsWith(ext.prefix))
+      .map((tp) => ({ ...tp, toolName: tp.toolName.slice(ext.prefix.length) }));
+    // Extension-level permissions take priority, then task-level
+    const mergedMap = new Map<string, (typeof extPerms)[number]>();
+    for (const tp of taskPermsForExt) mergedMap.set(tp.toolName, tp);
+    for (const tp of extPerms) mergedMap.set(tp.toolName, tp);
+    const mergedToolPermissions = mergedMap.size > 0 ? Array.from(mergedMap.values()) : null;
+
     return {
       ...ext,
       enabled: te?.enabled ?? false,
-      toolPermissions: te?.toolPermissions ?? null,
+      toolPermissions: mergedToolPermissions,
     };
   });
 

@@ -11,6 +11,7 @@ import {
   consumeSessionStream,
   updateTaskPermissions,
   getTask,
+  getTaskTools,
   listConfirmations,
   resolveConfirmation,
 } from "./chat.utils";
@@ -145,6 +146,17 @@ test.describe("Task auto-confirm via alwaysAllow", () => {
       );
       expect(confirmEvents).toHaveLength(0);
       console.log("Second execution completed without confirmation");
+
+      // --- Verify: task tools API reflects the auto-confirm permission ---
+      const taskTools = await getTaskTools(taskId);
+      const timeToolFromApi = taskTools.find(
+        (t) => t.name === "get_current_time",
+      );
+      expect(timeToolFromApi).toBeDefined();
+      expect(timeToolFromApi!.defaultPermission).toBe("auto-confirm");
+      console.log(
+        "Task tools API confirms get_current_time is auto-confirm",
+      );
 
       stream2.cancel();
     } finally {

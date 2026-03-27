@@ -213,10 +213,7 @@ async function getEnabledTaskExtensions(
   if (allExtensions.length === 0) return [];
 
   // Get task extension settings
-  const teRows = await db
-    .select()
-    .from(taskExtensions)
-    .where(eq(taskExtensions.taskId, taskId));
+  const teRows = await db.select().from(taskExtensions).where(eq(taskExtensions.taskId, taskId));
 
   const teMap = new Map(teRows.map((te) => [te.extensionId, te]));
 
@@ -525,7 +522,7 @@ export function extractParameters(tool: unknown): ToolParameterMeta[] | undefine
   }
 }
 
-function extractMetadata(result: ToolSetResult): ToolMetadata[] {
+export function extractMetadata(result: ToolSetResult): ToolMetadata[] {
   return Object.entries(result.tools).map(([name, tool]) => {
     const t = tool as { description?: string; needsApproval?: boolean };
     return {

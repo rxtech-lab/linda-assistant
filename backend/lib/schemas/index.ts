@@ -182,7 +182,11 @@ export const selectTaskSchema = z.object({
   cronSchedule: z.string().nullable().describe("Cron expression e.g. '0 9 * * *'"),
   isCronEnabled: z.boolean().nullable().describe("Whether cron scheduling is active"),
   runsAt: z.string().nullable().describe("ISO datetime for one-shot scheduled execution"),
-  timezone: z.string().nullable().optional().describe("IANA timezone (e.g. 'America/New_York') for interpreting schedule times"),
+  timezone: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("IANA timezone (e.g. 'America/New_York') for interpreting schedule times"),
   toolPermissions: z
     .array(toolPermissionSchema)
     .nullable()
@@ -232,7 +236,11 @@ export const insertTaskSchema = z
       .optional()
       .nullable()
       .describe("ISO datetime for one-shot scheduled execution"),
-    timezone: z.string().optional().nullable().describe("IANA timezone (e.g. 'America/New_York') for interpreting schedule times"),
+    timezone: z
+      .string()
+      .optional()
+      .nullable()
+      .describe("IANA timezone (e.g. 'America/New_York') for interpreting schedule times"),
   })
   .refine((data) => !(data.isCronEnabled && data.runsAt), {
     message: "A task cannot have both cron scheduling and a one-shot runsAt schedule",
@@ -265,7 +273,11 @@ export const updateTaskSchema = z
       .optional()
       .nullable()
       .describe("ISO datetime for one-shot scheduled execution"),
-    timezone: z.string().optional().nullable().describe("IANA timezone (e.g. 'America/New_York') for interpreting schedule times"),
+    timezone: z
+      .string()
+      .optional()
+      .nullable()
+      .describe("IANA timezone (e.g. 'America/New_York') for interpreting schedule times"),
     toolPermissions: z
       .array(toolPermissionSchema)
       .optional()
@@ -541,6 +553,15 @@ export const updateDocumentSchema = z.object({
   content: z.string().optional().describe("Updated document content"),
 });
 
+export const documentSummarySchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  title: z.string().describe("Document title"),
+  format: z.enum(["markdown", "html"]).describe("Content format: markdown or html"),
+  chatSessionId: z.string().describe("Associated chat session ID"),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
+});
+
 // ---- Briefings ----
 
 export const selectBriefingSchema = z.object({
@@ -552,6 +573,16 @@ export const selectBriefingSchema = z.object({
   content: z.string().describe("Briefing markdown content"),
   imageUrl: z.string().nullable().describe("Cover image URL"),
   documents: z.array(selectDocumentSchema).optional().describe("Linked documents"),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
+});
+
+export const briefingSummarySchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  title: z.string().describe("Briefing title"),
+  imageUrl: z.string().nullable().describe("Cover image URL"),
+  chatSessionId: z.string().nullable().describe("Associated chat session ID"),
+  assigneeId: z.string().nullable().describe("Associated assignee ID"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });

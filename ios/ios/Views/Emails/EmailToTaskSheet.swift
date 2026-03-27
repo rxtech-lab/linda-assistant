@@ -42,8 +42,10 @@ struct EmailToTaskSheet: View {
                     Text("Assignee")
                 } footer: {
                     if selectedAssigneeId == nil, defaultEmailAssigneeId == nil {
-                        Text("An assignee is required to process the email. Select one here or set a default in Settings.")
-                            .foregroundStyle(.red)
+                        Text(
+                            "An assignee is required to process the email. Select one here or set a default in Settings."
+                        )
+                        .foregroundStyle(.red)
                     }
                 }
             }

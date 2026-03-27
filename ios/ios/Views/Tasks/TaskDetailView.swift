@@ -151,6 +151,9 @@ struct TaskDetailContentView: View {
     var onRunNow: () -> Void
 
     @State private var sessionOffsetsToDelete: IndexSet?
+    @State private var showingDocumentsSheet = false
+    @State private var showingBriefingsSheet = false
+    @State private var selectedDocument: DocumentSheetItem?
 
     var body: some View {
         List {
@@ -279,6 +282,101 @@ struct TaskDetailContentView: View {
                 }
             }
 
+            // Documents
+            if let documents = task.documents, !documents.isEmpty {
+                Section {
+                    ForEach(documents) { doc in
+                        Button {
+                            selectedDocument = DocumentSheetItem(id: doc.id, title: doc.title)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(doc.title)
+                                        .font(.body)
+                                        .foregroundStyle(.primary)
+                                    if let createdAt = doc.createdAt {
+                                        Text(formatSessionDateTime(createdAt))
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                                Spacer()
+                                Text(doc.format.uppercased())
+                                    .font(.caption2)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(.fill.tertiary)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+                } header: {
+                    Button {
+                        showingDocumentsSheet = true
+                    } label: {
+                        HStack {
+                            Label("Documents (\(documents.count))", systemImage: "doc.text")
+                            Spacer()
+                            Text("See All")
+                                .font(.caption)
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                    .accessibilityIdentifier("documents-header")
+                }
+            }
+
+            // Briefings
+            if let briefings = task.briefings, !briefings.isEmpty {
+                Section {
+                    ForEach(briefings) { briefing in
+                        Button {
+                            showingBriefingsSheet = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                if let imageUrl = briefing.imageUrl,
+                                   let url = URL(string: imageUrl)
+                                {
+                                    AsyncImage(url: url) { image in
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                    } placeholder: {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(.fill.tertiary)
+                                    }
+                                    .frame(width: 44, height: 44)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(briefing.title)
+                                        .font(.body)
+                                        .foregroundStyle(.primary)
+                                    if let createdAt = briefing.createdAt {
+                                        Text(formatSessionDateTime(createdAt))
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Button {
+                        showingBriefingsSheet = true
+                    } label: {
+                        HStack {
+                            Label("Briefings (\(briefings.count))", systemImage: "newspaper")
+                            Spacer()
+                            Text("See All")
+                                .font(.caption)
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                    .accessibilityIdentifier("briefings-header")
+                }
+            }
+
             // Chat Sessions
             Section {
                 if task.chatSessions.isEmpty {
@@ -373,6 +471,15 @@ struct TaskDetailContentView: View {
             } else {
                 Text("This chat session will be permanently deleted.")
             }
+        }
+        .sheet(isPresented: $showingDocumentsSheet) {
+            TaskDocumentListSheet(taskId: task.id)
+        }
+        .sheet(isPresented: $showingBriefingsSheet) {
+            TaskBriefingListSheet(taskId: task.id)
+        }
+        .sheet(item: $selectedDocument) { item in
+            DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
         }
     }
 

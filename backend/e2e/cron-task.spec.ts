@@ -210,7 +210,9 @@ test.describe("Cron Task Scheduling", () => {
     expect(res.status()).toBe(422);
   });
 
-  test("creating a cron task with whitespace-only cron expression returns 422", async ({ request }) => {
+  test("creating a cron task with whitespace-only cron expression returns 422", async ({
+    request,
+  }) => {
     const res = await request.post("/api/tasks", {
       data: {
         title: "Whitespace Cron Task",

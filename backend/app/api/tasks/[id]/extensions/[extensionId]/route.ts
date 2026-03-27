@@ -6,6 +6,7 @@ import { authenticate } from "@/lib/auth/middleware";
 import { taskExtensionSettingsSchema, extensionWithStatusSchema } from "@/lib/schemas";
 import { errorJson } from "@/lib/utils/response";
 import { createGenericMcp, type AuthConfig } from "@/lib/ai/tools/mcps/generic";
+import { resolvePermission } from "@/lib/ai/tools/permission";
 
 /**
  * @openapi
@@ -52,8 +53,15 @@ export async function GET(
     .from(taskExtensions)
     .where(and(eq(taskExtensions.taskId, taskId), eq(taskExtensions.extensionId, extensionId)));
 
+  // Load task-level tool permissions for effective permission resolution
+  const [taskRow] = await db
+    .select({ toolPermissions: tasks.toolPermissions })
+    .from(tasks)
+    .where(eq(tasks.id, taskId));
+  const taskToolPerms = taskRow?.toolPermissions ?? null;
+
   // Discover tools from MCP server
-  let tools: Array<{ name: string; description: string }> = [];
+  let tools: Array<{ name: string; description: string; effectivePermission: string }> = [];
   try {
     const authConfig: AuthConfig =
       ext.authType === "api_key"
@@ -63,10 +71,22 @@ export async function GET(
           : { type: "rxauth", accessToken: auth.accessToken };
 
     const mcpTools = await createGenericMcp(ext.mcpUrl, authConfig, {});
-    tools = Object.entries(mcpTools).map(([name, tool]) => ({
-      name,
-      description: (tool as any).description ?? "",
-    }));
+    tools = Object.entries(mcpTools).map(([name, tool]) => {
+      const prefixedName = `${ext.prefix}${name}`;
+      // Resolve effective permission: extension-level (unprefixed) → task-level (prefixed) → default
+      let perm = resolvePermission(name, te?.toolPermissions);
+      if (perm === "manual-confirm") {
+        const taskPerm = resolvePermission(prefixedName, taskToolPerms);
+        if (taskPerm !== "manual-confirm") {
+          perm = taskPerm;
+        }
+      }
+      return {
+        name,
+        description: (tool as any).description ?? "",
+        effectivePermission: perm,
+      };
+    });
   } catch {
     // MCP server may be unavailable — return extension without tools
   }
