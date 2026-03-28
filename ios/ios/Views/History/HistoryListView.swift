@@ -104,7 +104,8 @@ struct HistoryListView: View {
                         Button {
                             showingFilter = true
                         } label: {
-                            Image(systemName: selectedAssigneeId != nil ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                            Image(systemName: selectedAssigneeId != nil ? "line.3.horizontal.decrease.circle.fill" :
+                                "line.3.horizontal.decrease.circle")
                         }
                     }
                 }
@@ -203,10 +204,20 @@ private struct HistoryRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if let title = item.taskTitle {
-                Text(title)
-                    .font(.headline)
-                    .lineLimit(1)
+            HStack(alignment: .center, spacing: 8) {
+                if let title = item.taskTitle {
+                    Text(title)
+                        .font(.headline)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if let status = item.status {
+                    Image(systemName: statusIcon(status))
+                        .font(.caption)
+                        .foregroundStyle(statusColor(status))
+                }
             }
 
             Text(markdownSummary)
@@ -214,7 +225,17 @@ private struct HistoryRowView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(3)
 
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
+                if let source = item.source {
+                    Text(source.capitalized)
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(sourceColor(source).opacity(0.15), in: Capsule())
+                        .foregroundStyle(sourceColor(source))
+                }
+
                 if let toolCalls = item.toolCalls, !toolCalls.isEmpty {
                     Label("\(toolCalls.count)", systemImage: "wrench.and.screwdriver")
                         .font(.caption)
@@ -235,5 +256,33 @@ private struct HistoryRowView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private func statusIcon(_ status: String) -> String {
+        switch status.lowercased() {
+            case "completed", "stopped": "checkmark.circle.fill"
+            case "failed", "error": "xmark.circle.fill"
+            case "running", "active": "play.circle.fill"
+            case "pending": "clock.fill"
+            default: "circle.fill"
+        }
+    }
+
+    private func statusColor(_ status: String) -> Color {
+        switch status.lowercased() {
+            case "completed", "stopped": .green
+            case "failed", "error": .red
+            case "running", "active": .blue
+            case "pending": .orange
+            default: .gray
+        }
+    }
+
+    private func sourceColor(_ source: String) -> Color {
+        switch source.lowercased() {
+            case "email": .blue
+            case "webhook": .orange
+            default: .green
+        }
     }
 }

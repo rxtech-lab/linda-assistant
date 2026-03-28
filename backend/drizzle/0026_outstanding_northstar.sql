@@ -1,0 +1,1 @@
+ALTER TABLE `task_history` ADD `tool_call_details` text;

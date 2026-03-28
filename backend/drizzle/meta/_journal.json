@@ -176,6 +176,20 @@
       "when": 1774627835062,
       "tag": "0024_kind_baron_strucker",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1774670788922,
+      "tag": "0025_groovy_harrier",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1774680982236,
+      "tag": "0026_outstanding_northstar",
+      "breakpoints": true
     }
   ]
 }

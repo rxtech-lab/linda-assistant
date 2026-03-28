@@ -48,10 +48,15 @@ struct ToolCallDetailSheet: View {
         }
     }
 
+    private var isImageTool: Bool {
+        let name = toolCall.toolName.lowercased()
+        return name.contains("generate_image") || name.contains("create_image")
+    }
+
     var body: some View {
         if toolCall.toolName == "get_location" {
             locationResultBody
-        } else if toolCall.toolName == "create_drawing" {
+        } else if toolCall.toolName == "create_drawing" || isImageTool {
             drawingResultBody
         } else {
             defaultBody
@@ -342,12 +347,28 @@ private extension ToolCallDetailSheet {
 // MARK: - Drawing Section
 
 private extension ToolCallDetailSheet {
-    /// Extract the chart URL from the tool result.
+    /// Extract the image/chart URL from the tool result.
+    /// Supports both `{"url": "..."}` and `{"type": "json", "value": {"url": "..."}}`.
     var drawingURL: URL? {
-        if case let .object(dict) = toolCall.result,
-           case let .string(urlStr) = dict["url"]
+        guard case let .object(dict) = toolCall.result else { return nil }
+        // Direct: {"url": "..."}
+        if case let .string(urlStr) = dict["url"] {
+            return URL(string: urlStr)
+        }
+        // Nested: {"type": "json", "value": {"url": "..."}}
+        if case let .object(valueDict) = dict["value"],
+           case let .string(urlStr) = valueDict["url"]
         {
             return URL(string: urlStr)
+        }
+        // Fallback: scan all string values for a URL with image extension
+        for (_, val) in dict {
+            if case let .string(str) = val,
+               str.hasPrefix("http"),
+               [".png", ".jpg", ".jpeg", ".gif", ".webp"].contains(where: { str.lowercased().contains($0) })
+            {
+                return URL(string: str)
+            }
         }
         return nil
     }

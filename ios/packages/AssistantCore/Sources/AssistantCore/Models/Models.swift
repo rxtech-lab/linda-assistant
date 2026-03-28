@@ -278,15 +278,25 @@ public struct TaskDetail: Codable, Identifiable, Sendable {
     public let updatedAt: String?
     public let chatSessions: [SessionSummary]
     public let emails: [TaskEmailSummary]
+    public let webhooks: [TaskWebhookSummary]?
     public let documents: [DocumentSummary]?
     public let briefings: [BriefingSummary]?
 }
 
-public struct TaskEmailSummary: Codable, Identifiable, Sendable {
+public struct TaskEmailSummary: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let fromEmail: String
     public let fromName: String?
     public let subject: String?
+    public let receivedAt: String
+    public let isRead: Bool?
+}
+
+public struct TaskWebhookSummary: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let source: String
+    public let event: String?
+    public let summary: String?
     public let receivedAt: String
     public let isRead: Bool?
 }
@@ -1020,6 +1030,17 @@ public struct TaskExtensionSettings: Codable, Sendable {
 
 // MARK: - Task History
 
+public struct ToolCallDetail: Codable, Identifiable, Hashable, Sendable {
+    public let toolName: String
+    public let toolCallId: String
+    public let input: AnyCodable?
+    public let output: AnyCodable?
+
+    public var id: String {
+        toolCallId
+    }
+}
+
 public struct TaskHistory: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let taskId: String
@@ -1027,11 +1048,15 @@ public struct TaskHistory: Codable, Identifiable, Hashable, Sendable {
     public let assigneeId: String?
     public let summary: String
     public let toolCalls: [String]?
+    public let toolCallDetails: [ToolCallDetail]?
     public let status: String?
+    public let source: String?
     public let durationSecs: Int?
     public let taskTitle: String?
     public let score: Double?
     public let createdAt: String?
+    public let emails: [TaskEmailSummary]?
+    public let webhooks: [TaskWebhookSummary]?
 }
 
 // MARK: - Preview Helpers

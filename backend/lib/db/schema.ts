@@ -123,6 +123,18 @@ export const taskEmails = sqliteTable("task_emails", {
     .references(() => emailInbox.id, { onDelete: "cascade" }),
 });
 
+export const taskWebhooks = sqliteTable("task_webhooks", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  webhookId: text("webhook_id")
+    .notNull()
+    .references(() => webhookInbox.id, { onDelete: "cascade" }),
+});
+
 export const chatSessions = sqliteTable("chat_sessions", {
   id: text("id")
     .primaryKey()
@@ -384,7 +396,35 @@ export const taskHistory = sqliteTable("task_history", {
   summary: text("summary").notNull(),
   embedding: f32Blob(768)("embedding"),
   toolCalls: text("tool_calls", { mode: "json" }).$type<string[]>(),
+  toolCallDetails: text("tool_call_details", { mode: "json" }).$type<
+    Array<{ toolName: string; toolCallId: string; input: unknown; output?: unknown }>
+  >(),
   status: text("status"),
+  source: text("source"), // "webhook" | "task" | "email"
   durationSecs: integer("duration_secs"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
+export const historyEmails = sqliteTable("history_emails", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  historyId: text("history_id")
+    .notNull()
+    .references(() => taskHistory.id, { onDelete: "cascade" }),
+  emailId: text("email_id")
+    .notNull()
+    .references(() => emailInbox.id, { onDelete: "cascade" }),
+});
+
+export const historyWebhooks = sqliteTable("history_webhooks", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  historyId: text("history_id")
+    .notNull()
+    .references(() => taskHistory.id, { onDelete: "cascade" }),
+  webhookId: text("webhook_id")
+    .notNull()
+    .references(() => webhookInbox.id, { onDelete: "cascade" }),
 });

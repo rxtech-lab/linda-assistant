@@ -10,6 +10,7 @@ function makeEntry(overrides: Partial<TaskHistoryEntry> = {}): TaskHistoryEntry 
     summary: "Sent an email to user@example.com and received confirmation.",
     toolCalls: ["send_email"],
     status: "stopped",
+    source: "task",
     durationSecs: 120,
     taskTitle: "Send report email",
     createdAt: "2026-03-27T10:00:00Z",

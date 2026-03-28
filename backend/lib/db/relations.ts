@@ -8,14 +8,18 @@ import {
   extensions,
   tasks,
   taskEmails,
+  taskWebhooks,
   taskExtensions,
   taskHistory,
+  historyEmails,
+  historyWebhooks,
   chatSessions,
   messages,
   confirmations,
   devices,
   documents,
   scheduledNotifications,
+  webhookInbox,
 } from "./schema";
 
 export const assigneesRelations = relations(assignees, ({ many }) => ({
@@ -33,6 +37,7 @@ export const emailInboxRelations = relations(emailInbox, ({ one, many }) => ({
 
 export const tasksRelations = relations(tasks, ({ many }) => ({
   taskEmails: many(taskEmails),
+  taskWebhooks: many(taskWebhooks),
   chatSessions: many(chatSessions),
   taskExtensions: many(taskExtensions),
 }));
@@ -125,7 +130,18 @@ export const taskExtensionsRelations = relations(taskExtensions, ({ one }) => ({
   }),
 }));
 
-export const taskHistoryRelations = relations(taskHistory, ({ one }) => ({
+export const taskWebhooksRelations = relations(taskWebhooks, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskWebhooks.taskId],
+    references: [tasks.id],
+  }),
+  webhook: one(webhookInbox, {
+    fields: [taskWebhooks.webhookId],
+    references: [webhookInbox.id],
+  }),
+}));
+
+export const taskHistoryRelations = relations(taskHistory, ({ one, many }) => ({
   task: one(tasks, {
     fields: [taskHistory.taskId],
     references: [tasks.id],
@@ -138,6 +154,35 @@ export const taskHistoryRelations = relations(taskHistory, ({ one }) => ({
     fields: [taskHistory.assigneeId],
     references: [assignees.id],
   }),
+  historyEmails: many(historyEmails),
+  historyWebhooks: many(historyWebhooks),
+}));
+
+export const historyEmailsRelations = relations(historyEmails, ({ one }) => ({
+  history: one(taskHistory, {
+    fields: [historyEmails.historyId],
+    references: [taskHistory.id],
+  }),
+  email: one(emailInbox, {
+    fields: [historyEmails.emailId],
+    references: [emailInbox.id],
+  }),
+}));
+
+export const historyWebhooksRelations = relations(historyWebhooks, ({ one }) => ({
+  history: one(taskHistory, {
+    fields: [historyWebhooks.historyId],
+    references: [taskHistory.id],
+  }),
+  webhook: one(webhookInbox, {
+    fields: [historyWebhooks.webhookId],
+    references: [webhookInbox.id],
+  }),
+}));
+
+export const webhookInboxRelations = relations(webhookInbox, ({ many }) => ({
+  taskWebhooks: many(taskWebhooks),
+  historyWebhooks: many(historyWebhooks),
 }));
 
 export const devicesRelations = relations(devices, () => ({}));

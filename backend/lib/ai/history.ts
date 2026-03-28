@@ -1,7 +1,7 @@
 import { embed, generateText, type ModelMessage } from "ai";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { tasks, chatSessions, taskHistory } from "@/lib/db/schema";
+import { tasks, chatSessions, taskHistory, taskEmails, taskWebhooks } from "@/lib/db/schema";
 import { getSessionMessages } from "@/lib/db/messages";
 import { extractTextFromMessage, splitTextIntoChunks } from "./compaction";
 import { getModelProvider } from "./model";
@@ -24,6 +24,7 @@ export interface TaskHistoryEntry {
   summary: string;
   toolCalls: string[] | null;
   status: string | null;
+  source: string | null;
   durationSecs: number | null;
   taskTitle: string;
   score?: number;
@@ -86,28 +87,59 @@ export function formatHistoryContext(history: TaskHistoryEntry[]): string | null
  * Extract a text representation of messages suitable for summarization.
  * Includes tool calls and results.
  */
+export interface ToolCallDetail {
+  toolName: string;
+  toolCallId: string;
+  input: unknown;
+  output?: unknown;
+}
+
 function extractSessionContent(msgs: ModelMessage[]): {
   text: string;
   toolNames: string[];
+  toolCallDetails: ToolCallDetail[];
 } {
   const toolNameSet = new Set<string>();
   const lines: string[] = [];
+  const pendingCalls = new Map<string, ToolCallDetail>();
+  const completedCalls: ToolCallDetail[] = [];
 
   for (const msg of msgs) {
     const extracted = extractTextFromMessage(msg);
     if (extracted) lines.push(`[${msg.role}]: ${extracted}`);
 
-    // Collect tool names
     if (Array.isArray(msg.content)) {
       for (const part of msg.content as Record<string, unknown>[]) {
         if (part.type === "tool-call" && typeof part.toolName === "string") {
           toolNameSet.add(part.toolName as string);
+          const detail: ToolCallDetail = {
+            toolName: part.toolName as string,
+            toolCallId: (part.toolCallId as string) ?? "",
+            input: part.input ?? part.args ?? null,
+          };
+          pendingCalls.set(detail.toolCallId, detail);
+        } else if (part.type === "tool-result" && typeof part.toolCallId === "string") {
+          const pending = pendingCalls.get(part.toolCallId as string);
+          if (pending) {
+            pending.output = part.output ?? part.result ?? null;
+            completedCalls.push(pending);
+            pendingCalls.delete(part.toolCallId as string);
+          }
         }
       }
     }
   }
 
-  return { text: lines.join("\n\n"), toolNames: Array.from(toolNameSet) };
+  // Add any tool calls that never got results
+  for (const detail of pendingCalls.values()) {
+    completedCalls.push(detail);
+  }
+
+  return {
+    text: lines.join("\n\n"),
+    toolNames: Array.from(toolNameSet),
+    toolCallDetails: completedCalls,
+  };
 }
 
 /**
@@ -162,6 +194,7 @@ export async function generateTaskHistory(taskId: string, chatSessionId: string)
       title: tasks.title,
       userId: tasks.userId,
       assigneeId: tasks.assigneeId,
+      source: tasks.source,
     })
     .from(tasks)
     .where(eq(tasks.id, taskId));
@@ -185,17 +218,70 @@ export async function generateTaskHistory(taskId: string, chatSessionId: string)
     return;
   }
 
-  // 2. Load all messages for this session
+  // 2. Derive source from task
+  const webhookLinks = await db
+    .select({ id: taskWebhooks.id })
+    .from(taskWebhooks)
+    .where(eq(taskWebhooks.taskId, taskId))
+    .limit(1);
+  const historySource =
+    webhookLinks.length > 0 ? "webhook" : task.source === "email" ? "email" : "task";
+
+  // 3. Upsert: reuse existing history entry for this session, or create a new one
+  const [existingHistory] = await db
+    .select({ id: taskHistory.id })
+    .from(taskHistory)
+    .where(eq(taskHistory.chatSessionId, chatSessionId))
+    .limit(1);
+
+  const historyId = existingHistory?.id ?? crypto.randomUUID();
+
+  if (existingHistory) {
+    // Reset to pending while we regenerate
+    await db.run(
+      sql`UPDATE task_history SET status = 'pending', assignee_id = ${task.assigneeId}, source = ${historySource} WHERE id = ${historyId}`,
+    );
+  } else {
+    await db.run(
+      sql`INSERT INTO task_history (id, task_id, chat_session_id, assignee_id, user_id, summary, tool_calls, status, source, duration_secs, created_at)
+          VALUES (${historyId}, ${taskId}, ${chatSessionId}, ${task.assigneeId}, ${task.userId}, '', NULL, 'pending', ${historySource}, NULL, datetime('now'))`,
+    );
+
+    // 4. Copy email and webhook links from task (only for new entries)
+    const emailLinks = await db
+      .select({ emailId: taskEmails.emailId })
+      .from(taskEmails)
+      .where(eq(taskEmails.taskId, taskId));
+    for (const link of emailLinks) {
+      await db.run(
+        sql`INSERT INTO history_emails (id, history_id, email_id) VALUES (${crypto.randomUUID()}, ${historyId}, ${link.emailId})`,
+      );
+    }
+    const allWebhookLinks = await db
+      .select({ webhookId: taskWebhooks.webhookId })
+      .from(taskWebhooks)
+      .where(eq(taskWebhooks.taskId, taskId));
+    for (const wl of allWebhookLinks) {
+      await db.run(
+        sql`INSERT INTO history_webhooks (id, history_id, webhook_id) VALUES (${crypto.randomUUID()}, ${historyId}, ${wl.webhookId})`,
+      );
+    }
+  }
+
+  // 5. Load all messages for this session
   const messages = await getSessionMessages(chatSessionId);
   if (messages.length === 0) {
-    console.warn(`[history] No messages for session ${chatSessionId}, skipping`);
+    console.warn(`[history] No messages for session ${chatSessionId}, updating status`);
+    await db.run(
+      sql`UPDATE task_history SET status = ${session.status ?? "completed"}, summary = 'No messages recorded.' WHERE id = ${historyId}`,
+    );
     return;
   }
 
-  // 3. Extract content and tool names
-  const { text: sessionContent, toolNames } = extractSessionContent(messages);
+  // 6. Extract content and tool names
+  const { text: sessionContent, toolNames, toolCallDetails } = extractSessionContent(messages);
 
-  // 4. Calculate duration
+  // 7. Calculate duration
   let durationSecs: number | null = null;
   if (session.createdAt && session.updatedAt) {
     const start = new Date(session.createdAt).getTime();
@@ -203,19 +289,18 @@ export async function generateTaskHistory(taskId: string, chatSessionId: string)
     durationSecs = Math.max(0, Math.round((end - start) / 1000));
   }
 
-  // 5. Generate summary (with chunking for large histories)
+  // 8. Generate summary (with chunking for large histories)
   const summary = await summarizeSessionContent(sessionContent);
 
-  // 6. Generate embedding
+  // 9. Generate embedding
   const { embedding } = await embed({
     model: getEmbeddingProvider(TASK_SESSION_EMBEDDING_MODEL),
     value: summary,
   });
 
-  // 7. Insert into taskHistory
+  // 10. Update the pending entry with results
   await db.run(
-    sql`INSERT INTO task_history (id, task_id, chat_session_id, assignee_id, user_id, summary, embedding, tool_calls, status, duration_secs, created_at)
-        VALUES (${crypto.randomUUID()}, ${taskId}, ${chatSessionId}, ${task.assigneeId}, ${task.userId}, ${summary}, vector32(${JSON.stringify(embedding)}), ${JSON.stringify(toolNames)}, ${session.status}, ${durationSecs}, datetime('now'))`,
+    sql`UPDATE task_history SET summary = ${summary}, embedding = vector32(${JSON.stringify(embedding)}), tool_calls = ${JSON.stringify(toolNames)}, tool_call_details = ${JSON.stringify(toolCallDetails)}, status = ${session.status}, duration_secs = ${durationSecs} WHERE id = ${historyId}`,
   );
 
   console.log(
@@ -242,13 +327,20 @@ export async function getRecentHistory(
       summary: taskHistory.summary,
       toolCalls: taskHistory.toolCalls,
       status: taskHistory.status,
+      source: taskHistory.source,
       durationSecs: taskHistory.durationSecs,
       createdAt: taskHistory.createdAt,
       taskTitle: tasks.title,
     })
     .from(taskHistory)
     .innerJoin(tasks, eq(taskHistory.taskId, tasks.id))
-    .where(and(eq(taskHistory.userId, userId), eq(taskHistory.assigneeId, assigneeId)))
+    .where(
+      and(
+        eq(taskHistory.userId, userId),
+        eq(taskHistory.assigneeId, assigneeId),
+        ne(taskHistory.status, "pending"),
+      ),
+    )
     .orderBy(desc(taskHistory.createdAt))
     .limit(limit);
 
@@ -287,18 +379,19 @@ export async function searchHistoryByVector(
     summary: string;
     tool_calls: string | null;
     status: string | null;
+    source: string | null;
     duration_secs: number | null;
     created_at: string | null;
     task_title: string;
     distance: number;
   }>(
     sql`SELECT th.id, th.task_id, th.chat_session_id, th.assignee_id, th.summary,
-               th.tool_calls, th.status, th.duration_secs, th.created_at,
+               th.tool_calls, th.status, th.source, th.duration_secs, th.created_at,
                t.title as task_title,
                vector_distance_cos(th.embedding, vector32(${embeddingJson})) as distance
         FROM task_history th
         INNER JOIN tasks t ON t.id = th.task_id
-        WHERE th.user_id = ${userId} ${assigneeFilter}
+        WHERE th.user_id = ${userId} AND th.status != 'pending' ${assigneeFilter}
         ORDER BY th.created_at DESC
         LIMIT ${limit * 2}`,
   );
@@ -313,6 +406,7 @@ export async function searchHistoryByVector(
       summary: r.summary,
       toolCalls: r.tool_calls ? (JSON.parse(r.tool_calls) as string[]) : null,
       status: r.status,
+      source: r.source,
       durationSecs: r.duration_secs,
       createdAt: r.created_at,
       taskTitle: r.task_title,
