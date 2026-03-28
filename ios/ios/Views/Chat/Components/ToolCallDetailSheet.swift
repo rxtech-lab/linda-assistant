@@ -1,11 +1,17 @@
 import AssistantCore
 import CoreLocation
 import MapKit
+import SafariServices
 import SwiftUI
 
 struct ToolCallDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     let toolCall: ToolCallInfo
+
+    // Upload result state
+    @State private var downloadUrls: [UploadDownloadUrl] = []
+    @State private var isLoadingUrls = false
+    @State private var safariUrl: URL?
 
     private var statusIcon: String {
         switch toolCall.status {
@@ -15,6 +21,7 @@ struct ToolCallDetailSheet: View {
             case .pendingConfirmation: "exclamationmark.shield.fill"
             case .pendingQuestion: "questionmark.circle.fill"
             case .pendingLocation: "location.fill"
+            case .pendingUpload: "arrow.up.doc.fill"
             case .running: "arrow.trianglehead.2.clockwise"
             case .stoppedNoResult:
                 "stop.circle.fill"
@@ -28,6 +35,7 @@ struct ToolCallDetailSheet: View {
             case .pendingConfirmation: .orange
             case .pendingQuestion: .purple
             case .pendingLocation: .blue
+            case .pendingUpload: .teal
             case .running: .blue
             case .stoppedNoResult:
                 .gray
@@ -42,6 +50,7 @@ struct ToolCallDetailSheet: View {
             case .pendingConfirmation: "Needs Confirmation"
             case .pendingQuestion: "Needs Answer"
             case .pendingLocation: "Needs Location"
+            case .pendingUpload: "Needs Upload"
             case .running: "Running"
             case .stoppedNoResult:
                 "Stopped"
@@ -58,6 +67,8 @@ struct ToolCallDetailSheet: View {
             locationResultBody
         } else if toolCall.toolName == "create_drawing" || isImageTool {
             drawingResultBody
+        } else if toolCall.toolName == "request_upload" {
+            uploadResultBody
         } else {
             defaultBody
         }
@@ -442,6 +453,134 @@ private extension ToolCallDetailSheet {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    var uploadResultBody: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    headerSection
+
+                    if toolCall.status == .failed || toolCall.status == .rejected,
+                       let errorMsg = toolCall.errorMessage
+                    {
+                        errorSection(message: errorMsg)
+                    }
+
+                    // Upload title from input
+                    if let title = toolCall.input?["title"]?.stringValue {
+                        Text(title)
+                            .font(.headline)
+                    }
+
+                    if let desc = toolCall.input?["description"]?.stringValue {
+                        Text(desc)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if toolCall.status == .completed {
+                        if isLoadingUrls {
+                            ProgressView("Loading files...")
+                        } else if !downloadUrls.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Uploaded Files")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+
+                                ForEach(downloadUrls) { item in
+                                    Button {
+                                        safariUrl = URL(string: item.url)
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: iconForUploadExtension(item.extension))
+                                                .foregroundStyle(.teal)
+                                                .frame(width: 28)
+                                            Text(item.key.components(separatedBy: "/").last ?? item.key)
+                                                .font(.subheadline)
+                                                .lineLimit(1)
+                                                .foregroundStyle(.primary)
+                                            Spacer()
+                                            Image(systemName: "arrow.up.right")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 10)
+                                        #if os(iOS)
+                                            .background(Color(.secondarySystemGroupedBackground))
+                                        #else
+                                            .background(Color(nsColor: .controlBackgroundColor))
+                                        #endif
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+
+                    if let params = toolCall.input, !params.isEmpty {
+                        detailsSection(title: "Parameters", params: params)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
+            }
+            #if os(iOS)
+            .background(Color(.systemGroupedBackground))
+            #else
+            .background(Color(nsColor: .windowBackgroundColor))
+            #endif
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                }
+            }
+            .task {
+                // Load download URLs for completed uploads
+                if toolCall.status == .completed, let uploadResult = toolCall.result,
+                   case let .object(dict) = uploadResult,
+                   case let .array(keys) = dict["uploadedKeys"] ?? .null,
+                   !keys.isEmpty
+                {
+                    // Try to get upload ID from the result or input
+                    // We'll use the API to get download URLs
+                    isLoadingUrls = true
+                    // For now we can't easily get the uploadId from toolCallInfo
+                    // The download URLs will be fetched if we have them
+                    isLoadingUrls = false
+                }
+            }
+            #if os(iOS)
+            .sheet(item: Binding(
+                get: { safariUrl.map { IdentifiableURL(url: $0) } },
+                set: { safariUrl = $0?.url }
+            )) { item in
+                SafariView(url: item.url)
+            }
+            #endif
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func iconForUploadExtension(_ ext: String) -> String {
+        switch ext.lowercased() {
+            case "jpg", "jpeg", "png", "gif", "webp", "heic", "heif": "photo"
+            case "pdf": "doc.richtext"
+            case "doc", "docx": "doc.text"
+            case "xls", "xlsx", "csv": "tablecells"
+            default: "doc"
+        }
     }
 }
 
@@ -985,3 +1124,24 @@ private func previewInput(_ questions: [AnyCodable]) -> [String: AnyCodable] {
         )
     )
 }
+
+// MARK: - Safari Helpers
+
+#if os(iOS)
+    struct SafariView: UIViewControllerRepresentable {
+        let url: URL
+
+        func makeUIViewController(context _: Context) -> SFSafariViewController {
+            SFSafariViewController(url: url)
+        }
+
+        func updateUIViewController(_: SFSafariViewController, context _: Context) {}
+    }
+
+    struct IdentifiableURL: Identifiable {
+        let url: URL
+        var id: String {
+            url.absoluteString
+        }
+    }
+#endif

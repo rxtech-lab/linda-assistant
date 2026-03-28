@@ -778,6 +778,52 @@ export const presignedUrlResponseSchema = z.object({
   key: z.string().describe("S3 object key"),
 });
 
+// ---- Batch Presigned URLs ----
+
+export const batchPresignedUrlSchema = z.object({
+  extensions: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(10)
+    .describe("File extensions for which to generate presigned upload URLs"),
+});
+
+export const batchPresignedUrlResponseSchema = z
+  .array(
+    z.object({
+      url: z.string().describe("Presigned PUT URL"),
+      key: z.string().describe("S3 object key"),
+      extension: z.string().describe("File extension"),
+    }),
+  )
+  .describe("Presigned upload URLs for the requested file extensions");
+
+// ---- Upload Resolution ----
+
+export const resolveUploadSchema = z.object({
+  action: z.enum(["complete", "reject"]).describe("Whether user completed or rejected the upload"),
+  uploadedKeys: z
+    .array(z.string())
+    .optional()
+    .describe("S3 keys of uploaded files (required when action is 'complete')"),
+});
+
+export const resolveUploadResponseSchema = z.object({
+  action: z.string().describe("Resolved status"),
+  uploadId: z.string().describe("Upload record ID"),
+});
+
+export const uploadDownloadUrlSchema = z.object({
+  key: z.string().describe("S3 object key"),
+  url: z.string().describe("Presigned GET URL for downloading"),
+  extension: z.string().describe("File extension"),
+  mimeType: z.string().describe("MIME type from S3 object metadata"),
+});
+
+export const uploadDownloadUrlsResponseSchema = z
+  .array(uploadDownloadUrlSchema)
+  .describe("Presigned download URLs for completed uploads");
+
 // ---- SSE Stream Events ----
 
 export const streamEventSchema = z.object({

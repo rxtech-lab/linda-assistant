@@ -23,7 +23,9 @@ import { SEARCH_DOCUMENTS_TOOL_NAME, searchDocumentsTool } from "./search-docume
 import { CREATE_BRIEFING_TOOL_NAME, createBriefingTool } from "./create-briefing";
 import { CREATE_DRAWING_TOOL_NAME, createDrawingTool } from "./create-drawing";
 import { GENERATE_IMAGE_TOOL_NAME, generateImageTool } from "./generate-image";
+import { REQUEST_UPLOAD_TOOL_NAME, requestUploadTool } from "./request-upload";
 import { SEARCH_HISTORY_TOOL_NAME, searchHistoryTool } from "./search-history";
+import { READ_UPLOADED_FILE_TOOL_NAME, readUploadedFileTool } from "./read-uploaded-file";
 import { type AuthConfig, createGenericMcp } from "./mcps/generic";
 import { redis } from "@/lib/redis";
 
@@ -39,6 +41,7 @@ export const NO_PERMISSION_CHANGE_TOOLS: ReadonlySet<string> = new Set([
   SEND_NOTIFICATION_TOOL_NAME,
   GENERATE_IMAGE_TOOL_NAME,
   SEARCH_HISTORY_TOOL_NAME,
+  READ_UPLOADED_FILE_TOOL_NAME,
 ]);
 
 export interface ToolSetResult {
@@ -332,6 +335,10 @@ export async function buildToolSet(
       name: GET_LOCATION_TOOL_NAME,
       create: (_na: boolean) => getLocationTool(),
     },
+    {
+      name: REQUEST_UPLOAD_TOOL_NAME,
+      create: (_na: boolean) => requestUploadTool(),
+    },
   ];
 
   // Build permission-aware tools
@@ -391,6 +398,9 @@ export async function buildToolSet(
   if (!isTaskContext && assigneeId) {
     filtered[SEARCH_HISTORY_TOOL_NAME] = searchHistoryTool(userId, assigneeId);
   }
+
+  // Read uploaded file tool — never require confirmation (read-only conversion)
+  filtered[READ_UPLOADED_FILE_TOOL_NAME] = readUploadedFileTool();
 
   // Query enabled extensions from DB — use task extensions in task context
   const enabledExtensions = taskId
@@ -565,11 +575,13 @@ export {
   GENERATE_IMAGE_TOOL_NAME,
   GET_CURRENT_TIME_TOOL_NAME,
   GET_LOCATION_TOOL_NAME,
+  REQUEST_UPLOAD_TOOL_NAME,
   SEARCH_DOCUMENTS_TOOL_NAME,
   SEARCH_EMAILS_TOOL_NAME,
   SEARCH_HISTORY_TOOL_NAME,
   SEND_EMAIL_TOOL_NAME,
   SEND_NOTIFICATION_TOOL_NAME,
   UPDATE_DOCUMENT_TOOL_NAME,
+  READ_UPLOADED_FILE_TOOL_NAME,
   UPDATE_TASK_TOOL_NAME,
 };

@@ -18,6 +18,7 @@ import {
   questions,
   taskEmails,
   tasks,
+  uploads,
   usage,
 } from "@/lib/db/schema";
 import { createMem0Client } from "@/lib/mem0/client";
@@ -29,6 +30,7 @@ import { createLocationRequest } from "./location";
 import { getModelProvider } from "./model";
 import { availableModelSchema, calculateCostUsd, DEFAULT_MODEL } from "./models";
 import { createQuestion, sendQuestionGroupNotification } from "./question";
+import { createUploadRequest, sendUploadGroupNotification } from "./upload";
 import { formatHistoryContext, generateTaskHistory, getRecentHistory } from "./history";
 import { HISTORY_CONTEXT_LIMIT } from "./context";
 import { compressToolCallContent } from "./tool-content-compression";
@@ -36,6 +38,7 @@ import { buildToolSet } from "./tools";
 import { ASK_QUESTION_TOOL_NAME } from "./tools/ask-question";
 import { evaluateConditions } from "./tools/conditions";
 import { GET_LOCATION_TOOL_NAME } from "./tools/get-location";
+import { REQUEST_UPLOAD_TOOL_NAME } from "./tools/request-upload";
 import { loadAssigneePermissions, resolvePermission } from "./tools/permission";
 
 const MAX_STEPS = 20;
@@ -71,6 +74,24 @@ export function annotateToolCallQuestion(
     for (const part of msg.content as Record<string, unknown>[]) {
       if (part.type === "tool-call" && part.toolCallId === toolCallId) {
         part.question = { id: questionId, status };
+        return;
+      }
+    }
+  }
+}
+
+/** Annotate a tool-call content part with upload info */
+export function annotateToolCallUpload(
+  messages: ModelMessage[],
+  toolCallId: string,
+  uploadId: string,
+  status: string,
+): void {
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content as Record<string, unknown>[]) {
+      if (part.type === "tool-call" && part.toolCallId === toolCallId) {
+        part.upload = { id: uploadId, status };
         return;
       }
     }
@@ -436,7 +457,12 @@ async function resolvePendingToolCalls(
   messages: ModelMessage[],
   tools: Record<string, unknown>,
   onEvent?: (event: string, data: unknown) => void | Promise<void>,
-  taskType?: "message" | "confirmation_resolved" | "question_resolved" | "location_resolved",
+  taskType?:
+    | "message"
+    | "confirmation_resolved"
+    | "question_resolved"
+    | "location_resolved"
+    | "upload_resolved",
 ): Promise<{ messages: ModelMessage[]; persistCount: number }> {
   // Collect all tool-call IDs and tool-result IDs
   const toolCallIds = new Set<string>();
@@ -489,7 +515,7 @@ async function resolvePendingToolCalls(
         `[agent] Cancelling unresolved tool: ${info.toolName} (toolCallId=${toolCallId}) — user sent new message`,
       );
 
-      // Update confirmation or question status to "cancelled" in DB if one exists
+      // Update confirmation, question, or upload status to "cancelled" in DB if one exists
       await db
         .update(confirmations)
         .set({
@@ -506,11 +532,19 @@ async function resolvePendingToolCalls(
           answeredAt: sql`(datetime('now'))`,
         })
         .where(and(eq(questions.chatSessionId, sessionId), eq(questions.toolCallId, toolCallId)));
+      await db
+        .update(uploads)
+        .set({
+          status: "cancelled",
+          completedAt: sql`(datetime('now'))`,
+        })
+        .where(and(eq(uploads.chatSessionId, sessionId), eq(uploads.toolCallId, toolCallId)));
 
       // Update the tool-call annotation in messages so it persists as "cancelled".
-      // Check for both confirmation and question annotations.
+      // Check for confirmation, question, and upload annotations.
       let existingConfirmationId = "";
       let existingQuestionId = "";
+      let existingUploadId = "";
       for (const msg of cleaned) {
         if (!Array.isArray(msg.content)) continue;
         for (const part of msg.content as Record<string, unknown>[]) {
@@ -519,10 +553,14 @@ async function resolvePendingToolCalls(
             if (conf?.id) existingConfirmationId = conf.id;
             const quest = part.question as { id?: string } | undefined;
             if (quest?.id) existingQuestionId = quest.id;
+            const upl = part.upload as { id?: string } | undefined;
+            if (upl?.id) existingUploadId = upl.id;
           }
         }
       }
-      if (existingQuestionId) {
+      if (existingUploadId) {
+        annotateToolCallUpload(cleaned, toolCallId, existingUploadId, "cancelled");
+      } else if (existingQuestionId) {
         annotateToolCallQuestion(cleaned, toolCallId, existingQuestionId, "rejected");
       } else {
         annotateToolCallConfirmation(cleaned, toolCallId, existingConfirmationId, "cancelled");
@@ -588,9 +626,18 @@ async function resolvePendingToolCalls(
             )
         : [undefined];
 
-      // If no confirmation or question found, check Redis for location request
+      // If no confirmation or question found, check uploads table
+      const [uploadRecord] =
+        !confirmation && !questionRecord
+          ? await db
+              .select()
+              .from(uploads)
+              .where(and(eq(uploads.chatSessionId, sessionId), eq(uploads.toolCallId, toolCallId)))
+          : [undefined];
+
+      // If no confirmation, question, or upload found, check Redis for location request
       let locationStatus: string | null = null;
-      if (!confirmation && !questionRecord) {
+      if (!confirmation && !questionRecord && !uploadRecord) {
         const raw = await redis.get(`location:request:${toolCallId}`);
         if (raw) {
           const locReq = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -603,6 +650,7 @@ async function resolvePendingToolCalls(
       if (
         confirmation?.status === "confirmed" ||
         questionRecord?.status === "answered" ||
+        uploadRecord?.status === "completed" ||
         locationStatus === "confirmed"
       ) {
         // Signal tool is now running before execution
@@ -681,7 +729,9 @@ async function resolvePendingToolCalls(
         // Safety net: ensure the tool-call annotation reflects the resolved status.
         // resolveConfirmation/resolveLocationRequest may have failed to annotate if
         // messages weren't yet persisted when the resolution was processed.
-        if (questionRecord) {
+        if (uploadRecord) {
+          annotateToolCallUpload(cleaned, toolCallId, uploadRecord.id, "completed");
+        } else if (questionRecord) {
           annotateToolCallQuestion(cleaned, toolCallId, questionRecord.id, "answered");
         } else {
           const confId = confirmation?.id ?? toolCallId;
@@ -699,16 +749,19 @@ async function resolvePendingToolCalls(
       } else if (
         confirmation?.status === "rejected" ||
         questionRecord?.status === "rejected" ||
+        uploadRecord?.status === "rejected" ||
         locationStatus === "rejected"
       ) {
-        // Safety: rejection should already have a tool-result from resolveConfirmation/resolveQuestion,
+        // Safety: rejection should already have a tool-result from resolveConfirmation/resolveQuestion/resolveUpload,
         // but create one if somehow missing
         const errorMsg =
           locationStatus === "rejected"
             ? "User declined to share their location"
-            : questionRecord
-              ? "User rejected all questions"
-              : "User rejected this action";
+            : uploadRecord
+              ? "User rejected the upload request"
+              : questionRecord
+                ? "User rejected all questions"
+                : "User rejected this action";
         resultMessage = {
           id: crypto.randomUUID(),
           role: "tool" as const,
@@ -732,7 +785,9 @@ async function resolvePendingToolCalls(
         });
 
         // Safety net: ensure the tool-call annotation reflects rejected status
-        if (questionRecord) {
+        if (uploadRecord) {
+          annotateToolCallUpload(cleaned, toolCallId, uploadRecord.id, "rejected");
+        } else if (questionRecord) {
           annotateToolCallQuestion(cleaned, toolCallId, questionRecord.id, "rejected");
         } else {
           const confId = confirmation?.id ?? toolCallId;
@@ -838,7 +893,12 @@ async function resolvePendingToolCalls(
 interface AgentRunOptions {
   sessionId: string;
   userId: string;
-  taskType?: "message" | "confirmation_resolved" | "question_resolved" | "location_resolved";
+  taskType?:
+    | "message"
+    | "confirmation_resolved"
+    | "question_resolved"
+    | "location_resolved"
+    | "upload_resolved";
   onTextChunk?: (text: string) => void;
   onEvent?: (event: string, data: unknown) => void | Promise<void>;
   signal?: AbortSignal;
@@ -1207,17 +1267,21 @@ export async function runAgent(options: AgentRunOptions) {
       );
 
       if (finishReason === "tool-calls" && pendingApprovals.length > 0) {
-        // Separate question, location, and confirmation approvals
+        // Separate question, location, upload, and confirmation approvals
         const questionApprovals = pendingApprovals.filter(
           (a) => a.toolCall.toolName === ASK_QUESTION_TOOL_NAME,
         );
         const locationApprovals = pendingApprovals.filter(
           (a) => a.toolCall.toolName === GET_LOCATION_TOOL_NAME,
         );
+        const uploadApprovals = pendingApprovals.filter(
+          (a) => a.toolCall.toolName === REQUEST_UPLOAD_TOOL_NAME,
+        );
         const confirmationApprovals = pendingApprovals.filter(
           (a) =>
             a.toolCall.toolName !== ASK_QUESTION_TOOL_NAME &&
-            a.toolCall.toolName !== GET_LOCATION_TOOL_NAME,
+            a.toolCall.toolName !== GET_LOCATION_TOOL_NAME &&
+            a.toolCall.toolName !== REQUEST_UPLOAD_TOOL_NAME,
         );
 
         // Handle question approvals (create records + annotate in-memory, no events yet)
@@ -1333,6 +1397,63 @@ export async function runAgent(options: AgentRunOptions) {
           hasLocationRequest = true;
         }
 
+        // Handle upload approvals (create records + annotate in-memory, no events yet)
+        const createdUploads: Array<{
+          uploadId: string;
+          fileCount: number;
+        }> = [];
+        const uploadEvents: Array<{
+          uploadId: string;
+          toolCallId: string;
+          toolName: string;
+          title: string;
+          description: string | undefined;
+          numberUploads: number | null;
+          extensions: string[];
+          urls: Array<{ url: string; key: string; extension: string }>;
+        }> = [];
+        for (const approval of uploadApprovals) {
+          const input = (approval.toolCall.input ?? {}) as Record<string, unknown>;
+
+          const upload = await createUploadRequest({
+            userId,
+            chatSessionId: sessionId,
+            toolCallId: approval.toolCall.toolCallId,
+            toolName: approval.toolCall.toolName,
+            approvalId: approval.approvalId,
+            title: input.title as string,
+            description: input.description as string | undefined,
+            numberUploads: (input.number_uploads as number | undefined) ?? null,
+            extensions: input.extensions as string[],
+            externalUrls: input.urls as string[] | undefined,
+            skipNotification: true,
+          });
+
+          createdUploads.push({
+            uploadId: upload.id,
+            fileCount: upload.numberUploads ?? 0,
+          });
+
+          // Annotate the tool-call content part with upload info
+          annotateToolCallUpload(
+            currentMessages,
+            approval.toolCall.toolCallId,
+            upload.id,
+            "pending",
+          );
+
+          uploadEvents.push({
+            uploadId: upload.id,
+            toolCallId: approval.toolCall.toolCallId,
+            toolName: approval.toolCall.toolName,
+            title: upload.title,
+            description: upload.description ?? undefined,
+            numberUploads: upload.numberUploads,
+            extensions: upload.extensions ?? [],
+            urls: upload.urls ?? [],
+          });
+        }
+
         // Evaluate conditional auto-confirm: execute tools whose conditions pass
         const conditionallyApproved: typeof confirmationApprovals = [];
         const remainingConfirmations: typeof confirmationApprovals = [];
@@ -1413,11 +1534,12 @@ export async function runAgent(options: AgentRunOptions) {
           }
         }
 
-        // If ALL approvals were auto-approved (no questions, no locations, no remaining confirmations)
+        // If ALL approvals were auto-approved (no questions, no locations, no uploads, no remaining confirmations)
         if (
           remainingConfirmations.length === 0 &&
           questionApprovals.length === 0 &&
-          locationApprovals.length === 0
+          locationApprovals.length === 0 &&
+          uploadApprovals.length === 0
         ) {
           // Persist and continue loop like the auto-executed path
           await insertMessages(sessionId, currentMessages.slice(persistedCount));
@@ -1484,6 +1606,9 @@ export async function runAgent(options: AgentRunOptions) {
         for (const evt of confirmationEvents) {
           await onEvent?.("confirmation_required", evt);
         }
+        for (const evt of uploadEvents) {
+          await onEvent?.("upload_required", evt);
+        }
 
         // Send grouped push notifications
         if (createdConfirmations.length > 0) {
@@ -1492,13 +1617,20 @@ export async function runAgent(options: AgentRunOptions) {
         if (createdQuestions.length > 0) {
           await sendQuestionGroupNotification(userId, sessionId, createdQuestions);
         }
+        if (createdUploads.length > 0) {
+          await sendUploadGroupNotification(userId, sessionId, createdUploads);
+        }
 
         // Emit status event so SSE clients know the agent is paused
         const waitingStatus = hasLocationRequest
           ? "waiting_location"
-          : createdQuestions.length > 0 && createdConfirmations.length === 0
-            ? "waiting_question"
-            : "waiting_confirmation";
+          : createdUploads.length > 0 &&
+              createdQuestions.length === 0 &&
+              createdConfirmations.length === 0
+            ? "waiting_upload"
+            : createdQuestions.length > 0 && createdConfirmations.length === 0
+              ? "waiting_question"
+              : "waiting_confirmation";
         await onEvent?.("status", { status: waitingStatus });
 
         // Save accumulated token usage so far (partial run before pause)

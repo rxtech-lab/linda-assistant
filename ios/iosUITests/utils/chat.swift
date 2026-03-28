@@ -47,4 +47,8 @@ extension XCUIApplication {
     var questionSubmitButton: XCUIElement {
         buttons["submitButton"].firstMatch
     }
+
+    var uploadBanner: XCUIElement {
+        buttons["upload-banner"].firstMatch
+    }
 }

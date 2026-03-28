@@ -379,6 +379,34 @@ export const devices = sqliteTable("devices", {
   createdAt: text("created_at").default(sql`(datetime('now'))`),
 });
 
+export type UploadUrlItem = {
+  url: string;
+  key: string;
+  extension: string;
+};
+
+export const uploads = sqliteTable("uploads", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull(),
+  chatSessionId: text("chat_session_id")
+    .notNull()
+    .references(() => chatSessions.id, { onDelete: "cascade" }),
+  toolCallId: text("tool_call_id").notNull(),
+  toolName: text("tool_name").notNull(),
+  approvalId: text("approval_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  numberUploads: integer("number_uploads"),
+  extensions: text("extensions", { mode: "json" }).$type<string[]>(),
+  urls: text("urls", { mode: "json" }).$type<UploadUrlItem[]>(),
+  uploadedKeys: text("uploaded_keys", { mode: "json" }).$type<string[]>(),
+  status: text("status").default("pending"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  completedAt: text("completed_at"),
+});
+
 export const taskHistory = sqliteTable("task_history", {
   id: text("id")
     .primaryKey()

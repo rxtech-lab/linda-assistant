@@ -1,4 +1,9 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createHash } from "crypto";
 import { nanoid } from "nanoid";
@@ -24,12 +29,17 @@ export const s3Client = new Proxy({} as S3Client, {
   },
 });
 
-export async function getPresignedUploadUrl(contentType: string, prefix = "uploads") {
-  const key = `${prefix}/${nanoid()}-${Date.now()}`;
+export async function getPresignedUploadUrl(
+  contentType: string | undefined,
+  prefix = "uploads",
+  extension?: string,
+) {
+  const base = `${prefix}/${nanoid()}-${Date.now()}`;
+  const key = extension && extension !== "*" ? `${base}.${extension.toLowerCase()}` : base;
   const command = new PutObjectCommand({
     Bucket: process.env.S3_BUCKET_NAME!,
     Key: key,
-    ContentType: contentType,
+    ...(contentType && { ContentType: contentType }),
   });
   const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
   return { url, key };
@@ -92,6 +102,93 @@ export async function uploadBufferToS3(
   await s3Client.send(command, { requestTimeout: 60_000 });
 
   return { url: getS3PublicUrl(key), contentHash };
+}
+
+const MIME_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  csv: "text/csv",
+  txt: "text/plain",
+  mp3: "audio/mpeg",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  zip: "application/zip",
+};
+
+export function extensionToMimeType(ext: string): string {
+  return MIME_TYPES[ext.toLowerCase()] ?? "application/octet-stream";
+}
+
+export async function getPresignedDownloadUrl(key: string, expiresIn = 3600) {
+  const command = new GetObjectCommand({
+    Bucket: process.env.S3_BUCKET_NAME!,
+    Key: key,
+  });
+  return getSignedUrl(s3Client, command, { expiresIn });
+}
+
+export async function getPresignedUploadUrls(
+  extensions: string[],
+  prefix = "tool-uploads",
+): Promise<Array<{ url: string; key: string; extension: string }>> {
+  const isE2E = process.env.IS_E2E?.toLowerCase() === "true";
+
+  if (isE2E) {
+    // In E2E mode, return mock URLs pointing to the backend instead of S3.
+    // This lets the iOS simulator upload without direct MinIO access.
+    const baseUrl = `http://localhost:${process.env.PORT || 3001}`;
+    return extensions.map((ext) => {
+      const base = `${prefix}/${nanoid()}-${Date.now()}`;
+      const key = ext !== "*" ? `${base}.${ext.toLowerCase()}` : base;
+      return { url: `${baseUrl}/api/mock-s3/${key}`, key, extension: ext };
+    });
+  }
+
+  return Promise.all(
+    extensions.map(async (ext) => {
+      const contentType = ext === "*" ? undefined : extensionToMimeType(ext);
+      const { url, key } = await getPresignedUploadUrl(contentType, prefix, ext);
+      return { url, key, extension: ext };
+    }),
+  );
+}
+
+export async function verifyObjectExists(key: string): Promise<boolean> {
+  try {
+    await s3Client.send(
+      new HeadObjectCommand({
+        Bucket: process.env.S3_BUCKET_NAME!,
+        Key: key,
+      }),
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getObjectContentType(key: string): Promise<string | undefined> {
+  try {
+    const response = await s3Client.send(
+      new HeadObjectCommand({
+        Bucket: process.env.S3_BUCKET_NAME!,
+        Key: key,
+      }),
+    );
+    return response.ContentType;
+  } catch {
+    return undefined;
+  }
 }
 
 function getS3PublicUrl(key: string): string {

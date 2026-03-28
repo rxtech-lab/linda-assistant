@@ -28,6 +28,12 @@ public final class ChatStreamHandler: @unchecked Sendable {
         pendingLocations.first
     }
 
+    public private(set) var pendingUploads: [UploadRequestPayload] = []
+    /// The first unresolved upload request in the queue (what the UI should show).
+    public var pendingUpload: UploadRequestPayload? {
+        pendingUploads.first
+    }
+
     public private(set) var error: String?
 
     /// Device token for the current device, used to identify which device sent the last message.
@@ -48,6 +54,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     public var onConfirmationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
     public var onQuestionAnswered: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
     public var onLocationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
+    public var onUploadResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
     public var onToolResult: (@MainActor (_ toolCallId: String, _ isError: Bool, _ errorMessage: String?) -> Void)?
     /// Check whether a toolCallId already exists in display messages (historical tool calls).
     /// When true, the handler skips adding to streamingParts so tool-result falls through to onToolResult.
@@ -91,6 +98,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
             self.pendingConfirmations = []
             self.pendingQuestions = []
             self.pendingLocations = []
+            self.pendingUploads = []
             self.error = nil
             self.isStreaming = true
         }
@@ -181,6 +189,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
             self.pendingConfirmations = []
             self.pendingQuestions = []
             self.pendingLocations = []
+            self.pendingUploads = []
             self.error = nil
             self.isStreaming = true
         }
@@ -255,6 +264,36 @@ public final class ChatStreamHandler: @unchecked Sendable {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    public func resolveUpload(uploadId: String, action: String, uploadedKeys: [String]? = nil) async {
+        do {
+            let body = ResolveUpload(action: action, uploadedKeys: uploadedKeys)
+            let response = try await apiClient.resolveUpload(id: uploadId, body)
+            await MainActor.run {
+                pendingUploads.removeAll { $0.uploadId == uploadId }
+            }
+            eventManager.emit(.uploadResolved(response.uploadId, response.action))
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    public func removePendingUpload(uploadId: String) {
+        pendingUploads.removeAll { $0.uploadId == uploadId }
+    }
+
+    @MainActor
+    public func setPendingUpload(_ payload: UploadRequestPayload) {
+        if !pendingUploads.contains(where: { $0.uploadId == payload.uploadId }) {
+            pendingUploads.append(payload)
+        }
+    }
+
+    @MainActor
+    public func setPendingUploads(_ payloads: [UploadRequestPayload]) {
+        pendingUploads = payloads
     }
 
     @MainActor
@@ -550,6 +589,48 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 }
                 onLocationResolved?(payload.toolCallId, payload.action)
 
+            case let .uploadRequired(payload):
+                logger.info("uploadRequired: \(payload.toolName) id=\(payload.uploadId)")
+                // Update the corresponding tool call status
+                if let index = streamingParts.firstIndex(where: {
+                    if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
+                    return false
+                }) {
+                    if case var .tool(info) = streamingParts[index] {
+                        info.status = .pendingUpload
+                        info.uploadId = payload.uploadId
+                        streamingParts[index] = .tool(info)
+                    }
+                }
+                // Avoid duplicates from SSE replay
+                if !pendingUploads.contains(where: { $0.uploadId == payload.uploadId }) {
+                    pendingUploads.append(payload)
+                }
+
+            case let .uploadResolved(payload):
+                logger
+                    .info(
+                        "uploadResolved: \(payload.toolName) id=\(payload.uploadId) action=\(payload.action)"
+                    )
+                pendingUploads.removeAll { $0.uploadId == payload.uploadId }
+                // Immediate feedback: update streaming tool call status
+                if let index = streamingParts.firstIndex(where: {
+                    if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
+                    return false
+                }) {
+                    if case var .tool(info) = streamingParts[index] {
+                        if payload.action == "rejected" {
+                            info.status = .rejected
+                        } else if payload.action == "completed" {
+                            info.status = .completed
+                        } else {
+                            info.status = .running
+                        }
+                        streamingParts[index] = .tool(info)
+                    }
+                }
+                onUploadResolved?(payload.toolCallId, payload.action)
+
             case let .userMessage(payload):
                 logger.info("userMessage: id=\(payload.id), content=\(payload.content.prefix(50))")
                 onUserMessage?(payload.id, payload.content)
@@ -578,10 +659,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 } else if payload.status == "stopped" {
                     finalizeResponse()
                 } else if payload.status == "waiting_confirmation" || payload.status == "waiting_question" || payload
-                    .status == "waiting_location"
+                    .status == "waiting_location" || payload.status == "waiting_upload"
                 {
-                    // Agent paused for confirmation/question — stop streaming indicator
-                    // but keep streamingParts and pendingConfirmations/pendingQuestions visible
+                    // Agent paused for confirmation/question/upload — stop streaming indicator
+                    // but keep streamingParts and pending items visible
                     isStreaming = false
                 }
 
@@ -681,6 +762,7 @@ public struct ToolCallInfo: Identifiable, Sendable {
     public var status: ToolCallStatus
     public var result: AnyCodable?
     public var errorMessage: String?
+    public var uploadId: String?
 
     public init(
         toolCallId: String,
@@ -688,7 +770,8 @@ public struct ToolCallInfo: Identifiable, Sendable {
         input: [String: AnyCodable]?,
         status: ToolCallStatus,
         result: AnyCodable? = nil,
-        errorMessage: String? = nil
+        errorMessage: String? = nil,
+        uploadId: String? = nil
     ) {
         self.toolCallId = toolCallId
         self.toolName = toolName
@@ -696,6 +779,7 @@ public struct ToolCallInfo: Identifiable, Sendable {
         self.status = status
         self.result = result
         self.errorMessage = errorMessage
+        self.uploadId = uploadId
     }
 }
 
@@ -706,6 +790,7 @@ public enum ToolCallStatus: Sendable, Equatable {
     case pendingConfirmation
     case pendingQuestion
     case pendingLocation
+    case pendingUpload
     case rejected
     case stoppedNoResult
 
@@ -728,6 +813,17 @@ public enum ToolCallStatus: Sendable, Equatable {
         switch status {
             case "rejected": return .rejected
             case "pending": return .pendingQuestion
+            case "cancelled": return .stoppedNoResult
+            default: return hasResult ? .completed : .stoppedNoResult
+        }
+    }
+
+    /// Map an upload status string to a ToolCallStatus.
+    public static func from(upload: ToolCallUpload?, hasResult: Bool = true) -> ToolCallStatus {
+        guard let status = upload?.status else { return .completed }
+        switch status {
+            case "rejected": return .rejected
+            case "pending": return .pendingUpload
             case "cancelled": return .stoppedNoResult
             default: return hasResult ? .completed : .stoppedNoResult
         }

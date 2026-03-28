@@ -155,6 +155,16 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
       };
     }
 
+    // request_upload flow: after upload completes, return follow-up text
+    if (hasUserMessage(messages, "[TOOL:request_upload]")) {
+      return {
+        chunks: createTextMessageChunks(
+          "Upload received! I have processed your file successfully. [UPLOAD_FOLLOW_UP]",
+        ),
+        chunkDelayInMs: null,
+      };
+    }
+
     const text = isRejection ? "I understand, I won't do that." : "Email sent successfully.";
 
     return {
@@ -328,6 +338,23 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
     });
     return {
       chunks: createToolCallChunks("call-reject-retry", "send_email", input),
+      chunkDelayInMs: null,
+    };
+  }
+
+  // Scenario: request_upload tool call
+  if (
+    lastText.includes("[TOOL:request_upload]") &&
+    (!availableTools || availableTools.has("request_upload"))
+  ) {
+    const input = JSON.stringify({
+      title: "Upload a photo",
+      description: "Please upload a test image",
+      number_uploads: 1,
+      extensions: ["jpg", "png", "*"],
+    });
+    return {
+      chunks: createToolCallChunks("call-upload-1", "request_upload", input),
       chunkDelayInMs: null,
     };
   }

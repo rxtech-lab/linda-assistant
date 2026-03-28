@@ -23,6 +23,7 @@ public enum AppEvent: Sendable {
     case confirmationResolved(String, String)
     case questionAnswered(String, String)
     case locationResolved(String, String)
+    case uploadResolved(String, String)
     case streamContentUpdated
     case error(message: String)
 }

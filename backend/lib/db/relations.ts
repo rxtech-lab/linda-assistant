@@ -20,6 +20,7 @@ import {
   documents,
   scheduledNotifications,
   webhookInbox,
+  uploads,
 } from "./schema";
 
 export const assigneesRelations = relations(assignees, ({ many }) => ({
@@ -64,6 +65,7 @@ export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => 
   }),
   messages: many(messages),
   confirmations: many(confirmations),
+  uploads: many(uploads),
 }));
 
 export const messagesRelations = relations(messages, ({ one }) => ({
@@ -183,6 +185,13 @@ export const historyWebhooksRelations = relations(historyWebhooks, ({ one }) => 
 export const webhookInboxRelations = relations(webhookInbox, ({ many }) => ({
   taskWebhooks: many(taskWebhooks),
   historyWebhooks: many(historyWebhooks),
+}));
+
+export const uploadsRelations = relations(uploads, ({ one }) => ({
+  chatSession: one(chatSessions, {
+    fields: [uploads.chatSessionId],
+    references: [chatSessions.id],
+  }),
 }));
 
 export const devicesRelations = relations(devices, () => ({}));
