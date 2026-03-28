@@ -41,7 +41,7 @@ struct MessageList: View {
                     .padding(.vertical, 8)
             }
 
-            VStack(alignment: msg.role == .user ? .trailing : .leading, spacing: 4) {
+            VStack(alignment: msg.role == .user ? .trailing : .leading, spacing: 8) {
                 if msg.role == .assistant {
                     let isFirstInGroup = index == 0 || messages[index - 1].role != .assistant
                     if isFirstInGroup {

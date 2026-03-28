@@ -4,8 +4,32 @@ A personal, full-stack AI assistant. The iOS app surfaces chat, email, and task 
 
 ---
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="images/chat.png" width="200" alt="Chat"><br><b>Chat</b><br>Converse with the AI agent — create documents, research topics, and get briefings</td>
+    <td align="center"><img src="images/briefing.png" width="200" alt="Briefing"><br><b>Briefing</b><br>AI-generated briefings with rich card previews</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="images/task.png" width="200" alt="Task"><br><b>Tasks</b><br>Manage scheduled tasks with cron automation and status tracking</td>
+    <td align="center"><img src="images/usage.png" width="200" alt="Usage"><br><b>Usage</b><br>Track token consumption, costs, and daily usage by assignee</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="images/models.png" width="200" alt="Model Selection"><br><b>Model Selection</b><br>Choose from multiple AI models per assistant</td>
+    <td align="center"><img src="images/permissions.png" width="200" alt="Tool Permissions"><br><b>Tool Permissions</b><br>Fine-grained approval controls — auto-approve, require confirmation, or reject</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="images/document.png" width="200" alt="Document"><br><b>Documents</b><br>AI-created documents with original and PDF download options</td>
+    <td align="center"><img src="images/extensions.png" width="200" alt="Extensions"><br><b>Extensions</b><br>Extend agent capabilities with system and custom extensions</td>
+  </tr>
+</table>
+
+---
+
 ## Table of Contents
 
+- [Screenshots](#screenshots)
 - [Architecture Overview](#architecture-overview)
 - [Components](#components)
 - [Request & Agent Flow](#request--agent-flow)
