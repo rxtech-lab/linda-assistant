@@ -159,4 +159,102 @@ final class StandaloneChatTests: XCTestCase {
         )
         XCTAssertTrue(followUpExists, "Follow-up text should appear after answering question")
     }
+
+    @MainActor
+    func testUploadWithAppReload() async throws {
+        let app = launchApp()
+        try app.signInWithEmailAndPassword()
+
+        // Step 1: Send message that triggers request_upload tool
+        XCTAssertTrue(app.messageInput.waitForExistence(timeout: 10))
+        app.messageInput.tap()
+        app.messageInput.typeText("[TOOL:request_upload]")
+        app.sendButton.tap()
+
+        // Step 2: Wait for upload sheet to auto-present or tap the banner
+        let addFileButton = app.buttons["Add File"].firstMatch
+        if !addFileButton.waitForExistence(timeout: 15) {
+            // Sheet didn't auto-present, tap the upload banner
+            let banner = app.uploadBanner
+            XCTAssertTrue(
+                banner.waitForExistence(timeout: 15),
+                "Upload banner should appear"
+            )
+            banner.tap()
+            XCTAssertTrue(
+                addFileButton.waitForExistence(timeout: 10),
+                "Upload sheet should appear after tapping banner"
+            )
+        }
+
+        // Step 3: Tap "Add File" to open the menu, then select "Choose from Photos"
+        addFileButton.tap()
+        let photosOption = app.buttons["Choose from Photos"].firstMatch
+        XCTAssertTrue(photosOption.waitForExistence(timeout: 5))
+        photosOption.tap()
+
+        // Step 4: Interact with the system PhotosPicker — select the first available photo
+        try await Task.sleep(for: .seconds(2))
+        let firstPhoto = app.images.firstMatch
+        if firstPhoto.waitForExistence(timeout: 10) {
+            firstPhoto.tap()
+        }
+
+        let photospickerApp = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow.photospicker")
+        photospickerApp.images.firstMatch.tap()
+
+        // Step 5: Wait for the "Add" button in PhotosPicker (if maxSelectionCount allows multi)
+        // or the picker may auto-dismiss for single selection
+        let addButton = app.buttons["Add"].firstMatch
+        if addButton.waitForExistence(timeout: 3) {
+            addButton.tap()
+        }
+
+        // Step 6: Tap Upload button (enabled now that 1 file is selected)
+        let uploadButton = app.buttons["Upload"].firstMatch
+        XCTAssertTrue(
+            uploadButton.waitForExistence(timeout: 15),
+            "Upload button should be visible"
+        )
+        try await Task.sleep(for: .seconds(1))
+        uploadButton.tap()
+
+        // Step 7: Wait for "Upload Complete" text
+        let uploadComplete = app.staticTexts["Completed"].firstMatch
+        XCTAssertTrue(
+            uploadComplete.waitForExistence(timeout: 30),
+            "Upload Complete should appear after successful upload"
+        )
+        uploadComplete.tap() // Tap the badge to dismiss the sheet and trigger follow-up
+
+        // Step 8: Tap "Done" to dismiss the upload completion sheet
+        let doneButton = app.buttons["Done"].firstMatch
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 5))
+        doneButton.tap()
+
+        // Step 9: Verify follow-up text appears after the agent resumes
+        let followUpExists = try await waitForMessageContaining(
+            "[UPLOAD_FOLLOW_UP]",
+            in: app,
+            timeout: 60
+        )
+        XCTAssertTrue(followUpExists, "Follow-up text should appear after upload completes")
+
+        // Step 10: Relaunch app
+        relaunchApp(app)
+
+        // Step 11: Wait for chat to load
+        XCTAssertTrue(
+            app.messageInput.waitForExistence(timeout: 30),
+            "Chat input should appear after relaunch"
+        )
+
+        // Step 13: Verify Upload Complete sheet appears again
+        let uploadCompleteAfterReload = app.staticTexts["Completed"].firstMatch
+        uploadCompleteAfterReload.tap() // Tap the badge to dismiss the sheet and trigger follow-up
+        XCTAssertTrue(
+            uploadCompleteAfterReload.waitForExistence(timeout: 15),
+            "Upload Complete sheet should appear when tapping tool call badge"
+        )
+    }
 }

@@ -78,8 +78,9 @@ final class ToolPermissionTests: XCTestCase {
 
         // Wait for detail sheet to appear
         sleep(1)
-        app.activate()
         app.cells.containing(.staticText, identifier: "Update Document").firstMatch.swipeUp()
+        app.swipeUp()
+        
         app.swipeUp()
 
         // check system tool disabled text
@@ -122,6 +123,7 @@ final class ToolPermissionTests: XCTestCase {
         // Wait for assignee detail to load
         sleep(5)
 
+        app.swipeDown()
         // Scroll down to find System Tools section with tool permissions
         let sendNotification = app.staticTexts["Send Notification"].firstMatch
         // Retry swipe up until Send Notification is visible (CI simulators may need multiple swipes)

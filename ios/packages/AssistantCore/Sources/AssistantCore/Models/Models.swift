@@ -589,6 +589,7 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
                     input: part.input,
                     confirmation: part.confirmation,
                     question: part.question,
+                    upload: part.upload,
                     error: part.error,
                     isAutoConfirm: part.isAutoConfirm
                 )
@@ -634,6 +635,11 @@ public struct ToolCallQuestion: Codable, Sendable {
     public let status: String
 }
 
+public struct ToolCallUpload: Codable, Sendable {
+    public let id: String
+    public let status: String
+}
+
 public struct ChatToolCall: Codable, Sendable, Identifiable {
     public var id: String {
         toolCallId
@@ -644,6 +650,7 @@ public struct ChatToolCall: Codable, Sendable, Identifiable {
     public let input: [String: AnyCodable]?
     public let confirmation: ToolCallConfirmation?
     public let question: ToolCallQuestion?
+    public let upload: ToolCallUpload?
     public let error: String?
     public let isAutoConfirm: Bool?
 }
@@ -657,6 +664,7 @@ private struct ContentPart: Codable {
     let output: AnyCodable?
     let confirmation: ToolCallConfirmation?
     let question: ToolCallQuestion?
+    let upload: ToolCallUpload?
     let approveStatus: String?
     let error: String?
     let isAutoConfirm: Bool?
@@ -809,6 +817,59 @@ public struct AnswerQuestion: Codable, Sendable {
 public struct AnswerQuestionResponse: Codable, Sendable {
     public let action: String
     public let questionId: String
+}
+
+// MARK: - Upload Resolution
+
+public struct ResolveUpload: Codable, Sendable {
+    public let action: String
+    public let uploadedKeys: [String]?
+
+    public init(action: String, uploadedKeys: [String]? = nil) {
+        self.action = action
+        self.uploadedKeys = uploadedKeys
+    }
+}
+
+public struct ResolveUploadResponse: Codable, Sendable {
+    public let action: String
+    public let uploadId: String
+}
+
+public struct UploadRecord: Codable, Sendable {
+    public let id: String
+    public let toolCallId: String
+    public let toolName: String
+    public let title: String
+    public let description: String?
+    public let numberUploads: Int?
+    public let extensions: [String]?
+    public let urls: [UploadUrlItem]?
+    public let status: String?
+
+    public func toPayload() -> UploadRequestPayload {
+        UploadRequestPayload(
+            uploadId: id,
+            toolCallId: toolCallId,
+            toolName: toolName,
+            title: title,
+            description: description,
+            numberUploads: numberUploads,
+            extensions: extensions ?? [],
+            urls: urls ?? []
+        )
+    }
+}
+
+public struct UploadDownloadUrl: Codable, Sendable, Identifiable {
+    public var id: String {
+        key
+    }
+
+    public let key: String
+    public let url: String
+    public let `extension`: String
+    public let mimeType: String
 }
 
 // MARK: - Location Response

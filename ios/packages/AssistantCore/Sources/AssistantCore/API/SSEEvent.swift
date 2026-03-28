@@ -13,6 +13,8 @@ public enum SSEEventType: String, Sendable {
     case questionAnswered = "question_answered"
     case locationRequired = "location_required"
     case locationResolved = "location_resolved"
+    case uploadRequired = "upload_required"
+    case uploadResolved = "upload_resolved"
     case userMessage = "user-message"
     case compacting
     case error
@@ -93,6 +95,14 @@ public struct SSEEvent: Sendable {
                 if let payload = try? decoder.decode(LocationResolvedPayload.self, from: jsonData) {
                     return .locationResolved(payload)
                 }
+            case .uploadRequired:
+                if let payload = try? decoder.decode(UploadRequestPayload.self, from: jsonData) {
+                    return .uploadRequired(payload)
+                }
+            case .uploadResolved:
+                if let payload = try? decoder.decode(UploadResolvedPayload.self, from: jsonData) {
+                    return .uploadResolved(payload)
+                }
             case .userMessage:
                 if let payload = try? decoder.decode(UserMessagePayload.self, from: jsonData) {
                     return .userMessage(payload)
@@ -135,6 +145,8 @@ public enum SSEMessage: Sendable {
     case questionAnswered(QuestionAnsweredPayload)
     case locationRequired(LocationRequestPayload)
     case locationResolved(LocationResolvedPayload)
+    case uploadRequired(UploadRequestPayload)
+    case uploadResolved(UploadResolvedPayload)
     case userMessage(UserMessagePayload)
     case compacting(CompactingPayload)
     case error(SSEErrorPayload)
@@ -318,6 +330,72 @@ public struct SSEErrorPayload: Codable, Sendable {
 public struct StatusPayload: Codable, Sendable {
     public let id: String?
     public let status: String
+}
+
+public struct UploadUrlItem: Codable, Sendable, Hashable {
+    public let url: String
+    public let key: String
+    public let `extension`: String
+
+    public init(url: String, key: String, extension ext: String) {
+        self.url = url
+        self.key = key
+        self.extension = ext
+    }
+}
+
+public struct UploadRequestPayload: Codable, Sendable, Identifiable {
+    public var id: String {
+        uploadId
+    }
+
+    public let uploadId: String
+    public let toolCallId: String
+    public let toolName: String
+    public let title: String
+    public let description: String?
+    public let numberUploads: Int?
+    public let extensions: [String]
+    public let urls: [UploadUrlItem]
+
+    public init(
+        uploadId: String,
+        toolCallId: String,
+        toolName: String,
+        title: String,
+        description: String?,
+        numberUploads: Int?,
+        extensions: [String],
+        urls: [UploadUrlItem] = []
+    ) {
+        self.uploadId = uploadId
+        self.toolCallId = toolCallId
+        self.toolName = toolName
+        self.title = title
+        self.description = description
+        self.numberUploads = numberUploads
+        self.extensions = extensions
+        self.urls = urls
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        uploadId = try container.decode(String.self, forKey: .uploadId)
+        toolCallId = try container.decode(String.self, forKey: .toolCallId)
+        toolName = try container.decode(String.self, forKey: .toolName)
+        title = try container.decode(String.self, forKey: .title)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        numberUploads = try container.decodeIfPresent(Int.self, forKey: .numberUploads)
+        extensions = try container.decodeIfPresent([String].self, forKey: .extensions) ?? []
+        urls = try container.decodeIfPresent([UploadUrlItem].self, forKey: .urls) ?? []
+    }
+}
+
+public struct UploadResolvedPayload: Codable, Sendable {
+    public let uploadId: String
+    public let toolCallId: String
+    public let toolName: String
+    public let action: String
 }
 
 // MARK: - AnyCodable (lightweight JSON value wrapper)

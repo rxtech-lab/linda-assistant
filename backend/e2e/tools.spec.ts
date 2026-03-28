@@ -8,6 +8,8 @@ const SYSTEM_TOOLS_NO_PERMISSION_CHANGE = [
   "create_briefing",
   "send_notification",
   "generate_image",
+  "search_history",
+  "read_uploaded_file",
 ];
 
 test.describe("Tools API", () => {

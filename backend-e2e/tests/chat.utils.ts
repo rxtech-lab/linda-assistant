@@ -84,6 +84,8 @@ const SYSTEM_TOOLS = new Set([
   "send_notification",
   "generate_image",
   "search_history",
+  "request_upload",
+  "read_uploaded_file",
 ]);
 
 export async function updateAssigneePermissions(
@@ -486,6 +488,102 @@ export async function sendLocationResponse(
   if (!res.ok) {
     throw new Error(
       `POST /api/location-response failed (${res.status}): ${await res.text()}`,
+    );
+  }
+}
+
+// ---- Upload helpers ----
+
+export async function resolveUpload(
+  id: string,
+  action: "complete" | "reject",
+  uploadedKeys?: string[],
+): Promise<void> {
+  const token = loadToken();
+  const body: Record<string, unknown> = { action };
+  if (uploadedKeys) body.uploadedKeys = uploadedKeys;
+  const res = await fetch(`${BASE_URL}/api/uploads/${id}/resolve`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `POST /api/uploads/${id}/resolve failed (${res.status}): ${await res.text()}`,
+    );
+  }
+}
+
+export async function getUploadDownloadUrls(
+  id: string,
+): Promise<Array<{ key: string; url: string; extension: string; mimeType: string }>> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/uploads/${id}/download-urls`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `GET /api/uploads/${id}/download-urls failed (${res.status}): ${await res.text()}`,
+    );
+  }
+  return res.json() as any;
+}
+
+export async function getUploadPresignedUrls(
+  id: string,
+  extensions: string[],
+): Promise<Array<{ url: string; key: string; extension: string }>> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/uploads/${id}/presigned-urls`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ extensions }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `POST /api/uploads/${id}/presigned-urls failed (${res.status}): ${await res.text()}`,
+    );
+  }
+  return res.json() as any;
+}
+
+export async function getUpload(
+  id: string,
+): Promise<{
+  id: string;
+  status: string;
+  urls: Array<{ url: string; key: string; extension: string }>;
+  uploadedKeys: string[] | null;
+  numberUploads: number | null;
+  extensions: string[];
+  title: string;
+  [key: string]: unknown;
+}> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/uploads/${id}`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `GET /api/uploads/${id} failed (${res.status}): ${await res.text()}`,
+    );
+  }
+  return res.json() as any;
+}
+
+export async function uploadFileToPresignedUrl(
+  presignedUrl: string,
+  content: Buffer | Uint8Array,
+  contentType: string,
+): Promise<void> {
+  const res = await fetch(presignedUrl, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: content,
+  });
+  if (!res.ok) {
+    throw new Error(
+      `PUT presigned URL failed (${res.status}): ${await res.text()}`,
     );
   }
 }

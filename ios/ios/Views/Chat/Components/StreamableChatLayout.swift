@@ -16,7 +16,12 @@ struct StreamableChatLayout<Header: View>: View {
     let onStop: () -> Void
     @ViewBuilder let header: () -> Header
 
+    @Environment(AuthManager.self) private var authManager
     @Environment(EventManager.self) private var eventManager
+
+    private var apiClient: APIClient {
+        APIClient(authManager: authManager)
+    }
 
     @State private var messageText = ""
     @State private var selectedToolCall: ToolCallInfo?
@@ -26,6 +31,7 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var presentedConfirmation: ConfirmationPayload?
     @State private var presentedQuestion: QuestionPayload?
     @State private var presentedLocation: LocationRequestPayload?
+    @State private var presentedUpload: UploadRequestPayload?
     @State private var isAtBottom = true
     @State private var scrollSubject = PassthroughSubject<Void, Never>()
     private var pendingConfirmationCount: Int {
@@ -40,6 +46,10 @@ struct StreamableChatLayout<Header: View>: View {
         streamHandler?.pendingLocations.count ?? 0
     }
 
+    private var pendingUploadCount: Int {
+        streamHandler?.pendingUploads.count ?? 0
+    }
+
     private var showPendingIndicator: Bool {
         guard let handler = streamHandler,
               handler.isStreaming,
@@ -47,6 +57,7 @@ struct StreamableChatLayout<Header: View>: View {
               handler.pendingConfirmations.isEmpty,
               handler.pendingQuestions.isEmpty,
               handler.pendingLocations.isEmpty,
+              handler.pendingUploads.isEmpty,
               handler.error == nil
         else { return false }
         return true
@@ -57,7 +68,7 @@ struct StreamableChatLayout<Header: View>: View {
         var msgs = messages
         if let handler = streamHandler, !handler.streamingParts.isEmpty,
            handler.isStreaming || !handler.pendingConfirmations.isEmpty || !handler.pendingQuestions.isEmpty || !handler
-           .pendingLocations.isEmpty
+           .pendingLocations.isEmpty || !handler.pendingUploads.isEmpty
         {
             // Collect all toolCallIds already in display messages to avoid duplicates
             let existingToolCallIds = Set(
@@ -107,6 +118,28 @@ struct StreamableChatLayout<Header: View>: View {
             } else if let payload = QuestionPayload.from(toolCall: toolCall) {
                 // Reconstruct from tool call input when not in pending queue
                 presentedQuestion = payload
+            } else {
+                selectedToolCall = toolCall
+            }
+        } else if toolCall.status == .pendingUpload {
+            if let upload = streamHandler?.pendingUploads.first(where: {
+                $0.toolCallId == toolCall.toolCallId
+            }) {
+                presentedUpload = upload
+            } else if let uploadId = toolCall.uploadId {
+                // Fetch upload record from backend when not in pending queue
+                Task {
+                    do {
+                        let record = try await apiClient.getUpload(id: uploadId)
+                        await MainActor.run {
+                            presentedUpload = record.toPayload()
+                        }
+                    } catch {
+                        await MainActor.run {
+                            selectedToolCall = toolCall
+                        }
+                    }
+                }
             } else {
                 selectedToolCall = toolCall
             }
@@ -323,6 +356,39 @@ struct StreamableChatLayout<Header: View>: View {
                     presentedLocation = location
                 }
             }
+            .overlay(alignment: .bottom) {
+                if pendingUploadCount > 0, pendingConfirmationCount == 0, pendingQuestionCount == 0,
+                   pendingLocationCount == 0
+                {
+                    PendingUploadBanner(count: pendingUploadCount) {
+                        if let upload = streamHandler?.pendingUpload {
+                            presentedUpload = upload
+                        }
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: pendingUploadCount)
+            .onChange(of: pendingUploadCount) {
+                if let presented = presentedUpload,
+                   !(streamHandler?.pendingUploads
+                       .contains(where: { $0.uploadId == presented.uploadId }) ?? false)
+                {
+                    presentedUpload = nil
+                }
+                if presentedUpload == nil,
+                   let upload = streamHandler?.pendingUpload
+                {
+                    presentedUpload = upload
+                }
+            }
+            .onAppear {
+                if presentedUpload == nil,
+                   let upload = streamHandler?.pendingUpload
+                {
+                    presentedUpload = upload
+                }
+            }
             .onChange(of: displayError) {
                 errorDismissTask?.cancel()
                 if displayError != nil {
@@ -350,97 +416,110 @@ struct StreamableChatLayout<Header: View>: View {
                 onStop()
             }
         }
-        .sheet(item: $presentedConfirmation) { confirmation in
-            let _ = logger.info("sheet: rendering ConfirmationSheetView for toolName=\(confirmation.toolName)")
-            ConfirmationSheetView(
-                confirmation: confirmation,
-                remainingCount: max(0, (streamHandler?.pendingConfirmations.count ?? 1) - 1),
-                onResolve: { action, alwaysAllow in
-                    // Dismiss current sheet immediately
-                    presentedConfirmation = nil
-                    Task {
-                        await streamHandler?.resolveConfirmation(
-                            confirmationId: confirmation.confirmationId,
-                            action: action,
-                            alwaysAllow: alwaysAllow
-                        )
-                        // After resolving, check if there's another confirmation in the queue
-                        if let next = streamHandler?.pendingConfirmation {
-                            // Brief delay to let sheet dismiss animation complete
-                            try? await Task.sleep(for: .milliseconds(400))
-                            await MainActor.run {
-                                presentedConfirmation = next
-                            }
-                        }
-                    }
-                }
-            )
-        }
-        .sheet(item: $presentedQuestion) { question in
-            QuestionSheetView(
-                question: question,
-                remainingCount: max(0, (streamHandler?.pendingQuestions.count ?? 1) - 1),
-                onAnswer: { answers in
-                    presentedQuestion = nil
-                    Task {
-                        await streamHandler?.answerQuestion(
-                            questionId: question.questionId,
-                            action: "answer",
-                            answers: answers
-                        )
-                        if let next = streamHandler?.pendingQuestion {
-                            try? await Task.sleep(for: .milliseconds(400))
-                            await MainActor.run {
-                                presentedQuestion = next
-                            }
-                        }
-                    }
-                },
-                onReject: {
-                    presentedQuestion = nil
-                    Task {
-                        await streamHandler?.answerQuestion(
-                            questionId: question.questionId,
-                            action: "reject"
-                        )
-                        if let next = streamHandler?.pendingQuestion {
-                            try? await Task.sleep(for: .milliseconds(400))
-                            await MainActor.run {
-                                presentedQuestion = next
-                            }
-                        }
-                    }
-                }
-            )
-        }
-        .sheet(item: $presentedLocation) { location in
-            LocationSheetView(
-                location: location,
-                onResolve: { action, latitude, longitude, accuracy, alwaysAllow in
-                    presentedLocation = nil
-                    Task {
-                        await streamHandler?.resolveLocation(
-                            toolCallId: location.toolCallId,
-                            action: action,
-                            latitude: latitude,
-                            longitude: longitude,
-                            accuracy: accuracy,
-                            alwaysAllow: alwaysAllow
-                        )
-                        if let next = streamHandler?.pendingLocation {
-                            try? await Task.sleep(for: .milliseconds(400))
-                            await MainActor.run {
-                                presentedLocation = next
-                            }
-                        }
-                    }
-                }
-            )
-        }
         .toolCallPresenter(
             selectedToolCall: $selectedToolCall,
             documentItem: $selectedDocumentItem,
-            briefingId: $selectedBriefingId
+            briefingId: $selectedBriefingId,
+            presentedConfirmation: $presentedConfirmation,
+            pendingConfirmationCount: pendingConfirmationCount,
+            onConfirmationResolve: { confirmation, action, alwaysAllow in
+                presentedConfirmation = nil
+                Task {
+                    await streamHandler?.resolveConfirmation(
+                        confirmationId: confirmation.confirmationId,
+                        action: action,
+                        alwaysAllow: alwaysAllow
+                    )
+                    if let next = streamHandler?.pendingConfirmation {
+                        try? await Task.sleep(for: .milliseconds(400))
+                        await MainActor.run {
+                            presentedConfirmation = next
+                        }
+                    }
+                }
+            },
+            presentedQuestion: $presentedQuestion,
+            pendingQuestionCount: pendingQuestionCount,
+            onQuestionAnswer: { question, answers in
+                presentedQuestion = nil
+                Task {
+                    await streamHandler?.answerQuestion(
+                        questionId: question.questionId,
+                        action: "answer",
+                        answers: answers
+                    )
+                    if let next = streamHandler?.pendingQuestion {
+                        try? await Task.sleep(for: .milliseconds(400))
+                        await MainActor.run {
+                            presentedQuestion = next
+                        }
+                    }
+                }
+            },
+            onQuestionReject: { question in
+                presentedQuestion = nil
+                Task {
+                    await streamHandler?.answerQuestion(
+                        questionId: question.questionId,
+                        action: "reject"
+                    )
+                    if let next = streamHandler?.pendingQuestion {
+                        try? await Task.sleep(for: .milliseconds(400))
+                        await MainActor.run {
+                            presentedQuestion = next
+                        }
+                    }
+                }
+            },
+            presentedLocation: $presentedLocation,
+            onLocationResolve: { location, action, latitude, longitude, accuracy, alwaysAllow in
+                presentedLocation = nil
+                Task {
+                    await streamHandler?.resolveLocation(
+                        toolCallId: location.toolCallId,
+                        action: action,
+                        latitude: latitude,
+                        longitude: longitude,
+                        accuracy: accuracy,
+                        alwaysAllow: alwaysAllow
+                    )
+                    if let next = streamHandler?.pendingLocation {
+                        try? await Task.sleep(for: .milliseconds(400))
+                        await MainActor.run {
+                            presentedLocation = next
+                        }
+                    }
+                }
+            },
+            presentedUpload: $presentedUpload,
+            pendingUploadCount: pendingUploadCount,
+            onUploadComplete: { upload, _ in
+                presentedUpload = nil
+                // Upload is already resolved by UploadSheetView before showing completion.
+                // Just remove from pending list and present next if any.
+                Task { @MainActor in
+                    streamHandler?.removePendingUpload(uploadId: upload.uploadId)
+                    if let next = streamHandler?.pendingUpload {
+                        try? await Task.sleep(for: .milliseconds(400))
+                        presentedUpload = next
+                    }
+                }
+            },
+            onUploadReject: { upload in
+                presentedUpload = nil
+                Task {
+                    await streamHandler?.resolveUpload(
+                        uploadId: upload.uploadId,
+                        action: "reject"
+                    )
+                    if let next = streamHandler?.pendingUpload {
+                        try? await Task.sleep(for: .milliseconds(400))
+                        await MainActor.run {
+                            presentedUpload = next
+                        }
+                    }
+                }
+            }
         )
     }
 }
@@ -548,6 +627,42 @@ private struct PendingLocationBanner: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
+    }
+}
+
+private struct PendingUploadBanner: View {
+    let count: Int
+    var onTap: () -> Void = {}
+
+    var body: some View {
+        Button {
+            onTap()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.up.doc.fill")
+                    .foregroundStyle(.white)
+                Text(
+                    count == 1
+                        ? "1 upload requested"
+                        : "\(count) uploads requested"
+                )
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+                Spacer()
+                Text("Upload")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.teal)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .shadow(color: .teal.opacity(0.3), radius: 8, y: 4)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+        .accessibilityIdentifier("upload-banner")
     }
 }
 

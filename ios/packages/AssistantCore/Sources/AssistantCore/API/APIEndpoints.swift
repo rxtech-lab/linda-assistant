@@ -400,6 +400,29 @@ public extension APIClient {
         try await request(path: "questions/\(id)/answer", method: "POST", body: body)
     }
 
+    // MARK: - Uploads
+
+    func getUpload(id: String) async throws -> UploadRecord {
+        try await request(path: "uploads/\(id)")
+    }
+
+    func resolveUpload(id: String, _ body: ResolveUpload) async throws -> ResolveUploadResponse {
+        try await request(path: "uploads/\(id)/resolve", method: "POST", body: body)
+    }
+
+    func getUploadPresignedUrls(id: String, extensions: [String]) async throws -> [UploadUrlItem] {
+        struct Body: Encodable { let extensions: [String] }
+        return try await request(
+            path: "uploads/\(id)/presigned-urls",
+            method: "POST",
+            body: Body(extensions: extensions)
+        )
+    }
+
+    func getUploadDownloadUrls(id: String) async throws -> [UploadDownloadUrl] {
+        try await request(path: "uploads/\(id)/download-urls")
+    }
+
     // MARK: - Location
 
     func sendLocationResponse(_ body: LocationResponse) async throws -> LocationResponseResult {

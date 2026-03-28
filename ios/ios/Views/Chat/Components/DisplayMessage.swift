@@ -94,6 +94,11 @@ extension DisplayMessage {
                 if tc.error != nil {
                     status = .failed
                     errorMsg = tc.error
+                } else if tc.upload != nil {
+                    let hasResult = toolCallIdsWithResults.contains(tc.toolCallId)
+                        || resultOutputs[tc.toolCallId] != nil
+                    status = ToolCallStatus.from(upload: tc.upload, hasResult: hasResult)
+                    errorMsg = nil
                 } else if tc.question != nil {
                     let hasResult = toolCallIdsWithResults.contains(tc.toolCallId)
                         || resultOutputs[tc.toolCallId] != nil
@@ -119,7 +124,8 @@ extension DisplayMessage {
                     input: tc.input,
                     status: status,
                     result: resultOutputs[tc.toolCallId],
-                    errorMessage: errorMsg
+                    errorMessage: errorMsg,
+                    uploadId: tc.upload?.id
                 )
             }
 

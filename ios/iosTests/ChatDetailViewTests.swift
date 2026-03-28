@@ -726,6 +726,7 @@ final class ToolCallErrorAnnotationTests: XCTestCase {
             input: nil,
             confirmation: nil,
             question: nil,
+            upload: nil,
             error: "Task not found",
             isAutoConfirm: nil
         )
@@ -755,6 +756,7 @@ final class ToolCallErrorAnnotationTests: XCTestCase {
             input: nil,
             confirmation: nil,
             question: nil,
+            upload: nil,
             error: nil,
             isAutoConfirm: nil
         )
@@ -778,6 +780,7 @@ final class ToolCallErrorAnnotationTests: XCTestCase {
             input: nil,
             confirmation: ToolCallConfirmation(id: "c1", status: "rejected", isAutoConfirm: nil),
             question: nil,
+            upload: nil,
             error: nil,
             isAutoConfirm: nil
         )
