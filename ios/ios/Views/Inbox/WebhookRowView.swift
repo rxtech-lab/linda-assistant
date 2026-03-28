@@ -33,11 +33,11 @@ struct WebhookRowView: View {
                             .font(.caption)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            #if os(iOS)
+                        #if os(iOS)
                             .background(Color(.systemGray5))
-                            #else
+                        #else
                             .background(Color.gray.opacity(0.2))
-                            #endif
+                        #endif
                             .clipShape(Capsule())
                     }
                 }

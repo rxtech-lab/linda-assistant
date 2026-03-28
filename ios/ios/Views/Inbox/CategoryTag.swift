@@ -16,10 +16,10 @@ struct CategoryTag: View {
         .padding(.vertical, 2)
         .foregroundStyle(.secondary)
         #if os(iOS)
-        .background(Color(.systemGray5))
+            .background(Color(.systemGray5))
         #else
-        .background(Color.gray.opacity(0.2))
+            .background(Color.gray.opacity(0.2))
         #endif
-        .clipShape(Capsule())
+            .clipShape(Capsule())
     }
 }

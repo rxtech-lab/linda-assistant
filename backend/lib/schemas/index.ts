@@ -922,6 +922,15 @@ export const locationResponseResultSchema = z.object({
 
 // ---- Task History ----
 
+export const taskWebhookSummarySchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  event: z.string().nullable(),
+  summary: z.string().nullable(),
+  receivedAt: z.string(),
+  isRead: z.boolean().nullable(),
+});
+
 export const selectTaskHistorySchema = z.object({
   id: z.string(),
   taskId: z.string(),
@@ -930,10 +939,33 @@ export const selectTaskHistorySchema = z.object({
   summary: z.string(),
   toolCalls: z.array(z.string()).nullable(),
   status: z.string().nullable(),
+  source: z.string().nullable(),
   durationSecs: z.number().nullable(),
   taskTitle: z.string().optional(),
   score: z.number().optional(),
   createdAt: z.string().nullable(),
+});
+
+export const toolCallDetailSchema = z.object({
+  toolName: z.string(),
+  toolCallId: z.string(),
+  input: z.unknown(),
+  output: z.unknown().optional(),
+});
+
+export const selectTaskHistoryDetailSchema = selectTaskHistorySchema.extend({
+  toolCallDetails: z.array(toolCallDetailSchema).nullable(),
+  emails: z.array(
+    z.object({
+      id: z.string(),
+      fromEmail: z.string(),
+      fromName: z.string().nullable(),
+      subject: z.string().nullable(),
+      receivedAt: z.string(),
+      isRead: z.boolean().nullable(),
+    }),
+  ),
+  webhooks: z.array(taskWebhookSummarySchema),
 });
 
 export const listHistoryResponseSchema = z.object({

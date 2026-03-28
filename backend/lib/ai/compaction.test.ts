@@ -122,11 +122,7 @@ function toolCallMsgId(
   } as unknown as ModelMessage;
 }
 
-function toolResultMsgId(
-  toolCallId: string,
-  toolName: string,
-  output: unknown,
-): ModelMessage {
+function toolResultMsgId(toolCallId: string, toolName: string, output: unknown): ModelMessage {
   return {
     role: "tool",
     content: [{ type: "tool-result", toolCallId, toolName, output }],
@@ -201,13 +197,13 @@ describe("splitMessages", () => {
     // Recent has tool-result tc-A (index 3) but tool-call tc-A (index 1) is
     // in old — the validation loop detects this and moves the split backward.
     const msgs = [
-      textMsg("user", "Hi"),                                     // 0
-      toolCallMsgId("tc-A", "send_email", { to: "a@b.com" }),   // 1
-      textMsg("user", "What about this?"),                       // 2
-      toolResultMsgId("tc-A", "send_email", { sent: true }),     // 3
-      textMsg("user", "Thanks"),                                 // 4
-      textMsg("assistant", "Done"),                               // 5
-      textMsg("user", "Bye"),                                     // 6
+      textMsg("user", "Hi"), // 0
+      toolCallMsgId("tc-A", "send_email", { to: "a@b.com" }), // 1
+      textMsg("user", "What about this?"), // 2
+      toolResultMsgId("tc-A", "send_email", { sent: true }), // 3
+      textMsg("user", "Thanks"), // 4
+      textMsg("assistant", "Done"), // 5
+      textMsg("user", "Bye"), // 6
     ];
     const { oldMessages, recentMessages } = splitMessages(msgs, 4);
 
@@ -252,17 +248,18 @@ describe("splitMessages", () => {
     // Recent=[3,4,5,6,7]. tc-Y result is in recent but its call (index 1) is
     // in old — validation moves the split backward to reunite them.
     const msgs = [
-      textMsg("user", "Start"),                                   // 0
-      multiToolCallMsg([                                          // 1
+      textMsg("user", "Start"), // 0
+      multiToolCallMsg([
+        // 1
         { toolCallId: "tc-X", toolName: "search", input: {} },
         { toolCallId: "tc-Y", toolName: "create", input: {} },
       ]),
-      toolResultMsgId("tc-X", "search", { found: true }),        // 2
-      textMsg("assistant", "Processing..."),                       // 3
-      toolResultMsgId("tc-Y", "create", { id: "1" }),            // 4
-      textMsg("user", "OK"),                                       // 5
-      textMsg("assistant", "All done"),                            // 6
-      textMsg("user", "Bye"),                                      // 7
+      toolResultMsgId("tc-X", "search", { found: true }), // 2
+      textMsg("assistant", "Processing..."), // 3
+      toolResultMsgId("tc-Y", "create", { id: "1" }), // 4
+      textMsg("user", "OK"), // 5
+      textMsg("assistant", "All done"), // 6
+      textMsg("user", "Bye"), // 7
     ];
     const { recentMessages } = splitMessages(msgs, 4);
 

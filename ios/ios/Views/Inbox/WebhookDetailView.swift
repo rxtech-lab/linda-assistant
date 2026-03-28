@@ -87,11 +87,11 @@ struct WebhookDetailView: View {
         }
         .padding()
         #if os(iOS)
-        .background(Color(.secondarySystemBackground))
+            .background(Color(.secondarySystemBackground))
         #else
-        .background(Color.gray.opacity(0.1))
+            .background(Color.gray.opacity(0.1))
         #endif
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func summarySection(_ summary: String) -> some View {
@@ -105,11 +105,11 @@ struct WebhookDetailView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         #if os(iOS)
-        .background(Color(.secondarySystemBackground))
+            .background(Color(.secondarySystemBackground))
         #else
-        .background(Color.gray.opacity(0.1))
+            .background(Color.gray.opacity(0.1))
         #endif
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func payloadSection(_ payload: [String: AnyCodable]) -> some View {
@@ -131,11 +131,11 @@ struct WebhookDetailView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         #if os(iOS)
-        .background(Color(.secondarySystemBackground))
+            .background(Color(.secondarySystemBackground))
         #else
-        .background(Color.gray.opacity(0.1))
+            .background(Color.gray.opacity(0.1))
         #endif
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func formatDate(_ dateString: String) -> String {

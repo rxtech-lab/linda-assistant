@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { taskHistory, tasks } from "@/lib/db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, ne, sql, desc } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { listHistoryResponseSchema } from "@/lib/schemas";
 import { parsePagination } from "@/lib/utils/pagination";
@@ -27,10 +27,14 @@ export async function GET(request: NextRequest) {
     return paginatedJson(results, results.length, limit, offset);
   }
 
-  // Standard paginated list
+  // Standard paginated list (exclude pending entries)
   const baseWhere = assigneeId
-    ? and(eq(taskHistory.userId, auth.userId), eq(taskHistory.assigneeId, assigneeId))
-    : eq(taskHistory.userId, auth.userId);
+    ? and(
+        eq(taskHistory.userId, auth.userId),
+        eq(taskHistory.assigneeId, assigneeId),
+        ne(taskHistory.status, "pending"),
+      )
+    : and(eq(taskHistory.userId, auth.userId), ne(taskHistory.status, "pending"));
 
   const [items, countResult] = await Promise.all([
     db
@@ -42,6 +46,7 @@ export async function GET(request: NextRequest) {
         summary: taskHistory.summary,
         toolCalls: taskHistory.toolCalls,
         status: taskHistory.status,
+        source: taskHistory.source,
         durationSecs: taskHistory.durationSecs,
         createdAt: taskHistory.createdAt,
         taskTitle: tasks.title,

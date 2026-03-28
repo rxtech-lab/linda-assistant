@@ -462,4 +462,8 @@ public extension APIClient {
         }
         return try await request(path: "history", queryItems: queryItems)
     }
+
+    func getHistoryDetail(id: String) async throws -> TaskHistory {
+        try await request(path: "history/\(id)")
+    }
 }

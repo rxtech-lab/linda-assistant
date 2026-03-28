@@ -10,6 +10,7 @@ import {
   deleteTask,
   executeTaskNow,
   consumeSessionStream,
+  sendSessionMessage,
 } from "./chat.utils";
 import { TOKEN_FILE, type AuthToken } from "./auth.utils";
 
@@ -125,6 +126,66 @@ test.describe("Task History", () => {
       expect(entry!.taskTitle).toBe("History Test Task");
       expect(entry!.createdAt).toBeTruthy();
       console.log(`History entry created: ${entry!.id}, summary: ${entry!.summary.slice(0, 80)}...`);
+    } finally {
+      await deleteTask(taskId);
+    }
+  });
+
+  test("continued chat in same session updates history instead of duplicating", async ({
+    assigneeId,
+  }) => {
+    const taskId = await createTask(
+      assigneeId,
+      "History Upsert Task",
+      "Say hello and confirm the task is done.",
+    );
+    console.log(`Created task ${taskId}`);
+
+    try {
+      // First execution — history entry is created
+      const { sessionId } = await executeTaskNow(taskId);
+      console.log(`Task executed, session: ${sessionId}`);
+
+      const stream1 = consumeSessionStream(sessionId, {
+        timeout: 180_000,
+        label: "history-upsert-1",
+      });
+      await stream1.waitForDone();
+      console.log("First session completed");
+
+      await new Promise((resolve) => setTimeout(resolve, 3_000));
+
+      const historyAfterFirst = await listHistory(assigneeId);
+      const entriesForTask1 = historyAfterFirst.data.filter(
+        (h) => h.taskId === taskId,
+      );
+      expect(entriesForTask1).toHaveLength(1);
+      const firstEntryId = entriesForTask1[0].id;
+      const firstSummary = entriesForTask1[0].summary;
+      console.log(`First history entry: ${firstEntryId}, summary: ${firstSummary.slice(0, 80)}...`);
+
+      // Second execution — send follow-up message in the same session
+      await sendSessionMessage(sessionId, "Now say goodbye.");
+      const stream2 = consumeSessionStream(sessionId, {
+        timeout: 180_000,
+        label: "history-upsert-2",
+      });
+      await stream2.waitForDone();
+      console.log("Second session completed");
+
+      await new Promise((resolve) => setTimeout(resolve, 3_000));
+
+      // Verify: still only ONE history entry for this task, same id, but updated summary
+      const historyAfterSecond = await listHistory(assigneeId);
+      const entriesForTask2 = historyAfterSecond.data.filter(
+        (h) => h.taskId === taskId,
+      );
+      expect(entriesForTask2).toHaveLength(1);
+      expect(entriesForTask2[0].id).toBe(firstEntryId);
+      expect(entriesForTask2[0].summary).toBeTruthy();
+      console.log(
+        `Updated history entry: ${entriesForTask2[0].id}, summary: ${entriesForTask2[0].summary.slice(0, 80)}...`,
+      );
     } finally {
       await deleteTask(taskId);
     }
