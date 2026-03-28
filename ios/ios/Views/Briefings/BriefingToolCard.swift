@@ -124,6 +124,7 @@ struct BriefingToolCard: View {
             }
             .frame(maxWidth: 280, minHeight: 120, maxHeight: 120)
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            .contentShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
         .disabled(toolCall.status == .running || briefingId == nil)
