@@ -241,17 +241,27 @@ test.describe.serial("Task extension tools isolation", () => {
         allToolCalls.map((e) => e.data.toolName),
       );
 
-      // Verify: invoice-prefixed tool calls should appear
-      const invoiceToolCalls = stream.events.filter(
+      // With lazy MCP loading, the agent uses search_tools/read_tool/use_tool
+      // instead of calling invoice_* tools directly.
+      // Verify the agent used the lazy tool flow to interact with invoice tools.
+      const useToolCalls = stream.events.filter(
         (e) =>
           e.event === "tool-call" &&
-          typeof e.data.toolName === "string" &&
-          e.data.toolName.startsWith(INVOICE_PREFIX),
+          e.data.toolName === "use_tool",
       );
-      expect(invoiceToolCalls.length).toBeGreaterThanOrEqual(1);
+      const invoiceUseToolCalls = useToolCalls.filter((e) => {
+        const input = e.data.input as Record<string, unknown> | undefined;
+        return (
+          typeof input?.toolId === "string" &&
+          input.toolId.startsWith(INVOICE_PREFIX)
+        );
+      });
+      expect(invoiceUseToolCalls.length).toBeGreaterThanOrEqual(1);
       console.log(
-        `Found ${invoiceToolCalls.length} invoice tool calls:`,
-        invoiceToolCalls.map((e) => e.data.toolName),
+        `Found ${invoiceUseToolCalls.length} invoice use_tool calls:`,
+        invoiceUseToolCalls.map(
+          (e) => (e.data.input as Record<string, unknown>)?.toolId,
+        ),
       );
 
       stream.cancel();
@@ -308,15 +318,22 @@ test.describe.serial("Task extension tools isolation", () => {
 
       await stream.waitForDone();
 
-      // Verify: NO invoice-prefixed tool calls should appear
-      const invoiceToolCalls = stream.events.filter(
+      // With lazy loading, when extension is disabled for the task, the lazy tools
+      // should not discover any invoice tools. Verify no use_tool calls target invoice tools.
+      const useToolCalls = stream.events.filter(
         (e) =>
           e.event === "tool-call" &&
-          typeof e.data.toolName === "string" &&
-          e.data.toolName.startsWith(INVOICE_PREFIX),
+          e.data.toolName === "use_tool",
       );
-      expect(invoiceToolCalls).toHaveLength(0);
-      console.log("No invoice tool calls found (expected)");
+      const invoiceUseToolCalls = useToolCalls.filter((e) => {
+        const input = e.data.input as Record<string, unknown> | undefined;
+        return (
+          typeof input?.toolId === "string" &&
+          input.toolId.startsWith(INVOICE_PREFIX)
+        );
+      });
+      expect(invoiceUseToolCalls).toHaveLength(0);
+      console.log("No invoice use_tool calls found (expected)");
 
       stream.cancel();
     } finally {
@@ -374,17 +391,26 @@ test.describe.serial("Chat extension tools (regular chat)", () => {
         allToolCalls.map((e) => e.data.toolName),
       );
 
-      // Verify: invoice-prefixed tool calls should appear
-      const invoiceToolCalls = stream.events.filter(
+      // With lazy MCP loading, the agent uses use_tool to call invoice tools.
+      // Verify use_tool was called with an invoice-prefixed toolId.
+      const useToolCalls = stream.events.filter(
         (e) =>
           e.event === "tool-call" &&
-          typeof e.data.toolName === "string" &&
-          e.data.toolName.startsWith(INVOICE_PREFIX),
+          e.data.toolName === "use_tool",
       );
-      expect(invoiceToolCalls.length).toBeGreaterThanOrEqual(1);
+      const invoiceUseToolCalls = useToolCalls.filter((e) => {
+        const input = e.data.input as Record<string, unknown> | undefined;
+        return (
+          typeof input?.toolId === "string" &&
+          input.toolId.startsWith(INVOICE_PREFIX)
+        );
+      });
+      expect(invoiceUseToolCalls.length).toBeGreaterThanOrEqual(1);
       console.log(
-        `Found ${invoiceToolCalls.length} invoice tool calls:`,
-        invoiceToolCalls.map((e) => e.data.toolName),
+        `Found ${invoiceUseToolCalls.length} invoice use_tool calls:`,
+        invoiceUseToolCalls.map(
+          (e) => (e.data.input as Record<string, unknown>)?.toolId,
+        ),
       );
     } finally {
       stream.cancel();
