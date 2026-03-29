@@ -41,6 +41,7 @@ struct ToolCallPresenter: ViewModifier {
     private static let briefingToolNames: Set<String> = ["create_briefing"]
     private static let uploadToolNames: Set<String> = ["request_upload"]
     private static let readUploadedFileToolNames: Set<String> = ["read_uploaded_file"]
+    private static let mcpLazyToolNames: Set<String> = ["search_tools", "read_tool", "use_tool"]
 
     func body(content: Content) -> some View {
         content
@@ -153,6 +154,8 @@ struct ToolCallPresenter: ViewModifier {
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        } else if Self.mcpLazyToolNames.contains(toolCall.toolName) {
+            McpToolDetailSheet(toolCall: toolCall)
         } else {
             ToolCallDetailSheet(toolCall: toolCall)
         }

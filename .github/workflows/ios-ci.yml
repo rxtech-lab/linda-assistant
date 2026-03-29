@@ -36,21 +36,39 @@ jobs:
       artifact-path: build-macos.log
     secrets: inherit
 
-  test:
-    name: Run iOS Tests
+  test-parallel:
+    name: Run iOS Tests (Parallel)
     uses: ./.github/workflows/ios-setup.yml
     with:
       runs-on: '["self-hosted", "macOS", "ARM64", "ui-tests"]'
-      job-name: Run iOS Tests
+      job-name: Run iOS Tests (Parallel)
       script: ios-test-plan.sh
       scheme: LindaAssistant
       configuration: Debug
       sdk: iphonesimulator
-      artifact-name: test-logs
+      test-plan: TestPlan
+      artifact-name: test-logs-parallel
       artifact-path: test.log
       upload-test-results: true
       start-backend: true
-      parallel-testing-workers: 2
+      parallel-testing-workers: 3
+    secrets: inherit
+
+  test-serial:
+    name: Run iOS Tests (Serial)
+    uses: ./.github/workflows/ios-setup.yml
+    with:
+      runs-on: '["self-hosted", "macOS", "ARM64"]'
+      job-name: Run iOS Tests (Serial)
+      script: ios-test-plan.sh
+      scheme: LindaAssistant
+      configuration: Debug
+      sdk: iphonesimulator
+      test-plan: TestPlanSerial
+      artifact-name: test-logs-serial
+      artifact-path: test.log
+      upload-test-results: true
+      start-backend: true
     secrets: inherit
 
   test-macos:

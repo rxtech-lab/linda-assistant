@@ -144,6 +144,28 @@ async function getExtension(
 
 const INVOICE_PREFIX = "invoice_";
 
+/**
+ * Check if a tool-call event targets an invoice tool.
+ * With lazy MCP loading, invoice tools are invoked via use_tool with a toolId parameter.
+ */
+function isInvoiceToolCall(e: { event: string; data: Record<string, unknown> }): boolean {
+  if (e.event !== "tool-call" || typeof e.data.toolName !== "string") return false;
+  if (e.data.toolName.startsWith(INVOICE_PREFIX)) return true;
+  if (e.data.toolName === "use_tool") {
+    const input = e.data.input as Record<string, unknown> | undefined;
+    return typeof input?.toolId === "string" && input.toolId.startsWith(INVOICE_PREFIX);
+  }
+  return false;
+}
+
+function describeToolCall(e: { data: Record<string, unknown> }): string {
+  if (e.data.toolName === "use_tool") {
+    const input = e.data.input as Record<string, unknown> | undefined;
+    return `use_tool(${input?.toolId})`;
+  }
+  return String(e.data.toolName);
+}
+
 // Fixture: each test gets its own assignee
 const test = base.extend<{ assigneeId: string }>({
   assigneeId: async ({}, use, testInfo) => {
@@ -241,27 +263,12 @@ test.describe.serial("Task extension tools isolation", () => {
         allToolCalls.map((e) => e.data.toolName),
       );
 
-      // With lazy MCP loading, the agent uses search_tools/read_tool/use_tool
-      // instead of calling invoice_* tools directly.
-      // Verify the agent used the lazy tool flow to interact with invoice tools.
-      const useToolCalls = stream.events.filter(
-        (e) =>
-          e.event === "tool-call" &&
-          e.data.toolName === "use_tool",
-      );
-      const invoiceUseToolCalls = useToolCalls.filter((e) => {
-        const input = e.data.input as Record<string, unknown> | undefined;
-        return (
-          typeof input?.toolId === "string" &&
-          input.toolId.startsWith(INVOICE_PREFIX)
-        );
-      });
-      expect(invoiceUseToolCalls.length).toBeGreaterThanOrEqual(1);
+      // Verify: invoice tool calls should appear (via use_tool with lazy loading)
+      const invoiceToolCalls = stream.events.filter(isInvoiceToolCall);
+      expect(invoiceToolCalls.length).toBeGreaterThanOrEqual(1);
       console.log(
-        `Found ${invoiceUseToolCalls.length} invoice use_tool calls:`,
-        invoiceUseToolCalls.map(
-          (e) => (e.data.input as Record<string, unknown>)?.toolId,
-        ),
+        `Found ${invoiceToolCalls.length} invoice tool calls:`,
+        invoiceToolCalls.map(describeToolCall),
       );
 
       stream.cancel();
@@ -318,22 +325,10 @@ test.describe.serial("Task extension tools isolation", () => {
 
       await stream.waitForDone();
 
-      // With lazy loading, when extension is disabled for the task, the lazy tools
-      // should not discover any invoice tools. Verify no use_tool calls target invoice tools.
-      const useToolCalls = stream.events.filter(
-        (e) =>
-          e.event === "tool-call" &&
-          e.data.toolName === "use_tool",
-      );
-      const invoiceUseToolCalls = useToolCalls.filter((e) => {
-        const input = e.data.input as Record<string, unknown> | undefined;
-        return (
-          typeof input?.toolId === "string" &&
-          input.toolId.startsWith(INVOICE_PREFIX)
-        );
-      });
-      expect(invoiceUseToolCalls).toHaveLength(0);
-      console.log("No invoice use_tool calls found (expected)");
+      // Verify: NO invoice tool calls should appear (neither direct nor via use_tool)
+      const invoiceToolCalls = stream.events.filter(isInvoiceToolCall);
+      expect(invoiceToolCalls).toHaveLength(0);
+      console.log("No invoice tool calls found (expected)");
 
       stream.cancel();
     } finally {
@@ -391,26 +386,12 @@ test.describe.serial("Chat extension tools (regular chat)", () => {
         allToolCalls.map((e) => e.data.toolName),
       );
 
-      // With lazy MCP loading, the agent uses use_tool to call invoice tools.
-      // Verify use_tool was called with an invoice-prefixed toolId.
-      const useToolCalls = stream.events.filter(
-        (e) =>
-          e.event === "tool-call" &&
-          e.data.toolName === "use_tool",
-      );
-      const invoiceUseToolCalls = useToolCalls.filter((e) => {
-        const input = e.data.input as Record<string, unknown> | undefined;
-        return (
-          typeof input?.toolId === "string" &&
-          input.toolId.startsWith(INVOICE_PREFIX)
-        );
-      });
-      expect(invoiceUseToolCalls.length).toBeGreaterThanOrEqual(1);
+      // Verify: invoice tool calls should appear (via use_tool with lazy loading)
+      const invoiceToolCalls = stream.events.filter(isInvoiceToolCall);
+      expect(invoiceToolCalls.length).toBeGreaterThanOrEqual(1);
       console.log(
-        `Found ${invoiceUseToolCalls.length} invoice use_tool calls:`,
-        invoiceUseToolCalls.map(
-          (e) => (e.data.input as Record<string, unknown>)?.toolId,
-        ),
+        `Found ${invoiceToolCalls.length} invoice tool calls:`,
+        invoiceToolCalls.map(describeToolCall),
       );
     } finally {
       stream.cancel();

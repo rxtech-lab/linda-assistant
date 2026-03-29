@@ -593,37 +593,7 @@ private extension ToolCallDetailSheet {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            VStack(spacing: 0) {
-                ForEach(Array(params.keys.sorted().enumerated()), id: \.element) { index, key in
-                    HStack(alignment: .top, spacing: 12) {
-                        Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 100, alignment: .leading)
-
-                        Text(params[key]?.description ?? "")
-                            .font(.subheadline)
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                            .multilineTextAlignment(.trailing)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-
-                    if index < params.keys.count - 1 {
-                        Divider()
-                            .padding(.leading, 14)
-                    }
-                }
-            }
-            .background {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                #if os(iOS)
-                    .fill(Color(.secondarySystemGroupedBackground))
-                #else
-                    .fill(Color(nsColor: .controlBackgroundColor))
-                #endif
-            }
+            JsonView(value: .object(params))
         }
     }
 
@@ -633,19 +603,7 @@ private extension ToolCallDetailSheet {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            Text(result.description)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
-                .background {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    #if os(iOS)
-                        .fill(Color(.secondarySystemGroupedBackground))
-                    #else
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                    #endif
-                }
+            JsonView(value: result, expandedByDefault: false)
         }
     }
 

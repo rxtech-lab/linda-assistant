@@ -36,6 +36,7 @@ interface ExtensionWithStatus {
   prefix: string;
   enabled: boolean;
   toolPermissions: Array<{ toolName: string; permission: string }> | null;
+  tools?: Array<{ name: string; description: string }>;
   [key: string]: unknown;
 }
 
@@ -75,6 +76,21 @@ async function updateAssigneeExtension(
   if (!res.ok) {
     throw new Error(
       `PUT /api/assignees/${assigneeId}/extensions/${extensionId} failed (${res.status}): ${await res.text()}`,
+    );
+  }
+  return (await res.json()) as ExtensionWithStatus;
+}
+
+async function getExtension(
+  extensionId: string,
+): Promise<ExtensionWithStatus> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/extensions/${extensionId}`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `GET /api/extensions/${extensionId} failed (${res.status}): ${await res.text()}`,
     );
   }
   return (await res.json()) as ExtensionWithStatus;
@@ -193,13 +209,22 @@ test.describe.serial("Lazy MCP Tools - Agent Chat", () => {
   test("agent uses search_tools, read_tool, use_tool to interact with extension", async ({
     assigneeId,
   }) => {
-    // Enable the extension
+    // Enable the extension and discover its actual tools
     const extensions = await listAssigneeExtensions(assigneeId);
     const systemExt = extensions.find((e) => e.type === "system");
     expect(systemExt).toBeDefined();
     await updateAssigneeExtension(assigneeId, systemExt!.id, {
       enabled: true,
     });
+
+    // Get extension details to find an actual tool name
+    const extDetails = await getExtension(systemExt!.id);
+    const extTools = extDetails.tools ?? [];
+    expect(extTools.length).toBeGreaterThan(0);
+    const targetTool = extTools[0];
+    console.log(
+      `Extension "${systemExt!.title}" has ${extTools.length} tools, using "${targetTool.name}" for test`,
+    );
 
     // Start listening on the SSE stream
     const stream = consumeStream(assigneeId, {
@@ -208,10 +233,10 @@ test.describe.serial("Lazy MCP Tools - Agent Chat", () => {
     });
 
     try {
-      // Send a message asking the agent to discover and use a tool
+      // Send a message asking the agent to discover and use the actual tool
       await sendMessage(
         assigneeId,
-        'Search for extension tools related to "echo", then read the tool details, and finally use the echo tool to echo the message "lazy-load-test-123". Do not ask any questions, just do it.',
+        `Search for extension tools related to "${targetTool.name}", then read the tool details using read_tool, and finally use the tool "${targetTool.name}" with use_tool. Do not ask any questions, just do it step by step: first search_tools, then read_tool, then use_tool.`,
       );
 
       await stream.waitForDone();
@@ -238,7 +263,6 @@ test.describe.serial("Lazy MCP Tools - Agent Chat", () => {
       );
       for (const result of toolResults) {
         if (result.data.toolName === "use_tool") {
-          // The use_tool result should contain our echo message
           expect(result.data.isError).toBeFalsy();
         }
       }
@@ -248,14 +272,21 @@ test.describe.serial("Lazy MCP Tools - Agent Chat", () => {
   });
 
   test("search_tools filters out disabled tools", async ({ assigneeId }) => {
-    // Enable the extension with echo tool disabled
+    // Enable the extension and discover its actual tools
     const extensions = await listAssigneeExtensions(assigneeId);
     const systemExt = extensions.find((e) => e.type === "system");
     expect(systemExt).toBeDefined();
 
+    // Get extension details to find an actual tool name to disable
+    const extDetails = await getExtension(systemExt!.id);
+    const extTools = extDetails.tools ?? [];
+    expect(extTools.length).toBeGreaterThan(0);
+    const disabledTool = extTools[0];
+    console.log(`Disabling tool "${disabledTool.name}" for filter test`);
+
     await updateAssigneeExtension(assigneeId, systemExt!.id, {
       enabled: true,
-      toolPermissions: [{ toolName: "echo", permission: "disabled" }],
+      toolPermissions: [{ toolName: disabledTool.name, permission: "disabled" }],
     });
 
     // Clear history before this test
@@ -269,7 +300,7 @@ test.describe.serial("Lazy MCP Tools - Agent Chat", () => {
     try {
       await sendMessage(
         assigneeId,
-        'Search for extension tools related to "echo" and tell me all the tool IDs you found. Do not ask questions.',
+        `Search for extension tools related to "${disabledTool.name}" and tell me all the tool IDs you found. Do not ask questions.`,
       );
 
       await stream.waitForDone();
@@ -281,7 +312,7 @@ test.describe.serial("Lazy MCP Tools - Agent Chat", () => {
       );
       expect(searchCalls.length).toBeGreaterThanOrEqual(1);
 
-      // Check the search results don't contain the disabled echo tool
+      // Check the search results don't contain the disabled tool
       const searchResults = stream.events.filter(
         (e) =>
           e.event === "tool-result" && e.data.toolName === "search_tools",
@@ -291,10 +322,10 @@ test.describe.serial("Lazy MCP Tools - Agent Chat", () => {
         const output = result.data.output as Record<string, unknown> | undefined;
         if (output?.tools) {
           const tools = output.tools as Array<{ id: string; name: string }>;
-          const echoTool = tools.find(
-            (t) => t.id === "e2e_test_echo" || t.name === "echo",
+          const found = tools.find(
+            (t) => t.name === disabledTool.name || t.id === `${systemExt!.prefix}${disabledTool.name}`,
           );
-          expect(echoTool).toBeUndefined();
+          expect(found).toBeUndefined();
         }
       }
     } finally {

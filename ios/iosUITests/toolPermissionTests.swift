@@ -80,7 +80,7 @@ final class ToolPermissionTests: XCTestCase {
         sleep(1)
         app.cells.containing(.staticText, identifier: "Update Document").firstMatch.swipeUp()
         app.swipeUp()
-        
+
         app.swipeUp()
 
         // check system tool disabled text
