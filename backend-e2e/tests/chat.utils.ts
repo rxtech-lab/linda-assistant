@@ -108,6 +108,9 @@ const SYSTEM_TOOLS = new Set([
   "search_history",
   "request_upload",
   "read_uploaded_file",
+  "search_tools",
+  "read_tool",
+  "use_tool",
 ]);
 
 export async function updateAssigneePermissions(

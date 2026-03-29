@@ -10,6 +10,9 @@ const SYSTEM_TOOLS_NO_PERMISSION_CHANGE = [
   "generate_image",
   "search_history",
   "read_uploaded_file",
+  "search_tools",
+  "read_tool",
+  "use_tool",
 ];
 
 test.describe("Tools API", () => {

@@ -194,15 +194,14 @@ test.describe("Extension Enable/Disable Tool Availability", () => {
     // Verify it's disabled by default
     expect(systemExt!.enabled).toBe(false);
 
-    // Get baseline tool list — no extension tools should be present
+    // Get baseline tool list — lazy tools (search_tools, read_tool, use_tool) should NOT be present
     const { body: baselineTools } = await getTools(assigneeId);
     baselineToolNames = baselineTools.map((t) => t.name);
 
-    // Confirm no tools with extension prefix exist
-    const extTools = baselineToolNames.filter((name) =>
-      name.startsWith(extensionPrefix),
-    );
-    expect(extTools).toHaveLength(0);
+    // Confirm no lazy MCP tools exist (no extensions enabled)
+    expect(baselineToolNames).not.toContain("search_tools");
+    expect(baselineToolNames).not.toContain("read_tool");
+    expect(baselineToolNames).not.toContain("use_tool");
   });
 
   test("enabled extension tools appear in assignee tools", async () => {
@@ -212,10 +211,12 @@ test.describe("Extension Enable/Disable Tool Availability", () => {
     });
     expect(updated.enabled).toBe(true);
 
-    // Get tools — should now include extension-prefixed tools
+    // Get tools — should now include the 3 lazy MCP tools
     const { body: tools } = await getTools(assigneeId);
-    const extTools = tools.filter((t) => t.name.startsWith(extensionPrefix));
-    expect(extTools.length).toBeGreaterThan(0);
+    const toolNames = tools.map((t) => t.name);
+    expect(toolNames).toContain("search_tools");
+    expect(toolNames).toContain("read_tool");
+    expect(toolNames).toContain("use_tool");
 
     // Total tool count should be greater than baseline
     expect(tools.length).toBeGreaterThan(baselineToolNames.length);
@@ -228,10 +229,12 @@ test.describe("Extension Enable/Disable Tool Availability", () => {
     });
     expect(updated.enabled).toBe(false);
 
-    // Get tools — extension tools should be gone
+    // Get tools — lazy MCP tools should be gone
     const { body: tools } = await getTools(assigneeId);
-    const extTools = tools.filter((t) => t.name.startsWith(extensionPrefix));
-    expect(extTools).toHaveLength(0);
+    const toolNames = tools.map((t) => t.name);
+    expect(toolNames).not.toContain("search_tools");
+    expect(toolNames).not.toContain("read_tool");
+    expect(toolNames).not.toContain("use_tool");
 
     // Should be back to baseline count
     expect(tools.length).toBe(baselineToolNames.length);
@@ -253,20 +256,20 @@ test.describe("Extension Enable/Disable Tool Availability", () => {
       toolPermissions: customPermissions,
     });
 
-    // Verify tools appear
+    // Verify lazy tools appear
     const { body: toolsAfterEnable } = await getTools(assigneeId);
-    const extToolsAfterEnable = toolsAfterEnable.filter((t) =>
-      t.name.startsWith(extensionPrefix),
-    );
-    expect(extToolsAfterEnable.length).toBeGreaterThan(0);
+    const lazyToolNames = toolsAfterEnable.map((t) => t.name);
+    expect(lazyToolNames).toContain("search_tools");
+    expect(lazyToolNames).toContain("read_tool");
+    expect(lazyToolNames).toContain("use_tool");
 
-    // Disable extension → tools disappear
+    // Disable extension → lazy tools disappear
     await updateAssigneeExtension(assigneeId, extensionId, { enabled: false });
     const { body: toolsAfterDisable } = await getTools(assigneeId);
-    const extToolsAfterDisable = toolsAfterDisable.filter((t) =>
-      t.name.startsWith(extensionPrefix),
-    );
-    expect(extToolsAfterDisable).toHaveLength(0);
+    const namesAfterDisable = toolsAfterDisable.map((t) => t.name);
+    expect(namesAfterDisable).not.toContain("search_tools");
+    expect(namesAfterDisable).not.toContain("read_tool");
+    expect(namesAfterDisable).not.toContain("use_tool");
 
     // Re-enable WITHOUT sending toolPermissions — they should be preserved
     await updateAssigneeExtension(assigneeId, extensionId, { enabled: true });
@@ -280,11 +283,11 @@ test.describe("Extension Enable/Disable Tool Availability", () => {
     expect(reEnabledExt!.enabled).toBe(true);
     expect(reEnabledExt!.toolPermissions).toEqual(customPermissions);
 
-    // Verify tools appear again
+    // Verify lazy tools appear again
     const { body: toolsAfterReEnable } = await getTools(assigneeId);
-    const extToolsAfterReEnable = toolsAfterReEnable.filter((t) =>
-      t.name.startsWith(extensionPrefix),
-    );
-    expect(extToolsAfterReEnable.length).toBeGreaterThan(0);
+    const namesAfterReEnable = toolsAfterReEnable.map((t) => t.name);
+    expect(namesAfterReEnable).toContain("search_tools");
+    expect(namesAfterReEnable).toContain("read_tool");
+    expect(namesAfterReEnable).toContain("use_tool");
   });
 });

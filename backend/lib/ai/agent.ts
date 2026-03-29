@@ -438,11 +438,13 @@ If the user rejects your questions, do NOT retry with the same or similar questi
     }
   }
 
+  const extensionToolGuidance = `\nWhen the user asks you to do something that might require an extension tool (e.g. invoices, files, transport, web scraping), use the search_tools tool to discover available extension tools by keyword. Then use read_tool to inspect the parameters of matching tools. Finally, use use_tool to execute the tool with the correct parameters. Always follow this flow: search_tools → read_tool → use_tool. Do NOT guess tool IDs or parameters — always search and read first.`;
+
   if (!assignee)
-    return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${taskGuidance}`;
+    return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${extensionToolGuidance}${taskGuidance}`;
   if (assignee.personality)
-    return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${taskGuidance}`;
-  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${taskGuidance}`;
+    return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${extensionToolGuidance}${taskGuidance}`;
+  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${extensionToolGuidance}${taskGuidance}`;
 }
 
 /**

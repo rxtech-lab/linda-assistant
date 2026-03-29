@@ -56,6 +56,11 @@ on:
         required: false
         type: number
         default: 0
+      test-plan:
+        description: 'Xcode test plan name (without .xctestplan extension)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   run:
@@ -191,6 +196,7 @@ jobs:
           CONFIGURATION: ${{ inputs.configuration }}
           SDK: ${{ inputs.sdk }}
           PARALLEL_TESTING_WORKERS: ${{ inputs.parallel-testing-workers }}
+          TEST_PLAN: ${{ inputs.test-plan }}
 
       - name: Upload Logs
         if: ${{ inputs.upload-test-results && failure() }}

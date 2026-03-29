@@ -17,6 +17,7 @@
 		DF7E37742F3A66EC006A4C0A /* AgentKit in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E37732F3A66EC006A4C0A /* AgentKit */; };
 		DF7E37762F3B1D21006A4C0A /* Launch Screen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */; platformFilter = ios; };
 		DF7E385D2F3B5EF9006A4C0A /* ViewInspector in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E385C2F3B5EF9006A4C0A /* ViewInspector */; };
+		DFBF636C2F794F87002EAEDF /* TestPlanSerial.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = DFBF636B2F794F87002EAEDF /* TestPlanSerial.xctestplan */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -48,6 +49,7 @@
 		DF7E2EA22F385474006A4C0A /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		DF7E324F2F3888A1006A4C0A /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon.icon; sourceTree = "<group>"; };
 		DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = "Launch Screen.storyboard"; sourceTree = "<group>"; };
+		DFBF636B2F794F87002EAEDF /* TestPlanSerial.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = TestPlanSerial.xctestplan; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -116,6 +118,7 @@
 		DF7E29E82F378F46006A4C0A = {
 			isa = PBXGroup;
 			children = (
+				DFBF636B2F794F87002EAEDF /* TestPlanSerial.xctestplan */,
 				DF3C5E302F51E9CE00A5898B /* TestPlan.xctestplan */,
 				DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */,
 				DF7E324F2F3888A1006A4C0A /* icon.icon */,
@@ -295,6 +298,7 @@
 			files = (
 				DF7E37762F3B1D21006A4C0A /* Launch Screen.storyboard in Resources */,
 				DF3C5E312F51E9CE00A5898B /* TestPlan.xctestplan in Resources */,
+				DFBF636C2F794F87002EAEDF /* TestPlanSerial.xctestplan in Resources */,
 				DF7E32502F3888A1006A4C0A /* icon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

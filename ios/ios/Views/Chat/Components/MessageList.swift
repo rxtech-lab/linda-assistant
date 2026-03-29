@@ -13,11 +13,38 @@ struct MessageList: View {
 
     private static let documentToolNames: Set<String> = ["create_document", "update_document"]
     private static let briefingToolNames: Set<String> = ["create_briefing"]
+    private static let mcpLazyToolNames: Set<String> = ["search_tools", "read_tool", "use_tool"]
 
     /// Disable animation initially, enable after view has loaded
     @State private var animationEnabled = false
 
     private let calendar = Calendar.current
+
+    @ViewBuilder
+    private func mcpLazyToolCard(for toolCall: ToolCallInfo) -> some View {
+        switch toolCall.toolName {
+            case "search_tools":
+                SearchToolsCard(toolCall: toolCall) {
+                    if toolCall.status != .running {
+                        onToolCallTap?(toolCall)
+                    }
+                }
+            case "read_tool":
+                ReadToolCard(toolCall: toolCall) {
+                    if toolCall.status != .running {
+                        onToolCallTap?(toolCall)
+                    }
+                }
+            case "use_tool":
+                UseToolCard(toolCall: toolCall) {
+                    if toolCall.status != .running {
+                        onToolCallTap?(toolCall)
+                    }
+                }
+            default:
+                EmptyView()
+        }
+    }
 
     /// Check if we should show a date divider before this message
     private func shouldShowDateDivider(at index: Int) -> Bool {
@@ -69,6 +96,9 @@ struct MessageList: View {
                                     onBriefingTap?(briefingId)
                                 }
                                 .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
+                            } else if Self.mcpLazyToolNames.contains(toolCall.toolName) {
+                                mcpLazyToolCard(for: toolCall)
+                                    .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                             } else {
                                 ToolCallBadge(toolCall: toolCall) {
                                     if toolCall.status == .pendingConfirmation {
