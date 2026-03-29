@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type APIRequestContext } from "@playwright/test";
 import { consumeSSE } from "./helpers/sse-client";
 import {
   assigneeResponseSchema,
@@ -12,7 +12,7 @@ const SUB_DELAY = 200;
  * Helper: create an assignee, optionally enabling the e2e_test extension.
  */
 async function setupAssigneeWithExtension(
-  request: any,
+  request: APIRequestContext,
   name: string,
   email: string,
   enableExtension: boolean,

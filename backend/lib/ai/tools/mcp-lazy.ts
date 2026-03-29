@@ -315,7 +315,9 @@ export function useToolTool(extensions: LazyExtensionConfig[]) {
           return { error: `Tool "${toolId}" does not have an execute function.` };
         }
 
-        const result = await (mcpTool.execute as Function)(parameters);
+        const result = await (mcpTool.execute as (...args: unknown[]) => Promise<unknown>)(
+          parameters,
+        );
         return { result };
       } catch (err) {
         return { error: `Failed to execute tool "${toolId}": ${String(err)}` };
