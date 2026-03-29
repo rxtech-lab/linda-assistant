@@ -108,7 +108,7 @@ test.describe("Chat Sessions cross-user isolation", () => {
 
   test.beforeAll(async ({ request }) => {
     const assigneeRes = await request.post("/api/assignees", {
-      data: { name: "Isolation Assignee", email: "isolation@example.com" },
+      data: { name: "Isolation Assignee", email: "session-isolation@example.com" },
     });
     const assigneeBody = await assigneeRes.json();
 

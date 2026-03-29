@@ -137,16 +137,92 @@ test.describe("Resend webhook inline images", () => {
   });
 });
 
-test.describe("Resend webhook auto-dispatch", () => {
+test.describe("Resend webhook routes to correct assignee", () => {
+  const emailA = "assistant-a@example.com";
+  const emailB = "assistant-b@example.com";
+  let assigneeAId: string;
+  let assigneeBId: string;
+
   test.beforeAll(async ({ request }) => {
-    // Ensure assignee exists for the webhook email target
-    await request.post("/api/assignees", {
+    const resA = await request.post("/api/assignees", {
+      data: { name: "Assistant A", email: emailA },
+    });
+    expect(resA.ok()).toBeTruthy();
+    assigneeAId = (await resA.json()).id;
+
+    const resB = await request.post("/api/assignees", {
+      data: { name: "Assistant B", email: emailB },
+    });
+    expect(resB.ok()).toBeTruthy();
+    assigneeBId = (await resB.json()).id;
+  });
+
+  test("webhook to assistant A returns 200 and stores email under A", async ({ request }) => {
+    const res = await request.post("/api/webhooks/resend", {
       data: {
-        name: "Dispatch Test Assignee",
-        email: "test@example.com",
+        type: "email.received",
+        data: {
+          email_id: "e2e-multi-a",
+          from: "sender@example.com",
+          to: [emailA],
+          subject: "Hello Assistant A",
+          message_id: "msg-multi-a",
+        },
       },
     });
+    expect(res.status()).toBe(200);
+
+    const listRes = await request.get("/api/inbox/emails");
+    const emails = await listRes.json();
+    const email = emails.data.find((e: { emailId: string }) => e.emailId === "e2e-multi-a");
+    expect(email).toBeTruthy();
+    expect(email.assigneeId).toBe(assigneeAId);
+    expect(email.subject).toBe("Hello Assistant A");
   });
+
+  test("webhook to assistant B returns 200 and stores email under B", async ({ request }) => {
+    const res = await request.post("/api/webhooks/resend", {
+      data: {
+        type: "email.received",
+        data: {
+          email_id: "e2e-multi-b",
+          from: "sender@example.com",
+          to: [emailB],
+          subject: "Hello Assistant B",
+          message_id: "msg-multi-b",
+        },
+      },
+    });
+    expect(res.status()).toBe(200);
+
+    const listRes = await request.get("/api/inbox/emails");
+    const emails = await listRes.json();
+    const email = emails.data.find((e: { emailId: string }) => e.emailId === "e2e-multi-b");
+    expect(email).toBeTruthy();
+    expect(email.assigneeId).toBe(assigneeBId);
+  });
+
+  test("webhook to unknown email returns 404", async ({ request }) => {
+    const res = await request.post("/api/webhooks/resend", {
+      data: {
+        type: "email.received",
+        data: {
+          email_id: "e2e-multi-unknown",
+          from: "sender@example.com",
+          to: ["nobody@example.com"],
+          subject: "Hello Nobody",
+          message_id: "msg-multi-unknown",
+        },
+      },
+    });
+    expect(res.status()).toBe(404);
+    const body = await res.json();
+    expect(body.message).toContain("No assignee found");
+  });
+});
+
+test.describe("Resend webhook auto-dispatch", () => {
+  // Reuses the "test@example.com" assignee created by the inline images block above
 
   test("webhook creates a chat session for the assignee to process the email", async ({
     request,

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AuthManager.self) private var authManager
+    @Namespace private var iconNamespace
     @State private var showSplash = true
     @State private var splashStartTime = Date()
 
@@ -23,6 +24,7 @@ struct RootView: View {
                     .zIndex(1)
             }
         }
+        .environment(\.iconTransitionNamespace, iconNamespace)
         .animation(.default, value: authManager.authState)
         .task {
             splashStartTime = Date()

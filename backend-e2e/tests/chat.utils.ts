@@ -49,6 +49,28 @@ export async function createAssignee(label: string): Promise<string> {
   return created.id;
 }
 
+export async function createAssigneeWithEmail(
+  label: string,
+  email: string,
+): Promise<string> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/assignees`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({
+      name: label,
+      email,
+      model: "openai/gpt-oss-120b",
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`POST /api/assignees failed (${res.status}): ${err}`);
+  }
+  const created = (await res.json()) as { id: string };
+  return created.id;
+}
+
 export async function deleteAssignee(assigneeId: string): Promise<void> {
   const token = loadToken();
   const res = await fetch(`${BASE_URL}/api/assignees/${assigneeId}`, {

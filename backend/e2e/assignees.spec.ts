@@ -33,7 +33,7 @@ test.describe("Assignees CRUD", () => {
     const res = await request.post("/api/assignees", {
       data: {
         name: "Test Assistant",
-        email: "test@example.com",
+        email: "assignee-crud@example.com",
         personality: "Friendly helper",
         model: TEST_MODEL,
       },
@@ -43,7 +43,7 @@ test.describe("Assignees CRUD", () => {
     assigneeResponseSchema.parse(body);
     expect(body).toMatchObject({
       name: "Test Assistant",
-      email: "test@example.com",
+      email: "assignee-crud@example.com",
       personality: "Friendly helper",
       model: TEST_MODEL,
     });
@@ -209,7 +209,7 @@ test.describe("Partial update", () => {
     const res = await request.post("/api/assignees", {
       data: {
         name: "Partial Test",
-        email: "partial@example.com",
+        email: "assignee-partial@example.com",
         personality: "Calm and collected",
         model: TEST_MODEL,
       },
@@ -226,7 +226,7 @@ test.describe("Partial update", () => {
     const body = await res.json();
     assigneeResponseSchema.parse(body);
     expect(body.name).toBe("New Name");
-    expect(body.email).toBe("partial@example.com");
+    expect(body.email).toBe("assignee-partial@example.com");
     expect(body.personality).toBe("Calm and collected");
     expect(body.model).toBe(TEST_MODEL);
   });
@@ -313,7 +313,7 @@ test.describe("Tool permissions", () => {
     const res = await request.post("/api/assignees", {
       data: {
         name: "Permissions Test",
-        email: "perms@example.com",
+        email: "assignee-perms@example.com",
         toolPermissions: permissions,
       },
     });
