@@ -52,6 +52,15 @@ export async function POST(request: NextRequest) {
     return errorJson(parsed.error.message, 422);
   }
 
+  // Reject duplicate email addresses (globally unique for webhook routing)
+  const [existing] = await db
+    .select({ id: assignees.id })
+    .from(assignees)
+    .where(eq(assignees.email, parsed.data.email));
+  if (existing) {
+    return errorJson("An assignee with this email address already exists", 409);
+  }
+
   // Reject permission changes for system tools that always auto-execute
   if (parsed.data.toolPermissions) {
     const forbidden = parsed.data.toolPermissions

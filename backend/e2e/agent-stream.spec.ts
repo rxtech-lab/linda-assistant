@@ -16,7 +16,7 @@ test.describe("Agent Stream", () => {
     const res = await request.post("/api/assignees", {
       data: {
         name: "Test Assistant",
-        email: "test@example.com",
+        email: "stream-test@example.com",
       },
     });
     expect(res.ok()).toBeTruthy();

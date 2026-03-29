@@ -113,7 +113,7 @@ export async function generateDocumentPdf(
       s.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
       s.maxWidth = "800px";
       s.margin = "0 auto";
-      s.padding = "40px 20px";
+      s.padding = "0";
       s.lineHeight = "1.6";
       s.color = "#333";
 
@@ -202,14 +202,14 @@ export async function generateDocumentPdf(
       printBackground: true,
       paperWidth: 8.27, // A4
       paperHeight: 11.69,
-      marginTop: 0.79, // ~20mm
-      marginBottom: 0.98, // ~25mm
-      marginLeft: 0.59, // ~15mm
-      marginRight: 0.59,
+      marginTop: 1.0, // 25.4mm — professional A4 report
+      marginBottom: 1.0,
+      marginLeft: 1.0,
+      marginRight: 1.0,
       displayHeaderFooter: true,
       headerTemplate: "<span></span>",
       footerTemplate: `
-        <div style="width: 100%; font-size: 9px; color: #999; text-align: center; padding: 0 15mm;">
+        <div style="width: 100%; font-size: 9px; color: #999; text-align: center; padding: 0 25.4mm;">
           <span class="pageNumber"></span> / <span class="totalPages"></span>
         </div>`,
     });
