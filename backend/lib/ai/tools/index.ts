@@ -8,7 +8,6 @@ import { getActiveSessionMessages } from "@/lib/db/messages";
 import {
   loadAssigneePermissions,
   loadTaskPermissions,
-  resolvePermission,
   resolvePermissionWithConditions,
 } from "./permission";
 import { SEARCH_EMAILS_TOOL_NAME, searchEmailsTool } from "./search-emails";
@@ -26,7 +25,16 @@ import { GENERATE_IMAGE_TOOL_NAME, generateImageTool } from "./generate-image";
 import { REQUEST_UPLOAD_TOOL_NAME, requestUploadTool } from "./request-upload";
 import { SEARCH_HISTORY_TOOL_NAME, searchHistoryTool } from "./search-history";
 import { READ_UPLOADED_FILE_TOOL_NAME, readUploadedFileTool } from "./read-uploaded-file";
-import { type AuthConfig, createGenericMcp } from "./mcps/generic";
+import { type AuthConfig } from "./mcps/generic";
+import {
+  type LazyExtensionConfig,
+  SEARCH_TOOLS_TOOL_NAME,
+  READ_TOOL_TOOL_NAME,
+  USE_TOOL_TOOL_NAME,
+  searchToolsTool,
+  readToolTool,
+  useToolTool,
+} from "./mcp-lazy";
 import { redis } from "@/lib/redis";
 
 /**
@@ -42,6 +50,9 @@ export const NO_PERMISSION_CHANGE_TOOLS: ReadonlySet<string> = new Set([
   GENERATE_IMAGE_TOOL_NAME,
   SEARCH_HISTORY_TOOL_NAME,
   READ_UPLOADED_FILE_TOOL_NAME,
+  SEARCH_TOOLS_TOOL_NAME,
+  READ_TOOL_TOOL_NAME,
+  USE_TOOL_TOOL_NAME,
 ]);
 
 export interface ToolSetResult {
@@ -49,77 +60,6 @@ export interface ToolSetResult {
   tools: Record<string, unknown>;
   /** Maps toolName → conditions and logic for tools with conditional auto-confirm */
   conditionalAutoConfirm: Record<string, { conditions: ToolCondition[]; logic: "and" | "or" }>;
-}
-
-/**
- * Load tools from an MCP server with permission filtering
- */
-async function loadMcpTools(
-  prefix: string,
-  mcpUrl: string,
-  auth: AuthConfig,
-  toolPermissions: ToolPermission[] | null,
-): Promise<{
-  tools: Record<string, unknown>;
-  conditionalAutoConfirm: Record<string, { conditions: ToolCondition[]; logic: "and" | "or" }>;
-}> {
-  try {
-    // First fetch tools to discover their names
-    const rawTools = await createGenericMcp(mcpUrl, auth, {});
-    const needsApproval: Record<string, boolean> = {};
-    const conditionalAutoConfirm: Record<
-      string,
-      { conditions: ToolCondition[]; logic: "and" | "or" }
-    > = {};
-
-    // Build needsApproval map based on permissions
-    // Extension tool permissions may store names with or without prefix,
-    // so we check both the prefixed name and the raw (unprefixed) name.
-    for (const toolName of Object.keys(rawTools)) {
-      const prefixedName = `${prefix}${toolName}`;
-      let resolved = resolvePermissionWithConditions(prefixedName, toolPermissions);
-      // Fallback: try unprefixed name (extension-level permissions use raw MCP tool names)
-      if (resolved.permission === "manual-confirm" && toolPermissions?.length) {
-        const unprefixed = resolvePermissionWithConditions(toolName, toolPermissions);
-        if (unprefixed.permission !== "manual-confirm") {
-          resolved = unprefixed;
-        }
-      }
-      const { permission, conditions, conditionLogic } = resolved;
-      if (permission === "auto-reject" || permission === "disabled") continue;
-      const hasConditions = permission === "auto-confirm" && conditions && conditions.length > 0;
-      needsApproval[toolName] = permission === "manual-confirm" || !!hasConditions;
-      if (hasConditions) {
-        conditionalAutoConfirm[prefixedName] = {
-          conditions,
-          logic: conditionLogic ?? "and",
-        };
-      }
-    }
-
-    // Fetch tools again with correct needsApproval settings
-    const mcpTools = await createGenericMcp(mcpUrl, auth, needsApproval);
-
-    // Prefix tool names and filter out auto-rejected tools
-    const prefixed: Record<string, unknown> = {};
-    for (const [toolName, tool] of Object.entries(mcpTools)) {
-      let resolved = resolvePermissionWithConditions(`${prefix}${toolName}`, toolPermissions);
-      if (resolved.permission === "manual-confirm" && toolPermissions?.length) {
-        const unprefixed = resolvePermissionWithConditions(toolName, toolPermissions);
-        if (unprefixed.permission !== "manual-confirm") {
-          resolved = unprefixed;
-        }
-      }
-      const { permission } = resolved;
-      if (permission === "auto-reject" || permission === "disabled") continue;
-      prefixed[`${prefix}${toolName}`] = tool as unknown;
-    }
-
-    return { tools: prefixed, conditionalAutoConfirm };
-  } catch (error) {
-    console.warn(`[loadMcpTools] Failed to load ${prefix} MCP tools:`, error);
-    return { tools: {}, conditionalAutoConfirm: {} };
-  }
 }
 
 /**
@@ -148,14 +88,7 @@ async function getEnabledExtensions(
   userId: string,
   assigneeId: string | null,
   accessToken: string,
-): Promise<
-  Array<{
-    prefix: string;
-    mcpUrl: string;
-    auth: AuthConfig;
-    extToolPermissions: ToolPermission[] | null;
-  }>
-> {
+): Promise<LazyExtensionConfig[]> {
   if (!assigneeId) return [];
 
   // Get all extensions available to this user (system + user's own)
@@ -174,12 +107,7 @@ async function getEnabledExtensions(
 
   const aeMap = new Map(aeRows.map((ae) => [ae.extensionId, ae]));
 
-  const result: Array<{
-    prefix: string;
-    mcpUrl: string;
-    auth: AuthConfig;
-    extToolPermissions: ToolPermission[] | null;
-  }> = [];
+  const result: LazyExtensionConfig[] = [];
 
   for (const ext of allExtensions) {
     const ae = aeMap.get(ext.id);
@@ -203,14 +131,7 @@ async function getEnabledTaskExtensions(
   userId: string,
   taskId: string,
   accessToken: string,
-): Promise<
-  Array<{
-    prefix: string;
-    mcpUrl: string;
-    auth: AuthConfig;
-    extToolPermissions: ToolPermission[] | null;
-  }>
-> {
+): Promise<LazyExtensionConfig[]> {
   // Get all extensions available to this user (system + user's own)
   const allExtensions = await db
     .select()
@@ -224,12 +145,7 @@ async function getEnabledTaskExtensions(
 
   const teMap = new Map(teRows.map((te) => [te.extensionId, te]));
 
-  const result: Array<{
-    prefix: string;
-    mcpUrl: string;
-    auth: AuthConfig;
-    extToolPermissions: ToolPermission[] | null;
-  }> = [];
+  const result: LazyExtensionConfig[] = [];
 
   for (const ext of allExtensions) {
     const te = teMap.get(ext.id);
@@ -407,24 +323,12 @@ export async function buildToolSet(
     ? await getEnabledTaskExtensions(userId, taskId, accessToken)
     : await getEnabledExtensions(userId, assigneeId, accessToken);
 
-  // Load all enabled extension MCP tools in parallel
-  const mcpResults = await Promise.allSettled(
-    enabledExtensions.map(({ prefix, mcpUrl, auth, extToolPermissions }) =>
-      loadMcpTools(prefix, mcpUrl, auth, extToolPermissions ?? toolPermissions),
-    ),
-  );
-
-  for (let i = 0; i < mcpResults.length; i++) {
-    const result = mcpResults[i];
-    if (result.status === "fulfilled") {
-      Object.assign(filtered, result.value.tools);
-      Object.assign(conditionalAutoConfirm, result.value.conditionalAutoConfirm);
-    } else {
-      console.error(
-        `[buildToolSet] MCP ${enabledExtensions[i].prefix} failed to load:`,
-        result.reason,
-      );
-    }
+  // Add lazy MCP tools (search_tools, read_tool, use_tool) when there are enabled extensions.
+  // These replace the previous eager loading of all MCP extension tools.
+  if (enabledExtensions.length > 0) {
+    filtered[SEARCH_TOOLS_TOOL_NAME] = searchToolsTool(enabledExtensions);
+    filtered[READ_TOOL_TOOL_NAME] = readToolTool(enabledExtensions);
+    filtered[USE_TOOL_TOOL_NAME] = useToolTool(enabledExtensions);
   }
 
   return { tools: filtered, conditionalAutoConfirm };
@@ -579,9 +483,12 @@ export {
   SEARCH_DOCUMENTS_TOOL_NAME,
   SEARCH_EMAILS_TOOL_NAME,
   SEARCH_HISTORY_TOOL_NAME,
+  SEARCH_TOOLS_TOOL_NAME,
   SEND_EMAIL_TOOL_NAME,
   SEND_NOTIFICATION_TOOL_NAME,
   UPDATE_DOCUMENT_TOOL_NAME,
   READ_UPLOADED_FILE_TOOL_NAME,
+  READ_TOOL_TOOL_NAME,
   UPDATE_TASK_TOOL_NAME,
+  USE_TOOL_TOOL_NAME,
 };
