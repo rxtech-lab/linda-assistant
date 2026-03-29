@@ -29,6 +29,25 @@ function authHeaders(token: AuthToken): Record<string, string> {
   };
 }
 
+/**
+ * Poll for history entries matching a predicate, with retries.
+ * History generation is fire-and-forget with an LLM call, so it may take a while.
+ */
+async function waitForHistory(
+  assigneeId: string,
+  predicate: (entries: Awaited<ReturnType<typeof listHistory>>["data"]) => boolean,
+  { maxRetries = 10, intervalMs = 3_000 } = {},
+): Promise<Awaited<ReturnType<typeof listHistory>>> {
+  for (let i = 0; i < maxRetries; i++) {
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    const result = await listHistory(assigneeId);
+    if (predicate(result.data)) return result;
+    console.log(`[waitForHistory] Attempt ${i + 1}/${maxRetries}: ${result.data.length} entries, condition not met yet`);
+  }
+  // Return last result even if predicate not met — let the test assertion fail with details
+  return listHistory(assigneeId);
+}
+
 async function listHistory(
   assigneeId?: string,
   search?: string,
@@ -111,11 +130,11 @@ test.describe("Task History", () => {
       await stream.waitForDone();
       console.log("Task session completed");
 
-      // Wait for history generation (fire-and-forget, give it a moment)
-      await new Promise((resolve) => setTimeout(resolve, 3_000));
-
-      // Verify history was created
-      const historyResult = await listHistory(assigneeId);
+      // Wait for history generation (fire-and-forget, involves LLM call)
+      const historyResult = await waitForHistory(
+        assigneeId,
+        (entries) => entries.some((h) => h.taskId === taskId),
+      );
       expect(historyResult.data.length).toBeGreaterThanOrEqual(1);
 
       const entry = historyResult.data.find((h) => h.taskId === taskId);
@@ -153,9 +172,10 @@ test.describe("Task History", () => {
       await stream1.waitForDone();
       console.log("First session completed");
 
-      await new Promise((resolve) => setTimeout(resolve, 3_000));
-
-      const historyAfterFirst = await listHistory(assigneeId);
+      const historyAfterFirst = await waitForHistory(
+        assigneeId,
+        (entries) => entries.some((h) => h.taskId === taskId),
+      );
       const entriesForTask1 = historyAfterFirst.data.filter(
         (h) => h.taskId === taskId,
       );
@@ -173,10 +193,16 @@ test.describe("Task History", () => {
       await stream2.waitForDone();
       console.log("Second session completed");
 
-      await new Promise((resolve) => setTimeout(resolve, 3_000));
-
       // Verify: still only ONE history entry for this task, same id, but updated summary
-      const historyAfterSecond = await listHistory(assigneeId);
+      // Wait a bit longer since the second history generation overwrites the first
+      const historyAfterSecond = await waitForHistory(
+        assigneeId,
+        (entries) => {
+          const entry = entries.find((h) => h.taskId === taskId);
+          // The summary should have been updated (different from firstSummary)
+          return !!entry && entry.summary !== firstSummary;
+        },
+      );
       const entriesForTask2 = historyAfterSecond.data.filter(
         (h) => h.taskId === taskId,
       );
@@ -209,7 +235,10 @@ test.describe("Task History", () => {
       await stream.waitForDone();
 
       // Wait for history generation
-      await new Promise((resolve) => setTimeout(resolve, 3_000));
+      await waitForHistory(
+        assigneeId,
+        (entries) => entries.some((h) => h.taskId === taskId),
+      );
 
       // Search with a query
       const searchResult = await listHistory(assigneeId, "greeting");

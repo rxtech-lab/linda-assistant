@@ -163,6 +163,9 @@ struct UsageView: View {
             Text("Out: \(formatTokens(entry.outputTokens))")
                 .font(.caption2)
                 .foregroundStyle(.orange)
+            Text(String(format: "$%.4f", entry.costUsd))
+                .font(.caption2)
+                .foregroundStyle(.green)
         }
         .padding(6)
     }

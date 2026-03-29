@@ -59,7 +59,7 @@ export const assignees = sqliteTable("assignees", {
     .$defaultFn(() => nanoid()),
   userId: text("user_id").notNull(),
   name: text("name").notNull(),
-  email: text("email").notNull(),
+  email: text("email").notNull().unique(),
   personality: text("personality"),
   model: text("model"),
   toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),

@@ -21,7 +21,9 @@ struct ReadUploadedFileView: View {
     @State private var quickLookUrl: URL?
     @State private var isDownloadingPreview = false
 
-    private var hasFailed: Bool { errorMessage != nil }
+    private var hasFailed: Bool {
+        errorMessage != nil
+    }
 
     private func isImage(mimeType: String) -> Bool {
         mimeType.hasPrefix("image/")

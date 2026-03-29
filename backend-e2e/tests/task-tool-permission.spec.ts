@@ -223,7 +223,7 @@ test.describe("Task tool permissions via API", () => {
     }
   });
 
-  test("extension tool: extension-level permission update reflected in task tools and extension detail APIs", async ({
+  test("extension tool: extension-level permission update reflected in extension detail API", async ({
     assigneeId,
   }) => {
     // Enable invoice extension on assignee
@@ -251,22 +251,20 @@ test.describe("Task tool permissions via API", () => {
     console.log(`Created task ${taskId}`);
 
     try {
-      // Verify task has invoice extension tools
+      // Verify task has lazy MCP tools (search_tools, read_tool, use_tool)
       const toolsBefore = await getTaskTools(taskId);
-      const invoiceToolsBefore = toolsBefore.filter((t) =>
-        t.name.startsWith(INVOICE_PREFIX),
-      );
-      expect(invoiceToolsBefore.length).toBeGreaterThan(0);
-      console.log(
-        `Found ${invoiceToolsBefore.length} invoice tools in task`,
-      );
+      const lazyToolNames = toolsBefore.map((t) => t.name);
+      expect(lazyToolNames).toContain("search_tools");
+      expect(lazyToolNames).toContain("read_tool");
+      expect(lazyToolNames).toContain("use_tool");
 
-      // Verify initial permission is manual-confirm
-      const targetToolBefore = invoiceToolsBefore.find(
-        (t) => t.name === `${INVOICE_PREFIX}${firstToolName}`,
+      // Verify initial extension detail permission is manual-confirm
+      const extDetailBefore = await getTaskExtensionDetail(taskId, invoiceExt!.id);
+      const toolBefore = extDetailBefore.tools.find(
+        (t) => t.name === firstToolName,
       );
-      expect(targetToolBefore).toBeDefined();
-      expect(targetToolBefore!.defaultPermission).toBe("manual-confirm");
+      expect(toolBefore).toBeDefined();
+      expect(toolBefore!.effectivePermission).toBe("manual-confirm");
 
       // Update task extension permissions: set first tool to auto-confirm
       await updateTaskExtension(taskId, invoiceExt!.id, {
@@ -277,17 +275,6 @@ test.describe("Task tool permissions via API", () => {
       });
       console.log(
         `Updated ${firstToolName} to auto-confirm via task extension`,
-      );
-
-      // Verify: task tools API reflects the change
-      const toolsAfter = await getTaskTools(taskId);
-      const targetToolAfter = toolsAfter.find(
-        (t) => t.name === `${INVOICE_PREFIX}${firstToolName}`,
-      );
-      expect(targetToolAfter).toBeDefined();
-      expect(targetToolAfter!.defaultPermission).toBe("auto-confirm");
-      console.log(
-        "Task tools API confirms extension tool is auto-confirm",
       );
 
       // Verify: extension detail API reflects effectivePermission
@@ -369,15 +356,6 @@ test.describe("Task tool permissions via API", () => {
       expect(toolAfter!.effectivePermission).toBe("auto-confirm");
       console.log(
         "Extension detail API confirms effectivePermission is auto-confirm after task-level override",
-      );
-
-      // Also verify task tools API
-      const taskTools = await getTaskTools(taskId);
-      const taskTool = taskTools.find((t) => t.name === prefixedName);
-      expect(taskTool).toBeDefined();
-      expect(taskTool!.defaultPermission).toBe("auto-confirm");
-      console.log(
-        "Task tools API confirms extension tool is auto-confirm",
       );
     } finally {
       await deleteTask(taskId);

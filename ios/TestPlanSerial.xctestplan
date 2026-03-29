@@ -1,7 +1,7 @@
 {
   "configurations" : [
     {
-      "id" : "D1A6BEB5-2C19-447B-830A-4F4260B0DF32",
+      "id" : "A2B3C4D5-6E7F-8901-ABCD-EF0123456789",
       "name" : "Configuration 1",
       "options" : {
 
@@ -14,20 +14,13 @@
   },
   "testTargets" : [
     {
-      "skippedTests" : [
+      "selectedTests" : [
         "StandaloneChatTests"
       ],
       "target" : {
         "containerPath" : "container:ios.xcodeproj",
         "identifier" : "DF7E2A092F378F47006A4C0A",
         "name" : "iosUITests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:ios.xcodeproj",
-        "identifier" : "DF7E29FF2F378F47006A4C0A",
-        "name" : "iosTests"
       }
     }
   ],

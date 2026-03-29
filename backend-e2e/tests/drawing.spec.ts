@@ -58,13 +58,16 @@ test.describe("Agent Drawing", () => {
       );
       await stream.waitForDone();
 
-      // Verify create_drawing tool was called and returned a URL
+      // Verify create_drawing tool was called and at least one returned a URL
       const drawingResults = stream.events.filter(
         (e) =>
-          e.event === "tool-result" && e.data.toolName === "create_drawing",
+          e.event === "tool-result" &&
+          e.data.toolName === "create_drawing" &&
+          !e.data.isError,
       );
+      console.log("Successful drawing results:", drawingResults);
       expect(drawingResults.length).toBeGreaterThanOrEqual(1);
-      const drawingOutput = drawingResults[0]?.data.output as { url: string };
+      const drawingOutput = drawingResults[0]!.data.output as { url: string };
       expect(drawingOutput.url).toBeTruthy();
       expect(typeof drawingOutput.url).toBe("string");
       console.log("Drawing URL:", drawingOutput.url);

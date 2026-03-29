@@ -170,7 +170,7 @@ test.describe("Tasks cross-user isolation", () => {
   test.beforeAll(async ({ request }) => {
     // Create assignee first
     const assigneeRes = await request.post("/api/assignees", {
-      data: { name: "Isolation Assignee", email: "isolation@example.com" },
+      data: { name: "Isolation Assignee", email: "task-isolation@example.com" },
     });
     const assigneeId = (await assigneeRes.json()).id;
 
@@ -268,7 +268,7 @@ test.describe("Tasks partial update", () => {
 
   test.beforeAll(async ({ request }) => {
     const assigneeRes = await request.post("/api/assignees", {
-      data: { name: "Partial Assignee", email: "partial@example.com" },
+      data: { name: "Partial Assignee", email: "task-partial@example.com" },
     });
     const assigneeId = (await assigneeRes.json()).id;
 
@@ -384,7 +384,7 @@ test.describe("Task tool permissions validation", () => {
 
   test.beforeAll(async ({ request }) => {
     const assigneeRes = await request.post("/api/assignees", {
-      data: { name: "Perms Assignee", email: "perms@example.com" },
+      data: { name: "Perms Assignee", email: "task-perms@example.com" },
     });
     const assigneeId = (await assigneeRes.json()).id;
 

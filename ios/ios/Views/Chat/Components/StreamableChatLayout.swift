@@ -33,6 +33,7 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var presentedLocation: LocationRequestPayload?
     @State private var presentedUpload: UploadRequestPayload?
     @State private var isAtBottom = true
+    @State private var chatListScale: CGFloat = 1.05
     @State private var scrollSubject = PassthroughSubject<Void, Never>()
     private var pendingConfirmationCount: Int {
         streamHandler?.pendingConfirmations.count ?? 0
@@ -236,13 +237,15 @@ struct StreamableChatLayout<Header: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                if isLoading {
-                    MessagesLoadingView()
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                }
-
                 ScrollViewReader { proxy in
                     chatListView(proxy: proxy)
+                }
+                .scaleEffect(chatListScale)
+                .opacity(isLoading ? 0 : 1)
+
+                if isLoading {
+                    MessagesLoadingView()
+                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
             }
             .onChange(of: pendingConfirmationCount) {
@@ -269,6 +272,16 @@ struct StreamableChatLayout<Header: View>: View {
                 }
             }
             .animation(.easeInOut(duration: 0.5), value: isLoading)
+            .onChange(of: isLoading) { oldValue, newValue in
+                if oldValue == true, newValue == false {
+                    chatListScale = 1.05
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.82)) {
+                        chatListScale = 1.0
+                    }
+                } else if newValue == true {
+                    chatListScale = 1.05
+                }
+            }
             .overlay(alignment: .top) {
                 if let errorMessage = displayError {
                     ErrorBannerView(message: errorMessage) {

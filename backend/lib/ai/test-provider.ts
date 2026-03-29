@@ -42,6 +42,17 @@ function getLastAssistantText(messages: unknown[]): string {
   return typeof content === "string" ? content : "";
 }
 
+/** Get tool names from the last assistant message's tool-call content parts. */
+function getLastToolCallNames(messages: unknown[]): string[] {
+  const lastAssistant = [...messages].reverse().find((m: any) => m.role === "assistant");
+  if (!lastAssistant) return [];
+  const content = (lastAssistant as any).content;
+  if (!Array.isArray(content)) return [];
+  return content
+    .filter((c: any) => c.type === "tool-call")
+    .map((c: any) => c.toolName as string);
+}
+
 /** Generate ~1000 words of text for long output testing. */
 function generateLongText(): string {
   const sentence = "The quick brown fox jumps over the lazy dog near the riverbank. ";
@@ -165,6 +176,49 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
       };
     }
 
+    // Lazy MCP tools multi-step flow: search_tools → read_tool → use_tool → text
+    const lastToolNames = getLastToolCallNames(messages);
+    const userTexts = messages
+      .filter((m: any) => m.role === "user")
+      .flatMap((m: any) =>
+        Array.isArray(m.content)
+          ? m.content.filter((c: any) => c.type === "text").map((c: any) => c.text)
+          : [],
+      )
+      .join(" ");
+    if (lastToolNames.includes("search_tools") && userTexts.includes("[TOOL:read_tool")) {
+      const input = JSON.stringify({ toolIds: ["e2e_test_echo"] });
+      return {
+        chunks: createToolCallChunks("call-read-1", "read_tool", input),
+        chunkDelayInMs: null,
+      };
+    }
+    if (lastToolNames.includes("read_tool") && userTexts.includes("[TOOL:use_tool")) {
+      const msgMatch = userTexts.match(/echo\s+"([^"]+)"/i);
+      const message = msgMatch ? msgMatch[1] : "hello from lazy tool";
+      const input = JSON.stringify({
+        toolId: "e2e_test_echo",
+        parameters: { message },
+      });
+      return {
+        chunks: createToolCallChunks("call-use-1", "use_tool", input),
+        chunkDelayInMs: null,
+      };
+    }
+    if (lastToolNames.includes("use_tool")) {
+      return {
+        chunks: createTextMessageChunks("I used the echo tool and it returned your message successfully."),
+        chunkDelayInMs: null,
+      };
+    }
+    // search_tools only (no read_tool step) — respond with search results summary
+    if (lastToolNames.includes("search_tools")) {
+      return {
+        chunks: createTextMessageChunks("I found the search results for you."),
+        chunkDelayInMs: null,
+      };
+    }
+
     const text = isRejection ? "I understand, I won't do that." : "Email sent successfully.";
 
     return {
@@ -215,6 +269,20 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
       }),
       chunkDelayInMs: 200,
       chunkInitialDelayInMs: 500,
+    };
+  }
+
+  // Scenario: search_tools (first step of lazy MCP tools multi-step flow)
+  if (
+    (lastText.includes("[TOOL:search_tools]") || lastText.includes("[TOOL:search_tools:auto]")) &&
+    (!availableTools || availableTools.has("search_tools"))
+  ) {
+    const queryMatch = lastText.match(/search.*?"([^"]+)"/i);
+    const query = queryMatch ? queryMatch[1] : "echo";
+    const input = JSON.stringify({ query });
+    return {
+      chunks: createToolCallChunks("call-search-1", "search_tools", input),
+      chunkDelayInMs: null,
     };
   }
 

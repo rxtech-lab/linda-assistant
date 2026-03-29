@@ -144,6 +144,28 @@ async function getExtension(
 
 const INVOICE_PREFIX = "invoice_";
 
+/**
+ * Check if a tool-call event targets an invoice tool.
+ * With lazy MCP loading, invoice tools are invoked via use_tool with a toolId parameter.
+ */
+function isInvoiceToolCall(e: { event: string; data: Record<string, unknown> }): boolean {
+  if (e.event !== "tool-call" || typeof e.data.toolName !== "string") return false;
+  if (e.data.toolName.startsWith(INVOICE_PREFIX)) return true;
+  if (e.data.toolName === "use_tool") {
+    const input = e.data.input as Record<string, unknown> | undefined;
+    return typeof input?.toolId === "string" && input.toolId.startsWith(INVOICE_PREFIX);
+  }
+  return false;
+}
+
+function describeToolCall(e: { data: Record<string, unknown> }): string {
+  if (e.data.toolName === "use_tool") {
+    const input = e.data.input as Record<string, unknown> | undefined;
+    return `use_tool(${input?.toolId})`;
+  }
+  return String(e.data.toolName);
+}
+
 // Fixture: each test gets its own assignee
 const test = base.extend<{ assigneeId: string }>({
   assigneeId: async ({}, use, testInfo) => {
@@ -241,17 +263,12 @@ test.describe.serial("Task extension tools isolation", () => {
         allToolCalls.map((e) => e.data.toolName),
       );
 
-      // Verify: invoice-prefixed tool calls should appear
-      const invoiceToolCalls = stream.events.filter(
-        (e) =>
-          e.event === "tool-call" &&
-          typeof e.data.toolName === "string" &&
-          e.data.toolName.startsWith(INVOICE_PREFIX),
-      );
+      // Verify: invoice tool calls should appear (via use_tool with lazy loading)
+      const invoiceToolCalls = stream.events.filter(isInvoiceToolCall);
       expect(invoiceToolCalls.length).toBeGreaterThanOrEqual(1);
       console.log(
         `Found ${invoiceToolCalls.length} invoice tool calls:`,
-        invoiceToolCalls.map((e) => e.data.toolName),
+        invoiceToolCalls.map(describeToolCall),
       );
 
       stream.cancel();
@@ -308,13 +325,8 @@ test.describe.serial("Task extension tools isolation", () => {
 
       await stream.waitForDone();
 
-      // Verify: NO invoice-prefixed tool calls should appear
-      const invoiceToolCalls = stream.events.filter(
-        (e) =>
-          e.event === "tool-call" &&
-          typeof e.data.toolName === "string" &&
-          e.data.toolName.startsWith(INVOICE_PREFIX),
-      );
+      // Verify: NO invoice tool calls should appear (neither direct nor via use_tool)
+      const invoiceToolCalls = stream.events.filter(isInvoiceToolCall);
       expect(invoiceToolCalls).toHaveLength(0);
       console.log("No invoice tool calls found (expected)");
 
@@ -374,17 +386,12 @@ test.describe.serial("Chat extension tools (regular chat)", () => {
         allToolCalls.map((e) => e.data.toolName),
       );
 
-      // Verify: invoice-prefixed tool calls should appear
-      const invoiceToolCalls = stream.events.filter(
-        (e) =>
-          e.event === "tool-call" &&
-          typeof e.data.toolName === "string" &&
-          e.data.toolName.startsWith(INVOICE_PREFIX),
-      );
+      // Verify: invoice tool calls should appear (via use_tool with lazy loading)
+      const invoiceToolCalls = stream.events.filter(isInvoiceToolCall);
       expect(invoiceToolCalls.length).toBeGreaterThanOrEqual(1);
       console.log(
         `Found ${invoiceToolCalls.length} invoice tool calls:`,
-        invoiceToolCalls.map((e) => e.data.toolName),
+        invoiceToolCalls.map(describeToolCall),
       );
     } finally {
       stream.cancel();

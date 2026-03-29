@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS `assignees_email_unique` ON `assignees` (`email`);

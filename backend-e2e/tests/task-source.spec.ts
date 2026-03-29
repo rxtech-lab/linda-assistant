@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { ensureOnboarded } from "./onboard.utils";
 import {
   createAssignee,
+  createAssigneeWithEmail,
   deleteAssignee,
   getAssignee,
   getTask,
@@ -311,15 +312,9 @@ test.describe("Task source labels", () => {
 test.describe("Email webhook creates email and task", () => {
   test.setTimeout(300_000);
 
-  test("inbound email via Resend triggers email + task creation", async ({ assigneeId }) => {
+  test("inbound emails route to correct assistants via webhook", async () => {
     const token = loadToken();
     const headers = authHeaders(token);
-
-    // Get the assignee details to know their email address
-    const assignee = await getAssignee(assigneeId);
-    const assigneeData = assignee as unknown as { email: string; name: string };
-    const assigneeEmail = assigneeData.email;
-    console.log(`Assignee email: ${assigneeEmail}`);
 
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
     if (!RESEND_API_KEY) {
@@ -328,63 +323,91 @@ test.describe("Email webhook creates email and task", () => {
     }
 
     const domain = process.env.RESEND_DOMAIN || "assistant.rxlab.app";
-    const uniqueSubject = `E2E Webhook Test ${Date.now()}`;
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const emailA = `e2e-a-${suffix}@${domain}`;
+    const emailB = `e2e-b-${suffix}@${domain}`;
 
-    // Send an email TO the assignee's address using Resend API
-    const sendRes = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: `e2e-test@${domain}`,
-        to: [assigneeEmail],
-        subject: uniqueSubject,
-        text: "This is an e2e webhook test email. Please process it.",
-      }),
-    });
+    // Create two assistants with different emails on the Resend domain
+    const assigneeAId = await createAssigneeWithEmail(`e2e-webhook-a-${suffix}`, emailA);
+    const assigneeBId = await createAssigneeWithEmail(`e2e-webhook-b-${suffix}`, emailB);
+    console.log(`Created assignee A (${assigneeAId}) with email: ${emailA}`);
+    console.log(`Created assignee B (${assigneeBId}) with email: ${emailB}`);
 
-    if (!sendRes.ok) {
-      const err = await sendRes.text();
-      console.log(`Resend send failed (${sendRes.status}): ${err}`);
-      test.skip(true, `Resend send failed: ${sendRes.status}`);
-      return;
+    const subjectA = `E2E Webhook A ${suffix}`;
+    const subjectB = `E2E Webhook B ${suffix}`;
+
+    // Send emails to both assistants via Resend API
+    for (const [email, subject] of [
+      [emailA, subjectA],
+      [emailB, subjectB],
+    ] as const) {
+      const sendRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: `e2e-test@${domain}`,
+          to: [email],
+          subject,
+          text: `E2E webhook routing test for ${email}`,
+        }),
+      });
+
+      if (!sendRes.ok) {
+        const err = await sendRes.text();
+        console.log(`Resend send to ${email} failed (${sendRes.status}): ${err}`);
+        test.skip(true, `Resend send failed: ${sendRes.status}`);
+        return;
+      }
+      const sendData = (await sendRes.json()) as { id: string };
+      console.log(`Sent email to ${email}: ${sendData.id}, subject: ${subject}`);
     }
 
-    const sendData = (await sendRes.json()) as { id: string };
-    console.log(`Sent email via Resend: ${sendData.id}, subject: ${uniqueSubject}`);
-
-    // Poll for the email to appear in our system (webhook delivery + processing)
-    let foundEmail: { id: string; subject: string; [k: string]: unknown } | undefined;
+    // Poll for both emails to appear
+    let foundEmailA: { id: string; subject: string; assigneeId?: string; [k: string]: unknown } | undefined;
+    let foundEmailB: { id: string; subject: string; assigneeId?: string; [k: string]: unknown } | undefined;
     for (let i = 0; i < 60; i++) {
       const emails = await listEmails(headers);
-      foundEmail = emails.data.find((e) => e.subject === uniqueSubject);
-      if (foundEmail) break;
+      if (!foundEmailA) foundEmailA = emails.data.find((e) => e.subject === subjectA);
+      if (!foundEmailB) foundEmailB = emails.data.find((e) => e.subject === subjectB);
+      if (foundEmailA && foundEmailB) break;
       await new Promise((r) => setTimeout(r, 3000));
     }
 
-    expect(foundEmail).toBeTruthy();
-    console.log(`Email found in system: ${foundEmail!.id}`);
+    expect(foundEmailA).toBeTruthy();
+    expect(foundEmailB).toBeTruthy();
+    console.log(`Email A found: ${foundEmailA!.id}, assigneeId: ${foundEmailA!.assigneeId}`);
+    console.log(`Email B found: ${foundEmailB!.id}, assigneeId: ${foundEmailB!.assigneeId}`);
 
-    // Poll for the auto-created task with source=email
-    let foundTask: { id: string; source: string | null; title: string } | undefined;
+    // Verify each email routed to the correct assignee
+    expect(foundEmailA!.assigneeId).toBe(assigneeAId);
+    expect(foundEmailB!.assigneeId).toBe(assigneeBId);
+
+    // Poll for auto-created tasks with source=email
+    let foundTaskA: { id: string; source: string | null; title: string } | undefined;
+    let foundTaskB: { id: string; source: string | null; title: string } | undefined;
     for (let i = 0; i < 30; i++) {
       const tasksList = await listTasks(headers, "email");
-      foundTask = tasksList.data.find((t) =>
-        t.title.includes(uniqueSubject),
-      );
-      if (foundTask) break;
+      if (!foundTaskA) foundTaskA = tasksList.data.find((t) => t.title.includes(subjectA));
+      if (!foundTaskB) foundTaskB = tasksList.data.find((t) => t.title.includes(subjectB));
+      if (foundTaskA && foundTaskB) break;
       await new Promise((r) => setTimeout(r, 2000));
     }
 
-    expect(foundTask).toBeTruthy();
-    expect(foundTask!.source).toBe("email");
-    expect(foundTask!.title).toContain(uniqueSubject);
-    console.log(`Task auto-created: ${foundTask!.id} with source=${foundTask!.source}`);
+    expect(foundTaskA).toBeTruthy();
+    expect(foundTaskA!.source).toBe("email");
+    expect(foundTaskB).toBeTruthy();
+    expect(foundTaskB!.source).toBe("email");
+    console.log(`Task A: ${foundTaskA!.id}, Task B: ${foundTaskB!.id}`);
 
     // Cleanup
-    if (foundTask) await deleteTask(foundTask.id);
-    if (foundEmail) await deleteEmail(headers, foundEmail.id);
+    if (foundTaskA) await deleteTask(foundTaskA.id);
+    if (foundTaskB) await deleteTask(foundTaskB.id);
+    if (foundEmailA) await deleteEmail(headers, foundEmailA.id);
+    if (foundEmailB) await deleteEmail(headers, foundEmailB.id);
+    await deleteAssignee(assigneeAId);
+    await deleteAssignee(assigneeBId);
   });
 });

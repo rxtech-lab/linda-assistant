@@ -28,6 +28,15 @@ import { SEARCH_HISTORY_TOOL_NAME, searchHistoryTool } from "./search-history";
 import { READ_UPLOADED_FILE_TOOL_NAME, readUploadedFileTool } from "./read-uploaded-file";
 import { type AuthConfig, createGenericMcp } from "./mcps/generic";
 import { redis } from "@/lib/redis";
+import {
+  SEARCH_TOOLS_TOOL_NAME,
+  READ_TOOL_TOOL_NAME,
+  USE_TOOL_TOOL_NAME,
+  searchToolsTool,
+  readToolTool,
+  useToolTool,
+  type LazyExtensionConfig,
+} from "./mcp-lazy";
 
 /**
  * System tools that never require approval and cannot have their permission changed.
@@ -42,6 +51,9 @@ export const NO_PERMISSION_CHANGE_TOOLS: ReadonlySet<string> = new Set([
   GENERATE_IMAGE_TOOL_NAME,
   SEARCH_HISTORY_TOOL_NAME,
   READ_UPLOADED_FILE_TOOL_NAME,
+  SEARCH_TOOLS_TOOL_NAME,
+  READ_TOOL_TOOL_NAME,
+  USE_TOOL_TOOL_NAME,
 ]);
 
 export interface ToolSetResult {
@@ -407,24 +419,20 @@ export async function buildToolSet(
     ? await getEnabledTaskExtensions(userId, taskId, accessToken)
     : await getEnabledExtensions(userId, assigneeId, accessToken);
 
-  // Load all enabled extension MCP tools in parallel
-  const mcpResults = await Promise.allSettled(
-    enabledExtensions.map(({ prefix, mcpUrl, auth, extToolPermissions }) =>
-      loadMcpTools(prefix, mcpUrl, auth, extToolPermissions ?? toolPermissions),
-    ),
-  );
-
-  for (let i = 0; i < mcpResults.length; i++) {
-    const result = mcpResults[i];
-    if (result.status === "fulfilled") {
-      Object.assign(filtered, result.value.tools);
-      Object.assign(conditionalAutoConfirm, result.value.conditionalAutoConfirm);
-    } else {
-      console.error(
-        `[buildToolSet] MCP ${enabledExtensions[i].prefix} failed to load:`,
-        result.reason,
-      );
-    }
+  // When extensions are enabled, add lazy MCP tools (search_tools, read_tool, use_tool)
+  // instead of loading all extension tools directly
+  if (enabledExtensions.length > 0) {
+    const lazyConfigs: LazyExtensionConfig[] = enabledExtensions.map(
+      ({ prefix, mcpUrl, auth, extToolPermissions }) => ({
+        prefix,
+        mcpUrl,
+        auth,
+        extToolPermissions,
+      }),
+    );
+    filtered[SEARCH_TOOLS_TOOL_NAME] = searchToolsTool(lazyConfigs);
+    filtered[READ_TOOL_TOOL_NAME] = readToolTool(lazyConfigs);
+    filtered[USE_TOOL_TOOL_NAME] = useToolTool(lazyConfigs);
   }
 
   return { tools: filtered, conditionalAutoConfirm };
