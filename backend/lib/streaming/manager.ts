@@ -34,7 +34,7 @@ export async function nextSeq(sessionId: string): Promise<number> {
 export async function setStreamActive(sessionId: string, active: boolean) {
   console.log(`[StreamManager] session=${sessionId} setActive=${active}`);
   if (active) {
-    await redis.set(ACTIVE_KEY(sessionId), "1", { ex: 300 });
+    await redis.set(ACTIVE_KEY(sessionId), "1", "EX", 300);
   } else {
     await redis.del(ACTIVE_KEY(sessionId));
   }
@@ -49,7 +49,7 @@ export async function isStreamActive(sessionId: string): Promise<boolean> {
 
 export async function markDeviceReceived(sessionId: string, deviceToken: string) {
   console.log(`[StreamManager] session=${sessionId} markDeviceReceived device=${deviceToken}`);
-  await redis.set(DEVICE_KEY(sessionId, deviceToken), "1", { ex: CHUNK_TTL });
+  await redis.set(DEVICE_KEY(sessionId, deviceToken), "1", "EX", CHUNK_TTL);
 }
 
 export async function hasDeviceReceived(sessionId: string, deviceToken: string): Promise<boolean> {

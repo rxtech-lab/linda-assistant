@@ -36,6 +36,7 @@ import {
   readToolTool,
   useToolTool,
   type LazyExtensionConfig,
+  invalidateToolEmbeddingCache,
 } from "./mcp-lazy";
 
 /**
@@ -430,7 +431,8 @@ export async function buildToolSet(
         extToolPermissions,
       }),
     );
-    filtered[SEARCH_TOOLS_TOOL_NAME] = searchToolsTool(lazyConfigs);
+    const embeddingCacheId = taskId ?? assigneeId ?? userId;
+    filtered[SEARCH_TOOLS_TOOL_NAME] = searchToolsTool(lazyConfigs, userId, embeddingCacheId);
     filtered[READ_TOOL_TOOL_NAME] = readToolTool(lazyConfigs);
     filtered[USE_TOOL_TOOL_NAME] = useToolTool(lazyConfigs);
   }
@@ -478,7 +480,7 @@ export async function getToolMetadataList(
   }
 
   const cacheKey = toolMetaCacheKey(userId, assigneeId);
-  const cached = await redis.get<string>(cacheKey);
+  const cached = await redis.get(cacheKey);
   if (cached) {
     const data = typeof cached === "string" ? JSON.parse(cached) : cached;
     return { data, fromCache: true };
@@ -486,7 +488,7 @@ export async function getToolMetadataList(
 
   const result = await buildToolSet(userId, assigneeId, accessToken);
   const metadata = extractMetadata(result);
-  await redis.set(cacheKey, JSON.stringify(metadata), { ex: TOOL_META_TTL });
+  await redis.set(cacheKey, JSON.stringify(metadata), "EX", TOOL_META_TTL);
   return { data: metadata, fromCache: false };
 }
 
@@ -571,7 +573,10 @@ export async function invalidateToolMetadataCache(
   userId: string,
   assigneeId: string,
 ): Promise<void> {
-  await redis.del(toolMetaCacheKey(userId, assigneeId));
+  await Promise.all([
+    redis.del(toolMetaCacheKey(userId, assigneeId)),
+    invalidateToolEmbeddingCache(userId, assigneeId),
+  ]);
 }
 
 export {

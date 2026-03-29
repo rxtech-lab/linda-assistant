@@ -1,9 +1,12 @@
-import { tool } from "ai";
+import { embed, embedMany, tool } from "ai";
 import { z } from "zod";
 import { createMCPClient } from "@ai-sdk/mcp";
 import type { AuthConfig } from "./mcps/generic";
 import type { ToolPermission } from "@/lib/db/schema";
 import { resolvePermissionWithConditions } from "./permission";
+import { getEmbeddingProvider } from "../embedding-model";
+import { TASK_SESSION_EMBEDDING_MODEL } from "../context";
+import { redis } from "@/lib/redis";
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -146,14 +149,113 @@ export const READ_TOOL_TOOL_NAME = "read_tool";
 export const USE_TOOL_TOOL_NAME = "use_tool";
 
 // ────────────────────────────────────────────────────────────
+// Vector search helpers
+// ────────────────────────────────────────────────────────────
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0;
+  let magA = 0;
+  let magB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(magA) * Math.sqrt(magB);
+  return denom === 0 ? 0 : dot / denom;
+}
+
+import { TOOL_SEARCH_SIMILARITY_THRESHOLD } from "../context";
+
+interface CachedToolEmbedding {
+  /** The text that was embedded (name + description), used to detect changes. */
+  text: string;
+  /** The embedding vector. */
+  embedding: number[];
+}
+
+/** Cached embeddings keyed by tool ID. */
+type CachedToolEmbeddingMap = Record<string, CachedToolEmbedding>;
+
+function toolEmbeddingCacheKey(userId: string, assigneeId: string): string {
+  return `tool-embeddings:${userId}:${assigneeId}`;
+}
+
+/**
+ * Invalidate cached tool embeddings when assignee extensions change.
+ */
+export async function invalidateToolEmbeddingCache(
+  userId: string,
+  assigneeId: string,
+): Promise<void> {
+  await redis.del(toolEmbeddingCacheKey(userId, assigneeId));
+}
+
+/**
+ * Get tool embeddings, reusing cached ones when name/description haven't changed.
+ * Only re-embeds tools that are new or modified.
+ */
+async function getToolEmbeddings(
+  tools: McpToolSummary[],
+  userId: string,
+  assigneeId: string,
+): Promise<number[][]> {
+  const cacheKey = toolEmbeddingCacheKey(userId, assigneeId);
+
+  // Load existing cache
+  const raw = await redis.get(cacheKey);
+  const cached: CachedToolEmbeddingMap = raw
+    ? typeof raw === "string"
+      ? JSON.parse(raw)
+      : raw
+    : {};
+
+  // Determine which tools need (re-)embedding
+  const toolTexts = tools.map((t) => `${t.name}: ${t.description}`);
+  const staleIndices: number[] = [];
+  for (let i = 0; i < tools.length; i++) {
+    const entry = cached[tools[i].id];
+    if (!entry || entry.text !== toolTexts[i]) {
+      staleIndices.push(i);
+    }
+  }
+
+  // Embed only the stale/new tools
+  if (staleIndices.length > 0) {
+    const embeddingModel = getEmbeddingProvider(TASK_SESSION_EMBEDDING_MODEL);
+    const { embeddings } = await embedMany({
+      model: embeddingModel,
+      values: staleIndices.map((i) => toolTexts[i]),
+    });
+    for (let j = 0; j < staleIndices.length; j++) {
+      const i = staleIndices[j];
+      cached[tools[i].id] = { text: toolTexts[i], embedding: embeddings[j] };
+    }
+
+    // Prune removed tools and persist
+    const activeIds = new Set(tools.map((t) => t.id));
+    for (const key of Object.keys(cached)) {
+      if (!activeIds.has(key)) delete cached[key];
+    }
+    await redis.set(cacheKey, JSON.stringify(cached));
+  }
+
+  return tools.map((t) => cached[t.id].embedding);
+}
+
+// ────────────────────────────────────────────────────────────
 // Tool factories
 // ────────────────────────────────────────────────────────────
 
 /**
- * search_tools — search available extension tools by keyword.
+ * search_tools — search available extension tools by semantic similarity.
  * Returns tool id, name, description (no parameters) to save tokens.
  */
-export function searchToolsTool(extensions: LazyExtensionConfig[]) {
+export function searchToolsTool(
+  extensions: LazyExtensionConfig[],
+  userId: string,
+  assigneeId: string,
+) {
   return tool({
     description:
       "Search available extension tools by keyword. Returns matching tool IDs, names, and descriptions (no parameters). Use read_tool to get full parameter details for specific tools before calling them with use_tool.",
@@ -167,20 +269,33 @@ export function searchToolsTool(extensions: LazyExtensionConfig[]) {
       }
 
       const allTools = await discoverAllTools(extensions);
-      const q = query.toLowerCase();
-      const matches = allTools.filter(
-        (t) =>
-          t.id.toLowerCase().includes(q) ||
-          t.name.toLowerCase().includes(q) ||
-          t.description.toLowerCase().includes(q),
-      );
+      if (allTools.length === 0) {
+        return { tools: [] };
+      }
+
+      const embeddingModel = getEmbeddingProvider(TASK_SESSION_EMBEDDING_MODEL);
+
+      // Embed query; use cached embeddings for tools
+      const [queryResult, toolEmbeddings] = await Promise.all([
+        embed({ model: embeddingModel, value: query }),
+        getToolEmbeddings(allTools, userId, assigneeId),
+      ]);
+
+      // Rank by cosine similarity and filter by threshold
+      const scored = allTools
+        .map((t, i) => ({
+          tool: t,
+          score: cosineSimilarity(queryResult.embedding, toolEmbeddings[i]),
+        }))
+        .filter((s) => s.score >= TOOL_SEARCH_SIMILARITY_THRESHOLD)
+        .sort((a, b) => b.score - a.score);
 
       return {
-        tools: matches.map(({ id, name, description, extensionPrefix }) => ({
-          id,
-          name,
-          description,
-          extensionPrefix,
+        tools: scored.map(({ tool: t }) => ({
+          id: t.id,
+          name: t.name,
+          description: t.description,
+          extensionPrefix: t.extensionPrefix,
         })),
       };
     },

@@ -5,6 +5,7 @@ import { consumeTasks, subscribeToCommands, type CommandSubscription } from "@/l
 import { publishEvent } from "@/lib/queue/producer";
 import type { AgentTask } from "@/lib/queue/types";
 import { clearStreamChunks, isStreamActive } from "@/lib/streaming/manager";
+import { pingRedis } from "@/lib/redis";
 import { notifySessionResponse } from "@/lib/utils/chat-session";
 
 async function handleTask(task: AgentTask): Promise<void> {
@@ -120,6 +121,13 @@ async function main() {
   console.log(
     "[Worker] MEM0_API_URL:",
     process.env.MEM0_API_URL || "(not set, default: http://mem0:8000)",
+  );
+
+  const usingRedis = await pingRedis();
+  console.log(
+    usingRedis
+      ? "[Worker] Connected to Redis"
+      : "[Worker] REDIS_URL not set, using in-memory fallback",
   );
 
   await setupTopology();

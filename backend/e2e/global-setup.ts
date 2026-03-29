@@ -7,7 +7,7 @@ import {
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import amqplib from "amqplib";
-import { Redis } from "@upstash/redis";
+import Redis from "ioredis";
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -52,11 +52,9 @@ export default async function globalSetup() {
   client.close();
 
   // Flush Redis to clear stale data from previous runs
-  const redis = new Redis({
-    url: "http://localhost:8079",
-    token: "token",
-  });
+  const redis = new Redis("redis://localhost:6379");
   await redis.flushdb();
+  await redis.quit();
 
   // Purge RabbitMQ queue to clear stale tasks from previous runs
   const mqUrl = "amqp://linda:linda@localhost:5672";
@@ -188,8 +186,7 @@ export default async function globalSetup() {
       IS_E2E: "true",
       TURSO_DATABASE_URL: `file:${dbPath}`,
       RABBITMQ_URL: "amqp://linda:linda@localhost:5672",
-      UPSTASH_REDIS_REST_URL: "http://localhost:8079",
-      UPSTASH_REDIS_REST_TOKEN: "token",
+      REDIS_URL: "redis://localhost:6379",
       AWS_ACCESS_KEY_ID: "minioadmin",
       AWS_SECRET_ACCESS_KEY: "minioadmin",
       AWS_REGION: "us-east-1",

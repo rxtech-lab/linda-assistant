@@ -86,7 +86,18 @@ export async function streamWithReplay(
     return subscription;
   }
 
-  // 4. Replay cached chunks from Redis
+  // 4. Replay cached chunks from Redis (only for in_progress sessions).
+  //    For waiting_confirmation / waiting_question / waiting_upload,
+  //    the worker will re-emit tool-call events on resume, so replaying
+  //    old cached chunks would cause duplicates.
+  if (sessionStatus !== "in_progress") {
+    replaying = false;
+    console.log(
+      `[Replay] session=${sessionId} status=${sessionStatus}, skipping chunk replay`,
+    );
+    return subscription;
+  }
+
   const chunks = await getStreamChunks(sessionId);
   let hasTerminal = false;
 
@@ -98,7 +109,7 @@ export async function streamWithReplay(
     if (signal.aborted) break;
 
     try {
-      // @upstash/redis auto-deserializes JSON values, so lrange may return
+      // The in-memory fallback stores parsed objects, so lrange may return
       // already-parsed objects instead of strings.
       const event: AgentEvent = typeof raw === "string" ? JSON.parse(raw) : (raw as AgentEvent);
       if (typeof event.seq === "number" && event.seq > highestSeq) {

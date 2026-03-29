@@ -33,9 +33,12 @@ export async function createLocationRequest(params: CreateLocationRequestParams)
     status: "pending",
   };
 
-  await redis.set(LOCATION_REQUEST_KEY(params.toolCallId), JSON.stringify(requestData), {
-    ex: LOCATION_TTL,
-  });
+  await redis.set(
+    LOCATION_REQUEST_KEY(params.toolCallId),
+    JSON.stringify(requestData),
+    "EX",
+    LOCATION_TTL,
+  );
 
   if (params.isAutoConfirm) {
     // Send silent push to the last-used device only
@@ -95,19 +98,18 @@ export async function resolveLocationRequest(
 
   // Update request status
   request.status = action === "confirm" ? "confirmed" : "rejected";
-  await redis.set(LOCATION_REQUEST_KEY(toolCallId), JSON.stringify(request), {
-    ex: LOCATION_TTL,
-  });
+  await redis.set(LOCATION_REQUEST_KEY(toolCallId), JSON.stringify(request), "EX", LOCATION_TTL);
 
   // Store location data or rejection marker
   if (action === "confirm" && data) {
-    await redis.set(LOCATION_DATA_KEY(toolCallId), JSON.stringify(data), {
-      ex: LOCATION_TTL,
-    });
+    await redis.set(LOCATION_DATA_KEY(toolCallId), JSON.stringify(data), "EX", LOCATION_TTL);
   } else {
-    await redis.set(LOCATION_DATA_KEY(toolCallId), JSON.stringify({ rejected: true }), {
-      ex: LOCATION_TTL,
-    });
+    await redis.set(
+      LOCATION_DATA_KEY(toolCallId),
+      JSON.stringify({ rejected: true }),
+      "EX",
+      LOCATION_TTL,
+    );
   }
 
   const chatSessionId = request.chatSessionId;
