@@ -48,9 +48,7 @@ function getLastToolCallNames(messages: unknown[]): string[] {
   if (!lastAssistant) return [];
   const content = (lastAssistant as any).content;
   if (!Array.isArray(content)) return [];
-  return content
-    .filter((c: any) => c.type === "tool-call")
-    .map((c: any) => c.toolName as string);
+  return content.filter((c: any) => c.type === "tool-call").map((c: any) => c.toolName as string);
 }
 
 /** Generate ~1000 words of text for long output testing. */
@@ -207,7 +205,9 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
     }
     if (lastToolNames.includes("use_tool")) {
       return {
-        chunks: createTextMessageChunks("I used the echo tool and it returned your message successfully."),
+        chunks: createTextMessageChunks(
+          "I used the echo tool and it returned your message successfully.",
+        ),
         chunkDelayInMs: null,
       };
     }

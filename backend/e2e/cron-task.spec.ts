@@ -54,6 +54,31 @@ test.describe("Cron Task Scheduling", () => {
     });
   });
 
+  test("creating a cron task with timezone passes timezone to Celery", async ({ request }) => {
+    const res = await request.post("/api/tasks", {
+      data: {
+        title: "Cron Task with TZ",
+        assigneeId,
+        cronSchedule: "0 9 * * *",
+        isCronEnabled: true,
+        timezone: "Asia/Tokyo",
+      },
+    });
+    expect(res.status()).toBe(201);
+    const body = await res.json();
+    expect(body.cronSchedule).toBe("0 9 * * *");
+    expect(body.timezone).toBe("Asia/Tokyo");
+
+    const calls = await getCeleryCalls();
+    const registerCall = calls.find((c) => c.method === "POST" && c.path === "/schedules");
+    expect(registerCall).toBeTruthy();
+    expect(registerCall?.body).toMatchObject({
+      task_id: body.id,
+      cron_schedule: "0 9 * * *",
+      timezone: "Asia/Tokyo",
+    });
+  });
+
   test("creating a non-cron task does not call Celery", async ({ request }) => {
     const res = await request.post("/api/tasks", {
       data: { title: "Regular Task", assigneeId },
@@ -72,6 +97,7 @@ test.describe("Cron Task Scheduling", () => {
         assigneeId,
         cronSchedule: "0 9 * * *",
         isCronEnabled: true,
+        timezone: "America/New_York",
       },
     });
     const task = await createRes.json();
@@ -89,7 +115,10 @@ test.describe("Cron Task Scheduling", () => {
     const updateCall = calls.find((c) => c.path === `/schedules/${task.id}`);
     expect(updateCall).toBeTruthy();
     expect(updateCall?.method).toBe("PUT");
-    expect(updateCall?.body).toMatchObject({ cron_schedule: "0 10 * * *" });
+    expect(updateCall?.body).toMatchObject({
+      cron_schedule: "0 10 * * *",
+      timezone: "America/New_York",
+    });
   });
 
   test("disabling cron removes Celery entry", async ({ request }) => {

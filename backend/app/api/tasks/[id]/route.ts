@@ -258,9 +258,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   // Sync cron schedule with Celery
   if (updated.isCronEnabled && updated.cronSchedule) {
     if (parsed.data.cronSchedule !== undefined) {
-      await updateCronTask(id, updated.cronSchedule);
+      await updateCronTask(id, updated.cronSchedule, updated.timezone);
     } else {
-      await registerCronTask(id, updated.cronSchedule);
+      await registerCronTask(id, updated.cronSchedule, updated.timezone);
     }
   } else if (parsed.data.isCronEnabled === false || parsed.data.runsAt) {
     await deleteCronTask(id);
