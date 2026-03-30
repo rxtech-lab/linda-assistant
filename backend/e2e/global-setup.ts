@@ -114,9 +114,10 @@ export default async function globalSetup() {
     }),
   );
 
-  // Start Celery mock server
+  // Start Celery mock server — detached so CI signals don't kill it
   const celeryMock = spawn("bun", ["e2e/helpers/celery-mock-server.ts"], {
     cwd: path.resolve(__dirname, ".."),
+    detached: true,
     env: { ...process.env, CELERY_MOCK_PORT: "8099" },
     stdio: "pipe",
   });
@@ -144,11 +145,13 @@ export default async function globalSetup() {
     });
   });
 
+  celeryMock.unref();
   fs.writeFileSync(CELERY_MOCK_PID_FILE, String(celeryMock.pid));
 
-  // Start MCP mock server
+  // Start MCP mock server — detached so CI signals don't kill it
   const mcpMock = spawn("bun", ["e2e/helpers/mcp-mock-server.ts"], {
     cwd: path.resolve(__dirname, ".."),
+    detached: true,
     env: { ...process.env, MCP_MOCK_PORT: "8098" },
     stdio: "pipe",
   });
@@ -176,11 +179,13 @@ export default async function globalSetup() {
     });
   });
 
+  mcpMock.unref();
   fs.writeFileSync(MCP_MOCK_PID_FILE, String(mcpMock.pid));
 
-  // Start worker process
+  // Start worker process — detached so CI process-group signals don't kill it
   const worker = spawn("bun", ["worker/index.ts"], {
     cwd: path.resolve(__dirname, ".."),
+    detached: true,
     env: {
       ...process.env,
       IS_E2E: "true",
@@ -227,6 +232,9 @@ export default async function globalSetup() {
       }
     });
   });
+
+  // Allow the parent process to exit independently while keeping the worker alive
+  worker.unref();
 
   // Save PID for teardown
   fs.writeFileSync(WORKER_PID_FILE, String(worker.pid));

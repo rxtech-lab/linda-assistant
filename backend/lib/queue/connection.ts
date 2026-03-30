@@ -4,6 +4,52 @@ import { AGENT_COMMANDS_EXCHANGE, AGENT_EVENTS_EXCHANGE, AGENT_TASKS_QUEUE } fro
 let connection: ChannelModel | null = null;
 let channel: Channel | null = null;
 let topologyReady = false;
+let reconnecting = false;
+
+/** Callback invoked after a successful reconnection so the worker can re-register its consumer. */
+let onReconnect: (() => Promise<void>) | null = null;
+
+/**
+ * Register a callback that fires after the RabbitMQ connection is
+ * re-established (e.g. to re-consume the task queue).
+ */
+export function setReconnectHandler(handler: () => Promise<void>): void {
+  onReconnect = handler;
+}
+
+async function reconnect(): Promise<void> {
+  if (reconnecting) return;
+  reconnecting = true;
+  const maxRetries = 10;
+  const baseDelay = 1000;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[RabbitMQ] Reconnecting (attempt ${attempt}/${maxRetries})...`);
+      // getConnection() will create a fresh connection since we nulled the old one
+      await getConnection();
+      await setupTopology();
+      console.log("[RabbitMQ] Reconnected successfully");
+
+      if (onReconnect) {
+        await onReconnect();
+      }
+
+      reconnecting = false;
+      return;
+    } catch (err) {
+      console.error(`[RabbitMQ] Reconnect attempt ${attempt} failed:`, (err as Error).message);
+      if (attempt < maxRetries) {
+        const delay = Math.min(baseDelay * 2 ** (attempt - 1), 30000);
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+  }
+
+  console.error("[RabbitMQ] All reconnect attempts failed, exiting");
+  reconnecting = false;
+  process.exit(1);
+}
 
 export async function getConnection(): Promise<ChannelModel> {
   if (connection) return connection;
@@ -23,6 +69,10 @@ export async function getConnection(): Promise<ChannelModel> {
     connection = null;
     channel = null;
     topologyReady = false;
+    // Auto-reconnect on unexpected close (skip if shutting down gracefully)
+    if (!closingGracefully) {
+      reconnect();
+    }
   });
 
   return connection;
@@ -80,7 +130,10 @@ export async function isConnected(): Promise<boolean> {
   }
 }
 
+let closingGracefully = false;
+
 export async function closeConnection(): Promise<void> {
+  closingGracefully = true;
   if (channel) {
     try {
       await channel.close();

@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { runAgent } from "@/lib/ai/agent";
-import { closeConnection, isConnected, setupTopology } from "@/lib/queue/connection";
+import { closeConnection, isConnected, setReconnectHandler, setupTopology } from "@/lib/queue/connection";
 import { consumeTasks, subscribeToCommands, type CommandSubscription } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
 import type { AgentTask } from "@/lib/queue/types";
@@ -135,6 +135,12 @@ async function main() {
 
   await consumeTasks(handleTask, { prefetch: 5 });
   console.log("[Worker] Consuming tasks from agent-tasks queue");
+
+  // Re-register task consumer after reconnection
+  setReconnectHandler(async () => {
+    console.log("[Worker] Re-registering task consumer after reconnect");
+    await consumeTasks(handleTask, { prefetch: 5 });
+  });
 
   healthy = true;
   console.log(`[Worker] Health check listening on :${HEALTH_PORT}/healthz`);
