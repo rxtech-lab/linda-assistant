@@ -127,7 +127,9 @@ async function updateAssigneeExtension(
 
 async function getExtension(
   extensionId: string,
-): Promise<ExtensionWithStatus & { tools?: Array<{ name: string; description: string }> }> {
+): Promise<
+  ExtensionWithStatus & { tools?: Array<{ name: string; description: string }> }
+> {
   const token = loadToken();
   const res = await fetch(`${BASE_URL}/api/extensions/${extensionId}`, {
     headers: authHeaders(token),
@@ -148,12 +150,19 @@ const INVOICE_PREFIX = "invoice_";
  * Check if a tool-call event targets an invoice tool.
  * With lazy MCP loading, invoice tools are invoked via use_tool with a toolId parameter.
  */
-function isInvoiceToolCall(e: { event: string; data: Record<string, unknown> }): boolean {
-  if (e.event !== "tool-call" || typeof e.data.toolName !== "string") return false;
+function isInvoiceToolCall(e: {
+  event: string;
+  data: Record<string, unknown>;
+}): boolean {
+  if (e.event !== "tool-call" || typeof e.data.toolName !== "string")
+    return false;
   if (e.data.toolName.startsWith(INVOICE_PREFIX)) return true;
   if (e.data.toolName === "use_tool") {
     const input = e.data.input as Record<string, unknown> | undefined;
-    return typeof input?.toolId === "string" && input.toolId.startsWith(INVOICE_PREFIX);
+    return (
+      typeof input?.toolId === "string" &&
+      input.toolId.startsWith(INVOICE_PREFIX)
+    );
   }
   return false;
 }
@@ -170,9 +179,7 @@ function describeToolCall(e: { data: Record<string, unknown> }): string {
 const test = base.extend<{ assigneeId: string }>({
   assigneeId: async ({}, use, testInfo) => {
     await ensureOnboarded();
-    const id = await createAssignee(
-      `e2e-task-ext-tools-${testInfo.testId}`,
-    );
+    const id = await createAssignee(`e2e-task-ext-tools-${testInfo.testId}`);
     console.log(`Created assignee ${id} for: ${testInfo.title}`);
 
     // Set all tools to auto-confirm for simplicity
@@ -190,9 +197,7 @@ const test = base.extend<{ assigneeId: string }>({
   },
 });
 
-test.describe.serial("Task extension tools isolation", () => {
-  test.setTimeout(300_000);
-
+test.describe("Task extension tools isolation", () => {
   test("task with invoice extension enabled but assignee disabled — task can use invoice tools", async ({
     assigneeId,
   }) => {
@@ -255,9 +260,7 @@ test.describe.serial("Task extension tools isolation", () => {
       await stream.waitForDone();
 
       // Log all events for diagnostics
-      const allToolCalls = stream.events.filter(
-        (e) => e.event === "tool-call",
-      );
+      const allToolCalls = stream.events.filter((e) => e.event === "tool-call");
       console.log(
         `All tool-call events (${allToolCalls.length}):`,
         allToolCalls.map((e) => e.data.toolName),
@@ -337,7 +340,7 @@ test.describe.serial("Task extension tools isolation", () => {
   });
 });
 
-test.describe.serial("Chat extension tools (regular chat)", () => {
+test.describe("Chat extension tools (regular chat)", () => {
   test.setTimeout(300_000);
 
   test("regular chat with invoice extension enabled — agent can use invoice tools", async ({
@@ -378,9 +381,7 @@ test.describe.serial("Chat extension tools (regular chat)", () => {
       await stream.waitForDone();
 
       // Log all tool calls for debugging
-      const allToolCalls = stream.events.filter(
-        (e) => e.event === "tool-call",
-      );
+      const allToolCalls = stream.events.filter((e) => e.event === "tool-call");
       console.log(
         `[chat-ext-enabled] All tool calls (${allToolCalls.length}):`,
         allToolCalls.map((e) => e.data.toolName),

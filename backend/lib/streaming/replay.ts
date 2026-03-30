@@ -83,6 +83,14 @@ export async function streamWithReplay(
     }
 
     replaying = false;
+
+    // Flush any events that arrived during the async Redis checks above
+    for (const agentEvent of liveBuffer) {
+      if (signal.aborted) break;
+      send(agentEvent.event, agentEvent.data);
+    }
+    liveBuffer.length = 0;
+
     return subscription;
   }
 
@@ -95,6 +103,13 @@ export async function streamWithReplay(
     console.log(
       `[Replay] session=${sessionId} status=${sessionStatus}, skipping chunk replay`,
     );
+
+    for (const agentEvent of liveBuffer) {
+      if (signal.aborted) break;
+      send(agentEvent.event, agentEvent.data);
+    }
+    liveBuffer.length = 0;
+
     return subscription;
   }
 

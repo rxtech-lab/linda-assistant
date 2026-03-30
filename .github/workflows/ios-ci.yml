@@ -58,7 +58,7 @@ jobs:
     name: Run iOS Tests (Serial)
     uses: ./.github/workflows/ios-setup.yml
     with:
-      runs-on: '["self-hosted", "macOS", "ARM64"]'
+      runs-on: '["self-hosted", "macOS", "ARM64", "regular"]'
       job-name: Run iOS Tests (Serial)
       script: ios-test-plan.sh
       scheme: LindaAssistant

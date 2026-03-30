@@ -574,9 +574,14 @@ test.describe.serial("Task-level extension toggle with search_tools", () => {
         label: "task-session-toggle-enabled",
       });
 
+      // Wait for SSE connection to be established before sending message.
+      // The "status" event is sent AFTER the RabbitMQ subscription is active,
+      // so this ensures no events are lost due to the subscription race.
+      await stream2.waitForEvent("status");
+
       await sendSessionMessage(
         sessionId,
-        "Now search for invoice related tools again using search_tools. Report exactly what tools you found. Do not ask any questions.",
+        "IMPORTANT: The available tools have been updated since your last message. The search_tools tool is NOW AVAILABLE. You MUST call search_tools with query 'invoice' right now. Do not assume it is unavailable based on previous errors. Do not ask any questions.",
       );
 
       await stream2.waitForDone();
