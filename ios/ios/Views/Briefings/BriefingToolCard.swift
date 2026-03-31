@@ -1,4 +1,5 @@
 import AssistantCore
+import Kingfisher
 import SwiftUI
 
 /// Inline card for create_briefing tool calls in chat.
@@ -74,18 +75,12 @@ struct BriefingToolCard: View {
             ZStack(alignment: .bottomLeading) {
                 // Background image or placeholder
                 if let url = imageURL {
-                    CachedAsyncImage(url: url) { phase in
-                        switch phase {
-                            case let .success(image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-                                    .clipped()
-                            default:
-                                placeholderBackground
-                        }
-                    }
+                    KFImage(url)
+                        .placeholder { placeholderBackground }
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                        .clipped()
                 } else {
                     placeholderBackground
                 }

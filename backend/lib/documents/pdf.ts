@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import escapeHtml from "escape-html";
 import { marked } from "marked";
 import puppeteer from "puppeteer";
+import { replaceSlideTokens } from "@/lib/utils/markdown";
 
 /** Sanitize a document title into a safe PDF filename. */
 export function sanitizeDocumentFilename(title: string): string {
@@ -50,6 +51,9 @@ export async function generateDocumentPdf(
     const rawHtml = await marked(doc.content);
     htmlContent = extractBodyContent(rawHtml);
   }
+
+  // Replace {{slide:id}} syntax with rendered slide images
+  htmlContent = await replaceSlideTokens(htmlContent, "html");
 
   // The headless Chrome Docker image renders all <head> content (<style>, <title>)
   // as visible text in PDFs, and addStyleTag also fails (puppeteer #8781).

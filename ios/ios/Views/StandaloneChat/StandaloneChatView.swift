@@ -10,7 +10,6 @@ struct ChatTabView: View {
     @Environment(NavigationManager.self) private var navigationManager
     @Environment(PushNotificationManager.self) private var pushManager
     @State private var viewModel = ChatTabViewModel()
-    @State private var selectedDocumentItem: DocumentSheetItem?
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -107,7 +106,9 @@ struct ChatTabView: View {
         .onChange(of: viewModel.showingAssigneeSheet) { _, isShowing in
             if isShowing, let assignee = viewModel.selectedAssignee {
                 Task {
-                    await viewModel.loadDocuments(assigneeId: assignee.id, apiClient: apiClient)
+                    async let docs: () = viewModel.loadDocuments(assigneeId: assignee.id, apiClient: apiClient)
+                    async let slides: () = viewModel.loadSlideDecks(assigneeId: assignee.id, apiClient: apiClient)
+                    _ = await (docs, slides)
                 }
             }
         }
@@ -116,6 +117,7 @@ struct ChatTabView: View {
                 assignees: viewModel.assignees,
                 selectedAssigneeId: viewModel.selectedAssignee?.id,
                 documents: viewModel.documents,
+                slideDecks: viewModel.slideDecks,
                 onSelectAssignee: { assignee in
                     viewModel.showingAssigneeSheet = false
                     Task {
@@ -126,10 +128,6 @@ struct ChatTabView: View {
                             eventManager: eventManager
                         )
                     }
-                },
-                onSelectDocument: { doc in
-                    viewModel.showingAssigneeSheet = false
-                    selectedDocumentItem = DocumentSheetItem(id: doc.id, title: doc.title)
                 },
                 onDeleteDocument: { doc in
                     Task {
@@ -147,9 +145,6 @@ struct ChatTabView: View {
                     }
                 }
             )
-        }
-        .sheet(item: $selectedDocumentItem) { item in
-            DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
         }
         .task {
             viewModel.deviceToken = pushManager.deviceToken

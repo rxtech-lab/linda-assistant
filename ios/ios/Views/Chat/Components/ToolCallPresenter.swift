@@ -39,16 +39,64 @@ struct ToolCallPresenter: ViewModifier {
 
     private static let documentToolNames: Set<String> = ["create_document", "update_document"]
     private static let briefingToolNames: Set<String> = ["create_briefing"]
+    private static let slideToolNames: Set<String> = ["create_slides", "update_slides"]
     private static let uploadToolNames: Set<String> = ["request_upload"]
     private static let readUploadedFileToolNames: Set<String> = ["read_uploaded_file"]
     private static let mcpLazyToolNames: Set<String> = ["search_tools", "read_tool", "use_tool"]
 
+    /// Binding that only fires for non-slide tool calls (presented as .sheet).
+    private var nonSlideToolCall: Binding<ToolCallInfo?> {
+        Binding(
+            get: {
+                guard let tc = selectedToolCall,
+                      !Self.slideToolNames.contains(tc.toolName)
+                else { return nil }
+                return tc
+            },
+            set: { selectedToolCall = $0 }
+        )
+    }
+
+    /// Binding that only fires for slide tool calls (presented as .fullScreenCover).
+    private var slideToolDeckId: Binding<String?> {
+        Binding(
+            get: {
+                guard let tc = selectedToolCall,
+                      Self.slideToolNames.contains(tc.toolName)
+                else { return nil }
+                return extractSlideDeckId(from: tc)
+            },
+            set: { if $0 == nil { selectedToolCall = nil } }
+        )
+    }
+
+    private var slideToolDeckPresented: Binding<Bool> {
+        Binding(
+            get: { slideToolDeckId.wrappedValue != nil },
+            set: { if !$0 { selectedToolCall = nil } }
+        )
+    }
+
     func body(content: Content) -> some View {
         content
-            // Read-only detail sheets
-            .sheet(item: $selectedToolCall) { toolCall in
+            // Read-only detail sheets (non-slide tools)
+            .sheet(item: nonSlideToolCall) { toolCall in
                 sheetContent(for: toolCall)
             }
+            // Slide viewer as fullscreen cover
+#if os(macOS)
+            .sheet(isPresented: slideToolDeckPresented) {
+                if let deckId = slideToolDeckId.wrappedValue {
+                    SlideViewerSheet(deckId: deckId)
+                }
+            }
+#else
+            .fullScreenCover(isPresented: slideToolDeckPresented) {
+                if let deckId = slideToolDeckId.wrappedValue {
+                    SlideViewerSheet(deckId: deckId)
+                }
+            }
+#endif
             .sheet(item: $documentItem) { item in
                 DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
             }
@@ -133,6 +181,10 @@ struct ToolCallPresenter: ViewModifier {
                         }
                     }
             }
+        } else if Self.slideToolNames.contains(toolCall.toolName),
+                  let deckId = extractSlideDeckId(from: toolCall)
+        {
+            SlideViewerSheet(deckId: deckId)
         } else if Self.uploadToolNames.contains(toolCall.toolName),
                   toolCall.status == .completed,
                   let uploadId = extractUploadId(from: toolCall)
@@ -214,6 +266,18 @@ struct ToolCallPresenter: ViewModifier {
                let err = inner["error"]?.stringValue
             { return err }
         }
+        return nil
+    }
+
+    private func extractSlideDeckId(from toolCall: ToolCallInfo) -> String? {
+        if case let .object(obj) = toolCall.result {
+            if let id = obj["deckId"]?.stringValue { return id }
+            if case let .object(inner) = obj["value"],
+               let id = inner["deckId"]?.stringValue
+            { return id }
+        }
+        // For update_slides, deckId is in the input
+        if let id = toolCall.input?["deckId"]?.stringValue { return id }
         return nil
     }
 

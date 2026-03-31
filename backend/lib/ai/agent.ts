@@ -1,4 +1,4 @@
-import { type ModelMessage, streamText } from "ai";
+import { type ModelMessage, stepCountIs, streamText } from "ai";
 import crypto from "crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { refreshAccessToken } from "@/lib/auth/refresh";
@@ -25,14 +25,25 @@ import { createMem0Client } from "@/lib/mem0/client";
 import { redis } from "@/lib/redis";
 import { setStreamActive } from "@/lib/streaming/manager";
 import { extractTextFromMessage, prepareMessages } from "./compaction";
-import { createConfirmation, sendConfirmationGroupNotification } from "./confirmation";
+import {
+  createConfirmation,
+  sendConfirmationGroupNotification,
+} from "./confirmation";
 import { createLocationRequest } from "./location";
 import { getModelProvider } from "./model";
-import { availableModelSchema, calculateCostUsd, DEFAULT_MODEL } from "./models";
+import {
+  availableModelSchema,
+  calculateCostUsd,
+  DEFAULT_MODEL,
+} from "./models";
 import { createQuestion, sendQuestionGroupNotification } from "./question";
 import { createUploadRequest, sendUploadGroupNotification } from "./upload";
-import { formatHistoryContext, generateTaskHistory, getRecentHistory } from "./history";
-import { HISTORY_CONTEXT_LIMIT } from "./context";
+import {
+  formatHistoryContext,
+  generateTaskHistory,
+  getRecentHistory,
+} from "./history";
+import { HISTORY_CONTEXT_LIMIT, MAX_STEPS } from "./context";
 import { compressToolCallContent } from "./tool-content-compression";
 import { buildToolSet } from "./tools";
 import { ASK_QUESTION_TOOL_NAME } from "./tools/ask-question";
@@ -40,8 +51,6 @@ import { evaluateConditions } from "./tools/conditions";
 import { GET_LOCATION_TOOL_NAME } from "./tools/get-location";
 import { REQUEST_UPLOAD_TOOL_NAME } from "./tools/request-upload";
 import { loadAssigneePermissions, resolvePermission } from "./tools/permission";
-
-const MAX_STEPS = 20;
 
 /** Annotate a tool-call content part with confirmation info */
 export function annotateToolCallConfirmation(
@@ -139,7 +148,9 @@ function isToolResultError(part: Record<string, unknown>): boolean {
 
 /** Extract error string from a tool-result content part */
 function extractToolResultError(part: Record<string, unknown>): string {
-  const output = unwrapToolOutput(part.output) as Record<string, unknown> | undefined;
+  const output = unwrapToolOutput(part.output) as
+    | Record<string, unknown>
+    | undefined;
   if (typeof output === "object" && output !== null && "error" in output) {
     return String(output.error);
   }
@@ -160,20 +171,36 @@ function annotateAutoApproved(messages: ModelMessage[]): void {
 }
 
 /** Ensure each message has an id */
-function sanitizeMessages(messages: ModelMessage[], messageId?: string): ModelMessage[] {
+function sanitizeMessages(
+  messages: ModelMessage[],
+  messageId?: string,
+): ModelMessage[] {
   return messages.map((msg, i) => {
     const record = msg as Record<string, unknown>;
     // Assign provided messageId to the first message (assistant), generate for others (tool)
-    const id = record.id ?? (i === 0 && messageId ? messageId : crypto.randomUUID());
+    const id =
+      record.id ?? (i === 0 && messageId ? messageId : crypto.randomUUID());
     return { ...record, id } as unknown as ModelMessage;
   });
 }
 
 /** Custom annotation keys added to content parts for frontend/persistence (not for the model) */
-const CUSTOM_ANNOTATIONS = ["confirmation", "question", "error", "approveStatus", "isAutoConfirm"];
+const CUSTOM_ANNOTATIONS = [
+  "confirmation",
+  "question",
+  "error",
+  "approveStatus",
+  "isAutoConfirm",
+];
 
 /** Recognized output types in the AI SDK v6 outputSchema discriminated union */
-const VALID_OUTPUT_TYPES = new Set(["text", "json", "execution-denied", "error-text", "content"]);
+const VALID_OUTPUT_TYPES = new Set([
+  "text",
+  "json",
+  "execution-denied",
+  "error-text",
+  "content",
+]);
 
 /**
  * Normalize a tool-result output to match the AI SDK v6 `outputSchema` discriminated union.
@@ -181,7 +208,10 @@ const VALID_OUTPUT_TYPES = new Set(["text", "json", "execution-denied", "error-t
  * but manually created tool-results (from resolvePendingToolCalls / resolveConfirmation)
  * use raw objects. This wraps them appropriately.
  */
-function normalizeToolResultOutput(output: unknown, hasIsError: boolean): Record<string, unknown> {
+function normalizeToolResultOutput(
+  output: unknown,
+  hasIsError: boolean,
+): Record<string, unknown> {
   // Already a valid SDK output format
   if (
     typeof output === "object" &&
@@ -215,7 +245,9 @@ function normalizeToolResultOutput(output: unknown, hasIsError: boolean): Record
  * - Normalizes tool-result output to match SDK `outputSchema`
  * - Removes `isError` field (not in SDK schema)
  */
-export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
+export function cleanMessagesForModel(
+  messages: ModelMessage[],
+): ModelMessage[] {
   const result: ModelMessage[] = [];
   for (const msg of messages) {
     const record = msg as Record<string, unknown>;
@@ -248,7 +280,10 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
 
       // Normalize tool-result output for SDK schema
       if (cleaned.type === "tool-result" && cleaned.output !== undefined) {
-        cleaned.output = normalizeToolResultOutput(cleaned.output, cleaned.isError === true);
+        cleaned.output = normalizeToolResultOutput(
+          cleaned.output,
+          cleaned.isError === true,
+        );
         delete cleaned.isError;
       }
 
@@ -287,8 +322,12 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
         // Capture providerMetadata from the original tool message
         if (msgRecord.providerMetadata || msgRecord.providerOptions) {
           toolMsgMetadataByCallId.set(part.toolCallId, {
-            ...(msgRecord.providerMetadata ? { providerMetadata: msgRecord.providerMetadata } : {}),
-            ...(msgRecord.providerOptions ? { providerOptions: msgRecord.providerOptions } : {}),
+            ...(msgRecord.providerMetadata
+              ? { providerMetadata: msgRecord.providerMetadata }
+              : {}),
+            ...(msgRecord.providerOptions
+              ? { providerOptions: msgRecord.providerOptions }
+              : {}),
           });
         }
       }
@@ -310,7 +349,8 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
 
     const neededResults: Record<string, unknown>[] = [];
     for (const part of msg.content as Record<string, unknown>[]) {
-      if (part.type !== "tool-call" || typeof part.toolCallId !== "string") continue;
+      if (part.type !== "tool-call" || typeof part.toolCallId !== "string")
+        continue;
       const toolCallId = part.toolCallId;
       const toolName = (part.toolName as string) ?? "unknown";
 
@@ -421,7 +461,9 @@ If the user rejects your questions, do NOT retry with the same or similar questi
     if (taskContext.emails && taskContext.emails.length > 0) {
       const emailSummaries = taskContext.emails
         .map((e) => {
-          const from = e.fromName ? `${e.fromName} <${e.fromEmail}>` : e.fromEmail;
+          const from = e.fromName
+            ? `${e.fromName} <${e.fromEmail}>`
+            : e.fromEmail;
           const subject = e.subject || "(no subject)";
           const body = e.textBody || "(no body)";
           let text = `From: ${from}\nSubject: ${subject}\nReceived: ${e.receivedAt}\n\n${body}`;
@@ -442,11 +484,13 @@ If the user rejects your questions, do NOT retry with the same or similar questi
 
 IMPORTANT: When the user asks you to compose a document, briefing, report, or do any research that requires up-to-date or real-world information (e.g. news, market data, weather, current events, company info, travel details), you MUST first use search_tools to find available network/web searching tools (search keywords like "web", "search", "browse", "fetch", "news", "scrape"). Use those tools to gather real-time data before writing. Do NOT rely on your own knowledge for factual, time-sensitive, or real-world content — your training data is outdated and may be inaccurate. Always fetch fresh information from external sources first, then compose the document or briefing based on what you find.`;
 
+  const idRedactionGuidance = `\nIMPORTANT: Never include internal IDs (document IDs, slide deck IDs, task IDs, session IDs, or any other system identifiers) in your responses to the user. These are internal implementation details. When referencing created resources, use their titles or descriptions instead. For example, say "I created the document 'Q1 Report'" rather than "I created document doc_abc123". Exception: when you create slides with create_slides, do NOT embed the slide deck ID or any slide syntax in your chat response. The slide carousel is already rendered automatically from the tool call. Just mention what you created by title — do NOT include {{slide:deckId}} or any other slide reference in your chat message. The {{slide:deckId}} syntax is only used inside document and briefing content (via create_document or create_briefing tools), where it renders as an embedded carousel.`;
+
   if (!assignee)
-    return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${extensionToolGuidance}${taskGuidance}`;
+    return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${extensionToolGuidance}${idRedactionGuidance}${taskGuidance}`;
   if (assignee.personality)
-    return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${extensionToolGuidance}${taskGuidance}`;
-  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${extensionToolGuidance}${taskGuidance}`;
+    return `${assignee.personality}${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${extensionToolGuidance}${idRedactionGuidance}${taskGuidance}`;
+  return `You are ${assignee.name}, a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${extensionToolGuidance}${idRedactionGuidance}${taskGuidance}`;
 }
 
 /**
@@ -527,7 +571,10 @@ async function resolvePendingToolCalls(
           resolvedAt: sql`(datetime('now'))`,
         })
         .where(
-          and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.toolCallId, toolCallId)),
+          and(
+            eq(confirmations.chatSessionId, sessionId),
+            eq(confirmations.toolCallId, toolCallId),
+          ),
         );
       await db
         .update(questions)
@@ -535,14 +582,24 @@ async function resolvePendingToolCalls(
           status: "rejected",
           answeredAt: sql`(datetime('now'))`,
         })
-        .where(and(eq(questions.chatSessionId, sessionId), eq(questions.toolCallId, toolCallId)));
+        .where(
+          and(
+            eq(questions.chatSessionId, sessionId),
+            eq(questions.toolCallId, toolCallId),
+          ),
+        );
       await db
         .update(uploads)
         .set({
           status: "cancelled",
           completedAt: sql`(datetime('now'))`,
         })
-        .where(and(eq(uploads.chatSessionId, sessionId), eq(uploads.toolCallId, toolCallId)));
+        .where(
+          and(
+            eq(uploads.chatSessionId, sessionId),
+            eq(uploads.toolCallId, toolCallId),
+          ),
+        );
 
       // Update the tool-call annotation in messages so it persists as "cancelled".
       // Check for confirmation, question, and upload annotations.
@@ -563,11 +620,26 @@ async function resolvePendingToolCalls(
         }
       }
       if (existingUploadId) {
-        annotateToolCallUpload(cleaned, toolCallId, existingUploadId, "cancelled");
+        annotateToolCallUpload(
+          cleaned,
+          toolCallId,
+          existingUploadId,
+          "cancelled",
+        );
       } else if (existingQuestionId) {
-        annotateToolCallQuestion(cleaned, toolCallId, existingQuestionId, "rejected");
+        annotateToolCallQuestion(
+          cleaned,
+          toolCallId,
+          existingQuestionId,
+          "rejected",
+        );
       } else {
-        annotateToolCallConfirmation(cleaned, toolCallId, existingConfirmationId, "cancelled");
+        annotateToolCallConfirmation(
+          cleaned,
+          toolCallId,
+          existingConfirmationId,
+          "cancelled",
+        );
       }
 
       // Persist the updated annotation to DB
@@ -576,7 +648,8 @@ async function resolvePendingToolCalls(
         for (const part of msg.content as Record<string, unknown>[]) {
           if (part.type === "tool-call" && part.toolCallId === toolCallId) {
             const record = msg as Record<string, unknown>;
-            if (record.id) await updateMessageContent(record.id as string, msg.content);
+            if (record.id)
+              await updateMessageContent(record.id as string, msg.content);
           }
         }
       }
@@ -617,7 +690,10 @@ async function resolvePendingToolCalls(
         .select()
         .from(confirmations)
         .where(
-          and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.toolCallId, toolCallId)),
+          and(
+            eq(confirmations.chatSessionId, sessionId),
+            eq(confirmations.toolCallId, toolCallId),
+          ),
         );
 
       // If no confirmation found, check questions table (for ask_question tool)
@@ -626,7 +702,10 @@ async function resolvePendingToolCalls(
             .select()
             .from(questions)
             .where(
-              and(eq(questions.chatSessionId, sessionId), eq(questions.toolCallId, toolCallId)),
+              and(
+                eq(questions.chatSessionId, sessionId),
+                eq(questions.toolCallId, toolCallId),
+              ),
             )
         : [undefined];
 
@@ -636,7 +715,12 @@ async function resolvePendingToolCalls(
           ? await db
               .select()
               .from(uploads)
-              .where(and(eq(uploads.chatSessionId, sessionId), eq(uploads.toolCallId, toolCallId)))
+              .where(
+                and(
+                  eq(uploads.chatSessionId, sessionId),
+                  eq(uploads.toolCallId, toolCallId),
+                ),
+              )
           : [undefined];
 
       // If no confirmation, question, or upload found, check Redis for location request
@@ -667,7 +751,10 @@ async function resolvePendingToolCalls(
         // Execute the tool
         const toolDef = tools[info.toolName] as
           | {
-              execute?: (input: unknown, options: Record<string, unknown>) => Promise<unknown>;
+              execute?: (
+                input: unknown,
+                options: Record<string, unknown>,
+              ) => Promise<unknown>;
             }
           | undefined;
 
@@ -679,14 +766,18 @@ async function resolvePendingToolCalls(
         try {
           if (toolDef?.execute) {
             output = await toolDef.execute(
-              typeof info.input === "string" ? JSON.parse(info.input) : info.input,
+              typeof info.input === "string"
+                ? JSON.parse(info.input)
+                : info.input,
               { toolCallId },
             );
             console.log(`[agent] Tool ${info.toolName} completed successfully`);
           } else {
             output = { error: "Tool not found or has no execute function" };
             isError = true;
-            console.error(`[agent] Tool ${info.toolName} not found or has no execute function`);
+            console.error(
+              `[agent] Tool ${info.toolName} not found or has no execute function`,
+            );
           }
         } catch (err) {
           output = {
@@ -734,19 +825,35 @@ async function resolvePendingToolCalls(
         // resolveConfirmation/resolveLocationRequest may have failed to annotate if
         // messages weren't yet persisted when the resolution was processed.
         if (uploadRecord) {
-          annotateToolCallUpload(cleaned, toolCallId, uploadRecord.id, "completed");
+          annotateToolCallUpload(
+            cleaned,
+            toolCallId,
+            uploadRecord.id,
+            "completed",
+          );
         } else if (questionRecord) {
-          annotateToolCallQuestion(cleaned, toolCallId, questionRecord.id, "answered");
+          annotateToolCallQuestion(
+            cleaned,
+            toolCallId,
+            questionRecord.id,
+            "answered",
+          );
         } else {
           const confId = confirmation?.id ?? toolCallId;
-          annotateToolCallConfirmation(cleaned, toolCallId, confId, "confirmed");
+          annotateToolCallConfirmation(
+            cleaned,
+            toolCallId,
+            confId,
+            "confirmed",
+          );
         }
         for (const msg of cleaned) {
           if (!Array.isArray(msg.content)) continue;
           for (const part of msg.content as Record<string, unknown>[]) {
             if (part.type === "tool-call" && part.toolCallId === toolCallId) {
               const record = msg as Record<string, unknown>;
-              if (record.id) await updateMessageContent(record.id as string, msg.content);
+              if (record.id)
+                await updateMessageContent(record.id as string, msg.content);
             }
           }
         }
@@ -790,9 +897,19 @@ async function resolvePendingToolCalls(
 
         // Safety net: ensure the tool-call annotation reflects rejected status
         if (uploadRecord) {
-          annotateToolCallUpload(cleaned, toolCallId, uploadRecord.id, "rejected");
+          annotateToolCallUpload(
+            cleaned,
+            toolCallId,
+            uploadRecord.id,
+            "rejected",
+          );
         } else if (questionRecord) {
-          annotateToolCallQuestion(cleaned, toolCallId, questionRecord.id, "rejected");
+          annotateToolCallQuestion(
+            cleaned,
+            toolCallId,
+            questionRecord.id,
+            "rejected",
+          );
         } else {
           const confId = confirmation?.id ?? toolCallId;
           annotateToolCallConfirmation(cleaned, toolCallId, confId, "rejected");
@@ -802,7 +919,8 @@ async function resolvePendingToolCalls(
           for (const part of msg.content as Record<string, unknown>[]) {
             if (part.type === "tool-call" && part.toolCallId === toolCallId) {
               const record = msg as Record<string, unknown>;
-              if (record.id) await updateMessageContent(record.id as string, msg.content);
+              if (record.id)
+                await updateMessageContent(record.id as string, msg.content);
             }
           }
         }
@@ -845,7 +963,10 @@ async function resolvePendingToolCalls(
     for (const msg of newMessages) {
       if (!Array.isArray(msg.content)) continue;
       for (const part of msg.content as Record<string, unknown>[]) {
-        if (part.type === "tool-result" && typeof part.toolCallId === "string") {
+        if (
+          part.type === "tool-result" &&
+          typeof part.toolCallId === "string"
+        ) {
           resultByToolCallId.set(part.toolCallId, msg);
         }
       }
@@ -912,7 +1033,10 @@ export async function runAgent(options: AgentRunOptions) {
   const { sessionId, userId, taskType, onTextChunk, onEvent, signal } = options;
 
   // Load session with messages
-  const [session] = await db.select().from(chatSessions).where(eq(chatSessions.id, sessionId));
+  const [session] = await db
+    .select()
+    .from(chatSessions)
+    .where(eq(chatSessions.id, sessionId));
 
   if (!session) throw new Error("Session not found");
 
@@ -1059,7 +1183,12 @@ export async function runAgent(options: AgentRunOptions) {
   const staleConfirmations = await db
     .select({ id: confirmations.id })
     .from(confirmations)
-    .where(and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.status, "pending")));
+    .where(
+      and(
+        eq(confirmations.chatSessionId, sessionId),
+        eq(confirmations.status, "pending"),
+      ),
+    );
   if (staleConfirmations.length > 0) {
     await db
       .update(confirmations)
@@ -1067,7 +1196,12 @@ export async function runAgent(options: AgentRunOptions) {
         status: "rejected",
         resolvedAt: sql`(datetime('now'))`,
       })
-      .where(and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.status, "pending")));
+      .where(
+        and(
+          eq(confirmations.chatSessionId, sessionId),
+          eq(confirmations.status, "pending"),
+        ),
+      );
     console.log(
       `[agent] Cancelled ${staleConfirmations.length} stale pending confirmation(s) for session=${sessionId}: ${staleConfirmations.map((c) => c.id).join(", ")}`,
     );
@@ -1077,7 +1211,12 @@ export async function runAgent(options: AgentRunOptions) {
   const staleQuestions = await db
     .select({ id: questions.id })
     .from(questions)
-    .where(and(eq(questions.chatSessionId, sessionId), eq(questions.status, "pending")));
+    .where(
+      and(
+        eq(questions.chatSessionId, sessionId),
+        eq(questions.status, "pending"),
+      ),
+    );
   if (staleQuestions.length > 0) {
     await db
       .update(questions)
@@ -1085,7 +1224,12 @@ export async function runAgent(options: AgentRunOptions) {
         status: "rejected",
         answeredAt: sql`(datetime('now'))`,
       })
-      .where(and(eq(questions.chatSessionId, sessionId), eq(questions.status, "pending")));
+      .where(
+        and(
+          eq(questions.chatSessionId, sessionId),
+          eq(questions.status, "pending"),
+        ),
+      );
     console.log(
       `[agent] Cancelled ${staleQuestions.length} stale pending question(s) for session=${sessionId}: ${staleQuestions.map((q) => q.id).join(", ")}`,
     );
@@ -1102,10 +1246,19 @@ export async function runAgent(options: AgentRunOptions) {
   await onEvent?.("status", { status: "in_progress" });
 
   // Resolve any pending tool-calls from a previous confirmation pause
-  const preprocessed = await resolvePendingToolCalls(sessionId, messages, tools, onEvent, taskType);
+  const preprocessed = await resolvePendingToolCalls(
+    sessionId,
+    messages,
+    tools,
+    onEvent,
+    taskType,
+  );
 
   let stepCount = 0;
-  let currentMessages: ModelMessage[] = compressToolCallContent([...preprocessed.messages]);
+  let lastFinishReason: string | undefined;
+  let currentMessages: ModelMessage[] = compressToolCallContent([
+    ...preprocessed.messages,
+  ]);
   let persistedCount = messages.length + preprocessed.persistCount;
 
   // Accumulated token usage across all steps
@@ -1113,13 +1266,12 @@ export async function runAgent(options: AgentRunOptions) {
   let totalOutputTokens = 0;
 
   try {
-    while (stepCount < MAX_STEPS) {
+    // eslint-disable-next-line no-constant-condition -- outer loop only re-iterates for conditional auto-confirm
+    while (true) {
       if (signal?.aborted) break;
+      if (stepCount >= MAX_STEPS) break;
 
-      stepCount++;
-      console.log(`[agent] Step ${stepCount}/${MAX_STEPS} for session=${sessionId}`);
-
-      // Compact history if approaching context limits (prepareStep equivalent)
+      // Compact history if approaching context limits
       const compactionResult = await prepareMessages({
         sessionId,
         userId,
@@ -1135,9 +1287,14 @@ export async function runAgent(options: AgentRunOptions) {
         persistedCount = currentMessages.length;
       }
 
-      // Stable id for this step — all stream events share it,
-      // and the stored assistant message gets the same id for deduplication
-      const id = crypto.randomUUID();
+      // Track per-step IDs for SSE events and message deduplication
+      const stepIds: string[] = [];
+      let currentStepId = "";
+      const remainingSteps = MAX_STEPS - stepCount;
+
+      console.log(
+        `[agent] Starting streamText with up to ${remainingSteps} step(s) for session=${sessionId}`,
+      );
 
       const result = streamText({
         model: getModelProvider(modelId),
@@ -1145,6 +1302,32 @@ export async function runAgent(options: AgentRunOptions) {
         messages: cleanMessagesForModel(currentMessages),
         tools: tools as Parameters<typeof streamText>[0]["tools"],
         abortSignal: signal,
+        stopWhen: stepCountIs(remainingSteps),
+        prepareStep: async ({ stepNumber }) => {
+          // Inject step-limit warning when approaching max steps
+          const totalStep = stepCount + stepNumber + 1;
+          const stepsRemaining = MAX_STEPS - totalStep;
+          if (stepsRemaining <= 2) {
+            const warningMessages = cleanMessagesForModel(currentMessages);
+            warningMessages.push({
+              id: crypto.randomUUID(),
+              role: "user",
+              content:
+                stepsRemaining === 0
+                  ? "SYSTEM: This is your LAST step. Respond with text ONLY — do NOT call any tools. Summarize your progress and what remains to be done. The user can ask you to continue if needed."
+                  : `SYSTEM: You have ${stepsRemaining} step(s) remaining. Start wrapping up — provide results as text rather than making more tool calls. If more research is needed, tell the user what remains.`,
+            } as ModelMessage);
+            return { messages: warningMessages };
+          }
+          return undefined;
+        },
+        onStepFinish: async (event) => {
+          stepCount++;
+          lastFinishReason = event.finishReason;
+          console.log(
+            `[agent] Step ${stepCount}/${MAX_STEPS} finished: reason=${event.finishReason}`,
+          );
+        },
       });
 
       // Track tool-approval-request parts emitted by SDK for needsApproval tools
@@ -1158,9 +1341,17 @@ export async function runAgent(options: AgentRunOptions) {
         if (signal?.aborted) break streamLoop;
 
         switch (part.type) {
+          case "start-step": {
+            currentStepId = crypto.randomUUID();
+            stepIds.push(currentStepId);
+            break;
+          }
           case "text-delta": {
             onTextChunk?.(part.text);
-            await onEvent?.("text-delta", { id, text: part.text });
+            await onEvent?.("text-delta", {
+              id: currentStepId,
+              text: part.text,
+            });
             if (signal?.aborted) break streamLoop;
             break;
           }
@@ -1170,7 +1361,7 @@ export async function runAgent(options: AgentRunOptions) {
               JSON.stringify("input" in part ? part.input : {}).slice(0, 500),
             );
             await onEvent?.("tool-call", {
-              id,
+              id: currentStepId,
               toolCallId: part.toolCallId,
               toolName: part.toolName,
               input: "input" in part ? part.input : undefined,
@@ -1183,7 +1374,7 @@ export async function runAgent(options: AgentRunOptions) {
             const partRecord = part as unknown as Record<string, unknown>;
             const hasError = isToolResultError(partRecord);
             const eventData: Record<string, unknown> = {
-              id,
+              id: currentStepId,
               toolCallId: part.toolCallId,
               toolName: part.toolName,
               output,
@@ -1206,7 +1397,8 @@ export async function runAgent(options: AgentRunOptions) {
           }
           case "tool-approval-request": {
             pendingApprovals.push({
-              approvalId: (part as unknown as { approvalId: string }).approvalId,
+              approvalId: (part as unknown as { approvalId: string })
+                .approvalId,
               toolCall: (
                 part as unknown as {
                   toolCall: {
@@ -1226,13 +1418,17 @@ export async function runAgent(options: AgentRunOptions) {
               error: unknown;
             };
             const errorStr =
-              errorPart.error instanceof Error ? errorPart.error.message : String(errorPart.error);
+              errorPart.error instanceof Error
+                ? errorPart.error.message
+                : String(errorPart.error);
             console.error(
               `[agent] Tool error: ${errorPart.toolName} (toolCallId=${errorPart.toolCallId}):`,
-              errorPart.error instanceof Error ? errorPart.error.stack : errorStr,
+              errorPart.error instanceof Error
+                ? errorPart.error.stack
+                : errorStr,
             );
             await onEvent?.("tool-result", {
-              id,
+              id: currentStepId,
               toolCallId: errorPart.toolCallId,
               toolName: errorPart.toolName,
               output: { error: errorStr },
@@ -1244,30 +1440,61 @@ export async function runAgent(options: AgentRunOptions) {
           }
           case "error": {
             console.error(`[agent] Stream error:`, part.error);
-            await onEvent?.("error", { id, error: String(part.error) });
+            await onEvent?.("error", {
+              id: currentStepId,
+              error: String(part.error),
+            });
             break;
           }
         }
       }
 
       const finishReason = await result.finishReason;
+      lastFinishReason = finishReason;
       const responseMessages = (await result.response).messages;
 
-      // Accumulate token usage from this step
-      const stepUsage = await result.usage;
-      if (stepUsage) {
-        totalInputTokens += stepUsage.inputTokens ?? 0;
-        totalOutputTokens += stepUsage.outputTokens ?? 0;
+      // Accumulate token usage across all steps in this streamText call
+      const runUsage = await result.usage;
+      if (runUsage) {
+        totalInputTokens += runUsage.inputTokens ?? 0;
+        totalOutputTokens += runUsage.outputTokens ?? 0;
       }
 
-      // Append response messages with the step id as the assistant message's id
-      currentMessages = [
-        ...currentMessages,
-        ...sanitizeMessages(responseMessages as ModelMessage[], id),
-      ];
+      // Assign step-specific IDs to response messages for SSE deduplication
+      let stepIdx = 0;
+      const sanitizedResponses = (responseMessages as ModelMessage[]).map(
+        (msg) => {
+          const record = { ...msg } as Record<string, unknown>;
+          if (msg.role === "assistant") {
+            record.id =
+              record.id ?? (stepIds[stepIdx] ?? crypto.randomUUID());
+            stepIdx++;
+          } else if (!record.id) {
+            record.id = crypto.randomUUID();
+          }
+          return record as unknown as ModelMessage;
+        },
+      );
+      currentMessages = [...currentMessages, ...sanitizedResponses];
+
+      // Annotate all auto-executed tool results and propagate error info
+      annotateAutoApproved(sanitizedResponses);
+      for (const msg of sanitizedResponses) {
+        if (!Array.isArray(msg.content)) continue;
+        for (const part of msg.content as Record<string, unknown>[]) {
+          if (part.type === "tool-result" && isToolResultError(part)) {
+            const errorStr = extractToolResultError(part);
+            annotateToolCallError(
+              currentMessages,
+              part.toolCallId as string,
+              errorStr,
+            );
+          }
+        }
+      }
 
       console.log(
-        `[agent] Step ${stepCount} finished: reason=${finishReason} responseMessages=${responseMessages.length}`,
+        `[agent] streamText finished: reason=${finishReason} steps=${stepIds.length} responseMessages=${responseMessages.length}`,
       );
 
       if (finishReason === "tool-calls" && pendingApprovals.length > 0) {
@@ -1300,11 +1527,18 @@ export async function runAgent(options: AgentRunOptions) {
           questions: unknown;
         }> = [];
         for (const approval of questionApprovals) {
-          const input = (approval.toolCall.input ?? {}) as Record<string, unknown>;
+          const input = (approval.toolCall.input ?? {}) as Record<
+            string,
+            unknown
+          >;
           const questionsData = (input.questions ?? []) as Array<{
             title: string;
             description?: string;
-            type: "boolean" | "multiple_choice" | "single_choice" | "fill_in_blank";
+            type:
+              | "boolean"
+              | "multiple_choice"
+              | "single_choice"
+              | "fill_in_blank";
             options?: Array<{ title: string; description?: string }>;
           }>;
 
@@ -1348,7 +1582,10 @@ export async function runAgent(options: AgentRunOptions) {
           isAutoConfirm: boolean;
         }> = [];
         for (const approval of locationApprovals) {
-          const input = (approval.toolCall.input ?? {}) as Record<string, unknown>;
+          const input = (approval.toolCall.input ?? {}) as Record<
+            string,
+            unknown
+          >;
 
           // Check assignee permission for auto-confirm vs manual-confirm
           const [session] = await db
@@ -1358,7 +1595,10 @@ export async function runAgent(options: AgentRunOptions) {
           const toolPermissions = session?.assigneeId
             ? await loadAssigneePermissions(session.assigneeId)
             : null;
-          const perm = resolvePermission(GET_LOCATION_TOOL_NAME, toolPermissions);
+          const perm = resolvePermission(
+            GET_LOCATION_TOOL_NAME,
+            toolPermissions,
+          );
           const isAutoConfirm = perm === "auto-confirm";
 
           await createLocationRequest({
@@ -1384,7 +1624,10 @@ export async function runAgent(options: AgentRunOptions) {
             for (const msg of currentMessages) {
               if (!Array.isArray(msg.content)) continue;
               for (const part of msg.content as Record<string, unknown>[]) {
-                if (part.type === "tool-call" && part.toolCallId === approval.toolCall.toolCallId) {
+                if (
+                  part.type === "tool-call" &&
+                  part.toolCallId === approval.toolCall.toolCallId
+                ) {
                   part.isAutoConfirm = true;
                 }
               }
@@ -1417,7 +1660,10 @@ export async function runAgent(options: AgentRunOptions) {
           urls: Array<{ url: string; key: string; extension: string }>;
         }> = [];
         for (const approval of uploadApprovals) {
-          const input = (approval.toolCall.input ?? {}) as Record<string, unknown>;
+          const input = (approval.toolCall.input ?? {}) as Record<
+            string,
+            unknown
+          >;
 
           const upload = await createUploadRequest({
             userId,
@@ -1464,7 +1710,10 @@ export async function runAgent(options: AgentRunOptions) {
         for (const approval of confirmationApprovals) {
           const entry = conditionalAutoConfirm[approval.toolCall.toolName];
           if (entry) {
-            const params = (approval.toolCall.input ?? {}) as Record<string, unknown>;
+            const params = (approval.toolCall.input ?? {}) as Record<
+              string,
+              unknown
+            >;
             if (evaluateConditions(entry.conditions, params, entry.logic)) {
               conditionallyApproved.push(approval);
               continue;
@@ -1476,7 +1725,10 @@ export async function runAgent(options: AgentRunOptions) {
         // Execute conditionally auto-approved tools inline
         for (const approval of conditionallyApproved) {
           const toolDef = tools[approval.toolCall.toolName] as {
-            execute?: (input: unknown, opts: { toolCallId: string }) => Promise<unknown>;
+            execute?: (
+              input: unknown,
+              opts: { toolCallId: string },
+            ) => Promise<unknown>;
           };
           if (toolDef?.execute) {
             try {
@@ -1498,13 +1750,13 @@ export async function runAgent(options: AgentRunOptions) {
               } as unknown as ModelMessage;
               currentMessages.push(toolResultMsg);
               await onEvent?.("tool-call", {
-                id,
+                id: currentStepId,
                 toolCallId: approval.toolCall.toolCallId,
                 toolName: approval.toolCall.toolName,
                 input: approval.toolCall.input,
               });
               await onEvent?.("tool-result", {
-                id,
+                id: currentStepId,
                 toolCallId: approval.toolCall.toolCallId,
                 toolName: approval.toolCall.toolName,
                 output,
@@ -1527,7 +1779,7 @@ export async function runAgent(options: AgentRunOptions) {
               } as unknown as ModelMessage;
               currentMessages.push(toolResultMsg);
               await onEvent?.("tool-result", {
-                id,
+                id: currentStepId,
                 toolCallId: approval.toolCall.toolCallId,
                 toolName: approval.toolCall.toolName,
                 output: { error: errorStr },
@@ -1546,7 +1798,10 @@ export async function runAgent(options: AgentRunOptions) {
           uploadApprovals.length === 0
         ) {
           // Persist and continue loop like the auto-executed path
-          await insertMessages(sessionId, currentMessages.slice(persistedCount));
+          await insertMessages(
+            sessionId,
+            currentMessages.slice(persistedCount),
+          );
           persistedCount = currentMessages.length;
           continue;
         }
@@ -1569,7 +1824,10 @@ export async function runAgent(options: AgentRunOptions) {
             toolCallId: approval.toolCall.toolCallId,
             toolName: approval.toolCall.toolName,
             approvalId: approval.approvalId,
-            parameters: (approval.toolCall.input ?? {}) as Record<string, unknown>,
+            parameters: (approval.toolCall.input ?? {}) as Record<
+              string,
+              unknown
+            >,
             skipNotification: true,
           });
 
@@ -1616,10 +1874,18 @@ export async function runAgent(options: AgentRunOptions) {
 
         // Send grouped push notifications
         if (createdConfirmations.length > 0) {
-          await sendConfirmationGroupNotification(userId, sessionId, createdConfirmations);
+          await sendConfirmationGroupNotification(
+            userId,
+            sessionId,
+            createdConfirmations,
+          );
         }
         if (createdQuestions.length > 0) {
-          await sendQuestionGroupNotification(userId, sessionId, createdQuestions);
+          await sendQuestionGroupNotification(
+            userId,
+            sessionId,
+            createdQuestions,
+          );
         }
         if (createdUploads.length > 0) {
           await sendUploadGroupNotification(userId, sessionId, createdUploads);
@@ -1638,7 +1904,11 @@ export async function runAgent(options: AgentRunOptions) {
         await onEvent?.("status", { status: waitingStatus });
 
         // Save accumulated token usage so far (partial run before pause)
-        const pauseCostUsd = calculateCostUsd(modelId, totalInputTokens, totalOutputTokens);
+        const pauseCostUsd = calculateCostUsd(
+          modelId,
+          totalInputTokens,
+          totalOutputTokens,
+        );
         await db
           .update(chatSessions)
           .set({
@@ -1675,31 +1945,23 @@ export async function runAgent(options: AgentRunOptions) {
         };
       }
 
-      if (finishReason === "tool-calls") {
-        // All tools auto-executed by SDK — annotate and continue
-        const newMessages = currentMessages.slice(currentMessages.length - responseMessages.length);
-        annotateAutoApproved(newMessages);
-
-        // Annotate tool-call parts with error info from tool-result parts
-        for (const msg of newMessages) {
-          if (!Array.isArray(msg.content)) continue;
-          for (const part of msg.content as Record<string, unknown>[]) {
-            if (part.type === "tool-result" && isToolResultError(part)) {
-              const errorStr = extractToolResultError(part);
-              annotateToolCallError(currentMessages, part.toolCallId as string, errorStr);
-            }
-          }
-        }
-
-        // Persist intermediate messages so they survive crashes and compaction
-        await insertMessages(sessionId, currentMessages.slice(persistedCount));
-        persistedCount = currentMessages.length;
-
-        continue;
-      }
-
-      // Agent finished (stop, length, etc.)
+      // No approvals — persist and exit loop (SDK already handled multi-step auto-execution)
+      await insertMessages(sessionId, currentMessages.slice(persistedCount));
+      persistedCount = currentMessages.length;
       break;
+    }
+
+    // If max steps reached while agent still wanted tool calls, ask user to continue
+    if (stepCount >= MAX_STEPS && lastFinishReason === "tool-calls") {
+      const maxStepsId = crypto.randomUUID();
+      const continueText =
+        "\n\nI've reached the maximum number of steps for this turn. Would you like me to continue? Reply **yes** to keep going.";
+      await onEvent?.("text-delta", { id: maxStepsId, text: continueText });
+      currentMessages.push({
+        id: maxStepsId,
+        role: "assistant",
+        content: continueText,
+      } as ModelMessage);
     }
 
     // Persist new messages and mark session as stopped
@@ -1707,7 +1969,11 @@ export async function runAgent(options: AgentRunOptions) {
     persistedCount = currentMessages.length;
 
     // Calculate USD cost for this run's accumulated token usage
-    const costUsd = calculateCostUsd(modelId, totalInputTokens, totalOutputTokens);
+    const costUsd = calculateCostUsd(
+      modelId,
+      totalInputTokens,
+      totalOutputTokens,
+    );
 
     await db
       .update(chatSessions)
@@ -1790,7 +2056,8 @@ export async function runAgent(options: AgentRunOptions) {
             (m) =>
               Array.isArray(m.content) &&
               (m.content as Record<string, unknown>[]).some(
-                (p) => p.type === "tool-result" && p.toolCallId === part.toolCallId,
+                (p) =>
+                  p.type === "tool-result" && p.toolCallId === part.toolCallId,
               ),
           );
           if (!hasResult) {

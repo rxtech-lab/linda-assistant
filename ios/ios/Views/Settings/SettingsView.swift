@@ -1,4 +1,5 @@
 import AssistantCore
+import Kingfisher
 import SwiftUI
 
 private extension Bundle {
@@ -26,13 +27,14 @@ struct SettingsView: View {
             if let user = authManager.currentUser {
                 Section {
                     HStack(spacing: 12) {
-                        CachedAsyncImage(url: user.image.flatMap { URL(string: $0) }) { image in
-                            image.resizable().scaledToFill()
-                        } placeholder: {
-                            Image(systemName: "person.crop.circle.fill")
-                                .resizable()
-                                .foregroundStyle(.secondary)
-                        }
+                        KFImage(user.image.flatMap { URL(string: $0) })
+                            .placeholder {
+                                Image(systemName: "person.crop.circle.fill")
+                                    .resizable()
+                                    .foregroundStyle(.secondary)
+                            }
+                            .resizable()
+                            .scaledToFill()
                         .frame(width: 48, height: 48)
                         .clipShape(Circle())
 

@@ -9,8 +9,11 @@
     }
   ],
   "defaultOptions" : {
+    "defaultTestExecutionTimeAllowance" : 300,
     "maximumTestRepetitions" : 3,
-    "testRepetitionMode" : "retryOnFailure"
+    "preferredScreenCaptureFormat" : "screenshot",
+    "testRepetitionMode" : "retryOnFailure",
+    "testTimeoutsEnabled" : true
   },
   "testTargets" : [
     {

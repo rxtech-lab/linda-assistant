@@ -10,9 +10,11 @@ struct MessageList: View {
     var onToolCallTap: ((ToolCallInfo) -> Void)?
     var onDocumentTap: ((DocumentSheetItem) -> Void)?
     var onBriefingTap: ((String) -> Void)?
+    var onSlideTap: ((String) -> Void)?
 
     private static let documentToolNames: Set<String> = ["create_document", "update_document"]
     private static let briefingToolNames: Set<String> = ["create_briefing"]
+    private static let slideToolNames: Set<String> = ["create_slides", "update_slides"]
     private static let mcpLazyToolNames: Set<String> = ["search_tools", "read_tool", "use_tool"]
 
     /// Disable animation initially, enable after view has loaded
@@ -94,6 +96,11 @@ struct MessageList: View {
                             } else if Self.briefingToolNames.contains(toolCall.toolName) {
                                 BriefingToolCard(toolCall: toolCall) { briefingId in
                                     onBriefingTap?(briefingId)
+                                }
+                                .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
+                            } else if Self.slideToolNames.contains(toolCall.toolName) {
+                                SlideToolCard(toolCall: toolCall) { deckId in
+                                    onSlideTap?(deckId)
                                 }
                                 .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                             } else if Self.mcpLazyToolNames.contains(toolCall.toolName) {

@@ -142,6 +142,9 @@ struct AssigneeDetailContentView: View {
                 }
             }
 
+            // Slides section
+            AssigneeSlideDecksSection(assigneeId: assignee.id)
+
             // Extensions section
             Section {
                 NavigationLink(value: AppDestination.assigneeExtensions(assigneeId: assignee.id)) {

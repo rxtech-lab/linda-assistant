@@ -43,6 +43,8 @@ export const EMBEDDING_DIMENSIONS = 768;
 /** Max tokens per chunk when summarizing large session histories. */
 export const HISTORY_SUMMARIZATION_CHUNK_SIZE = 30_000;
 
+export const MAX_STEPS = 20;
+
 /**
  * Model used for generating summaries during compaction.
  * Env: COMPACTION_MODEL (default: fast model with large context window).
