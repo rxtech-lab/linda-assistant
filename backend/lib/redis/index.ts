@@ -1,17 +1,25 @@
-import { Redis } from "@upstash/redis";
+import Redis from "ioredis";
 
 let _redis: Redis | undefined;
 
 function createRedis(): Redis | null {
-  if (process.env.IS_E2E === "true") return null;
-
+  if (!process.env.REDIS_URL) return null;
   if (!_redis) {
-    _redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL!,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-    });
+    _redis = new Redis(process.env.REDIS_URL);
   }
   return _redis;
+}
+
+/**
+ * Ping Redis to verify connectivity. Returns true if connected, false if using in-memory fallback.
+ * Throws if REDIS_URL is set but the connection fails.
+ */
+export async function pingRedis(): Promise<boolean> {
+  const instance = createRedis();
+  if (!instance) return false;
+  const result = await instance.ping();
+  if (result !== "PONG") throw new Error(`Redis ping failed: ${result}`);
+  return true;
 }
 
 // In-memory fallback for E2E
@@ -53,6 +61,11 @@ export const redis = new Proxy({} as Redis, {
         };
       case "expire":
         return () => 1;
+      case "flushdb":
+        return () => {
+          memoryStore.clear();
+          return "OK";
+        };
       default:
         return () => null;
     }

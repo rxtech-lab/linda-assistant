@@ -33,8 +33,7 @@ cp .env.example .env
 
 For local development with Docker, set:
 ```
-UPSTASH_REDIS_REST_URL=http://localhost:8079
-UPSTASH_REDIS_REST_TOKEN=token
+REDIS_URL=redis://localhost:6379
 RABBITMQ_URL=amqp://linda:linda@localhost:5672
 ```
 
@@ -42,8 +41,7 @@ RABBITMQ_URL=amqp://linda:linda@localhost:5672
 |----------|-------------|
 | `TURSO_DATABASE_URL` | Turso database URL (`libsql://...`) |
 | `TURSO_AUTH_TOKEN` | Turso auth token |
-| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST URL (or `http://localhost:8079` for local) |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token (or `token` for local) |
+| `REDIS_URL` | Redis connection URL (e.g., `redis://localhost:6379` for local) |
 | `RABBITMQ_URL` | RabbitMQ connection URL (defaults to `amqp://linda:linda@localhost:5672`) |
 | `AWS_ACCESS_KEY_ID` | AWS access key for S3 |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret key for S3 |

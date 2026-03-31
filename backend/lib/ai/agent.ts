@@ -416,7 +416,7 @@ If the user rejects your questions, do NOT retry with the same or similar questi
 
   let taskGuidance = "";
   if (taskContext) {
-    taskGuidance = `\nYou are currently running within a task: "${taskContext.title}".${taskContext.timezone ? ` The task's timezone is ${taskContext.timezone}.` : ""} You do not need to create any tasks. Follow the user's instructions directly and perform the requested actions on their behalf. Do not ask the user any questions — proceed autonomously with reasonable defaults.`;
+    taskGuidance = `\nYou are currently running within a task: "${taskContext.title}".${taskContext.timezone ? ` The task's timezone is ${taskContext.timezone}.` : ""} You do not need to create any tasks. Follow the user's instructions directly and perform the requested actions on their behalf. Do not ask the user any questions — proceed autonomously with reasonable defaults. If the user's message includes scheduling instructions (e.g. "run at 9am", "every Monday", "repeat daily"), ignore them — those are job configuration for the scheduler, not instructions for you. Focus only on the actual work to be done.`;
 
     if (taskContext.emails && taskContext.emails.length > 0) {
       const emailSummaries = taskContext.emails
@@ -438,7 +438,9 @@ If the user rejects your questions, do NOT retry with the same or similar questi
     }
   }
 
-  const extensionToolGuidance = `\nWhen the user asks you to do something that might require an extension tool (e.g. invoices, files, transport, web scraping), use the search_tools tool to discover available extension tools by keyword. Then use read_tool to inspect the parameters of matching tools. Finally, use use_tool to execute the tool with the correct parameters. Always follow this flow: search_tools → read_tool → use_tool. Do NOT guess tool IDs or parameters — always search and read first.`;
+  const extensionToolGuidance = `\nWhen the user asks you to do something that might require an extension tool (e.g. invoices, files, transport, web scraping), use the search_tools tool to discover available extension tools by keyword. Then use read_tool to inspect the parameters of matching tools. Finally, use use_tool to execute the tool with the correct parameters. Always follow this flow: search_tools → read_tool → use_tool. Do NOT guess tool IDs or parameters — always search and read first.
+
+IMPORTANT: When the user asks you to compose a document, briefing, report, or do any research that requires up-to-date or real-world information (e.g. news, market data, weather, current events, company info, travel details), you MUST first use search_tools to find available network/web searching tools (search keywords like "web", "search", "browse", "fetch", "news", "scrape"). Use those tools to gather real-time data before writing. Do NOT rely on your own knowledge for factual, time-sensitive, or real-world content — your training data is outdated and may be inaccurate. Always fetch fresh information from external sources first, then compose the document or briefing based on what you find.`;
 
   if (!assignee)
     return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${extensionToolGuidance}${taskGuidance}`;

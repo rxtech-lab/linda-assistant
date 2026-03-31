@@ -1,10 +1,11 @@
 import { createServer } from "node:http";
 import { runAgent } from "@/lib/ai/agent";
-import { closeConnection, isConnected, setupTopology } from "@/lib/queue/connection";
+import { closeConnection, isConnected, setReconnectHandler, setupTopology } from "@/lib/queue/connection";
 import { consumeTasks, subscribeToCommands, type CommandSubscription } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
 import type { AgentTask } from "@/lib/queue/types";
 import { clearStreamChunks, isStreamActive } from "@/lib/streaming/manager";
+import { pingRedis } from "@/lib/redis";
 import { notifySessionResponse } from "@/lib/utils/chat-session";
 
 async function handleTask(task: AgentTask): Promise<void> {
@@ -122,11 +123,24 @@ async function main() {
     process.env.MEM0_API_URL || "(not set, default: http://mem0:8000)",
   );
 
+  const usingRedis = await pingRedis();
+  console.log(
+    usingRedis
+      ? "[Worker] Connected to Redis"
+      : "[Worker] REDIS_URL not set, using in-memory fallback",
+  );
+
   await setupTopology();
   console.log("[Worker] Connected to RabbitMQ, topology ready");
 
   await consumeTasks(handleTask, { prefetch: 5 });
   console.log("[Worker] Consuming tasks from agent-tasks queue");
+
+  // Re-register task consumer after reconnection
+  setReconnectHandler(async () => {
+    console.log("[Worker] Re-registering task consumer after reconnect");
+    await consumeTasks(handleTask, { prefetch: 5 });
+  });
 
   healthy = true;
   console.log(`[Worker] Health check listening on :${HEALTH_PORT}/healthz`);

@@ -14,7 +14,7 @@ const dbPath = path.resolve(__dirname, "..", "e2e-test.db");
 /** Delay to ensure SSE subscription + RabbitMQ queue binding is established before posting.
  * Must be long enough for the RabbitMQ exclusive queue to be created and bound,
  * otherwise events published to the exchange before the queue exists are discarded. */
-const SUB_DELAY = 500;
+const SUB_DELAY = 1000;
 
 async function waitForStopped(request: APIRequestContext, assigneeId: string, timeoutMs = 10000) {
   const start = Date.now();

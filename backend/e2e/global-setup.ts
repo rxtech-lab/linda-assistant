@@ -7,7 +7,7 @@ import {
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import amqplib from "amqplib";
-import { Redis } from "@upstash/redis";
+import Redis from "ioredis";
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -52,11 +52,9 @@ export default async function globalSetup() {
   client.close();
 
   // Flush Redis to clear stale data from previous runs
-  const redis = new Redis({
-    url: "http://localhost:8079",
-    token: "token",
-  });
+  const redis = new Redis("redis://localhost:6379");
   await redis.flushdb();
+  await redis.quit();
 
   // Purge RabbitMQ queue to clear stale tasks from previous runs
   const mqUrl = "amqp://linda:linda@localhost:5672";
@@ -116,9 +114,10 @@ export default async function globalSetup() {
     }),
   );
 
-  // Start Celery mock server
+  // Start Celery mock server — detached so CI signals don't kill it
   const celeryMock = spawn("bun", ["e2e/helpers/celery-mock-server.ts"], {
     cwd: path.resolve(__dirname, ".."),
+    detached: true,
     env: { ...process.env, CELERY_MOCK_PORT: "8099" },
     stdio: "pipe",
   });
@@ -146,11 +145,13 @@ export default async function globalSetup() {
     });
   });
 
+  celeryMock.unref();
   fs.writeFileSync(CELERY_MOCK_PID_FILE, String(celeryMock.pid));
 
-  // Start MCP mock server
+  // Start MCP mock server — detached so CI signals don't kill it
   const mcpMock = spawn("bun", ["e2e/helpers/mcp-mock-server.ts"], {
     cwd: path.resolve(__dirname, ".."),
+    detached: true,
     env: { ...process.env, MCP_MOCK_PORT: "8098" },
     stdio: "pipe",
   });
@@ -178,18 +179,19 @@ export default async function globalSetup() {
     });
   });
 
+  mcpMock.unref();
   fs.writeFileSync(MCP_MOCK_PID_FILE, String(mcpMock.pid));
 
-  // Start worker process
+  // Start worker process — detached so CI process-group signals don't kill it
   const worker = spawn("bun", ["worker/index.ts"], {
     cwd: path.resolve(__dirname, ".."),
+    detached: true,
     env: {
       ...process.env,
       IS_E2E: "true",
       TURSO_DATABASE_URL: `file:${dbPath}`,
       RABBITMQ_URL: "amqp://linda:linda@localhost:5672",
-      UPSTASH_REDIS_REST_URL: "http://localhost:8079",
-      UPSTASH_REDIS_REST_TOKEN: "token",
+      REDIS_URL: "redis://localhost:6379",
       AWS_ACCESS_KEY_ID: "minioadmin",
       AWS_SECRET_ACCESS_KEY: "minioadmin",
       AWS_REGION: "us-east-1",
@@ -230,6 +232,9 @@ export default async function globalSetup() {
       }
     });
   });
+
+  // Allow the parent process to exit independently while keeping the worker alive
+  worker.unref();
 
   // Save PID for teardown
   fs.writeFileSync(WORKER_PID_FILE, String(worker.pid));

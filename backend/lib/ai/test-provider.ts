@@ -258,6 +258,37 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
     };
   }
 
+  // Scenario: short slow stream (~5 seconds total, for reconnection/replay testing)
+  if (lastText === "slow-short-output-test-1") {
+    const sentences: string[] = [];
+    for (let i = 0; i < 20; i++) {
+      sentences.push(`[${i + 1}] The quick brown fox jumps over the lazy dog near the riverbank.`);
+    }
+    const text = sentences.join(" ");
+    return {
+      chunks: createChunkedTextStream(text, {
+        chunkSize: 10,
+        suffix: " [END OF SHORT OUTPUT]",
+      }),
+      chunkDelayInMs: 250,
+      chunkInitialDelayInMs: 500,
+    };
+  }
+
+  // Scenario: slow long output (~1000 words, slower per-chunk delay for stream reliability testing)
+  if (lastText === "slow-long-output-test-1") {
+    const longText = generateLongText();
+    console.log("Generated slow long text for streaming:", longText.slice(0, 100) + "...");
+    return {
+      chunks: createChunkedTextStream(longText, {
+        chunkSize: 10,
+        suffix: "[END OF SLOW LONG OUTPUT]",
+      }),
+      chunkDelayInMs: 250,
+      chunkInitialDelayInMs: 500,
+    };
+  }
+
   // Scenario: long output (~1000 words)
   if (lastText === "long-output-test-1") {
     const longText = generateLongText();

@@ -11,6 +11,20 @@ struct ChatOptionsSheet: View {
     var onDeleteDocument: (Document) -> Void
     var onClearMessages: () -> Void
 
+    private let maxPreviewCount = 10
+
+    @State private var showingAllAssignees = false
+    @State private var showingAllDocuments = false
+    @State private var documentToDelete: Document?
+
+    private var previewAssignees: [Assignee] {
+        Array(assignees.prefix(maxPreviewCount))
+    }
+
+    private var previewDocuments: [Document] {
+        Array(documents.prefix(maxPreviewCount))
+    }
+
     var body: some View {
         #if os(macOS)
             macOSContent
@@ -19,10 +33,68 @@ struct ChatOptionsSheet: View {
         #endif
     }
 
+    // MARK: - Shared Components
+
+    private func assigneeRow(_ assignee: Assignee) -> some View {
+        Button {
+            onSelectAssignee(assignee)
+        } label: {
+            HStack {
+                Text(assignee.name)
+                    .foregroundStyle(.primary)
+                Spacer()
+                if assignee.id == selectedAssigneeId {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.tint)
+                }
+            }
+        }
+    }
+
+    private func documentRow(_ doc: Document) -> some View {
+        Button {
+            onSelectDocument(doc)
+        } label: {
+            HStack {
+                Image(systemName: "doc.text")
+                    .foregroundStyle(.secondary)
+                Text(doc.title)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Spacer()
+                Text(doc.format)
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.quaternary)
+                    .clipShape(Capsule())
+            }
+        }
+    }
+
+    private func sectionHeader(title: String, icon: String, count: Int, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Label(title, systemImage: icon)
+                if count > maxPreviewCount {
+                    Text("\(count)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .foregroundStyle(.primary)
+    }
+
+    // MARK: - macOS
+
     #if os(macOS)
         private var macOSContent: some View {
             VStack(spacing: 0) {
-                // Header
                 HStack {
                     Text("Options")
                         .font(.headline)
@@ -40,49 +112,27 @@ struct ChatOptionsSheet: View {
 
                 Divider()
 
-                // Content
                 Form {
-                    Section("Assignee") {
-                        ForEach(assignees, id: \.id) { (assignee: Assignee) in
-                            Button {
-                                onSelectAssignee(assignee)
-                            } label: {
-                                HStack {
-                                    Text(assignee.name)
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                    if assignee.id == selectedAssigneeId {
-                                        Image(systemName: "checkmark")
-                                            .foregroundStyle(.tint)
-                                    }
-                                }
-                            }
-                            .buttonStyle(.plain)
+                    Section {
+                        ForEach(previewAssignees, id: \.id) { assignee in
+                            assigneeRow(assignee)
+                                .buttonStyle(.plain)
+                        }
+                    } header: {
+                        sectionHeader(title: "Assistants", icon: "person.2", count: assignees.count) {
+                            showingAllAssignees = true
                         }
                     }
 
                     if !documents.isEmpty {
-                        Section("Documents") {
-                            ForEach(documents) { doc in
-                                Button {
-                                    onSelectDocument(doc)
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "doc.text")
-                                            .foregroundStyle(.secondary)
-                                        Text(doc.title)
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(1)
-                                        Spacer()
-                                        Text(doc.format)
-                                            .font(.caption2)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(.quaternary)
-                                            .clipShape(Capsule())
-                                    }
-                                }
-                                .buttonStyle(.plain)
+                        Section {
+                            ForEach(previewDocuments) { doc in
+                                documentRow(doc)
+                                    .buttonStyle(.plain)
+                            }
+                        } header: {
+                            sectionHeader(title: "Documents", icon: "doc.text", count: documents.count) {
+                                showingAllDocuments = true
                             }
                         }
                     }
@@ -101,59 +151,76 @@ struct ChatOptionsSheet: View {
                 .formStyle(.grouped)
             }
             .frame(width: 400, height: 400)
+            .sheet(isPresented: $showingAllAssignees) {
+                AllAssigneesSheet(
+                    selectedAssigneeId: selectedAssigneeId,
+                    onSelectAssignee: { assignee in
+                        onSelectAssignee(assignee)
+                    }
+                )
+            }
+            .sheet(isPresented: $showingAllDocuments) {
+                if let assigneeId = selectedAssigneeId {
+                    AllDocumentsSheet(
+                        assigneeId: assigneeId,
+                        onSelectDocument: { doc in
+                            onSelectDocument(doc)
+                        },
+                        onDeleteDocument: { doc in
+                            documentToDelete = doc
+                        }
+                    )
+                }
+            }
+            .confirmationDialog(
+                "Delete Document",
+                isPresented: Binding(
+                    get: { documentToDelete != nil },
+                    set: { if !$0 { documentToDelete = nil } }
+                ),
+                presenting: documentToDelete
+            ) { doc in
+                Button("Delete", role: .destructive) {
+                    onDeleteDocument(doc)
+                    documentToDelete = nil
+                }
+            } message: { doc in
+                Text("Are you sure you want to delete \"\(doc.title)\"?")
+            }
         }
     #endif
+
+    // MARK: - iOS
 
     #if os(iOS)
         private var iOSContent: some View {
             NavigationStack {
                 List {
-                    Section("Assignee") {
-                        ForEach(assignees, id: \.id) { (assignee: Assignee) in
-                            Button {
-                                onSelectAssignee(assignee)
-                            } label: {
-                                HStack {
-                                    Text(assignee.name)
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                    if assignee.id == selectedAssigneeId {
-                                        Image(systemName: "checkmark")
-                                            .foregroundStyle(.tint)
-                                    }
-                                }
-                            }
+                    Section {
+                        ForEach(previewAssignees, id: \.id) { assignee in
+                            assigneeRow(assignee)
+                        }
+                    } header: {
+                        sectionHeader(title: "Assistants", icon: "person.2", count: assignees.count) {
+                            showingAllAssignees = true
                         }
                     }
 
                     if !documents.isEmpty {
-                        Section("Documents") {
-                            ForEach(documents) { doc in
-                                Button {
-                                    onSelectDocument(doc)
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "doc.text")
-                                            .foregroundStyle(.secondary)
-                                        Text(doc.title)
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(1)
-                                        Spacer()
-                                        Text(doc.format)
-                                            .font(.caption2)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(.quaternary)
-                                            .clipShape(Capsule())
+                        Section {
+                            ForEach(previewDocuments) { doc in
+                                documentRow(doc)
+                                    .swipeActions(edge: .trailing) {
+                                        Button(role: .destructive) {
+                                            documentToDelete = doc
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
                                     }
-                                }
-                                .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) {
-                                        onDeleteDocument(doc)
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
+                            }
+                        } header: {
+                            sectionHeader(title: "Documents", icon: "doc.text", count: documents.count) {
+                                showingAllDocuments = true
                             }
                         }
                     }
@@ -170,9 +237,52 @@ struct ChatOptionsSheet: View {
                 }
                 .navigationTitle("Options")
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { dismiss() }
+                    }
+                }
             }
             .frame(minHeight: 200)
             .presentationDetents([.medium, .large])
+            .sheet(isPresented: $showingAllAssignees) {
+                AllAssigneesSheet(
+                    selectedAssigneeId: selectedAssigneeId,
+                    onSelectAssignee: { assignee in
+                        dismiss()
+                        onSelectAssignee(assignee)
+                    }
+                )
+            }
+            .sheet(isPresented: $showingAllDocuments) {
+                if let assigneeId = selectedAssigneeId {
+                    AllDocumentsSheet(
+                        assigneeId: assigneeId,
+                        onSelectDocument: { doc in
+                            dismiss()
+                            onSelectDocument(doc)
+                        },
+                        onDeleteDocument: { doc in
+                            documentToDelete = doc
+                        }
+                    )
+                }
+            }
+            .confirmationDialog(
+                "Delete Document",
+                isPresented: Binding(
+                    get: { documentToDelete != nil },
+                    set: { if !$0 { documentToDelete = nil } }
+                ),
+                presenting: documentToDelete
+            ) { doc in
+                Button("Delete", role: .destructive) {
+                    onDeleteDocument(doc)
+                    documentToDelete = nil
+                }
+            } message: { doc in
+                Text("Are you sure you want to delete \"\(doc.title)\"?")
+            }
         }
     #endif
 }

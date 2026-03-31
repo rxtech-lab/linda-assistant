@@ -18,14 +18,19 @@ export default defineConfig({
       testMatch: /auth\.setup\.ts/,
     },
     {
-      name: "queue",
+      name: "extension-search-tools",
       dependencies: ["auth-setup"],
+      testMatch: /extension-search-tools\.spec\.ts/,
+    },
+    {
+      name: "queue",
+      dependencies: ["extension-search-tools"],
       testMatch: /queue\.spec\.ts/,
     },
     {
       name: "e2e",
-      dependencies: ["auth-setup"],
-      testMatch: /(?!queue\.).*\.spec\.ts/,
+      dependencies: ["extension-search-tools"],
+      testMatch: /(?!queue\.|extension-search-tools\.).*\.spec\.ts/,
     },
   ],
 });

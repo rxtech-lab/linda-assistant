@@ -14,6 +14,7 @@ import { taskExtensionSettingsSchema, extensionWithStatusSchema } from "@/lib/sc
 import { errorJson } from "@/lib/utils/response";
 import { createGenericMcp, type AuthConfig } from "@/lib/ai/tools/mcps/generic";
 import { resolvePermission } from "@/lib/ai/tools/permission";
+import { invalidateToolEmbeddingCache } from "@/lib/ai/tools/mcp-lazy";
 
 /**
  * @openapi
@@ -213,6 +214,8 @@ export async function PUT(
       toolPermissions: toolPermissions ?? null,
     });
   }
+
+  await invalidateToolEmbeddingCache(auth.userId, taskId);
 
   return NextResponse.json({
     ...ext,
