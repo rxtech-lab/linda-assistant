@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { assignees, chatSessions, documents } from "@/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, like, sql } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { assigneeIdParamSchema, selectDocumentSchema } from "@/lib/schemas";
-import { successJson, errorJson } from "@/lib/utils/response";
+import { successJson, errorJson, paginatedJson } from "@/lib/utils/response";
+import { parsePagination } from "@/lib/utils/pagination";
 import { z } from "zod";
 
 const listResponseSchema = z.object({
@@ -43,13 +44,29 @@ export async function GET(
     .where(and(eq(chatSessions.assigneeId, assigneeId), eq(chatSessions.userId, auth.userId)))
     .limit(1);
 
-  if (!session) return successJson({ data: [] });
+  if (!session) return paginatedJson([], 0, 20, 0);
 
-  const items = await db
-    .select()
-    .from(documents)
-    .where(and(eq(documents.userId, auth.userId), eq(documents.chatSessionId, session.id)))
-    .orderBy(desc(documents.createdAt));
+  const { limit, offset } = parsePagination(request.nextUrl.searchParams);
+  const search = request.nextUrl.searchParams.get("search");
 
-  return successJson({ data: items });
+  const baseWhere = search
+    ? and(
+        eq(documents.userId, auth.userId),
+        eq(documents.chatSessionId, session.id),
+        like(documents.title, `%${search}%`),
+      )
+    : and(eq(documents.userId, auth.userId), eq(documents.chatSessionId, session.id));
+
+  const [items, countResult] = await Promise.all([
+    db
+      .select()
+      .from(documents)
+      .where(baseWhere)
+      .orderBy(desc(documents.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db.select({ count: sql<number>`count(*)` }).from(documents).where(baseWhere),
+  ]);
+
+  return paginatedJson(items, countResult[0].count, limit, offset);
 }

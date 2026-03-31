@@ -42,6 +42,8 @@ struct BriefingDetailView: View {
                             Markdown(briefing.content)
                                 .markdownTheme(.docC)
                                 .tappableMarkdownImages()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .clipped()
 
                             // Linked documents
                             if let documents = briefing.documents, !documents.isEmpty {

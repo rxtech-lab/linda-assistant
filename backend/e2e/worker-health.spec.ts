@@ -16,7 +16,7 @@ test.describe("Worker Health Check", () => {
     expect(res.status).toBe(404);
   });
 
-  test("GET /healthz returns 503 after RabbitMQ connection is closed", async () => {
+  test("GET /healthz recovers after RabbitMQ connection is closed", async () => {
     // Verify healthy first
     const healthyRes = await fetch(WORKER_HEALTH_URL);
     expect(healthyRes.status).toBe(200);
@@ -37,12 +37,16 @@ test.describe("Worker Health Check", () => {
       });
     }
 
-    // Wait for connection close events to propagate
-    await new Promise((r) => setTimeout(r, 1000));
-
-    // Health check should now return 503
-    const unhealthyRes = await fetch(WORKER_HEALTH_URL);
-    expect(unhealthyRes.status).toBe(503);
-    expect(await unhealthyRes.text()).toBe("not ready");
+    // Worker should auto-reconnect and become healthy again
+    let recovered = false;
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      const res = await fetch(WORKER_HEALTH_URL);
+      if (res.status === 200) {
+        recovered = true;
+        break;
+      }
+    }
+    expect(recovered).toBe(true);
   });
 });

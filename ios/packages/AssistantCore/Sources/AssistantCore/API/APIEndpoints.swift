@@ -36,14 +36,19 @@ public extension APIClient {
 
     // MARK: - Assignees
 
-    func listAssignees(limit: Int = 20, offset: Int = 0) async throws -> PaginatedResponse<Assignee> {
-        try await request(
-            path: "assignees",
-            queryItems: [
-                URLQueryItem(name: "limit", value: "\(limit)"),
-                URLQueryItem(name: "offset", value: "\(offset)"),
-            ]
-        )
+    func listAssignees(
+        limit: Int = 20,
+        offset: Int = 0,
+        search: String? = nil
+    ) async throws -> PaginatedResponse<Assignee> {
+        var queryItems = [
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)"),
+        ]
+        if let search, !search.isEmpty {
+            queryItems.append(URLQueryItem(name: "search", value: search))
+        }
+        return try await request(path: "assignees", queryItems: queryItems)
     }
 
     func getAssignee(id: String) async throws -> Assignee {
@@ -222,8 +227,20 @@ public extension APIClient {
         )
     }
 
-    func listChatDocuments(assigneeId: String) async throws -> DocumentListResponse {
-        try await request(path: "chat/\(assigneeId)/documents")
+    func listChatDocuments(
+        assigneeId: String,
+        limit: Int = 20,
+        offset: Int = 0,
+        search: String? = nil
+    ) async throws -> PaginatedResponse<Document> {
+        var queryItems = [
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)"),
+        ]
+        if let search, !search.isEmpty {
+            queryItems.append(URLQueryItem(name: "search", value: search))
+        }
+        return try await request(path: "chat/\(assigneeId)/documents", queryItems: queryItems)
     }
 
     func getDocument(id: String) async throws -> Document {

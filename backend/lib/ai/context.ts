@@ -21,7 +21,8 @@ export const IMAGE_GENERATION_MODEL = "google/gemini-3.1-flash-image-preview";
 
 export const CHART_GENERATION_MODEL = "openai/gpt-5.4";
 
-export const TASK_SESSION_SUMMARIZATION_MODEL = "google/gemini-3.1-flash-lite-preview";
+export const TASK_SESSION_SUMMARIZATION_MODEL =
+  "google/gemini-3.1-flash-lite-preview";
 
 export const TASK_SESSION_EMBEDDING_MODEL = "google/gemini-embedding-2";
 
@@ -30,6 +31,9 @@ export const HISTORY_CONTEXT_LIMIT = 5;
 
 /** Minimum cosine similarity score for vector search results (0–1). */
 export const HISTORY_SIMILARITY_THRESHOLD = 0.5;
+
+/** Minimum cosine similarity score for tool search results (0–1). */
+export const TOOL_SEARCH_SIMILARITY_THRESHOLD = 0.5;
 
 /** Embedding vector dimensions for gemini-embedding-2. */
 export const EMBEDDING_DIMENSIONS = 768;
@@ -41,7 +45,8 @@ export const HISTORY_SUMMARIZATION_CHUNK_SIZE = 30_000;
  * Model used for generating summaries during compaction.
  * Env: COMPACTION_MODEL (default: fast model with large context window).
  */
-export const COMPACTION_MODEL = process.env.COMPACTION_MODEL || "google/gemini-3-flash";
+export const COMPACTION_MODEL =
+  process.env.COMPACTION_MODEL || "google/gemini-3-flash";
 
 // ── Token Estimation ───────────────────────────────────────────────────
 

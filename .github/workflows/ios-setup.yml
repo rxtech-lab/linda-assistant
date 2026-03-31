@@ -138,15 +138,33 @@ jobs:
           rabbitmqctl add_user linda linda
           rabbitmqctl set_permissions -p / linda ".*" ".*" ".*"
 
+      - name: Start Redis
+        if: inputs.start-backend
+        run: |
+          brew install redis
+          brew services start redis
+          echo "Waiting for Redis..."
+          for i in {1..30}; do
+            if redis-cli ping 2>/dev/null | grep -q PONG; then
+              echo "Redis is ready"
+              break
+            fi
+            sleep 2
+          done
+
       - name: Start Backend Server
         if: inputs.start-backend
         run: bun dev:e2e > ../backend.log 2>&1 &
         working-directory: backend
+        env:
+          REDIS_URL: redis://localhost:6379
 
       - name: Start Worker Server
         if: inputs.start-backend
         run: bun worker:e2e > ../worker.log 2>&1 &
         working-directory: backend
+        env:
+          REDIS_URL: redis://localhost:6379
 
       - name: Wait for Backend Server
         if: inputs.start-backend

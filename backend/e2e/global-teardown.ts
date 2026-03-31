@@ -9,9 +9,15 @@ function killPidFile(pidFile: string) {
   if (fs.existsSync(pidFile)) {
     const pid = parseInt(fs.readFileSync(pidFile, "utf-8"), 10);
     try {
-      process.kill(pid, "SIGTERM");
+      // Kill the process group (negative PID) since processes are spawned with detached: true
+      process.kill(-pid, "SIGTERM");
     } catch {
-      // Process may have already exited
+      try {
+        // Fallback to killing just the process
+        process.kill(pid, "SIGTERM");
+      } catch {
+        // Process may have already exited
+      }
     }
     fs.unlinkSync(pidFile);
   }

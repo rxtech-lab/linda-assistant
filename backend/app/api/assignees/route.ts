@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { assignees } from "@/lib/db/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, or, like } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { NO_PERMISSION_CHANGE_TOOLS } from "@/lib/ai/tools";
 import { insertAssigneeSchema, selectAssigneeSchema } from "@/lib/schemas";
@@ -19,18 +19,18 @@ export async function GET(request: NextRequest) {
   if (auth instanceof Response) return auth;
 
   const { limit, offset } = parsePagination(request.nextUrl.searchParams);
+  const search = request.nextUrl.searchParams.get("search");
+
+  const baseWhere = search
+    ? and(
+        eq(assignees.userId, auth.userId),
+        or(like(assignees.name, `%${search}%`), like(assignees.email, `%${search}%`)),
+      )
+    : eq(assignees.userId, auth.userId);
 
   const [items, countResult] = await Promise.all([
-    db
-      .select()
-      .from(assignees)
-      .where(eq(assignees.userId, auth.userId))
-      .limit(limit)
-      .offset(offset),
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(assignees)
-      .where(eq(assignees.userId, auth.userId)),
+    db.select().from(assignees).where(baseWhere).limit(limit).offset(offset),
+    db.select({ count: sql<number>`count(*)` }).from(assignees).where(baseWhere),
   ]);
 
   return paginatedJson(items, countResult[0].count, limit, offset);

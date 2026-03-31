@@ -20,8 +20,11 @@ func launchApp() -> XCUIApplication {
 }
 
 /// Relaunch the app without resetting auth (tokens persist in Keychain)
-func relaunchApp(_ app: XCUIApplication) {
+func relaunchApp(_ app: XCUIApplication, waitTime: Int? = nil) {
     app.terminate()
     app.launchArguments = [] // No --reset-auth so tokens persist
+    if let waitTime {
+        sleep(UInt32(waitTime))
+    }
     app.launch()
 }

@@ -138,7 +138,7 @@ final class ChatTabViewModel {
 
     func loadDocuments(assigneeId: String, apiClient: APIClient) async {
         do {
-            let response = try await apiClient.listChatDocuments(assigneeId: assigneeId)
+            let response = try await apiClient.listChatDocuments(assigneeId: assigneeId, limit: 100)
             documents = response.data
         } catch {
             logger.error("loadDocuments error: \(error)")

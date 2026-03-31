@@ -35,6 +35,9 @@ public final class ChatStreamHandler: @unchecked Sendable {
     }
 
     public private(set) var error: String?
+    /// Tracks whether a `done` event was received for the current run.
+    /// Used to skip redundant `onReconnected` refetches after stream closes.
+    @ObservationIgnored private var hasReceivedDone = false
 
     /// Device token for the current device, used to identify which device sent the last message.
     public var deviceToken: String?
@@ -90,6 +93,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     @discardableResult
     public func sendChatMessage(assigneeId: String, content: String) async -> String? {
         logger.info("sendChatMessage: assigneeId=\(assigneeId), isConnected=\(self.isConnected)")
+        hasReceivedDone = false
         await MainActor.run {
             self._flushTask?.cancel()
             self._flushTask = nil
@@ -180,6 +184,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
     @discardableResult
     public func sendMessage(sessionId: String, content: String) async -> String? {
         logger.info("sendMessage: sessionId=\(sessionId), isConnected=\(self.isConnected)")
+        hasReceivedDone = false
         // Reset per-run state on MainActor so @Observable triggers SwiftUI updates
         await MainActor.run {
             self._flushTask?.cancel()
@@ -380,8 +385,14 @@ public final class ChatStreamHandler: @unchecked Sendable {
         } else if isReconnecting {
             // First real event after reconnecting -> we're back
             isReconnecting = false
-            logger.info("handleEvent: reconnected, calling onReconnected")
-            Task { await onReconnected?() }
+            if hasReceivedDone {
+                // Stream was already finalized; skip redundant refetch to avoid
+                // replacing displayMessages with a potentially stale DB snapshot.
+                logger.info("handleEvent: reconnected after done, skipping onReconnected")
+            } else {
+                logger.info("handleEvent: reconnected, calling onReconnected")
+                Task { await onReconnected?() }
+            }
         }
 
         switch message {
@@ -646,6 +657,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
             case .done:
                 logger.info("done: streamingParts count=\(self.streamingParts.count)")
+                hasReceivedDone = true
                 finalizeResponse()
 
             case .refresh:

@@ -44,6 +44,49 @@ final class StandaloneChatTests: XCTestCase {
     }
 
     @MainActor
+    func testLongResponseAndReloadTest() async throws {
+        let app = launchApp()
+        try app.signInWithEmailAndPassword()
+
+        // wait for the messageInput visible
+        XCTAssertTrue(app.messageInput.waitForExistence(timeout: 10))
+        app.messageInput.tap()
+        app.messageInput.typeText("slow-long-output-test-1")
+        app.sendButton.tap()
+
+        sleep(2)
+        // reload the app
+        relaunchApp(app)
+
+        let exist = try await waitForMessageContaining("[1] The quick", in: app, timeout: 60)
+        XCTAssertTrue(exist)
+
+        // check end of list is visible on screen
+        XCTAssertTrue(app.waitForElementToBeVisible(app.endOfMessage, timeout: 10))
+    }
+
+    @MainActor
+    func testShortResponseAndReloadTest() async throws {
+        let app = launchApp()
+        try app.signInWithEmailAndPassword()
+
+        // wait for the messageInput visible
+        XCTAssertTrue(app.messageInput.waitForExistence(timeout: 10))
+        app.messageInput.tap()
+        app.messageInput.typeText("slow-short-output-test-1")
+        app.sendButton.tap()
+        sleep(1)
+        // reload the app
+        relaunchApp(app, waitTime: 5)
+
+        let exist = try await waitForMessageContaining("[END OF SHORT OUTPUT]", in: app, timeout: 10)
+        XCTAssertTrue(exist)
+
+        // check end of list is visible on screen
+        XCTAssertTrue(app.waitForElementToBeVisible(app.endOfMessage, timeout: 10))
+    }
+
+    @MainActor
     func testScrollUpDuringStreamingStaysScrolled() async throws {
         let app = launchApp()
         try app.signInWithEmailAndPassword()
