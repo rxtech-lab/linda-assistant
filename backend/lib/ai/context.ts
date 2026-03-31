@@ -21,6 +21,8 @@ export const IMAGE_GENERATION_MODEL = "google/gemini-3.1-flash-image-preview";
 
 export const CHART_GENERATION_MODEL = "openai/gpt-5.4";
 
+export const SLIDE_GENERATION_MODEL = "openai/gpt-5.4";
+
 export const TASK_SESSION_SUMMARIZATION_MODEL =
   "google/gemini-3.1-flash-lite-preview";
 

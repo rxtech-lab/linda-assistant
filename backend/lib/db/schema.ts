@@ -445,6 +445,40 @@ export const historyEmails = sqliteTable("history_emails", {
     .references(() => emailInbox.id, { onDelete: "cascade" }),
 });
 
+export const slideDecks = sqliteTable("slide_decks", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull(),
+  chatSessionId: text("chat_session_id")
+    .notNull()
+    .references(() => chatSessions.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  theme: text("theme", { mode: "json" }).$type<{
+    backgroundColor?: string;
+    primaryColor?: string;
+    secondaryColor?: string;
+    fontFamily?: string;
+  }>(),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
+export const slidePages = sqliteTable("slide_pages", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  deckId: text("deck_id")
+    .notNull()
+    .references(() => slideDecks.id, { onDelete: "cascade" }),
+  pageNumber: integer("page_number").notNull(),
+  sceneData: text("scene_data", { mode: "json" }).$type<unknown>(),
+  imageUrl: text("image_url"),
+  thumbnailUrl: text("thumbnail_url"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
 export const historyWebhooks = sqliteTable("history_webhooks", {
   id: text("id")
     .primaryKey()
