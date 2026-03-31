@@ -45,6 +45,11 @@ def cron_to_utc(cron_str: str, tz: str | None = None) -> str:
     Only adjusts simple numeric hour (and minute) fields. Wildcards, ranges,
     lists, and step expressions are left untouched. Returns the original
     expression when no conversion is needed or possible.
+
+    Note: The conversion uses the current UTC offset for the timezone at
+    registration time. For timezones that observe DST, the effective local
+    time may shift by one hour when DST transitions occur. Tasks near DST
+    boundaries may need to be re-registered to stay accurate.
     """
     if not tz:
         return cron_str

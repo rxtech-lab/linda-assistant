@@ -7,8 +7,9 @@ from zoneinfo import ZoneInfo
 
 
 # Import the function under test. The module-level imports in main.py
-# pull in Celery/Redis which won't be available in a unit-test environment,
-# so we inline the function here to keep the test self-contained.
+# pull in Celery/Redis (worker.py, redbeat) which won't be available in
+# a lightweight unit-test environment, so we inline the function here
+# to keep the test self-contained and runnable without infrastructure deps.
 def cron_to_utc(cron_str: str, tz: str | None = None) -> str:
     """Mirror of main.cron_to_utc for isolated testing."""
     if not tz:
