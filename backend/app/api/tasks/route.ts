@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (created.isCronEnabled && created.cronSchedule) {
-    await registerCronTask(created.id, created.cronSchedule);
+    await registerCronTask(created.id, created.cronSchedule, created.timezone);
   }
 
   if (created.runsAt) {

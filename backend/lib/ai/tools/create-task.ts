@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { chatSessions, tasks } from "@/lib/db/schema";
 import { registerCronTask, scheduleOnceTask } from "@/lib/celery/client";
-import { convertCronToUTC, convertRunsAtToUTC } from "@/lib/utils/timezone";
+import { convertRunsAtToUTC } from "@/lib/utils/timezone";
 import { isValidCronExpression } from "@/lib/utils/cron";
 import { inheritAssigneeToolset } from "@/lib/db/task-toolset";
 import { eq, and } from "drizzle-orm";
@@ -17,7 +17,7 @@ export const createTaskTool = (
   tool({
     description:
       "Create a new task for the user. Can optionally set up a recurring cron schedule or a one-shot scheduled execution. " +
-      "When creating scheduled tasks, times should be specified in the user's timezone — they will be automatically converted to UTC.",
+      "When creating scheduled tasks, times should be specified in the user's timezone.",
     needsApproval,
     inputSchema: z.object({
       title: z.string().describe("Task title"),
@@ -61,13 +61,10 @@ export const createTaskTool = (
         sessionTimezone = session?.timezone ?? null;
       }
 
-      // Convert schedule times to UTC
-      const utcCronSchedule = cronSchedule
-        ? convertCronToUTC(cronSchedule, sessionTimezone)
-        : undefined;
+      // Convert one-shot schedule time to UTC
       const utcRunsAt = runsAt ? convertRunsAtToUTC(runsAt, sessionTimezone) : undefined;
 
-      const isCronEnabled = !!utcCronSchedule;
+      const isCronEnabled = !!cronSchedule;
 
       const [created] = await db
         .insert(tasks)
@@ -79,16 +76,17 @@ export const createTaskTool = (
           categories,
           assigneeId,
           source: "agent",
-          ...(utcCronSchedule !== undefined ? { cronSchedule: utcCronSchedule } : {}),
+          ...(cronSchedule !== undefined ? { cronSchedule } : {}),
           isCronEnabled,
           status: "running",
           ...(utcRunsAt !== undefined ? { runsAt: utcRunsAt } : {}),
+          ...((cronSchedule || runsAt) && sessionTimezone ? { timezone: sessionTimezone } : {}),
         })
         .returning();
 
       // Register with Celery for scheduling
-      if (isCronEnabled && utcCronSchedule) {
-        await registerCronTask(created.id, utcCronSchedule);
+      if (isCronEnabled && cronSchedule) {
+        await registerCronTask(created.id, cronSchedule, sessionTimezone);
       }
       if (utcRunsAt) {
         await scheduleOnceTask(created.id, utcRunsAt);

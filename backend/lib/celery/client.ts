@@ -9,13 +9,21 @@ function celeryHeaders(): Record<string, string> {
 }
 
 /** Register a new cron schedule for a task. No-op if CELERY_BASE_URL is not set. */
-export async function registerCronTask(taskId: string, cronSchedule: string): Promise<void> {
+export async function registerCronTask(
+  taskId: string,
+  cronSchedule: string,
+  timezone?: string | null,
+): Promise<void> {
   if (!CELERY_BASE_URL) return;
   try {
     await fetch(`${CELERY_BASE_URL}/schedules`, {
       method: "POST",
       headers: celeryHeaders(),
-      body: JSON.stringify({ task_id: taskId, cron_schedule: cronSchedule }),
+      body: JSON.stringify({
+        task_id: taskId,
+        cron_schedule: cronSchedule,
+        ...(timezone ? { timezone } : {}),
+      }),
     });
   } catch (err) {
     console.error(`[Celery] Failed to register cron task ${taskId}:`, err);
@@ -23,13 +31,20 @@ export async function registerCronTask(taskId: string, cronSchedule: string): Pr
 }
 
 /** Update an existing cron schedule. No-op if CELERY_BASE_URL is not set. */
-export async function updateCronTask(taskId: string, cronSchedule: string): Promise<void> {
+export async function updateCronTask(
+  taskId: string,
+  cronSchedule: string,
+  timezone?: string | null,
+): Promise<void> {
   if (!CELERY_BASE_URL) return;
   try {
     await fetch(`${CELERY_BASE_URL}/schedules/${taskId}`, {
       method: "PUT",
       headers: celeryHeaders(),
-      body: JSON.stringify({ cron_schedule: cronSchedule }),
+      body: JSON.stringify({
+        cron_schedule: cronSchedule,
+        ...(timezone ? { timezone } : {}),
+      }),
     });
   } catch (err) {
     console.error(`[Celery] Failed to update cron task ${taskId}:`, err);
