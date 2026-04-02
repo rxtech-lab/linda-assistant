@@ -22,6 +22,7 @@ struct DocumentViewerSheet: View {
     @State private var showShareSheet = false
     @State private var shareURL: URL?
     @State private var downloadError: String?
+    @State private var selectedSlideDeckId: String?
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -54,7 +55,9 @@ struct DocumentViewerSheet: View {
                                     .padding(.top, 8)
                             }
                             if document.format == "markdown" {
-                                SlideAwareMarkdownView(content: document.content)
+                                SlideAwareMarkdownView(content: document.content) { deckId in
+                                    selectedSlideDeckId = deckId
+                                }
                                     .padding()
                             } else {
                                 HTMLContentView(htmlString: document.content)
@@ -128,6 +131,7 @@ struct DocumentViewerSheet: View {
                         ShareSheet(url: shareURL)
                     }
                 }
+                .modifier(DocumentSlideViewerPresenter(selectedSlideDeckId: $selectedSlideDeckId))
         }
         #if os(macOS)
         .frame(minWidth: 700, idealWidth: 800, minHeight: 500, idealHeight: 700)
@@ -200,6 +204,33 @@ struct DocumentViewerSheet: View {
     private func sanitizeFilename(_ name: String) -> String {
         let invalidChars = CharacterSet(charactersIn: "/\\?%*|\"<>:")
         return name.components(separatedBy: invalidChars).joined(separator: "_")
+    }
+}
+
+private struct DocumentSlideViewerPresenter: ViewModifier {
+    @Binding var selectedSlideDeckId: String?
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content.fullScreenCover(isPresented: selectedDeckBinding) {
+            if let selectedSlideDeckId {
+                SlideViewerSheet(deckId: selectedSlideDeckId)
+            }
+        }
+        #else
+        content.sheet(isPresented: selectedDeckBinding) {
+            if let selectedSlideDeckId {
+                SlideViewerSheet(deckId: selectedSlideDeckId)
+            }
+        }
+        #endif
+    }
+
+    private var selectedDeckBinding: Binding<Bool> {
+        Binding(
+            get: { selectedSlideDeckId != nil },
+            set: { if !$0 { selectedSlideDeckId = nil } }
+        )
     }
 }
 

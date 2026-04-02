@@ -6,6 +6,7 @@ import SwiftUI
 struct SlideAwareMarkdownView: View {
     let content: String
     var theme: MarkdownUI.Theme = .docC
+    var onOpenSlideDeck: ((String) -> Void)? = nil
 
     private var sections: [ContentSection] {
         // Match {{slide:id}} syntax
@@ -53,7 +54,7 @@ struct SlideAwareMarkdownView: View {
                             .markdownTheme(theme)
                             .tappableMarkdownImages()
                     case let .slide(deckId):
-                        SlideCarouselView(deckId: deckId)
+                        SlideCarouselView(deckId: deckId, onOpenFullViewer: onOpenSlideDeck)
                 }
             }
         }

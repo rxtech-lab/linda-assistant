@@ -7,6 +7,7 @@ struct SlideCarouselView: View {
     @Environment(AuthManager.self) private var authManager
 
     let deckId: String
+    var onOpenFullViewer: ((String) -> Void)? = nil
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -37,7 +38,11 @@ struct SlideCarouselView: View {
                 .aspectRatio(16 / 9, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .onTapGesture {
-                    showFullViewer = true
+                    if let onOpenFullViewer {
+                        onOpenFullViewer(deckId)
+                    } else {
+                        showFullViewer = true
+                    }
                 }
 
                 // Title and slide count
@@ -64,15 +69,7 @@ struct SlideCarouselView: View {
                     }
             }
         }
-        #if os(iOS)
-        .fullScreenCover(isPresented: $showFullViewer) {
-            SlideViewerSheet(deckId: deckId)
-        }
-        #else
-        .sheet(isPresented: $showFullViewer) {
-            SlideViewerSheet(deckId: deckId)
-        }
-        #endif
+        .modifier(SelfPresentingSlideViewer(deckId: deckId, isPresented: $showFullViewer, isEnabled: onOpenFullViewer == nil))
         .frame(maxWidth: .infinity)
         .task {
             await loadDeck()
@@ -110,5 +107,27 @@ struct SlideCarouselView: View {
             print("[SlideCarouselView] Failed to load deck: \(error)")
         }
         isLoading = false
+    }
+}
+
+private struct SelfPresentingSlideViewer: ViewModifier {
+    let deckId: String
+    @Binding var isPresented: Bool
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            #if os(iOS)
+            content.fullScreenCover(isPresented: $isPresented) {
+                SlideViewerSheet(deckId: deckId)
+            }
+            #else
+            content.sheet(isPresented: $isPresented) {
+                SlideViewerSheet(deckId: deckId)
+            }
+            #endif
+        } else {
+            content
+        }
     }
 }

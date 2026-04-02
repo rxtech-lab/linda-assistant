@@ -24,84 +24,91 @@ struct SlideViewerSheet: View {
     @State private var showControls = true
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
+        NavigationStack {
+            ZStack {
+                Color.black.ignoresSafeArea()
 
-            if isLoading {
-                ProgressView("Loading slides...")
-                    .tint(.white)
-                    .foregroundStyle(.white)
-            } else if let error = loadError {
-                VStack(spacing: 16) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary)
-                    Text(error)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button("Retry") {
-                        Task { await loadDeck() }
+                if isLoading {
+                    ProgressView("Loading slides...")
+                        .tint(.white)
+                        .foregroundStyle(.white)
+                } else if let error = loadError {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary)
+                        Text(error)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                        Button("Retry") {
+                            Task { await loadDeck(force: true) }
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.white)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
-                }
-                .padding()
-            } else if let pages = deck?.pages, !pages.isEmpty {
-                // Fullscreen paging slide viewer using ScrollView
-                GeometryReader { geometry in
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: 0) {
-                            ForEach(Array(pages.enumerated()), id: \.element.id) { index, page in
-                                ZoomableSlideView(page: page) {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        showControls.toggle()
+                    .padding()
+                } else if let pages = deck?.pages, !pages.isEmpty {
+                    // Fullscreen paging slide viewer using ScrollView
+                    GeometryReader { geometry in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            LazyHStack(spacing: 0) {
+                                ForEach(Array(pages.enumerated()), id: \.element.id) { index, page in
+                                    ZoomableSlideView(page: page) {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            showControls.toggle()
+                                        }
                                     }
+                                    .frame(width: geometry.size.width, height: geometry.size.height)
+                                    .id(index)
                                 }
-                                .frame(width: geometry.size.width, height: geometry.size.height)
-                                .id(index)
                             }
+                            .scrollTargetLayout()
                         }
-                        .scrollTargetLayout()
+                        .scrollTargetBehavior(.paging)
+                        .scrollPosition(id: $currentPage)
                     }
-                    .scrollTargetBehavior(.paging)
-                    .scrollPosition(id: $currentPage)
-                }
-                .ignoresSafeArea()
-
-                // Overlay controls
-                if showControls {
-                    controlsOverlay(pageCount: pages.count)
-                        .transition(.opacity)
-                }
-            } else {
-                VStack(spacing: 12) {
-                    Image(systemName: "rectangle.stack")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary)
-                    Text("No slides in this deck.")
-                        .foregroundStyle(.secondary)
+                    .ignoresSafeArea()
+                } else {
+                    VStack(spacing: 12) {
+                        Image(systemName: "rectangle.stack")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary)
+                        Text("No slides in this deck.")
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
 
-            // Always-visible close button when slides aren't loaded yet
-            if deck?.pages == nil || isLoading || loadError != nil {
-                VStack {
-                    HStack {
-                        Button { dismiss() } label: {
-                            Image(systemName: "xmark")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 36, height: 36)
-                                .background(.ultraThinMaterial, in: Circle())
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 2) {
+                        Text(deck?.title ?? "Slides")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+
+                        if let pageCount = deck?.pages?.count, pageCount > 0 {
+                            Text("\((currentPage ?? 0) + 1) of \(pageCount)")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.75))
                         }
-                        Spacer()
                     }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                    Spacer()
+                }
+
+                ToolbarItem(placement: .primaryAction) {
+                    exportMenu
                 }
             }
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar(showControls ? .visible : .hidden, for: .navigationBar)
+            #endif
         }
         #if os(iOS)
         .statusBarHidden(!showControls)
@@ -134,69 +141,12 @@ struct SlideViewerSheet: View {
                 .ignoresSafeArea()
             }
         }
-        .task {
+        .task(id: deckId) {
             await loadDeck()
         }
     }
 
-    // MARK: - Controls Overlay
-
-    @ViewBuilder
-    private func controlsOverlay(pageCount: Int) -> some View {
-        VStack {
-            // Top bar
-            HStack {
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 36, height: 36)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-
-                Spacer()
-
-                VStack(spacing: 2) {
-                    Text(deck?.title ?? "Slides")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                    Text("\((currentPage ?? 0) + 1) of \(pageCount)")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.7))
-                }
-
-                Spacer()
-
-                exportButton
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
-
-            Spacer()
-
-            // Bottom page indicator
-            if pageCount > 1 {
-                pageIndicator(pageCount: pageCount)
-                    .padding(.bottom, 16)
-            }
-        }
-    }
-
-    private func pageIndicator(pageCount: Int) -> some View {
-        HStack(spacing: 6) {
-            ForEach(0 ..< pageCount, id: \.self) { index in
-                Circle()
-                    .fill(index == (currentPage ?? 0) ? Color.white : Color.white.opacity(0.4))
-                    .frame(width: 7, height: 7)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(.ultraThinMaterial, in: Capsule())
-    }
-
-    private var exportButton: some View {
+    private var exportMenu: some View {
         Menu {
             Button {
                 Task { await exportPDF() }
@@ -211,17 +161,24 @@ struct SlideViewerSheet: View {
             }
         } label: {
             Image(systemName: "square.and.arrow.up")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .background(.ultraThinMaterial, in: Circle())
         }
         .disabled(isExporting || deck?.pages?.isEmpty != false)
     }
 
     // MARK: - Data Loading
 
-    private func loadDeck() async {
+    private func loadDeck(force: Bool = false) async {
+        if !force,
+           let deck,
+           deck.id == deckId,
+           loadError == nil,
+           let pages = deck.pages,
+           !pages.isEmpty
+        {
+            return
+        }
+
+        print("Loading deck")
         isLoading = true
         loadError = nil
         do {
@@ -373,12 +330,12 @@ private struct ZoomableSlideView: View {
 // MARK: - ShareSheet
 
 #if os(iOS)
-    private struct ShareSheet: UIViewControllerRepresentable {
-        let url: URL
-        func makeUIViewController(context _: Context) -> UIActivityViewController {
-            UIActivityViewController(activityItems: [url], applicationActivities: nil)
-        }
-
-        func updateUIViewController(_: UIActivityViewController, context _: Context) {}
+private struct ShareSheet: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context _: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
     }
+
+    func updateUIViewController(_: UIActivityViewController, context _: Context) {}
+}
 #endif
