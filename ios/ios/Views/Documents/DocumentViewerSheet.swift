@@ -18,9 +18,11 @@ struct DocumentViewerSheet: View {
     @State private var isLoading = true
     @State private var loadError: String?
     @State private var isDownloading = false
+    @State private var downloadingLabel = "Downloading..."
     @State private var showShareSheet = false
     @State private var shareURL: URL?
     @State private var downloadError: String?
+    @State private var selectedSlideDeckId: String?
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -53,9 +55,9 @@ struct DocumentViewerSheet: View {
                                     .padding(.top, 8)
                             }
                             if document.format == "markdown" {
-                                Markdown(document.content)
-                                    .markdownTheme(.docC)
-                                    .tappableMarkdownImages()
+                                SlideAwareMarkdownView(content: document.content) { deckId in
+                                    selectedSlideDeckId = deckId
+                                }
                                     .padding()
                             } else {
                                 HTMLContentView(htmlString: document.content)
@@ -69,7 +71,7 @@ struct DocumentViewerSheet: View {
                             VStack(spacing: 12) {
                                 ProgressView()
                                     .controlSize(.large)
-                                Text("Generating PDF...")
+                                Text("Downloading...")
                                     .font(.subheadline.weight(.medium))
                             }
                             .padding(24)
@@ -129,6 +131,7 @@ struct DocumentViewerSheet: View {
                         ShareSheet(url: shareURL)
                     }
                 }
+                .modifier(DocumentSlideViewerPresenter(selectedSlideDeckId: $selectedSlideDeckId))
         }
         #if os(macOS)
         .frame(minWidth: 700, idealWidth: 800, minHeight: 500, idealHeight: 700)
@@ -152,6 +155,7 @@ struct DocumentViewerSheet: View {
     private func downloadOriginal() async {
         guard let document else { return }
         isDownloading = true
+        downloadingLabel = "Downloading..."
         defer { isDownloading = false }
 
         let ext = document.format == "markdown" ? "md" : "html"
@@ -159,7 +163,8 @@ struct DocumentViewerSheet: View {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
 
         do {
-            try document.content.write(to: tempURL, atomically: true, encoding: .utf8)
+            let data = try await apiClient.downloadDocument(id: documentId)
+            try data.write(to: tempURL)
             shareURL = tempURL
             showShareSheet = true
         } catch {
@@ -169,6 +174,7 @@ struct DocumentViewerSheet: View {
 
     private func downloadPDF() async {
         isDownloading = true
+        downloadingLabel = "Generating PDF..."
         defer { isDownloading = false }
 
         do {
@@ -198,6 +204,33 @@ struct DocumentViewerSheet: View {
     private func sanitizeFilename(_ name: String) -> String {
         let invalidChars = CharacterSet(charactersIn: "/\\?%*|\"<>:")
         return name.components(separatedBy: invalidChars).joined(separator: "_")
+    }
+}
+
+private struct DocumentSlideViewerPresenter: ViewModifier {
+    @Binding var selectedSlideDeckId: String?
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content.fullScreenCover(isPresented: selectedDeckBinding) {
+            if let selectedSlideDeckId {
+                SlideViewerSheet(deckId: selectedSlideDeckId)
+            }
+        }
+        #else
+        content.sheet(isPresented: selectedDeckBinding) {
+            if let selectedSlideDeckId {
+                SlideViewerSheet(deckId: selectedSlideDeckId)
+            }
+        }
+        #endif
+    }
+
+    private var selectedDeckBinding: Binding<Bool> {
+        Binding(
+            get: { selectedSlideDeckId != nil },
+            set: { if !$0 { selectedSlideDeckId = nil } }
+        )
     }
 }
 
@@ -338,7 +371,7 @@ private struct DocumentViewerPreview: View {
                             VStack(spacing: 12) {
                                 ProgressView()
                                     .controlSize(.large)
-                                Text("Generating PDF...")
+                                Text("Downloading...")
                                     .font(.subheadline.weight(.medium))
                                     .foregroundStyle(.secondary)
                             }

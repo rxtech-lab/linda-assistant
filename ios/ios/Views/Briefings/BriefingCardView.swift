@@ -1,4 +1,5 @@
 import AssistantCore
+import Kingfisher
 import SwiftUI
 
 struct BriefingCardView: View {
@@ -7,20 +8,16 @@ struct BriefingCardView: View {
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             if let imageUrl = briefing.imageUrl, let url = URL(string: imageUrl) {
-                CachedAsyncImage(url: url) { phase in
-                    switch phase {
-                        case let .success(image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-                                .clipped()
-                                .transition(.opacity)
-                        default:
-                            placeholderBackground
-                                .transition(.opacity)
+                KFImage(url)
+                    .placeholder {
+                        placeholderBackground
+                            .transition(.opacity)
                     }
-                }
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                    .clipped()
+                    .transition(.opacity)
             } else {
                 placeholderBackground
             }

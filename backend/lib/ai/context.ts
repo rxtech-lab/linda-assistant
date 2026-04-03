@@ -21,6 +21,8 @@ export const IMAGE_GENERATION_MODEL = "google/gemini-3.1-flash-image-preview";
 
 export const CHART_GENERATION_MODEL = "openai/gpt-5.4";
 
+export const SLIDE_GENERATION_MODEL = "openai/gpt-5.4";
+
 export const TASK_SESSION_SUMMARIZATION_MODEL =
   "google/gemini-3.1-flash-lite-preview";
 
@@ -40,6 +42,8 @@ export const EMBEDDING_DIMENSIONS = 768;
 
 /** Max tokens per chunk when summarizing large session histories. */
 export const HISTORY_SUMMARIZATION_CHUNK_SIZE = 30_000;
+
+export const MAX_STEPS = 20;
 
 /**
  * Model used for generating summaries during compaction.

@@ -6,16 +6,27 @@ struct ChatOptionsSheet: View {
     let assignees: [Assignee]
     let selectedAssigneeId: String?
     let documents: [Document]
+    let slideDecks: [SlideDeckListItem]
     var onSelectAssignee: (Assignee) -> Void
-    var onSelectDocument: (Document) -> Void
     var onDeleteDocument: (Document) -> Void
     var onClearMessages: () -> Void
 
     private let maxPreviewCount = 10
+    private let maxSlidePreviewCount = 6
 
     @State private var showingAllAssignees = false
     @State private var showingAllDocuments = false
+    @State private var showingAllSlides = false
     @State private var documentToDelete: Document?
+    @State private var selectedDocumentItem: DocumentSheetItem?
+    @State private var selectedSlideDeckId: String?
+
+    private var selectedSlideDeckPresented: Binding<Bool> {
+        Binding(
+            get: { selectedSlideDeckId != nil },
+            set: { if !$0 { selectedSlideDeckId = nil } }
+        )
+    }
 
     private var previewAssignees: [Assignee] {
         Array(assignees.prefix(maxPreviewCount))
@@ -23,6 +34,10 @@ struct ChatOptionsSheet: View {
 
     private var previewDocuments: [Document] {
         Array(documents.prefix(maxPreviewCount))
+    }
+
+    private var previewSlideDecks: [SlideDeckListItem] {
+        Array(slideDecks.prefix(maxSlidePreviewCount))
     }
 
     var body: some View {
@@ -53,7 +68,7 @@ struct ChatOptionsSheet: View {
 
     private func documentRow(_ doc: Document) -> some View {
         Button {
-            onSelectDocument(doc)
+            selectedDocumentItem = DocumentSheetItem(id: doc.id, title: doc.title)
         } label: {
             HStack {
                 Image(systemName: "doc.text")
@@ -72,11 +87,32 @@ struct ChatOptionsSheet: View {
         }
     }
 
+    private func slideDeckRow(_ deck: SlideDeckListItem) -> some View {
+        Button {
+            selectedSlideDeckId = deck.id
+        } label: {
+            HStack {
+                Image(systemName: "rectangle.on.rectangle")
+                    .foregroundStyle(.secondary)
+                Text(deck.title)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Spacer()
+                Text("\(deck.pageCount) \(deck.pageCount == 1 ? "slide" : "slides")")
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.quaternary)
+                    .clipShape(Capsule())
+            }
+        }
+    }
+
     private func sectionHeader(title: String, icon: String, count: Int, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack {
                 Label(title, systemImage: icon)
-                if count > maxPreviewCount {
+                if count > 0 {
                     Text("\(count)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -137,6 +173,22 @@ struct ChatOptionsSheet: View {
                         }
                     }
 
+                    if !slideDecks.isEmpty {
+                        Section {
+                            ForEach(previewSlideDecks) { deck in
+                                slideDeckRow(deck)
+                                    .buttonStyle(.plain)
+                            }
+                        } header: {
+                            sectionHeader(
+                                title: "Slides", icon: "rectangle.on.rectangle",
+                                count: slideDecks.count
+                            ) {
+                                showingAllSlides = true
+                            }
+                        }
+                    }
+
                     Section {
                         Button {
                             onClearMessages()
@@ -164,12 +216,26 @@ struct ChatOptionsSheet: View {
                     AllDocumentsSheet(
                         assigneeId: assigneeId,
                         onSelectDocument: { doc in
-                            onSelectDocument(doc)
+                            showingAllDocuments = false
+                            selectedDocumentItem = DocumentSheetItem(id: doc.id, title: doc.title)
                         },
                         onDeleteDocument: { doc in
                             documentToDelete = doc
                         }
                     )
+                }
+            }
+            .sheet(item: $selectedDocumentItem) { item in
+                DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
+            }
+            .sheet(isPresented: selectedSlideDeckPresented) {
+                if let deckId = selectedSlideDeckId {
+                    SlideViewerSheet(deckId: deckId)
+                }
+            }
+            .sheet(isPresented: $showingAllSlides) {
+                if let assigneeId = selectedAssigneeId {
+                    AllSlideDecksSheet(assigneeId: assigneeId)
                 }
             }
             .confirmationDialog(
@@ -225,6 +291,21 @@ struct ChatOptionsSheet: View {
                         }
                     }
 
+                    if !slideDecks.isEmpty {
+                        Section {
+                            ForEach(previewSlideDecks) { deck in
+                                slideDeckRow(deck)
+                            }
+                        } header: {
+                            sectionHeader(
+                                title: "Slides", icon: "rectangle.on.rectangle",
+                                count: slideDecks.count
+                            ) {
+                                showingAllSlides = true
+                            }
+                        }
+                    }
+
                     Section {
                         Button {
                             onClearMessages()
@@ -259,13 +340,26 @@ struct ChatOptionsSheet: View {
                     AllDocumentsSheet(
                         assigneeId: assigneeId,
                         onSelectDocument: { doc in
-                            dismiss()
-                            onSelectDocument(doc)
+                            showingAllDocuments = false
+                            selectedDocumentItem = DocumentSheetItem(id: doc.id, title: doc.title)
                         },
                         onDeleteDocument: { doc in
                             documentToDelete = doc
                         }
                     )
+                }
+            }
+            .sheet(item: $selectedDocumentItem) { item in
+                DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
+            }
+            .fullScreenCover(isPresented: selectedSlideDeckPresented) {
+                if let deckId = selectedSlideDeckId {
+                    SlideViewerSheet(deckId: deckId)
+                }
+            }
+            .sheet(isPresented: $showingAllSlides) {
+                if let assigneeId = selectedAssigneeId {
+                    AllSlideDecksSheet(assigneeId: assigneeId)
                 }
             }
             .confirmationDialog(
@@ -304,8 +398,8 @@ private func previewAssignee(id: String, name: String, email: String) -> Assigne
         ],
         selectedAssigneeId: "1",
         documents: [],
+        slideDecks: [],
         onSelectAssignee: { _ in },
-        onSelectDocument: { _ in },
         onDeleteDocument: { _ in },
         onClearMessages: {}
     )
@@ -318,8 +412,8 @@ private func previewAssignee(id: String, name: String, email: String) -> Assigne
         ],
         selectedAssigneeId: nil,
         documents: [],
+        slideDecks: [],
         onSelectAssignee: { _ in },
-        onSelectDocument: { _ in },
         onDeleteDocument: { _ in },
         onClearMessages: {}
     )

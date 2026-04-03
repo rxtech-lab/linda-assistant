@@ -1,4 +1,5 @@
 import AssistantCore
+import Kingfisher
 import MarkdownUI
 import SwiftUI
 
@@ -39,8 +40,7 @@ struct BriefingDetailView: View {
                                     .foregroundStyle(.secondary)
                             }
 
-                            Markdown(briefing.content)
-                                .markdownTheme(.docC)
+                            SlideAwareMarkdownView(content: briefing.content)
                                 .tappableMarkdownImages()
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .clipped()
@@ -121,21 +121,17 @@ struct BriefingDetailView: View {
     @ViewBuilder
     private func coverImage(for briefing: Briefing) -> some View {
         if let imageUrl = briefing.imageUrl, let url = URL(string: imageUrl) {
-            CachedAsyncImage(url: url) { phase in
-                switch phase {
-                    case let .success(image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity, minHeight: 400)
-                            .frame(height: 400)
-                            .clipped()
-                            .transition(.opacity)
-                    default:
-                        placeholderGradient
-                            .transition(.opacity)
+            KFImage(url)
+                .placeholder {
+                    placeholderGradient
+                        .transition(.opacity)
                 }
-            }
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(maxWidth: .infinity, minHeight: 400)
+                .frame(height: 400)
+                .clipped()
+                .transition(.opacity)
         } else {
             placeholderGradient
         }

@@ -13,7 +13,8 @@ export const createDocumentTool = (userId: string, chatSessionId: string) =>
       "- Use bullet points for lists, bold for emphasis, and blockquotes for callouts\n" +
       "- Keep paragraphs concise and scannable\n" +
       "- For data-heavy content, prefer tables over prose\n" +
-      "- For complex or abstract topics, use generate_image to create illustrative visuals and embed them via ![alt](url) in the content",
+      "- For complex or abstract topics, use generate_image to create illustrative visuals and embed them via ![alt](url) in the content\n" +
+      "- To embed slide presentations as illustrations, first use create_slides, then embed with the syntax {{slide:deckId}} in the content",
     inputSchema: z.object({
       title: z.string().describe("Document title"),
       format: z

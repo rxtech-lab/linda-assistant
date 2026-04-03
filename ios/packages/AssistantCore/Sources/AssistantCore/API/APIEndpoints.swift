@@ -255,6 +255,53 @@ public extension APIClient {
         try await requestData(path: "documents/\(id)/pdf")
     }
 
+    func downloadDocument(id: String) async throws -> Data {
+        try await requestData(path: "documents/\(id)/download")
+    }
+
+    // MARK: - Slide Decks
+
+    func listChatSlideDecks(
+        assigneeId: String,
+        limit: Int = 20,
+        offset: Int = 0,
+        search: String? = nil
+    ) async throws -> PaginatedResponse<SlideDeckListItem> {
+        var queryItems = [
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)"),
+        ]
+        if let search, !search.isEmpty {
+            queryItems.append(URLQueryItem(name: "search", value: search))
+        }
+        return try await request(
+            path: "chat/\(assigneeId)/slides",
+            queryItems: queryItems
+        )
+    }
+
+    func getSlideDeck(id: String) async throws -> SlideDeck {
+        try await request(path: "slide-decks/\(id)")
+    }
+
+    func deleteSlideDeck(id: String) async throws {
+        try await requestNoContent(path: "slide-decks/\(id)")
+    }
+
+    func exportSlideDeckPDF(id: String) async throws -> Data {
+        try await requestData(
+            path: "slide-decks/\(id)/export",
+            queryItems: [URLQueryItem(name: "format", value: "pdf")]
+        )
+    }
+
+    func exportSlideDeckPPTX(id: String) async throws -> Data {
+        try await requestData(
+            path: "slide-decks/\(id)/export",
+            queryItems: [URLQueryItem(name: "format", value: "pptx")]
+        )
+    }
+
     // MARK: - Briefings
 
     func listBriefings(limit: Int = 20, offset: Int = 0) async throws -> BriefingListResponse {

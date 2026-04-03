@@ -19,6 +19,8 @@ import {
   devices,
   documents,
   scheduledNotifications,
+  slideDecks,
+  slidePages,
   webhookInbox,
   uploads,
 } from "./schema";
@@ -191,6 +193,21 @@ export const uploadsRelations = relations(uploads, ({ one }) => ({
   chatSession: one(chatSessions, {
     fields: [uploads.chatSessionId],
     references: [chatSessions.id],
+  }),
+}));
+
+export const slideDecksRelations = relations(slideDecks, ({ one, many }) => ({
+  chatSession: one(chatSessions, {
+    fields: [slideDecks.chatSessionId],
+    references: [chatSessions.id],
+  }),
+  pages: many(slidePages),
+}));
+
+export const slidePagesRelations = relations(slidePages, ({ one }) => ({
+  deck: one(slideDecks, {
+    fields: [slidePages.deckId],
+    references: [slideDecks.id],
   }),
 }));
 

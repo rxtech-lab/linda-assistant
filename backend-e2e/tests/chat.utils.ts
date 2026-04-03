@@ -105,6 +105,8 @@ const SYSTEM_TOOLS = new Set([
   "create_briefing",
   "send_notification",
   "generate_image",
+  "create_slides",
+  "update_slides",
   "search_history",
   "request_upload",
   "read_uploaded_file",

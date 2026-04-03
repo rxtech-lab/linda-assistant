@@ -1,3 +1,9 @@
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
+import Kingfisher
 import MarkdownUI
 import SwiftUI
 
@@ -18,33 +24,21 @@ private struct TappableMarkdownImage: View {
             Button {
                 onTap(url)
             } label: {
-                CachedAsyncImage(url: url) { phase in
-                    switch phase {
-                        case let .success(image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(maxWidth: .infinity)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                        case .failure:
-                            VStack(spacing: 8) {
-                                Image(systemName: "photo")
-                                    .font(.system(size: 32))
-                                    .foregroundStyle(.secondary)
-                                Text("Image unavailable")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                KFImage(url)
+                    .placeholder {
+                        ProgressView()
                             .frame(maxWidth: .infinity)
-                            .frame(height: 120)
-                            .background(.quaternary)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        default:
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 200)
+                            .frame(height: 200)
                     }
-                }
+                    #if canImport(UIKit)
+                    .onFailureImage(UIImage(systemName: "photo"))
+                    #elseif canImport(AppKit)
+                    .onFailureImage(NSImage(systemSymbolName: "photo", accessibilityDescription: nil))
+                    #endif
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
         } else {

@@ -15,6 +15,7 @@ public enum SSEEventType: String, Sendable {
     case locationResolved = "location_resolved"
     case uploadRequired = "upload_required"
     case uploadResolved = "upload_resolved"
+    case toolProgress = "tool-progress"
     case userMessage = "user-message"
     case compacting
     case error
@@ -103,6 +104,10 @@ public struct SSEEvent: Sendable {
                 if let payload = try? decoder.decode(UploadResolvedPayload.self, from: jsonData) {
                     return .uploadResolved(payload)
                 }
+            case .toolProgress:
+                if let payload = try? decoder.decode(ToolProgressPayload.self, from: jsonData) {
+                    return .toolProgress(payload)
+                }
             case .userMessage:
                 if let payload = try? decoder.decode(UserMessagePayload.self, from: jsonData) {
                     return .userMessage(payload)
@@ -147,6 +152,7 @@ public enum SSEMessage: Sendable {
     case locationResolved(LocationResolvedPayload)
     case uploadRequired(UploadRequestPayload)
     case uploadResolved(UploadResolvedPayload)
+    case toolProgress(ToolProgressPayload)
     case userMessage(UserMessagePayload)
     case compacting(CompactingPayload)
     case error(SSEErrorPayload)
@@ -330,6 +336,16 @@ public struct SSEErrorPayload: Codable, Sendable {
 public struct StatusPayload: Codable, Sendable {
     public let id: String?
     public let status: String
+}
+
+public struct ToolProgressPayload: Codable, Sendable {
+    public let toolCallId: String
+    public let toolName: String
+    public let current: Int
+    public let total: Int
+    public let step: String?
+    public let message: String?
+    public let thumbnailUrl: String?
 }
 
 public struct UploadUrlItem: Codable, Sendable, Hashable {

@@ -13,6 +13,23 @@ const dbPath = path.resolve(__dirname, "..", "e2e-test.db");
 /** Small delay to ensure SSE subscription is established before posting */
 const SUB_DELAY = 200;
 
+/** Poll session status until it matches the expected value (or timeout). */
+async function waitForSessionStatus(
+  request: import("@playwright/test").APIRequestContext,
+  sessionId: string,
+  expectedStatus: string,
+  timeoutMs = 10000,
+) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const res = await request.get(`/api/chat-sessions/${sessionId}`);
+    const body = await res.json();
+    if (body.status === expectedStatus) return body;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`Session ${sessionId} did not reach status "${expectedStatus}" within ${timeoutMs}ms`);
+}
+
 test.describe("Agent Parallel Confirmation", () => {
   let assigneeId: string;
 
@@ -124,10 +141,8 @@ test.describe("Agent Parallel Confirmation", () => {
     const toolCalls = events.filter((e) => e.event === "tool-call");
     expect(toolCalls).toHaveLength(2);
 
-    // Verify session is waiting for confirmation
-    const sessionCheck = await request.get(`/api/chat-sessions/${sessionId}`);
-    const sessionCheckBody = await sessionCheck.json();
-    expect(sessionCheckBody.status).toBe("waiting_confirmation");
+    // Wait for session status to be updated in DB (SSE events arrive before DB write)
+    await waitForSessionStatus(request, sessionId, "waiting_confirmation");
 
     // Query DB for 2 pending confirmations
     const client = createClient({ url: `file:${dbPath}` });
@@ -211,6 +226,9 @@ test.describe("Agent Parallel Confirmation", () => {
     });
 
     await eventsPromise;
+
+    // Wait for session status to be updated in DB (SSE events arrive before DB write)
+    await waitForSessionStatus(request, sessionId, "waiting_confirmation");
 
     // Query DB for 2 pending confirmations
     const client = createClient({ url: `file:${dbPath}` });

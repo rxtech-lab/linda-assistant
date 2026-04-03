@@ -11,6 +11,7 @@ final class ChatTabViewModel {
     var selectedAssignee: Assignee?
     var displayMessages: [DisplayMessage] = []
     var documents: [Document] = []
+    var slideDecks: [SlideDeckListItem] = []
     var isLoading = false
     var isLoadingMore = false
     var hasMoreMessages = false
@@ -110,8 +111,10 @@ final class ChatTabViewModel {
                     streamHandler: streamHandler
                 )
             }
-            // Load documents for this assignee's chat session
-            await loadDocuments(assigneeId: assigneeId, apiClient: apiClient)
+            // Load documents and slide decks for this assignee's chat session
+            async let docsTask: () = loadDocuments(assigneeId: assigneeId, apiClient: apiClient)
+            async let slidesTask: () = loadSlideDecks(assigneeId: assigneeId, apiClient: apiClient)
+            _ = await (docsTask, slidesTask)
         } catch is CancellationError {
             return
         } catch let urlError as URLError where urlError.code == .cancelled {
@@ -122,6 +125,7 @@ final class ChatTabViewModel {
                 hasSession = false
                 displayMessages = []
                 documents = []
+                slideDecks = []
                 nextCursor = nil
                 hasMoreMessages = false
             } else {
@@ -142,7 +146,15 @@ final class ChatTabViewModel {
             documents = response.data
         } catch {
             logger.error("loadDocuments error: \(error)")
-            // Non-fatal — don't show error for documents failing to load
+        }
+    }
+
+    func loadSlideDecks(assigneeId: String, apiClient: APIClient) async {
+        do {
+            let response = try await apiClient.listChatSlideDecks(assigneeId: assigneeId)
+            slideDecks = response.data
+        } catch {
+            logger.error("loadSlideDecks error: \(error)")
         }
     }
 
@@ -318,6 +330,7 @@ final class ChatTabViewModel {
         UserDefaults.standard.synchronize()
         displayMessages = []
         documents = []
+        slideDecks = []
         nextCursor = nil
         hasMoreMessages = false
         hasSession = false
@@ -349,6 +362,7 @@ final class ChatTabViewModel {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     displayMessages = []
                     documents = []
+                    slideDecks = []
                 }
             }
             nextCursor = nil
