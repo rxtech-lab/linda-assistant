@@ -35,7 +35,17 @@ interface ExtensionWithStatus {
   title: string;
   prefix: string;
   enabled: boolean;
-  toolPermissions: Array<{ toolName: string; permission: string }> | null;
+  toolPermissions: Array<{
+    toolName: string;
+    permission: string;
+    conditions?: Array<{
+      parameterName: string;
+      parameterType: string;
+      operator: string;
+      value: string | number;
+    }>;
+    conditionLogic?: string;
+  }> | null;
   tools?: Array<{ name: string; description: string }>;
   [key: string]: unknown;
 }
@@ -61,7 +71,17 @@ async function updateAssigneeExtension(
   extensionId: string,
   settings: {
     enabled: boolean;
-    toolPermissions?: Array<{ toolName: string; permission: string }>;
+    toolPermissions?: Array<{
+      toolName: string;
+      permission: string;
+      conditions?: Array<{
+        parameterName: string;
+        parameterType: string;
+        operator: string;
+        value: string | number;
+      }>;
+      conditionLogic?: string;
+    }>;
   },
 ): Promise<ExtensionWithStatus> {
   const token = loadToken();
@@ -221,7 +241,7 @@ test.describe.serial("Lazy MCP Tools - Agent Chat", () => {
     const extDetails = await getExtension(systemExt!.id);
     const extTools = extDetails.tools ?? [];
     expect(extTools.length).toBeGreaterThan(0);
-    const targetTool = extTools[0];
+    const targetTool = extTools[0]!;
     console.log(
       `Extension "${systemExt!.title}" has ${extTools.length} tools, using "${targetTool.name}" for test`,
     );
@@ -281,7 +301,7 @@ test.describe.serial("Lazy MCP Tools - Agent Chat", () => {
     const extDetails = await getExtension(systemExt!.id);
     const extTools = extDetails.tools ?? [];
     expect(extTools.length).toBeGreaterThan(0);
-    const disabledTool = extTools[0];
+    const disabledTool = extTools[0]!;
     console.log(`Disabling tool "${disabledTool.name}" for filter test`);
 
     await updateAssigneeExtension(assigneeId, systemExt!.id, {
@@ -328,6 +348,375 @@ test.describe.serial("Lazy MCP Tools - Agent Chat", () => {
           expect(found).toBeUndefined();
         }
       }
+    } finally {
+      stream.cancel();
+    }
+  });
+});
+
+test.describe.serial("Lazy MCP Tools - Permission Filtering", () => {
+  test.setTimeout(300_000);
+
+  test("auto-reject permission blocks search, read, and use", async ({
+    assigneeId,
+  }) => {
+    const extensions = await listAssigneeExtensions(assigneeId);
+    const systemExt = extensions.find((e) => e.type === "system");
+    expect(systemExt).toBeDefined();
+
+    const extDetails = await getExtension(systemExt!.id);
+    const extTools = extDetails.tools ?? [];
+    expect(extTools.length).toBeGreaterThan(0);
+    const rejectedTool = extTools[0]!;
+    const rejectedToolId = `${systemExt!.prefix}${rejectedTool.name}`;
+    console.log(`Setting "${rejectedTool.name}" to auto-reject for permission test`);
+
+    // Enable extension with one tool auto-rejected, rest auto-confirmed
+    await updateAssigneeExtension(assigneeId, systemExt!.id, {
+      enabled: true,
+      toolPermissions: extTools.map((t) => ({
+        toolName: t.name,
+        permission: t.name === rejectedTool.name ? "auto-reject" : "auto-confirm",
+      })),
+    });
+
+    await clearChatHistory(assigneeId);
+
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      label: "perm-auto-reject",
+    });
+
+    try {
+      await sendMessage(
+        assigneeId,
+        [
+          `Do these 3 steps in order:`,
+          `1. Use search_tools with query "${rejectedTool.name}" and report ALL tool IDs found.`,
+          `2. Use read_tool with toolIds ["${rejectedToolId}"] and report the result.`,
+          `3. Use use_tool with toolId "${rejectedToolId}" and parameters {} and report the result.`,
+          `Do not ask any questions. Execute all 3 steps even if earlier steps show errors.`,
+        ].join("\n"),
+      );
+
+      await stream.waitForDone();
+
+      const toolCalls = stream.events
+        .filter((e) => e.event === "tool-call")
+        .map((e) => e.data.toolName as string);
+      console.log("Tool calls (auto-reject):", toolCalls);
+
+      // search_tools should have been called
+      const searchCalls = stream.events.filter(
+        (e) => e.event === "tool-call" && e.data.toolName === "search_tools",
+      );
+      expect(searchCalls.length).toBeGreaterThanOrEqual(1);
+
+      // search_tools results should NOT contain the rejected tool
+      const searchResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "search_tools",
+      );
+      for (const result of searchResults) {
+        const output = JSON.stringify(result.data);
+        expect(output).not.toContain(rejectedToolId);
+      }
+
+      // Positive control: search should still return other allowed tools with the extension prefix
+      if (extTools.length >= 2) {
+        const allOutputs = searchResults
+          .map((r) => JSON.stringify(r.data))
+          .join("");
+        // At least one allowed tool with the extension prefix should appear
+        const allowedTools = extTools.filter((t) => t.name !== rejectedTool.name);
+        const anyAllowedFound = allowedTools.some((t) =>
+          allOutputs.includes(`${systemExt!.prefix}${t.name}`),
+        );
+        expect(anyAllowedFound).toBe(true);
+      }
+
+      // read_tool should return error about the rejected tool
+      const readResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "read_tool",
+      );
+      if (readResults.length > 0) {
+        const readOutput = JSON.stringify(readResults[0]!.data);
+        expect(readOutput).toContain("not available");
+      }
+
+      // use_tool should return error about the rejected tool
+      const useResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "use_tool",
+      );
+      if (useResults.length > 0) {
+        const useOutput = JSON.stringify(useResults[0]!.data);
+        expect(useOutput).toContain("not available");
+      }
+    } finally {
+      stream.cancel();
+    }
+  });
+
+  test("auto-confirm permission allows search, read, and use", async ({
+    assigneeId,
+  }) => {
+    const extensions = await listAssigneeExtensions(assigneeId);
+    const systemExt = extensions.find((e) => e.type === "system");
+    expect(systemExt).toBeDefined();
+
+    const extDetails = await getExtension(systemExt!.id);
+    const extTools = extDetails.tools ?? [];
+    expect(extTools.length).toBeGreaterThan(0);
+    const targetTool = extTools[0]!;
+    const targetToolId = `${systemExt!.prefix}${targetTool.name}`;
+    console.log(`Setting "${targetTool.name}" to auto-confirm for permission test`);
+
+    await updateAssigneeExtension(assigneeId, systemExt!.id, {
+      enabled: true,
+      toolPermissions: extTools.map((t) => ({
+        toolName: t.name,
+        permission: "auto-confirm",
+      })),
+    });
+
+    await clearChatHistory(assigneeId);
+
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      label: "perm-auto-confirm",
+    });
+
+    try {
+      await sendMessage(
+        assigneeId,
+        [
+          `Do these 3 steps in order:`,
+          `1. Use search_tools with query "${targetTool.name}" and report ALL tool IDs found.`,
+          `2. Use read_tool with toolIds ["${targetToolId}"] and report the result.`,
+          `3. Use use_tool with toolId "${targetToolId}" and parameters {} and report the result.`,
+          `Do not ask any questions. Execute all 3 steps.`,
+        ].join("\n"),
+      );
+
+      await stream.waitForDone();
+
+      const toolCalls = stream.events
+        .filter((e) => e.event === "tool-call")
+        .map((e) => e.data.toolName as string);
+      console.log("Tool calls (auto-confirm):", toolCalls);
+
+      // All three lazy tools should have been called
+      expect(toolCalls).toContain("search_tools");
+      expect(toolCalls).toContain("read_tool");
+      expect(toolCalls).toContain("use_tool");
+
+      // search_tools should find the target tool
+      const searchResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "search_tools",
+      );
+      expect(searchResults.length).toBeGreaterThanOrEqual(1);
+      const anySearchContains = searchResults.some((result) =>
+        JSON.stringify(result.data).includes(targetToolId),
+      );
+      expect(anySearchContains).toBe(true);
+
+      // read_tool should return tool details without error
+      const readResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "read_tool",
+      );
+      expect(readResults.length).toBeGreaterThanOrEqual(1);
+      const readOutput = JSON.stringify(readResults[0]!.data);
+      expect(readOutput).not.toContain("not available");
+
+      // use_tool should execute without error
+      const useResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "use_tool",
+      );
+      expect(useResults.length).toBeGreaterThanOrEqual(1);
+      const useOutput = JSON.stringify(useResults[0]!.data);
+      expect(useOutput).not.toContain("not available");
+    } finally {
+      stream.cancel();
+    }
+  });
+
+  test("manual-confirm permission allows search, read, and use without confirmation", async ({
+    assigneeId,
+  }) => {
+    const extensions = await listAssigneeExtensions(assigneeId);
+    const systemExt = extensions.find((e) => e.type === "system");
+    expect(systemExt).toBeDefined();
+
+    const extDetails = await getExtension(systemExt!.id);
+    const extTools = extDetails.tools ?? [];
+    expect(extTools.length).toBeGreaterThan(0);
+    const targetTool = extTools[0]!;
+    const targetToolId = `${systemExt!.prefix}${targetTool.name}`;
+    console.log(`Setting "${targetTool.name}" to manual-confirm for permission test`);
+
+    // Set target tool to manual-confirm — through lazy tools, this still allows access
+    await updateAssigneeExtension(assigneeId, systemExt!.id, {
+      enabled: true,
+      toolPermissions: extTools.map((t) => ({
+        toolName: t.name,
+        permission: "manual-confirm",
+      })),
+    });
+
+    await clearChatHistory(assigneeId);
+
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      label: "perm-manual-confirm",
+    });
+
+    try {
+      await sendMessage(
+        assigneeId,
+        [
+          `Do these 3 steps in order:`,
+          `1. Use search_tools with query "${targetTool.name}" and report ALL tool IDs found.`,
+          `2. Use read_tool with toolIds ["${targetToolId}"] and report the result.`,
+          `3. Use use_tool with toolId "${targetToolId}" and parameters {} and report the result.`,
+          `Do not ask any questions. Execute all 3 steps.`,
+        ].join("\n"),
+      );
+
+      await stream.waitForDone();
+
+      const toolCalls = stream.events
+        .filter((e) => e.event === "tool-call")
+        .map((e) => e.data.toolName as string);
+      console.log("Tool calls (manual-confirm):", toolCalls);
+
+      // All three lazy tools should have been called
+      expect(toolCalls).toContain("search_tools");
+      expect(toolCalls).toContain("read_tool");
+      expect(toolCalls).toContain("use_tool");
+
+      // No confirmation_required event should appear (lazy tools bypass confirmation)
+      const confirmEvents = stream.events.filter(
+        (e) => e.event === "confirmation_required",
+      );
+      expect(confirmEvents).toHaveLength(0);
+
+      // search_tools should find the target tool
+      const searchResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "search_tools",
+      );
+      const anySearchContains = searchResults.some((result) =>
+        JSON.stringify(result.data).includes(targetToolId),
+      );
+      expect(anySearchContains).toBe(true);
+
+      // read_tool should return tool details without error
+      const readResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "read_tool",
+      );
+      expect(readResults.length).toBeGreaterThanOrEqual(1);
+      expect(JSON.stringify(readResults[0]!.data)).not.toContain("not available");
+
+      // use_tool should execute without error
+      const useResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "use_tool",
+      );
+      expect(useResults.length).toBeGreaterThanOrEqual(1);
+      expect(JSON.stringify(useResults[0]!.data)).not.toContain("not available");
+    } finally {
+      stream.cancel();
+    }
+  });
+
+  test("conditional permission allows search, read, and use (conditions only apply to direct calls)", async ({
+    assigneeId,
+  }) => {
+    const extensions = await listAssigneeExtensions(assigneeId);
+    const systemExt = extensions.find((e) => e.type === "system");
+    expect(systemExt).toBeDefined();
+
+    const extDetails = await getExtension(systemExt!.id);
+    const extTools = extDetails.tools ?? [];
+    expect(extTools.length).toBeGreaterThan(0);
+    const targetTool = extTools[0]!;
+    const targetToolId = `${systemExt!.prefix}${targetTool.name}`;
+    console.log(`Setting "${targetTool.name}" to auto-confirm with conditions for permission test`);
+
+    // Set auto-confirm with a condition — through lazy tools, conditions are ignored
+    // (isToolAllowed only checks the base permission, not conditions)
+    await updateAssigneeExtension(assigneeId, systemExt!.id, {
+      enabled: true,
+      toolPermissions: extTools.map((t) => ({
+        toolName: t.name,
+        permission: "auto-confirm",
+        ...(t.name === targetTool.name
+          ? {
+              conditions: [
+                {
+                  parameterName: "amount",
+                  parameterType: "number",
+                  operator: "lt",
+                  value: 100,
+                },
+              ],
+              conditionLogic: "and",
+            }
+          : {}),
+      })),
+    });
+
+    await clearChatHistory(assigneeId);
+
+    const stream = consumeStream(assigneeId, {
+      timeout: 180_000,
+      label: "perm-conditional",
+    });
+
+    try {
+      await sendMessage(
+        assigneeId,
+        [
+          `Do these 3 steps in order:`,
+          `1. Use search_tools with query "${targetTool.name}" and report ALL tool IDs found.`,
+          `2. Use read_tool with toolIds ["${targetToolId}"] and report the result.`,
+          `3. Use use_tool with toolId "${targetToolId}" and parameters {} and report the result.`,
+          `Do not ask any questions. Execute all 3 steps.`,
+        ].join("\n"),
+      );
+
+      await stream.waitForDone();
+
+      const toolCalls = stream.events
+        .filter((e) => e.event === "tool-call")
+        .map((e) => e.data.toolName as string);
+      console.log("Tool calls (conditional):", toolCalls);
+
+      // All three lazy tools should have been called
+      expect(toolCalls).toContain("search_tools");
+      expect(toolCalls).toContain("read_tool");
+      expect(toolCalls).toContain("use_tool");
+
+      // search_tools should find the target tool (conditions don't block discovery)
+      const searchResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "search_tools",
+      );
+      expect(searchResults.length).toBeGreaterThanOrEqual(1);
+      const anySearchContains = searchResults.some((result) =>
+        JSON.stringify(result.data).includes(targetToolId),
+      );
+      expect(anySearchContains).toBe(true);
+
+      // read_tool should return details (conditions don't block reading)
+      const readResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "read_tool",
+      );
+      expect(readResults.length).toBeGreaterThanOrEqual(1);
+      expect(JSON.stringify(readResults[0]!.data)).not.toContain("not available");
+
+      // use_tool should execute (conditions only apply to direct tool calls, not lazy)
+      const useResults = stream.events.filter(
+        (e) => e.event === "tool-result" && e.data.toolName === "use_tool",
+      );
+      expect(useResults.length).toBeGreaterThanOrEqual(1);
+      expect(JSON.stringify(useResults[0]!.data)).not.toContain("not available");
     } finally {
       stream.cancel();
     }
