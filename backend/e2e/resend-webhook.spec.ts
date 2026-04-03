@@ -50,12 +50,12 @@ test.describe("Resend webhook inline images", () => {
     expect(email.attachments).toBeTruthy();
     expect(email.attachments.length).toBeGreaterThanOrEqual(1);
     expect(email.attachments[0].type).toBe("image");
-    expect(email.attachments[0].url).toContain("http://localhost:9000/e2e-test/");
+    expect(email.attachments[0].url).toContain("/api/mock-s3/");
 
     // HTML should have CID replaced with S3 URL, no data: URIs
     expect(email.htmlBody).not.toContain("cid:");
     expect(email.htmlBody).not.toContain("data:");
-    expect(email.htmlBody).toContain("http://localhost:9000/e2e-test/");
+    expect(email.htmlBody).toContain("/api/mock-s3/");
 
     // Verify every attachment URL actually serves an image
     for (const att of email.attachments) {
@@ -82,7 +82,7 @@ test.describe("Resend webhook inline images", () => {
     expect(email.attachments).toBeTruthy();
     expect(email.attachments).toHaveLength(1);
     expect(email.attachments[0].type).toBe("image");
-    expect(email.attachments[0].url).toContain("http://localhost:9000/e2e-test/");
+    expect(email.attachments[0].url).toContain("/api/mock-s3/");
     await assertImageAccessible(email.attachments[0].url);
 
     // HTML should have no base64 data URIs and no cid: refs
@@ -107,12 +107,12 @@ test.describe("Resend webhook inline images", () => {
     expect(email.attachments).toBeTruthy();
     expect(email.attachments).toHaveLength(1);
     expect(email.attachments[0].type).toBe("image");
-    expect(email.attachments[0].url).toContain("http://localhost:9000/e2e-test/");
+    expect(email.attachments[0].url).toContain("/api/mock-s3/");
     expect(email.attachments[0].name).toContain("inline.");
 
-    // HTML should have S3 URL instead of base64
+    // HTML should have mock S3 URL instead of base64
     expect(email.htmlBody).not.toContain("data:");
-    expect(email.htmlBody).toContain("http://localhost:9000/e2e-test/");
+    expect(email.htmlBody).toContain("/api/mock-s3/");
 
     // Verify the uploaded image is actually accessible
     await assertImageAccessible(email.attachments[0].url);

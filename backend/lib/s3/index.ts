@@ -64,6 +64,11 @@ export async function downloadAndUploadToS3(url: string, contentType: string, fi
   // Generate a unique key for the file in S3
   const key = `email-attachments/${nanoid()}-${filename}`;
 
+  if (process.env.IS_E2E?.toLowerCase() === "true") {
+    const baseUrl = `http://localhost:${process.env.PORT || 3001}`;
+    return { url: `${baseUrl}/api/mock-s3/${key}`, contentHash };
+  }
+
   // Upload buffer directly to S3
   log("uploading to s3");
   const command = new PutObjectCommand({
@@ -90,6 +95,11 @@ export async function uploadBufferToS3(
 ) {
   const contentHash = createHash("sha256").update(buffer).digest("hex");
   const key = `${prefix}/${nanoid()}-${filename}`;
+
+  if (process.env.IS_E2E?.toLowerCase() === "true") {
+    const baseUrl = `http://localhost:${process.env.PORT || 3001}`;
+    return { url: `${baseUrl}/api/mock-s3/${key}`, contentHash };
+  }
 
   const command = new PutObjectCommand({
     Bucket: process.env.S3_BUCKET_NAME!,

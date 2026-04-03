@@ -37,6 +37,9 @@ struct SlideCarouselView: View {
                 #endif
                 .aspectRatio(16 / 9, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
+                .accessibilityElement(children: .ignore)
+                .accessibilityIdentifier("slide-view")
+                .accessibilityAddTraits(.isButton)
                 .onTapGesture {
                     if let onOpenFullViewer {
                         onOpenFullViewer(deckId)
@@ -71,6 +74,7 @@ struct SlideCarouselView: View {
         }
         .modifier(SelfPresentingSlideViewer(deckId: deckId, isPresented: $showFullViewer, isEnabled: onOpenFullViewer == nil))
         .frame(maxWidth: .infinity)
+        .accessibilityIdentifier("slideCarousel-\(deckId)")
         .task {
             await loadDeck()
         }
