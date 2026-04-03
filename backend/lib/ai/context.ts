@@ -19,12 +19,11 @@ export const CHUNK_TOKEN_SIZE = 10_000;
 
 export const IMAGE_GENERATION_MODEL = "google/gemini-3.1-flash-image-preview";
 
-export const CHART_GENERATION_MODEL = "openai/gpt-5.4";
+export const CHART_GENERATION_MODEL = "google/gemma-4-26b-a4b-it";
 
-export const SLIDE_GENERATION_MODEL = "openai/gpt-5.4";
+export const SLIDE_GENERATION_MODEL = "anthropic/claude-sonnet-4.6";
 
-export const TASK_SESSION_SUMMARIZATION_MODEL =
-  "google/gemini-3.1-flash-lite-preview";
+export const TASK_SESSION_SUMMARIZATION_MODEL = "google/gemma-4-26b-a4b-it";
 
 export const TASK_SESSION_EMBEDDING_MODEL = "google/gemini-embedding-2";
 
@@ -50,7 +49,7 @@ export const MAX_STEPS = 20;
  * Env: COMPACTION_MODEL (default: fast model with large context window).
  */
 export const COMPACTION_MODEL =
-  process.env.COMPACTION_MODEL || "google/gemini-3-flash";
+  process.env.COMPACTION_MODEL || "google/gemma-4-26b-a4b-it";
 
 // ── Token Estimation ───────────────────────────────────────────────────
 

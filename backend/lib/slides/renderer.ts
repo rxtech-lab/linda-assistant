@@ -81,7 +81,10 @@ function buildNode(
   const NodeClass = (Konva as Record<string, unknown>)[className] as
     | (new (config: Record<string, unknown>) => Konva.Node)
     | undefined;
-  if (!NodeClass) return null;
+  if (!NodeClass) {
+    console.warn(`[renderer] Unknown Konva className: "${className}", skipping node`);
+    return null;
+  }
 
   const node = new NodeClass(cleanAttrs);
   for (const child of children as Record<string, unknown>[]) {
@@ -110,8 +113,36 @@ export async function renderSlideToBuffer(
   const srcs = collectImageSrcs(json as Record<string, unknown>);
   const imageMap = srcs.length > 0 ? await prefetchImages(srcs) : new Map();
 
-  const stage = buildNode(json, imageMap) as Konva.Stage;
-  if (!stage) throw new Error("Failed to build Konva stage from scene data");
+  const rootJson = json as Record<string, unknown>;
+  let stage: Konva.Stage;
+
+  if (rootJson.className === "Stage") {
+    // Standard case: root is a Stage
+    const built = buildNode(rootJson, imageMap) as Konva.Stage | null;
+    if (!built) throw new Error("Failed to build Konva stage from scene data");
+    stage = built;
+  } else {
+    // Model sent a non-Stage root (e.g. Layer, Group) — wrap it
+    stage = new Konva.Stage({ width, height });
+    if (rootJson.className === "Layer") {
+      const layer = buildNode(rootJson, imageMap) as Konva.Layer | null;
+      if (!layer)
+        throw new Error(
+          `Failed to build Konva node from scene data (root className: ${rootJson.className})`,
+        );
+      stage.add(layer);
+    } else {
+      const layer = new Konva.Layer();
+      const node = buildNode(rootJson, imageMap);
+      if (!node)
+        throw new Error(
+          `Failed to build Konva node from scene data (root className: ${rootJson.className})`,
+        );
+      layer.add(node as Konva.Group);
+      stage.add(layer);
+    }
+  }
+
   stage.width(width);
   stage.height(height);
 

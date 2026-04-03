@@ -23,6 +23,7 @@ struct MarkdownTableView: View {
                         header: MarkdownColors.tableHeaderBackground
                     )
                 )
+                .fixedSize(horizontal: true, vertical: false)
         }
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(

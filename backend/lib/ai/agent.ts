@@ -480,9 +480,21 @@ If the user rejects your questions, do NOT retry with the same or similar questi
     }
   }
 
-  const extensionToolGuidance = `\nWhen the user asks you to do something that might require an extension tool (e.g. invoices, files, transport, web scraping), use the search_tools tool to discover available extension tools by keyword. Then use read_tool to inspect the parameters of matching tools. Finally, use use_tool to execute the tool with the correct parameters. Always follow this flow: search_tools → read_tool → use_tool. Do NOT guess tool IDs or parameters — always search and read first.
+  const extensionToolGuidance = `\n## Extension Tools (IMPORTANT — read carefully)
 
-IMPORTANT: When the user asks you to compose a document, briefing, report, or do any research that requires up-to-date or real-world information (e.g. news, market data, weather, current events, company info, travel details), you MUST first use search_tools to find available network/web searching tools (search keywords like "web", "search", "browse", "fetch", "news", "scrape"). Use those tools to gather real-time data before writing. Do NOT rely on your own knowledge for factual, time-sensitive, or real-world content — your training data is outdated and may be inaccurate. Always fetch fresh information from external sources first, then compose the document or briefing based on what you find.`;
+Extension tools (e.g. web search, invoices, file storage) are NOT directly available. You MUST follow this exact 3-step flow to use them:
+
+1. **search_tools** — call search_tools with a keyword query to discover available tools. Returns tool IDs and descriptions.
+2. **read_tool** — call read_tool with the tool IDs from step 1 to get the exact parameter names and types. You MUST do this before calling use_tool — do NOT guess parameters.
+3. **use_tool** — call use_tool with two top-level fields: "toolId" (string) and "parameters" (object matching the schema from step 2).
+
+NEVER skip step 2 (read_tool). The parameter names vary per tool and you cannot guess them correctly without reading the schema first.
+
+When calling use_tool, pass the toolId exactly as returned by search_tools — a plain string with no extra quotes, markup, or special tokens. The toolId and parameters are two separate top-level fields of use_tool.
+
+Do NOT call extension tool IDs directly as tool calls — they don't exist as callable tools. Do NOT guess parameter names — always read_tool first to get the exact schema.
+
+When the user asks you to compose a document, briefing, report, or do any research that requires up-to-date or real-world information (e.g. news, market data, weather, current events, company info, travel details), you MUST first use search_tools to find available network/web searching tools (search keywords like "web", "search", "browse", "fetch", "news", "scrape"). Use those tools to gather real-time data before writing. Do NOT rely on your own knowledge for factual, time-sensitive, or real-world content — your training data is outdated and may be inaccurate. Always fetch fresh information from external sources first, then compose the document or briefing based on what you find.`;
 
   const idRedactionGuidance = `\nIMPORTANT: Never include internal IDs (document IDs, slide deck IDs, task IDs, session IDs, or any other system identifiers) in your responses to the user. These are internal implementation details. When referencing created resources, use their titles or descriptions instead. For example, say "I created the document 'Q1 Report'" rather than "I created document doc_abc123". Exception: when you create slides with create_slides, do NOT embed the slide deck ID or any slide syntax in your chat response. The slide carousel is already rendered automatically from the tool call. Just mention what you created by title — do NOT include {{slide:deckId}} or any other slide reference in your chat message. The {{slide:deckId}} syntax is only used inside document and briefing content (via create_document or create_briefing tools), where it renders as an embedded carousel.`;
 

@@ -1,6 +1,29 @@
 import MarkdownUI
 import SwiftUI
 
+// MARK: - Shared Table Theme
+
+extension MarkdownUI.Theme {
+    /// Applies scrollable table styling to any theme
+    func scrollableTable() -> MarkdownUI.Theme {
+        self
+            .table { configuration in
+                MarkdownTableView(configuration: configuration)
+            }
+            .tableCell { configuration in
+                configuration.label
+                    .markdownTextStyle {
+                        FontSize(.em(0.9))
+                    }
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(minWidth: 120, alignment: .leading)
+            }
+    }
+}
+
 // MARK: - Custom Chat Theme
 
 extension MarkdownUI.Theme {
@@ -14,17 +37,7 @@ extension MarkdownUI.Theme {
         .codeBlock { configuration in
             CodeBlockView(configuration: configuration)
         }
-        .table { configuration in
-            MarkdownTableView(configuration: configuration)
-        }
-        .tableCell { configuration in
-            configuration.label
-                .markdownTextStyle {
-                    FontSize(.em(0.9))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-        }
+        .scrollableTable()
 }
 
 #Preview("Chat Theme - All Elements") {
