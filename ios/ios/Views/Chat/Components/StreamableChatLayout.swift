@@ -27,6 +27,14 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var selectedToolCall: ToolCallInfo?
     @State private var selectedDocumentItem: DocumentSheetItem?
     @State private var selectedBriefingId: String?
+    @State private var selectedSlideDeckId: String?
+
+    private var selectedSlideDeckPresented: Binding<Bool> {
+        Binding(
+            get: { selectedSlideDeckId != nil },
+            set: { if !$0 { selectedSlideDeckId = nil } }
+        )
+    }
     @State private var errorDismissTask: Task<Void, Never>?
     @State private var presentedConfirmation: ConfirmationPayload?
     @State private var presentedQuestion: QuestionPayload?
@@ -172,6 +180,9 @@ struct StreamableChatLayout<Header: View>: View {
                 },
                 onBriefingTap: { briefingId in
                     selectedBriefingId = briefingId
+                },
+                onSlideTap: { deckId in
+                    selectedSlideDeckId = deckId
                 }
             )
             .listRowSeparator(.hidden)
@@ -217,6 +228,15 @@ struct StreamableChatLayout<Header: View>: View {
             if oldCount == 0, newCount > 0 {
                 DispatchQueue.main.async {
                     proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            }
+        }
+        .onChange(of: pendingConfirmationCount + pendingQuestionCount + pendingLocationCount + pendingUploadCount) { _, _ in
+            if isAtBottom {
+                DispatchQueue.main.async {
+                    withAnimation {
+                        proxy.scrollTo("bottom", anchor: .bottom)
+                    }
                 }
             }
         }
@@ -534,6 +554,19 @@ struct StreamableChatLayout<Header: View>: View {
                 }
             }
         )
+#if os(macOS)
+        .sheet(isPresented: selectedSlideDeckPresented) {
+            if let deckId = selectedSlideDeckId {
+                SlideViewerSheet(deckId: deckId)
+            }
+        }
+#else
+        .fullScreenCover(isPresented: selectedSlideDeckPresented) {
+            if let deckId = selectedSlideDeckId {
+                SlideViewerSheet(deckId: deckId)
+            }
+        }
+#endif
     }
 }
 

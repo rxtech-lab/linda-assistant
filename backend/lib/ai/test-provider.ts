@@ -51,6 +51,24 @@ function getLastToolCallNames(messages: unknown[]): string[] {
   return content.filter((c: any) => c.type === "tool-call").map((c: any) => c.toolName as string);
 }
 
+/** Extract the output value from the most recent tool-result for a given toolName. */
+function getLastToolResultOutput(messages: unknown[], toolName: string): Record<string, unknown> | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i] as any;
+    if (msg.role !== "tool" || !Array.isArray(msg.content)) continue;
+    for (const part of msg.content) {
+      if (part.type !== "tool-result" || part.toolName !== toolName) continue;
+      const output = part.output;
+      if (typeof output === "object" && output !== null) {
+        // SDK-wrapped: { type: "json", value: { ... } }
+        const value = output.value ?? output;
+        return typeof value === "object" ? value : null;
+      }
+    }
+  }
+  return null;
+}
+
 /** Generate ~1000 words of text for long output testing. */
 function generateLongText(): string {
   const sentence = "The quick brown fox jumps over the lazy dog near the riverbank. ";
@@ -217,6 +235,29 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
         chunks: createTextMessageChunks("I found the search results for you."),
         chunkDelayInMs: null,
       };
+    }
+
+    // document_slide multi-step flow: create_slides → create_document (with embedded slide) → text
+    if (hasUserMessage(messages, "[TOOL:document_slide]")) {
+      if (lastToolNames.includes("create_slides")) {
+        const slideResult = getLastToolResultOutput(messages, "create_slides");
+        const deckId = (slideResult?.deckId as string) ?? "unknown-deck";
+        const input = JSON.stringify({
+          title: "E2E Test Document with Slides",
+          format: "markdown",
+          content: `# Test Document\n\nHere are the slides:\n\n{{slide:${deckId}}}\n\nEnd of document.`,
+        });
+        return {
+          chunks: createToolCallChunks("call-doc-slide-1", "create_document", input),
+          chunkDelayInMs: null,
+        };
+      }
+      if (lastToolNames.includes("create_document")) {
+        return {
+          chunks: createTextMessageChunks("Here are your slides and document."),
+          chunkDelayInMs: null,
+        };
+      }
     }
 
     const text = isRejection ? "I understand, I won't do that." : "Email sent successfully.";
@@ -473,6 +514,21 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
     });
     return {
       chunks: createToolCallChunks("call-question-1", "ask_question", input),
+      chunkDelayInMs: null,
+    };
+  }
+
+  // Scenario: document_slide — first step: create_slides (then create_document in tool-result handler)
+  if (
+    lastText.includes("[TOOL:document_slide]") &&
+    (!availableTools || availableTools.has("create_slides"))
+  ) {
+    const input = JSON.stringify({
+      title: "E2E Test Slides",
+      description: "Slides for E2E test with document embedding",
+    });
+    return {
+      chunks: createToolCallChunks("call-slides-1", "create_slides", input),
       chunkDelayInMs: null,
     };
   }

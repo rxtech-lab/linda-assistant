@@ -8,6 +8,8 @@ const SYSTEM_TOOLS_NO_PERMISSION_CHANGE = [
   "create_briefing",
   "send_notification",
   "generate_image",
+  "create_slides",
+  "update_slides",
   "search_history",
   "read_uploaded_file",
   "search_tools",

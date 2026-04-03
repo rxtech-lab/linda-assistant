@@ -22,7 +22,9 @@ import { SEND_NOTIFICATION_TOOL_NAME, sendNotificationTool } from "./send-notifi
 import { SEARCH_DOCUMENTS_TOOL_NAME, searchDocumentsTool } from "./search-documents";
 import { CREATE_BRIEFING_TOOL_NAME, createBriefingTool } from "./create-briefing";
 import { CREATE_DRAWING_TOOL_NAME, createDrawingTool } from "./create-drawing";
+import { CREATE_SLIDES_TOOL_NAME, createSlidesTool } from "./create-slides";
 import { GENERATE_IMAGE_TOOL_NAME, generateImageTool } from "./generate-image";
+import { UPDATE_SLIDES_TOOL_NAME, updateSlidesTool } from "./update-slides";
 import { REQUEST_UPLOAD_TOOL_NAME, requestUploadTool } from "./request-upload";
 import { SEARCH_HISTORY_TOOL_NAME, searchHistoryTool } from "./search-history";
 import { READ_UPLOADED_FILE_TOOL_NAME, readUploadedFileTool } from "./read-uploaded-file";
@@ -50,6 +52,8 @@ export const NO_PERMISSION_CHANGE_TOOLS: ReadonlySet<string> = new Set([
   CREATE_BRIEFING_TOOL_NAME,
   SEND_NOTIFICATION_TOOL_NAME,
   GENERATE_IMAGE_TOOL_NAME,
+  CREATE_SLIDES_TOOL_NAME,
+  UPDATE_SLIDES_TOOL_NAME,
   SEARCH_HISTORY_TOOL_NAME,
   READ_UPLOADED_FILE_TOOL_NAME,
   SEARCH_TOOLS_TOOL_NAME,
@@ -404,6 +408,12 @@ export async function buildToolSet(
   // Image generation tool — never require confirmation
   filtered[GENERATE_IMAGE_TOOL_NAME] = generateImageTool();
 
+  // Slide tools — never require confirmation
+  if (chatSessionId) {
+    filtered[CREATE_SLIDES_TOOL_NAME] = createSlidesTool(userId, chatSessionId);
+  }
+  filtered[UPDATE_SLIDES_TOOL_NAME] = updateSlidesTool(userId, chatSessionId);
+
   // Notification tool — never require confirmation
   filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(userId, chatSessionId);
 
@@ -584,6 +594,7 @@ export {
   CREATE_BRIEFING_TOOL_NAME,
   CREATE_DOCUMENT_TOOL_NAME,
   CREATE_DRAWING_TOOL_NAME,
+  CREATE_SLIDES_TOOL_NAME,
   CREATE_TASK_TOOL_NAME,
   GENERATE_IMAGE_TOOL_NAME,
   GET_CURRENT_TIME_TOOL_NAME,
@@ -595,6 +606,7 @@ export {
   SEND_EMAIL_TOOL_NAME,
   SEND_NOTIFICATION_TOOL_NAME,
   UPDATE_DOCUMENT_TOOL_NAME,
+  UPDATE_SLIDES_TOOL_NAME,
   READ_UPLOADED_FILE_TOOL_NAME,
   UPDATE_TASK_TOOL_NAME,
 };

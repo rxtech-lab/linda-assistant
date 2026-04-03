@@ -3,7 +3,7 @@ import { z } from "zod";
 import { uploadBufferToS3 } from "../../s3";
 import { IMAGE_GENERATION_MODEL } from "../context";
 
-export const generateImageTool = () =>
+export const generateImageTool = (systemPrompt?: string) =>
   tool({
     description:
       "Generate an AI image and upload it to storage. Use this to create illustrations, diagrams, or visual aids " +
@@ -43,7 +43,7 @@ export const generateImageTool = () =>
         providerOptions: {
           google: { responseModalities: ["TEXT", "IMAGE"] },
         },
-        prompt,
+        prompt: systemPrompt ? `${systemPrompt}\n${prompt}` : prompt,
       });
 
       if (!result.files || result.files.length === 0) {
@@ -54,7 +54,12 @@ export const generateImageTool = () =>
       const buffer = Buffer.from(file.base64, "base64");
       const ext = file.mediaType === "image/png" ? "png" : "jpg";
       const finalName = `${filename || "image"}-${Date.now()}.${ext}`;
-      const { url } = await uploadBufferToS3(buffer, file.mediaType, finalName, "generated-images");
+      const { url } = await uploadBufferToS3(
+        buffer,
+        file.mediaType,
+        finalName,
+        "generated-images",
+      );
 
       return { url };
     },

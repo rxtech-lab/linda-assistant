@@ -9,7 +9,7 @@ import {
   deleteCronTask,
   scheduleOnceTask,
 } from "@/lib/celery/client";
-import { convertCronToUTC, convertRunsAtToUTC } from "@/lib/utils/timezone";
+import { convertRunsAtToUTC } from "@/lib/utils/timezone";
 import { isValidCronExpression } from "@/lib/utils/cron";
 
 export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId?: string) =>
@@ -17,7 +17,7 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
     description:
       "Update an existing task's status, details, or scheduling. " +
       "Can add, modify, or remove cron schedules and one-shot execution times. " +
-      "When updating scheduled tasks, times should be specified in the user's timezone — they will be automatically converted to UTC.",
+      "When updating scheduled tasks, times should be specified in the user's timezone.",
     needsApproval,
     inputSchema: z.object({
       taskId: z.string().describe("ID of the task to update"),
@@ -88,9 +88,10 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
           setValues.cronSchedule = null;
           setValues.isCronEnabled = false;
         } else {
-          setValues.cronSchedule = convertCronToUTC(cronSchedule, sessionTimezone);
+          setValues.cronSchedule = cronSchedule;
           setValues.isCronEnabled = true;
           setValues.runsAt = null; // Clear runsAt when setting cron
+          if (sessionTimezone) setValues.timezone = sessionTimezone;
         }
       }
       if (isCronEnabled !== undefined) {
@@ -109,6 +110,7 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
           setValues.runsAt = convertRunsAtToUTC(runsAt, sessionTimezone);
           setValues.isCronEnabled = false; // Clear cron when setting runsAt
           setValues.cronSchedule = null;
+          if (sessionTimezone) setValues.timezone = sessionTimezone;
         }
       }
 
@@ -126,9 +128,9 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
 
       if (isCronNow) {
         if (wasCronEnabled) {
-          await updateCronTask(taskId, updated.cronSchedule!);
+          await updateCronTask(taskId, updated.cronSchedule!, updated.timezone);
         } else {
-          await registerCronTask(taskId, updated.cronSchedule!);
+          await registerCronTask(taskId, updated.cronSchedule!, updated.timezone);
         }
       } else if (wasCronEnabled && !isCronNow) {
         // Cron was active but is now disabled/removed

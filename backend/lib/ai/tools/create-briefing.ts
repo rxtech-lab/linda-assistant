@@ -23,7 +23,8 @@ export const createBriefingTool = (
       "- Keep paragraphs concise and scannable\n" +
       "- For data-heavy content, prefer tables over prose\n" +
       "- Include a brief executive summary at the top\n" +
-      "- For complex or abstract topics, use generate_image to create illustrative visuals and embed them via ![alt](url) in the content",
+      "- For complex or abstract topics, use generate_image to create illustrative visuals and embed them via ![alt](url) in the content\n" +
+      "- To embed slide presentations as illustrations, first use create_slides, then embed with the syntax {{slide:deckId}} in the content",
     inputSchema: z.object({
       title: z.string().describe("Briefing title"),
       content: z

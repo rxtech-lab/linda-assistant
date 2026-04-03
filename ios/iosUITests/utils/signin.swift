@@ -134,6 +134,11 @@ extension XCUIApplication {
         logger.info("✅ Assignee button found, tapping...")
         assigneeButton.tap()
 
+        XCTAssertTrue(staticTexts["Options"].firstMatch.waitForExistence(timeout: 10), "Options sheet did not appear")
+        // Scroll down in the options sheet to reveal the clear messages button
+        self.swipeUp()
+        self.swipeUp()
+
         // Wait for and tap clear messages button
         let clearMessagesButton = buttons["clear-messages-button"].firstMatch
         NSLog("⏱️  Waiting for clear messages button...")

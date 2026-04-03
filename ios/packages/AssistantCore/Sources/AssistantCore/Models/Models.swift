@@ -407,6 +407,56 @@ public struct UpdateUserSettings: Codable, Sendable {
     }
 }
 
+// MARK: - Slide Deck
+
+public struct SlidePage: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let deckId: String
+    public let pageNumber: Int
+    public let imageUrl: String?
+    public let thumbnailUrl: String?
+    public let createdAt: String?
+    public let updatedAt: String?
+}
+
+public struct SlideDeck: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let userId: String?
+    public let chatSessionId: String?
+    public let title: String
+    public let pages: [SlidePage]?
+    public let createdAt: String?
+    public let updatedAt: String?
+}
+
+public struct SlideDeckListItem: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let pageCount: Int
+    public let thumbnailUrl: String?
+    public let createdAt: String?
+    public let updatedAt: String?
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        thumbnailUrl = try container.decodeIfPresent(String.self, forKey: .thumbnailUrl)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        // SQLite count(*) may arrive as a string
+        if let intVal = try? container.decode(Int.self, forKey: .pageCount) {
+            pageCount = intVal
+        } else if let strVal = try? container.decode(String.self, forKey: .pageCount),
+                  let parsed = Int(strVal)
+        {
+            pageCount = parsed
+        } else {
+            pageCount = 0
+        }
+    }
+}
+
 // MARK: - Document
 
 public struct Document: Codable, Identifiable, Hashable, Sendable {

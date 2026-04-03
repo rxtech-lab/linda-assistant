@@ -8,7 +8,7 @@ struct SearchToolsCard: View {
     var onTap: (() -> Void)?
 
     private var searchQuery: String {
-        toolCall.input?["query"]?.stringValue ?? "tools"
+        "tool search"
     }
 
     private var matchCount: Int? {

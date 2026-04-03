@@ -10,6 +10,7 @@
 		DF0FE3CA2F3DB9EB002CCE53 /* RichText in Frameworks */ = {isa = PBXBuildFile; productRef = DF0FE3C92F3DB9EB002CCE53 /* RichText */; };
 		DF0FE4E92F3F28CE002CCE53 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = DF0FE4E82F3F28CE002CCE53 /* MarkdownUI */; };
 		DF0FE4EC2F3F2F3C002CCE53 /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = DF0FE4EB2F3F2F3C002CCE53 /* Highlightr */; };
+		DF18B4F12F7E7F6100E3F87A /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = DF18B4F02F7E7F6100E3F87A /* Kingfisher */; };
 		DF3C5E312F51E9CE00A5898B /* TestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = DF3C5E302F51E9CE00A5898B /* TestPlan.xctestplan */; };
 		DF6B532B2F62E8980019DE06 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = DF6B532A2F62E8980019DE06 /* Sparkle */; };
 		DF7E2A3E2F385000006A4C0A /* AssistantCore in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E2A202F379000006A4C0A /* AssistantCore */; };
@@ -90,6 +91,7 @@
 			files = (
 				DF0FE4EC2F3F2F3C002CCE53 /* Highlightr in Frameworks */,
 				DF7E2A3E2F385000006A4C0A /* AssistantCore in Frameworks */,
+				DF18B4F12F7E7F6100E3F87A /* Kingfisher in Frameworks */,
 				DF0FE3CA2F3DB9EB002CCE53 /* RichText in Frameworks */,
 				DF6B532B2F62E8980019DE06 /* Sparkle in Frameworks */,
 				DF7E37742F3A66EC006A4C0A /* AgentKit in Frameworks */,
@@ -186,6 +188,7 @@
 				DF0FE4E82F3F28CE002CCE53 /* MarkdownUI */,
 				DF0FE4EB2F3F2F3C002CCE53 /* Highlightr */,
 				DF6B532A2F62E8980019DE06 /* Sparkle */,
+				DF18B4F02F7E7F6100E3F87A /* Kingfisher */,
 			);
 			productName = LindaAssistant;
 			productReference = DF7E29F12F378F46006A4C0A /* LindaAssistant.app */;
@@ -278,6 +281,7 @@
 				DF0FE4E72F3F28CE002CCE53 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				DF0FE4EA2F3F2F3C002CCE53 /* XCRemoteSwiftPackageReference "Highlightr" */,
 				DF6B53292F62E8980019DE06 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				DF18B4EF2F7E7F6100E3F87A /* XCRemoteSwiftPackageReference "kingfisher" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DF7E29F22F378F46006A4C0A /* Products */;
@@ -768,6 +772,14 @@
 				minimumVersion = 2.3.0;
 			};
 		};
+		DF18B4EF2F7E7F6100E3F87A /* XCRemoteSwiftPackageReference "kingfisher" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/onevcat/kingfisher";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.8.1;
+			};
+		};
 		DF6B53292F62E8980019DE06 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
@@ -809,6 +821,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = DF0FE4EA2F3F2F3C002CCE53 /* XCRemoteSwiftPackageReference "Highlightr" */;
 			productName = Highlightr;
+		};
+		DF18B4F02F7E7F6100E3F87A /* Kingfisher */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DF18B4EF2F7E7F6100E3F87A /* XCRemoteSwiftPackageReference "kingfisher" */;
+			productName = Kingfisher;
 		};
 		DF6B532A2F62E8980019DE06 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -642,6 +642,29 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 }
                 onUploadResolved?(payload.toolCallId, payload.action)
 
+            case let .toolProgress(payload):
+                logger
+                    .info(
+                        "toolProgress: \(payload.toolName) toolCallId=\(payload.toolCallId) \(payload.current)/\(payload.total) step=\(payload.step ?? "nil")"
+                    )
+                if let index = streamingParts.firstIndex(where: {
+                    if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
+                    return false
+                }) {
+                    if case var .tool(info) = streamingParts[index] {
+                        info.progressCurrent = payload.current
+                        info.progressTotal = payload.total
+                        info.progressStep = payload.step
+                        info.progressMessage = payload.message
+                        // Only set the thumbnail once (keep the first rendered slide)
+                        if info.progressThumbnailUrl == nil, let url = payload.thumbnailUrl {
+                            info.progressThumbnailUrl = url
+                        }
+                        streamingParts[index] = .tool(info)
+                    }
+                }
+                eventManager.emit(.streamContentUpdated)
+
             case let .userMessage(payload):
                 logger.info("userMessage: id=\(payload.id), content=\(payload.content.prefix(50))")
                 onUserMessage?(payload.id, payload.content)
@@ -775,6 +798,11 @@ public struct ToolCallInfo: Identifiable, Sendable {
     public var result: AnyCodable?
     public var errorMessage: String?
     public var uploadId: String?
+    public var progressCurrent: Int?
+    public var progressTotal: Int?
+    public var progressStep: String?
+    public var progressMessage: String?
+    public var progressThumbnailUrl: String?
 
     public init(
         toolCallId: String,
@@ -783,7 +811,12 @@ public struct ToolCallInfo: Identifiable, Sendable {
         status: ToolCallStatus,
         result: AnyCodable? = nil,
         errorMessage: String? = nil,
-        uploadId: String? = nil
+        uploadId: String? = nil,
+        progressCurrent: Int? = nil,
+        progressTotal: Int? = nil,
+        progressStep: String? = nil,
+        progressMessage: String? = nil,
+        progressThumbnailUrl: String? = nil
     ) {
         self.toolCallId = toolCallId
         self.toolName = toolName
@@ -792,6 +825,11 @@ public struct ToolCallInfo: Identifiable, Sendable {
         self.result = result
         self.errorMessage = errorMessage
         self.uploadId = uploadId
+        self.progressCurrent = progressCurrent
+        self.progressTotal = progressTotal
+        self.progressStep = progressStep
+        self.progressMessage = progressMessage
+        self.progressThumbnailUrl = progressThumbnailUrl
     }
 }
 
