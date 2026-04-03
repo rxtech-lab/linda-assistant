@@ -8,12 +8,13 @@ export const AVAILABLE_MODEL_IDS = [
   "anthropic/claude-sonnet-4.6",
   "anthropic/claude-haiku-4.5",
   "openai/gpt-oss-120b",
+  "google/gemma-4-26b-a4b-it",
 ] as const;
 
 export const availableModelSchema = z.enum(AVAILABLE_MODEL_IDS);
 export type AvailableModel = z.infer<typeof availableModelSchema>;
 
-export const DEFAULT_MODEL: AvailableModel = "openai/gpt-5.4";
+export const DEFAULT_MODEL: AvailableModel = "google/gemma-4-26b-a4b-it";
 
 /** Per-million-token USD pricing for each model (input / output). */
 export const MODEL_PRICING: Record<
@@ -21,12 +22,25 @@ export const MODEL_PRICING: Record<
   { inputPerMillion: number; outputPerMillion: number }
 > = {
   "anthropic/claude-haiku-4.5": { inputPerMillion: 1.0, outputPerMillion: 5.0 },
-  "anthropic/claude-sonnet-4.6": { inputPerMillion: 3.0, outputPerMillion: 15.0 },
-  "google/gemini-3.1-flash-image-preview": { inputPerMillion: 0.5, outputPerMillion: 3.0 },
-  "google/gemini-3.1-flash-lite-preview": { inputPerMillion: 0.25, outputPerMillion: 1.5 },
-  "google/gemini-3.1-pro-preview": { inputPerMillion: 2.0, outputPerMillion: 12.0 },
+  "anthropic/claude-sonnet-4.6": {
+    inputPerMillion: 3.0,
+    outputPerMillion: 15.0,
+  },
+  "google/gemini-3.1-flash-image-preview": {
+    inputPerMillion: 0.5,
+    outputPerMillion: 3.0,
+  },
+  "google/gemini-3.1-flash-lite-preview": {
+    inputPerMillion: 0.25,
+    outputPerMillion: 1.5,
+  },
+  "google/gemini-3.1-pro-preview": {
+    inputPerMillion: 2.0,
+    outputPerMillion: 12.0,
+  },
   "openai/gpt-5.4": { inputPerMillion: 2.5, outputPerMillion: 15.0 },
-  "openai/gpt-oss-120b": { inputPerMillion: 0.04, outputPerMillion: 0.19 },
+  "openai/gpt-oss-120b": { inputPerMillion: 0.35, outputPerMillion: 0.75 },
+  "google/gemma-4-26b-a4b-it": { inputPerMillion: 0.13, outputPerMillion: 0.4 },
 };
 
 /**
