@@ -10,8 +10,8 @@ import XCTest
 final class BriefingTests: XCTestCase {
     @MainActor
     func testBriefingTabLoads() throws {
-        let app = launchApp()
-        try app.signInWithEmailAndPassword()
+        let app = launchApp(resetAuth: .once)
+        try app.signInWithEmailAndPassword(skipCleanupMessage: true)
 
         // Open tab bar
         let tabBarButton = app.buttons["square.grid.2x2"].firstMatch
@@ -31,7 +31,7 @@ final class BriefingTests: XCTestCase {
     @MainActor
     func testBriefingCardTapOpensDetail() throws {
         let app = launchApp()
-        try app.signInWithEmailAndPassword()
+        try app.signInWithEmailAndPassword(skipCleanupMessage: true)
 
         // Open tab bar
         let tabBarButton = app.buttons["square.grid.2x2"].firstMatch

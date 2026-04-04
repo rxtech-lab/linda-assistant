@@ -1367,6 +1367,18 @@ export async function runAgent(options: AgentRunOptions) {
             if (signal?.aborted) break streamLoop;
             break;
           }
+          case "tool-input-start": {
+            console.log(
+              `[agent] Tool input start: ${part.toolName} (toolCallId=${part.id})`,
+            );
+            await onEvent?.("tool-input-start", {
+              id: currentStepId,
+              toolCallId: part.id,
+              toolName: part.toolName,
+            });
+            if (signal?.aborted) break streamLoop;
+            break;
+          }
           case "tool-call": {
             console.log(
               `[agent] Tool call: ${part.toolName} (toolCallId=${part.toolCallId})`,

@@ -10,8 +10,8 @@ import XCTest
 final class ToolPermissionTests: XCTestCase {
     @MainActor
     func testTaskSystemToolsPermissionChangeIsDisabled() throws {
-        let app = launchApp()
-        try app.signInWithEmailAndPassword()
+        let app = launchApp(resetAuth: .once)
+        try app.signInWithEmailAndPassword(skipCleanupMessage: true)
 
         // Navigate to Tasks tab
         app/*@START_MENU_TOKEN@*/
@@ -101,8 +101,8 @@ final class ToolPermissionTests: XCTestCase {
 
     @MainActor
     func testAssigneeSystemToolsPermissionChangeIsDisabled() throws {
-        let app = launchApp()
-        try app.signInWithEmailAndPassword()
+        let app = launchApp(resetAuth: .once)
+        try app.signInWithEmailAndPassword(skipCleanupMessage: true)
 
         // Navigate to Settings tab
         app.buttons["square.grid.2x2"].firstMatch.tap()

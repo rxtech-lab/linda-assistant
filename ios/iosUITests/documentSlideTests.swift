@@ -24,7 +24,7 @@ final class DocumentSlideTests: XCTestCase {
 
     @MainActor
     func testDocumentWithEmbeddedSlides() async throws {
-        let app = launchApp()
+        let app = launchApp(resetAuth: .once)
         try app.signInWithEmailAndPassword()
 
         // Step 1: Send trigger message

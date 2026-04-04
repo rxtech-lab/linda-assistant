@@ -197,7 +197,7 @@ struct CronExpressionView: View {
                                     .font(.caption.bold())
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 8)
-                                    .background(guiState.selectedDays.contains(d) ? Color.accentColor : Color(.systemGray5))
+                                    .background(guiState.selectedDays.contains(d) ? Color.accentColor : Color(white: 0.9))
                                     .foregroundStyle(guiState.selectedDays.contains(d) ? .white : .primary)
                                     .clipShape(RoundedRectangle(cornerRadius: 6))
                             }

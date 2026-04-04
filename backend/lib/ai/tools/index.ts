@@ -446,12 +446,14 @@ export async function buildToolSet(
   }
 
   // Document tools — never require confirmation
-  filtered[UPDATE_DOCUMENT_TOOL_NAME] = updateDocumentTool(userId);
   if (chatSessionId) {
+    filtered[UPDATE_DOCUMENT_TOOL_NAME] = updateDocumentTool(userId, chatSessionId);
     filtered[CREATE_DOCUMENT_TOOL_NAME] = createDocumentTool(
       userId,
       chatSessionId,
     );
+  } else {
+    filtered[UPDATE_DOCUMENT_TOOL_NAME] = updateDocumentTool(userId, "");
   }
 
   // Search documents — never require confirmation (read-only)

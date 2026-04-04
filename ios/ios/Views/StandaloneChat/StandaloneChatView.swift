@@ -75,6 +75,9 @@ struct ChatTabView: View {
             ToolbarItem(placement: .principal) {
                 if !viewModel.assignees.isEmpty {
                     Button {
+                        #if os(iOS)
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        #endif
                         viewModel.showingAssigneeSheet = true
                     } label: {
                         HStack(spacing: 4) {
@@ -95,6 +98,7 @@ struct ChatTabView: View {
             #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         navigationManager.showingTabs = true
                     } label: {
                         Image(systemName: "square.grid.2x2")

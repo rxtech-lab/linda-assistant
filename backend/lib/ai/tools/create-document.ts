@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { documents } from "@/lib/db/schema";
+import { publishEvent } from "@/lib/queue/producer";
 import { tool } from "ai";
 import { z } from "zod";
 
@@ -28,11 +29,39 @@ export const createDocumentTool = (userId: string, chatSessionId: string) =>
           "The full document content in the specified format. Use markdown tables for structured data, comparisons, and metrics.",
         ),
     }),
-    execute: async ({ title, format, content }) => {
+    execute: async ({ title, format, content }, { toolCallId }) => {
+      await publishEvent({
+        sessionId: chatSessionId,
+        event: "tool-progress",
+        data: {
+          toolCallId,
+          toolName: CREATE_DOCUMENT_TOOL_NAME,
+          current: 0,
+          total: 1,
+          step: "saving",
+          message: "Saving document...",
+        },
+        timestamp: Date.now(),
+      });
+
       const [doc] = await db
         .insert(documents)
         .values({ userId, chatSessionId, title, format, content })
         .returning();
+
+      await publishEvent({
+        sessionId: chatSessionId,
+        event: "tool-progress",
+        data: {
+          toolCallId,
+          toolName: CREATE_DOCUMENT_TOOL_NAME,
+          current: 1,
+          total: 1,
+          step: "saved",
+          message: "Document saved",
+        },
+        timestamp: Date.now(),
+      });
 
       return {
         documentId: doc.id,

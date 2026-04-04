@@ -11,6 +11,7 @@ struct MessageInput: View {
 
     @State private var borderAnimationProgress: CGFloat = 0
     @State private var shimmerOffset: CGFloat = -1
+    @FocusState private var isInputFocused: Bool
 
     private var isSendDisabled: Bool {
         text.trimmingCharacters(in: .whitespaces).isEmpty || isStreaming
@@ -19,107 +20,65 @@ struct MessageInput: View {
     private func sendIfPossible() {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, !isStreaming else { return }
+        #if os(iOS)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        #endif
         text = ""
         onSend(trimmed)
     }
 
-    /// Colors for the animated border gradient - subtle warm tones like ChatGPT
+    /// Colors for the animated border gradient - subtle warm tones
     private let gradientColors: [Color] = [
-        Color(red: 0.95, green: 0.6, blue: 0.4), // Soft orange/peach
-        Color(red: 0.85, green: 0.5, blue: 0.55), // Dusty rose
-        Color(red: 0.65, green: 0.5, blue: 0.7), // Muted purple
-        Color(red: 0.5, green: 0.55, blue: 0.75), // Soft blue-purple
-        Color(red: 0.55, green: 0.65, blue: 0.7), // Grayish teal
-        Color(red: 0.7, green: 0.65, blue: 0.55), // Warm tan
-        Color(red: 0.9, green: 0.65, blue: 0.45), // Amber
-        Color(red: 0.95, green: 0.6, blue: 0.4), // Back to soft orange
+        Color(red: 0.95, green: 0.6, blue: 0.4),
+        Color(red: 0.85, green: 0.5, blue: 0.55),
+        Color(red: 0.65, green: 0.5, blue: 0.7),
+        Color(red: 0.5, green: 0.55, blue: 0.75),
+        Color(red: 0.55, green: 0.65, blue: 0.7),
+        Color(red: 0.7, green: 0.65, blue: 0.55),
+        Color(red: 0.9, green: 0.65, blue: 0.45),
+        Color(red: 0.95, green: 0.6, blue: 0.4),
     ]
 
     var body: some View {
-        HStack(spacing: 12) {
-            if isStreaming {
-                // Shimmering "streaming..." text
-                streamingText
-                    .padding(.vertical, 10)
-                    .padding(.leading, 12)
-            } else {
-                TextField("Type a message...", text: $text, axis: .vertical)
-                    .lineLimit(1 ... 5)
-                    .textFieldStyle(.plain)
-                    .padding(.vertical, 10)
-                    .padding(.leading, 12)
-                    .submitLabel(.send)
-                    .accessibilityIdentifier("chat-input")
-                    .onSubmit {
-                        sendIfPossible()
-                    }
-            }
+        HStack(spacing: 10) {
+            inputField
+                .frame(maxWidth: .infinity)
 
-            Spacer(minLength: 0)
-
+            // Send / Stop button on the right
             if isStreaming {
                 Button {
                     onStop()
                 } label: {
                     Image(systemName: "stop.fill")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(Color(red: 0.9, green: 0.4, blue: 0.4))
-                        .frame(width: 32, height: 32)
+                        .frame(width: 36, height: 36)
+                        .contentShape(Circle())
                         .glassEffect(
                             .regular.tint(Color(red: 0.95, green: 0.6, blue: 0.6).opacity(0.3)).interactive(),
                             in: .circle
                         )
                 }
-                .accessibilityIdentifier("stop-button")
                 .buttonStyle(.plain)
-                .padding(.trailing, 8)
+                .contentShape(Circle())
+                .accessibilityIdentifier("stop-button")
             } else {
                 Button {
                     sendIfPossible()
                 } label: {
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 32, height: 32)
-                        .glassEffect(.regular.tint(Color.accentColor.opacity(0.2)).interactive(), in: .circle)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 36, height: 36)
+                        .contentShape(Circle())
+                        .glassEffect(.regular.interactive(), in: .circle)
                 }
-                .accessibilityIdentifier("send-button")
                 .buttonStyle(.plain)
-                .padding(.trailing, 8)
-                .opacity(isSendDisabled ? 0.45 : 1)
+                .contentShape(Circle())
+                .accessibilityIdentifier("send-button")
                 .disabled(isSendDisabled)
             }
         }
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(isStreaming ? AnyShapeStyle(animatedBackgroundGradient) : AnyShapeStyle(inputBackgroundColor))
-        )
-        .glassEffect(in: .rect(cornerRadius: 20))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(
-                    isStreaming ? animatedBorderGradient : AnyShapeStyle(inputBorderColor),
-                    lineWidth: isStreaming ? 0 : 1
-                )
-                .blur(radius: isStreaming ? 1 : 0)
-        )
-        .overlay(
-            // Outer glow effect when streaming
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(
-                    animatedBorderGradient,
-                    lineWidth: 4
-                )
-                .blur(radius: 8)
-                .opacity(isStreaming ? 0.6 : 0)
-        )
-        .shadow(
-            color: isStreaming ? gradientColors[Int(borderAnimationProgress * 7) % 8].opacity(0.4) : .clear,
-            radius: 12,
-            x: 0,
-            y: 0
-        )
         .padding(.horizontal)
         #if canImport(UIKit)
             .padding(.vertical, 8)
@@ -142,6 +101,63 @@ struct MessageInput: View {
                     startShimmerAnimation()
                 }
             }
+    }
+
+    private var inputField: some View {
+        Group {
+            if isStreaming {
+                streamingText
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                TextField("Ask Linda...", text: $text, axis: .vertical)
+                    .lineLimit(1 ... 5)
+                    .textFieldStyle(.plain)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 16)
+                    .accessibilityIdentifier("chat-input")
+                    .focused($isInputFocused)
+                    .onKeyPress(.return, phases: .down) { keyPress in
+                        if keyPress.modifiers.contains(.shift) {
+                            // Shift+Enter: insert newline
+                            text += "\n"
+                            return .handled
+                        } else {
+                            #if os(macOS)
+                                // macOS: Enter sends message
+                                sendIfPossible()
+                                // Restore focus after sending
+                                DispatchQueue.main.async {
+                                    isInputFocused = true
+                                }
+                                return .handled
+                            #else
+                                // iOS: Enter inserts newline (let system handle it)
+                                return .ignored
+                            #endif
+                        }
+                    }
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(isStreaming ? AnyShapeStyle(animatedBackgroundGradient) : AnyShapeStyle(.clear))
+        )
+        .glassEffect(in: .rect(cornerRadius: 16))
+        .overlay(
+            // Outer glow effect when streaming
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(animatedBorderGradient, lineWidth: 4)
+                .blur(radius: 8)
+                .opacity(isStreaming ? 0.6 : 0)
+        )
+        .shadow(
+            color: isStreaming ? gradientColors[Int(borderAnimationProgress * 7) % 8].opacity(0.4) : .clear,
+            radius: 12,
+            x: 0,
+            y: 0
+        )
     }
 
     /// Animated gradient that rotates around the border
@@ -212,26 +228,6 @@ struct MessageInput: View {
     }
 }
 
-private var inputBackgroundColor: Color {
-    #if canImport(UIKit)
-        return Color(.secondarySystemBackground)
-    #elseif canImport(AppKit)
-        return Color(nsColor: .windowBackgroundColor).opacity(0.75)
-    #else
-        return Color.gray.opacity(0.2)
-    #endif
-}
-
-private var inputBorderColor: Color {
-    #if canImport(UIKit)
-        return Color(.separator).opacity(0.3)
-    #elseif canImport(AppKit)
-        return Color(nsColor: .separatorColor).opacity(0.3)
-    #else
-        return Color.gray.opacity(0.3)
-    #endif
-}
-
 private struct MessageInputPreview: View {
     @State private var text = ""
     var isStreaming = false
@@ -239,7 +235,6 @@ private struct MessageInputPreview: View {
     var body: some View {
         VStack {
             Spacer()
-            Divider()
             MessageInput(text: $text, isStreaming: isStreaming) { _ in } onStop: {}
         }
     }

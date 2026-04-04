@@ -53,7 +53,7 @@ test.describe("Assignees CRUD", () => {
   });
 
   test("GET /api/assignees lists assignees with pagination", async ({ request }) => {
-    const res = await request.get("/api/assignees");
+    const res = await request.get("/api/assignees?limit=100");
     expect(res.ok()).toBeTruthy();
     const body = await parseResponseJson(res, "list-assignees");
     assigneeListResponseSchema.parse(body);

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { briefings, briefingDocuments } from "@/lib/db/schema";
+import { publishEvent } from "@/lib/queue/producer";
 import { generateText } from "ai";
 import { uploadBufferToS3 } from "@/lib/s3";
 import { sendPushNotification } from "@/lib/push";
@@ -42,8 +43,25 @@ export const createBriefingTool = (
         .optional()
         .describe("IDs of existing documents to link to this briefing"),
     }),
-    execute: async ({ title, content, imageDescription, documentIds }) => {
+    execute: async ({ title, content, imageDescription, documentIds }, { toolCallId }) => {
       const assigneeId = defaultAssigneeId ?? undefined;
+
+      const emitProgress = (step: string, message: string, current: number, total: number) =>
+        publishEvent({
+          sessionId: chatSessionId,
+          event: "tool-progress",
+          data: {
+            toolCallId,
+            toolName: CREATE_BRIEFING_TOOL_NAME,
+            current,
+            total,
+            step,
+            message,
+          },
+          timestamp: Date.now(),
+        });
+
+      await emitProgress("generating_image", "Generating cover image...", 0, 3);
 
       // Generate cover image
       let imageUrl: string | undefined;
@@ -73,6 +91,8 @@ export const createBriefingTool = (
         console.warn("[create-briefing] Image generation failed, proceeding without image:", err);
       }
 
+      await emitProgress("saving", "Saving briefing...", 1, 3);
+
       // Insert briefing
       const [created] = await db
         .insert(briefings)
@@ -96,6 +116,8 @@ export const createBriefingTool = (
         );
       }
 
+      await emitProgress("notifying", "Sending notification...", 2, 3);
+
       // Send push notification
       const dateStr = new Date().toLocaleDateString("en-US", {
         month: "short",
@@ -113,6 +135,8 @@ export const createBriefingTool = (
       }).catch((err) => {
         console.error("Failed to send briefing push notification:", err);
       });
+
+      await emitProgress("completed", "Briefing created", 3, 3);
 
       return {
         briefingId: created.id,

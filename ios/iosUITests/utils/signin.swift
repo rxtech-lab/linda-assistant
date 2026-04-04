@@ -11,7 +11,23 @@ import XCTest
 private let logger = Logger(subsystem: "app.rxlab.RxStorageUITests", category: "signin")
 
 extension XCUIApplication {
-    func signInWithEmailAndPassword(isAppclips: Bool = false) throws {
+    func signInWithEmailAndPassword(
+        isAppclips: Bool = false,
+        skipCleanupMessage: Bool = false
+    ) throws {
+        // Auto-detect current state: if assignee button appears, already signed in
+        let signInButton = buttons["sign-in-button"].firstMatch
+        let assigneeButton = buttons["assignee-button"].firstMatch
+
+        if assigneeButton.waitForExistence(timeout: 5) {
+            NSLog("✅ Already signed in, skipping OAuth flow")
+            logger.info("✅ Already signed in, skipping OAuth flow")
+            if !skipCleanupMessage {
+                try clearMessages()
+            }
+            return
+        }
+
         // Load .env file and read credentials (with fallback to process environment for CI)
         let envVars = DotEnv.loadWithFallback()
 
@@ -29,10 +45,7 @@ extension XCUIApplication {
         NSLog("🔐 Starting sign-in flow with email: \(testEmail)")
         logger.info("🔐 Starting sign-in flow with email: \(testEmail)")
 
-        // Tap sign in button (by accessibility identifier)
-        let signInButton = buttons["sign-in-button"].firstMatch
-        NSLog("⏱️  Waiting for sign-in button...")
-        logger.info("⏱️  Waiting for sign-in button...")
+        // Tap sign in button
         XCTAssertTrue(signInButton.waitForExistence(timeout: 10), "Sign-in button did not appear")
         NSLog("✅ Sign-in button found, tapping...")
         logger.info("✅ Sign-in button found, tapping...")
@@ -126,6 +139,15 @@ extension XCUIApplication {
             sleep(1)
         }
 
+        if !skipCleanupMessage {
+            try clearMessages()
+        }
+
+        NSLog("✅ Sign-in complete")
+        logger.info("✅ Sign-in complete")
+    }
+
+    func clearMessages() throws {
         let assigneeButton = buttons["assignee-button"].firstMatch
         NSLog("⏱️  Waiting for assignee button...")
         logger.info("⏱️  Waiting for assignee button...")
@@ -150,7 +172,7 @@ extension XCUIApplication {
 
         // Wait for the sheet to dismiss
         sleep(1)
-        NSLog("✅ Sign-in complete and messages cleared")
-        logger.info("✅ Sign-in complete and messages cleared")
+        NSLog("✅ Messages cleared")
+        logger.info("✅ Messages cleared")
     }
 }
