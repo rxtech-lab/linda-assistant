@@ -26,3 +26,4 @@ backend-e2e/auth-token.json
 backend-e2e/test-results/
 *.xcresult
 .DS_Store
+*-e2e-*.png
