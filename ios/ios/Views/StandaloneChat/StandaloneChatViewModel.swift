@@ -212,6 +212,16 @@ final class ChatTabViewModel {
                 assigneeName: selectedAssignee?.name
             )
         }
+        handler.onReconnected = { [weak self] in
+            guard let self, let assignee = selectedAssignee else { return }
+            logger.info("onReconnected: reloading messages for assignee \(assignee.id)")
+            await loadMessages(assigneeId: assignee.id, apiClient: apiClient)
+        }
+        handler.onDone = { [weak self] in
+            guard let self, let assignee = selectedAssignee else { return }
+            logger.info("onDone: reloading messages for assignee \(assignee.id)")
+            await loadMessages(assigneeId: assignee.id, apiClient: apiClient)
+        }
         handler.onConfirmationResolved = { [weak self] toolCallId, action in
             guard let self else { return }
             updateToolCallStatus(toolCallId: toolCallId, action: action, in: &displayMessages)

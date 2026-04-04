@@ -49,7 +49,7 @@ export async function streamWithReplay(
     console.log(
       `[Replay] session=${sessionId} live event=${agentEvent.event} seq=${agentEvent.seq}`,
     );
-    send(agentEvent.event, agentEvent.data);
+    send(agentEvent.event, { ...(agentEvent.data as object), seq: agentEvent.seq });
   });
 
   // 2. Send current session status
@@ -87,7 +87,7 @@ export async function streamWithReplay(
     // Flush any events that arrived during the async Redis checks above
     for (const agentEvent of liveBuffer) {
       if (signal.aborted) break;
-      send(agentEvent.event, agentEvent.data);
+      send(agentEvent.event, { ...(agentEvent.data as object), seq: agentEvent.seq });
     }
     liveBuffer.length = 0;
 
@@ -106,7 +106,7 @@ export async function streamWithReplay(
 
     for (const agentEvent of liveBuffer) {
       if (signal.aborted) break;
-      send(agentEvent.event, agentEvent.data);
+      send(agentEvent.event, { ...(agentEvent.data as object), seq: agentEvent.seq });
     }
     liveBuffer.length = 0;
 
@@ -130,7 +130,7 @@ export async function streamWithReplay(
       if (typeof event.seq === "number" && event.seq > highestSeq) {
         highestSeq = event.seq;
       }
-      send(event.event, event.data);
+      send(event.event, { ...(event.data as object), seq: event.seq });
 
       if (event.event === "done" || event.event === "error") {
         hasTerminal = true;
@@ -170,7 +170,7 @@ export async function streamWithReplay(
       continue;
     }
 
-    send(agentEvent.event, agentEvent.data);
+    send(agentEvent.event, { ...(agentEvent.data as object), seq: agentEvent.seq });
   }
 
   return subscription;

@@ -29,6 +29,14 @@ public enum SSEEventType: String, Sendable {
 public struct SSEEvent: Sendable {
     public let type: SSEEventType
     public let data: String
+    /// Monotonic sequence number extracted from the event data (if present).
+    public var seq: Int? {
+        guard let jsonData = data.data(using: .utf8),
+              let dict = try? JSONDecoder().decode([String: AnyCodable].self, from: jsonData),
+              case let .int(s) = dict["seq"]
+        else { return nil }
+        return s
+    }
 
     public init(type: SSEEventType, data: String) {
         self.type = type
@@ -166,12 +174,14 @@ public enum SSEMessage: Sendable {
 
 public struct TextDeltaPayload: Codable, Sendable {
     public let text: String
+    public let seq: Int?
 }
 
 public struct ToolCallPayload: Codable, Sendable {
     public let toolCallId: String
     public let toolName: String
     public let input: [String: AnyCodable]?
+    public let seq: Int?
 }
 
 public struct ToolResultPayload: Codable, Sendable {
@@ -180,6 +190,7 @@ public struct ToolResultPayload: Codable, Sendable {
     public let output: AnyCodable?
     public let isError: Bool?
     public let error: String?
+    public let seq: Int?
 }
 
 public struct ConfirmationPayload: Codable, Sendable, Identifiable {
