@@ -35,8 +35,8 @@ struct SettingsView: View {
                             }
                             .resizable()
                             .scaledToFill()
-                        .frame(width: 48, height: 48)
-                        .clipShape(Circle())
+                            .frame(width: 48, height: 48)
+                            .clipShape(Circle())
 
                         VStack(alignment: .leading, spacing: 2) {
                             if let name = user.name {

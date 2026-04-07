@@ -54,12 +54,7 @@ export const generateImageTool = (systemPrompt?: string) =>
       const buffer = Buffer.from(file.base64, "base64");
       const ext = file.mediaType === "image/png" ? "png" : "jpg";
       const finalName = `${filename || "image"}-${Date.now()}.${ext}`;
-      const { url } = await uploadBufferToS3(
-        buffer,
-        file.mediaType,
-        finalName,
-        "generated-images",
-      );
+      const { url } = await uploadBufferToS3(buffer, file.mediaType, finalName, "generated-images");
 
       return { url };
     },

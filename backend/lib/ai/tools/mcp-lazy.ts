@@ -297,7 +297,8 @@ export function searchToolsTool(
           description: t.description,
           extensionPrefix: t.extensionPrefix,
         })),
-        next_step: "REQUIRED: Call read_tool with these tool IDs to get their parameter schemas before using them. Do NOT skip this step — you need the exact parameter names.",
+        next_step:
+          "REQUIRED: Call read_tool with these tool IDs to get their parameter schemas before using them. Do NOT skip this step — you need the exact parameter names.",
       };
     },
   });
@@ -383,7 +384,8 @@ export function readToolTool(extensions: LazyExtensionConfig[]) {
       return {
         tools: results,
         errors: errors.length > 0 ? errors : undefined,
-        next_step: "Now call use_tool with two top-level fields: toolId (string) and parameters (object matching the schema above). Do NOT nest toolId inside parameters.",
+        next_step:
+          "Now call use_tool with two top-level fields: toolId (string) and parameters (object matching the schema above). Do NOT nest toolId inside parameters.",
       };
     },
   });

@@ -55,7 +55,9 @@ export async function GET(
       createdAt: slideDecks.createdAt,
       updatedAt: slideDecks.updatedAt,
       pageCount: sql<number>`(select count(*) from slide_pages where deck_id = slide_decks.id)`,
-      thumbnailUrl: sql<string | null>`(select thumbnail_url from slide_pages where deck_id = slide_decks.id order by page_number asc limit 1)`,
+      thumbnailUrl: sql<
+        string | null
+      >`(select thumbnail_url from slide_pages where deck_id = slide_decks.id order by page_number asc limit 1)`,
       total: sql<number>`count(*) over()`,
     })
     .from(slideDecks)

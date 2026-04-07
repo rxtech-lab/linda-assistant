@@ -34,9 +34,7 @@ export async function replaceSlideTokens(
         )
         .join("\n");
     } else {
-      replacement = filtered
-        .map((p) => `![Slide ${p.pageNumber}](${p.imageUrl})`)
-        .join("\n\n");
+      replacement = filtered.map((p) => `![Slide ${p.pageNumber}](${p.imageUrl})`).join("\n\n");
     }
 
     result = result.replace(match[0], replacement);

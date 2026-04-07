@@ -11,14 +11,13 @@ private var hasResetAuth = false
 func launchApp(resetAuth: LaunchResetAuth = .always) -> XCUIApplication {
     let app = XCUIApplication()
 
-    let shouldReset: Bool
-    switch resetAuth {
-    case .always:
-        shouldReset = true
-    case .never:
-        shouldReset = false
-    case .once:
-        shouldReset = !hasResetAuth
+    let shouldReset: Bool = switch resetAuth {
+        case .always:
+            true
+        case .never:
+            false
+        case .once:
+            !hasResetAuth
     }
 
     if shouldReset {

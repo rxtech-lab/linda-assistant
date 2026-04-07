@@ -84,7 +84,7 @@ struct MessageList: View {
                     switch part {
                         case let .text(content):
                             if !content.displayText.isEmpty {
-                                MessageBubble(message: msg)
+                                MessageBubble(message: msg, text: content.displayText)
                                     .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                             }
                         case let .tool(toolCall):

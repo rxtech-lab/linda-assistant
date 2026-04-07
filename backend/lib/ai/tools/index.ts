@@ -1,17 +1,9 @@
 import { db } from "@/lib/db";
 import type { ToolPermission, ToolCondition } from "@/lib/db/schema";
-import {
-  assignees,
-  extensions,
-  assigneeExtensions,
-  taskExtensions,
-} from "@/lib/db/schema";
+import { assignees, extensions, assigneeExtensions, taskExtensions } from "@/lib/db/schema";
 import { eq, and, or } from "drizzle-orm";
 import { CREATE_TASK_TOOL_NAME, createTaskTool } from "./create-task";
-import {
-  CREATE_DOCUMENT_TOOL_NAME,
-  createDocumentTool,
-} from "./create-document";
+import { CREATE_DOCUMENT_TOOL_NAME, createDocumentTool } from "./create-document";
 import { getActiveSessionMessages } from "@/lib/db/messages";
 import {
   loadAssigneePermissions,
@@ -22,38 +14,20 @@ import {
 import { SEARCH_EMAILS_TOOL_NAME, searchEmailsTool } from "./search-emails";
 import { SEND_EMAIL_TOOL_NAME, sendEmailTool } from "./send-email";
 import { UPDATE_TASK_TOOL_NAME, updateTaskTool } from "./update-task";
-import {
-  GET_CURRENT_TIME_TOOL_NAME,
-  getCurrentTimeTool,
-} from "./get-current-time";
+import { GET_CURRENT_TIME_TOOL_NAME, getCurrentTimeTool } from "./get-current-time";
 import { ASK_QUESTION_TOOL_NAME, askQuestionTool } from "./ask-question";
 import { GET_LOCATION_TOOL_NAME, getLocationTool } from "./get-location";
-import {
-  UPDATE_DOCUMENT_TOOL_NAME,
-  updateDocumentTool,
-} from "./update-document";
-import {
-  SEND_NOTIFICATION_TOOL_NAME,
-  sendNotificationTool,
-} from "./send-notification";
-import {
-  SEARCH_DOCUMENTS_TOOL_NAME,
-  searchDocumentsTool,
-} from "./search-documents";
-import {
-  CREATE_BRIEFING_TOOL_NAME,
-  createBriefingTool,
-} from "./create-briefing";
+import { UPDATE_DOCUMENT_TOOL_NAME, updateDocumentTool } from "./update-document";
+import { SEND_NOTIFICATION_TOOL_NAME, sendNotificationTool } from "./send-notification";
+import { SEARCH_DOCUMENTS_TOOL_NAME, searchDocumentsTool } from "./search-documents";
+import { CREATE_BRIEFING_TOOL_NAME, createBriefingTool } from "./create-briefing";
 import { CREATE_DRAWING_TOOL_NAME, createDrawingTool } from "./create-drawing";
 import { CREATE_SLIDES_TOOL_NAME, createSlidesTool } from "./create-slides";
 import { GENERATE_IMAGE_TOOL_NAME, generateImageTool } from "./generate-image";
 import { UPDATE_SLIDES_TOOL_NAME, updateSlidesTool } from "./update-slides";
 import { REQUEST_UPLOAD_TOOL_NAME, requestUploadTool } from "./request-upload";
 import { SEARCH_HISTORY_TOOL_NAME, searchHistoryTool } from "./search-history";
-import {
-  READ_UPLOADED_FILE_TOOL_NAME,
-  readUploadedFileTool,
-} from "./read-uploaded-file";
+import { READ_UPLOADED_FILE_TOOL_NAME, readUploadedFileTool } from "./read-uploaded-file";
 import { type AuthConfig, createGenericMcp } from "./mcps/generic";
 import { redis } from "@/lib/redis";
 import {
@@ -91,10 +65,7 @@ export interface ToolSetResult {
   /** Tools filtered to exclude auto-reject and disabled entries, built with correct needsApproval */
   tools: Record<string, unknown>;
   /** Maps toolName → conditions and logic for tools with conditional auto-confirm */
-  conditionalAutoConfirm: Record<
-    string,
-    { conditions: ToolCondition[]; logic: "and" | "or" }
-  >;
+  conditionalAutoConfirm: Record<string, { conditions: ToolCondition[]; logic: "and" | "or" }>;
 }
 
 /**
@@ -107,10 +78,7 @@ async function loadMcpTools(
   toolPermissions: ToolPermission[] | null,
 ): Promise<{
   tools: Record<string, unknown>;
-  conditionalAutoConfirm: Record<
-    string,
-    { conditions: ToolCondition[]; logic: "and" | "or" }
-  >;
+  conditionalAutoConfirm: Record<string, { conditions: ToolCondition[]; logic: "and" | "or" }>;
 }> {
   try {
     // First fetch tools to discover their names
@@ -126,26 +94,18 @@ async function loadMcpTools(
     // so we check both the prefixed name and the raw (unprefixed) name.
     for (const toolName of Object.keys(rawTools)) {
       const prefixedName = `${prefix}${toolName}`;
-      let resolved = resolvePermissionWithConditions(
-        prefixedName,
-        toolPermissions,
-      );
+      let resolved = resolvePermissionWithConditions(prefixedName, toolPermissions);
       // Fallback: try unprefixed name (extension-level permissions use raw MCP tool names)
       if (resolved.permission === "manual-confirm" && toolPermissions?.length) {
-        const unprefixed = resolvePermissionWithConditions(
-          toolName,
-          toolPermissions,
-        );
+        const unprefixed = resolvePermissionWithConditions(toolName, toolPermissions);
         if (unprefixed.permission !== "manual-confirm") {
           resolved = unprefixed;
         }
       }
       const { permission, conditions, conditionLogic } = resolved;
       if (permission === "auto-reject" || permission === "disabled") continue;
-      const hasConditions =
-        permission === "auto-confirm" && conditions && conditions.length > 0;
-      needsApproval[toolName] =
-        permission === "manual-confirm" || !!hasConditions;
+      const hasConditions = permission === "auto-confirm" && conditions && conditions.length > 0;
+      needsApproval[toolName] = permission === "manual-confirm" || !!hasConditions;
       if (hasConditions) {
         conditionalAutoConfirm[prefixedName] = {
           conditions,
@@ -160,15 +120,9 @@ async function loadMcpTools(
     // Prefix tool names and filter out auto-rejected tools
     const prefixed: Record<string, unknown> = {};
     for (const [toolName, tool] of Object.entries(mcpTools)) {
-      let resolved = resolvePermissionWithConditions(
-        `${prefix}${toolName}`,
-        toolPermissions,
-      );
+      let resolved = resolvePermissionWithConditions(`${prefix}${toolName}`, toolPermissions);
       if (resolved.permission === "manual-confirm" && toolPermissions?.length) {
-        const unprefixed = resolvePermissionWithConditions(
-          toolName,
-          toolPermissions,
-        );
+        const unprefixed = resolvePermissionWithConditions(toolName, toolPermissions);
         if (unprefixed.permission !== "manual-confirm") {
           resolved = unprefixed;
         }
@@ -286,10 +240,7 @@ async function getEnabledTaskExtensions(
   if (allExtensions.length === 0) return [];
 
   // Get task extension settings
-  const teRows = await db
-    .select()
-    .from(taskExtensions)
-    .where(eq(taskExtensions.taskId, taskId));
+  const teRows = await db.select().from(taskExtensions).where(eq(taskExtensions.taskId, taskId));
 
   const teMap = new Map(teRows.map((te) => [te.extensionId, te]));
 
@@ -346,9 +297,7 @@ export async function buildToolSet(
   const autoConfirmOverrides = new Set<string>();
   if (isE2E && chatSessionId) {
     const messages = await getActiveSessionMessages(chatSessionId);
-    const lastUserMsg = [...messages]
-      .reverse()
-      .find((m: any) => m.role === "user");
+    const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
     if (lastUserMsg && Array.isArray((lastUserMsg as any).content)) {
       const text = ((lastUserMsg as any).content as any[])
         .filter((c) => c.type === "text")
@@ -388,8 +337,7 @@ export async function buildToolSet(
     },
     {
       name: CREATE_TASK_TOOL_NAME,
-      create: (na: boolean) =>
-        createTaskTool(userId, na, chatSessionId, assigneeId),
+      create: (na: boolean) => createTaskTool(userId, na, chatSessionId, assigneeId),
     },
     {
       name: UPDATE_TASK_TOOL_NAME,
@@ -428,11 +376,12 @@ export async function buildToolSet(
         name === ASK_QUESTION_TOOL_NAME)
     )
       continue;
-    const { permission, conditions, conditionLogic } =
-      resolvePermissionWithConditions(name, toolPermissions);
+    const { permission, conditions, conditionLogic } = resolvePermissionWithConditions(
+      name,
+      toolPermissions,
+    );
     if (permission === "auto-reject" || permission === "disabled") continue;
-    const hasConditions =
-      permission === "auto-confirm" && conditions && conditions.length > 0;
+    const hasConditions = permission === "auto-confirm" && conditions && conditions.length > 0;
     const needsApproval = autoConfirmOverrides.has(name)
       ? false
       : permission === "manual-confirm" || !!hasConditions;
@@ -448,10 +397,7 @@ export async function buildToolSet(
   // Document tools — never require confirmation
   if (chatSessionId) {
     filtered[UPDATE_DOCUMENT_TOOL_NAME] = updateDocumentTool(userId, chatSessionId);
-    filtered[CREATE_DOCUMENT_TOOL_NAME] = createDocumentTool(
-      userId,
-      chatSessionId,
-    );
+    filtered[CREATE_DOCUMENT_TOOL_NAME] = createDocumentTool(userId, chatSessionId);
   } else {
     filtered[UPDATE_DOCUMENT_TOOL_NAME] = updateDocumentTool(userId, "");
   }
@@ -461,11 +407,7 @@ export async function buildToolSet(
 
   // Briefing tool — never require confirmation
   if (chatSessionId) {
-    filtered[CREATE_BRIEFING_TOOL_NAME] = createBriefingTool(
-      userId,
-      chatSessionId,
-      assigneeId,
-    );
+    filtered[CREATE_BRIEFING_TOOL_NAME] = createBriefingTool(userId, chatSessionId, assigneeId);
   }
 
   // Drawing tool — never require confirmation
@@ -481,10 +423,7 @@ export async function buildToolSet(
   filtered[UPDATE_SLIDES_TOOL_NAME] = updateSlidesTool(userId);
 
   // Notification tool — never require confirmation
-  filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(
-    userId,
-    chatSessionId,
-  );
+  filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(userId, chatSessionId);
 
   // History search tool — only for standalone chat (not task context), requires assignee
   if (!isTaskContext && assigneeId) {
@@ -511,11 +450,7 @@ export async function buildToolSet(
       }),
     );
     const embeddingCacheId = taskId ?? assigneeId ?? userId;
-    filtered[SEARCH_TOOLS_TOOL_NAME] = searchToolsTool(
-      lazyConfigs,
-      userId,
-      embeddingCacheId,
-    );
+    filtered[SEARCH_TOOLS_TOOL_NAME] = searchToolsTool(lazyConfigs, userId, embeddingCacheId);
     filtered[READ_TOOL_TOOL_NAME] = readToolTool(lazyConfigs);
     filtered[USE_TOOL_TOOL_NAME] = useToolTool(lazyConfigs);
   }
@@ -557,9 +492,7 @@ export async function getToolMetadataList(
   // No cache for null assigneeId — cheap path without MCP tools
   if (!assigneeId) {
     return {
-      data: extractMetadata(
-        await buildToolSet(userId, assigneeId, accessToken),
-      ),
+      data: extractMetadata(await buildToolSet(userId, assigneeId, accessToken)),
       fromCache: false,
     };
   }
@@ -605,9 +538,7 @@ function zodTypeToSimple(def: {
   }
 }
 
-export function extractParameters(
-  tool: unknown,
-): ToolParameterMeta[] | undefined {
+export function extractParameters(tool: unknown): ToolParameterMeta[] | undefined {
   try {
     const t = tool as {
       inputSchema?: {
@@ -626,14 +557,12 @@ export function extractParameters(
 
     return Object.entries(shape).map(([paramName, zodField]) => {
       const def = zodField?._def;
-      if (!def)
-        return { name: paramName, type: "string" as const, required: true };
+      if (!def) return { name: paramName, type: "string" as const, required: true };
       const isOptional = def.typeName === "ZodOptional";
       const description =
         (def.description as string | undefined) ??
         (isOptional
-          ? (def.innerType as { _def?: { description?: string } })?._def
-              ?.description
+          ? (def.innerType as { _def?: { description?: string } })?._def?.description
           : undefined);
       return {
         name: paramName,

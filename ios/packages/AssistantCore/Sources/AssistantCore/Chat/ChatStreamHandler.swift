@@ -152,7 +152,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                         guard let self else { return }
                         let seq = event.seq
                         let message = event.parse()
-                        logger.debug("SSE event: type=\(event.type.rawValue) seq=\(seq.map(String.init) ?? "nil") data=\(event.data.prefix(100))")
+                        logger
+                            .debug(
+                                "SSE event: type=\(event.type.rawValue) seq=\(seq.map(String.init) ?? "nil") data=\(event.data.prefix(100))"
+                            )
                         await handleEvent(message, seq: seq)
                     }
                     logger.info("SSE stream ended normally")
@@ -425,6 +428,8 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
             case let .toolCall(payload):
                 logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
+                // Flush any buffered text BEFORE appending the tool call so text appears above the tool
+                flushBuffer()
                 if let index = streamingParts.firstIndex(where: {
                     if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
                     return false

@@ -290,7 +290,11 @@ function wrapGenerateImageWithProgress(
   getTotal: () => number,
 ) {
   const baseTool = generateImageTool();
-  const baseExecute = (baseTool as unknown as { execute: (input: { prompt: string; filename?: string }, context: unknown) => Promise<unknown> }).execute;
+  const baseExecute = (
+    baseTool as unknown as {
+      execute: (input: { prompt: string; filename?: string }, context: unknown) => Promise<unknown>;
+    }
+  ).execute;
   return tool({
     description: (baseTool as unknown as { description: string }).description,
     inputSchema: (baseTool as unknown as { inputSchema: z.ZodType }).inputSchema,
@@ -346,23 +350,16 @@ async function generateSlides(
         description:
           "Plan the total number of slides for this presentation. You MUST call this FIRST before generating any slides.",
         inputSchema: z.object({
-          totalSlides: z
-            .number()
-            .describe("The total number of slides you plan to generate"),
+          totalSlides: z.number().describe("The total number of slides you plan to generate"),
         }),
         execute: async ({ totalSlides: planned }) => {
           totalSlides = planned;
-          await emitSlideProgress(
-            chatSessionId,
-            toolCallId,
-            CREATE_SLIDES_TOOL_NAME,
-            {
-              current: 0,
-              total: planned,
-              step: "planned",
-              message: `Planning ${planned} slides`,
-            },
-          );
+          await emitSlideProgress(chatSessionId, toolCallId, CREATE_SLIDES_TOOL_NAME, {
+            current: 0,
+            total: planned,
+            step: "planned",
+            message: `Planning ${planned} slides`,
+          });
           return { confirmed: true, totalSlides: planned };
         },
       }),
@@ -381,9 +378,7 @@ async function generateSlides(
         inputSchema: z.object({
           sceneData: z
             .unknown()
-            .describe(
-              "The complete KonvaJS Stage JSON for this slide (1920x1080)",
-            ),
+            .describe("The complete KonvaJS Stage JSON for this slide (1920x1080)"),
         }),
         execute: async ({ sceneData }) => {
           currentPage++;
@@ -399,17 +394,10 @@ async function generateSlides(
           });
 
           try {
-            const sceneStr =
-              typeof sceneData === "string"
-                ? sceneData
-                : JSON.stringify(sceneData);
+            const sceneStr = typeof sceneData === "string" ? sceneData : JSON.stringify(sceneData);
             const parsed = JSON.parse(sceneStr);
 
-            const { imageUrl, thumbnailUrl } = await renderAndUploadSlide(
-              parsed,
-              deckId,
-              pageNum,
-            );
+            const { imageUrl, thumbnailUrl } = await renderAndUploadSlide(parsed, deckId, pageNum);
 
             // Insert page into DB
             await db.insert(slidePages).values({
@@ -446,10 +434,7 @@ async function generateSlides(
               ],
             };
           } catch (err) {
-            console.error(
-              `[create_slides] Slide ${pageNum} render failed:`,
-              err,
-            );
+            console.error(`[create_slides] Slide ${pageNum} render failed:`, err);
             throw err;
           }
         },
@@ -462,9 +447,7 @@ async function generateSlides(
           pageNumber: z.number().describe("The page number to revise"),
           sceneData: z
             .unknown()
-            .describe(
-              "The improved KonvaJS Stage JSON for this slide (1920x1080)",
-            ),
+            .describe("The improved KonvaJS Stage JSON for this slide (1920x1080)"),
         }),
         execute: async ({ pageNumber, sceneData }) => {
           console.log(`[create_slides] Revising slide ${pageNumber}...`);
@@ -478,10 +461,7 @@ async function generateSlides(
           });
 
           try {
-            const sceneStr =
-              typeof sceneData === "string"
-                ? sceneData
-                : JSON.stringify(sceneData);
+            const sceneStr = typeof sceneData === "string" ? sceneData : JSON.stringify(sceneData);
             const parsed = JSON.parse(sceneStr);
 
             const { imageUrl, thumbnailUrl } = await renderAndUploadSlide(
@@ -499,12 +479,7 @@ async function generateSlides(
                 imageUrl,
                 thumbnailUrl,
               })
-              .where(
-                and(
-                  eq(slidePages.deckId, deckId),
-                  eq(slidePages.pageNumber, pageNumber),
-                ),
-              );
+              .where(and(eq(slidePages.deckId, deckId), eq(slidePages.pageNumber, pageNumber)));
 
             // Update in pages array
             const idx = pages.findIndex((p) => p.pageNumber === pageNumber);
@@ -536,10 +511,7 @@ async function generateSlides(
               ],
             };
           } catch (err) {
-            console.error(
-              `[create_slides] Slide ${pageNumber} revision failed:`,
-              err,
-            );
+            console.error(`[create_slides] Slide ${pageNumber} revision failed:`, err);
             throw err;
           }
         },
@@ -587,14 +559,10 @@ export const createSlidesTool = (userId: string, chatSessionId: string) =>
       numSlides: z
         .number()
         .optional()
-        .describe(
-          "Optional number of slides to generate. If not specified, the agent decides.",
-        ),
+        .describe("Optional number of slides to generate. If not specified, the agent decides."),
     }),
     execute: async ({ title, description, numSlides }, { toolCallId }) => {
-      console.log(
-        `[create_slides] Starting: "${title}" (${numSlides ?? "auto"} slides)`,
-      );
+      console.log(`[create_slides] Starting: "${title}" (${numSlides ?? "auto"} slides)`);
 
       // In E2E mode, create a minimal deck with a test image
       if (process.env.IS_E2E?.toLowerCase() === "true") {

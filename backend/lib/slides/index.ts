@@ -24,7 +24,12 @@ export async function renderAndUploadSlide(
 
   const ts = Date.now();
   const [{ url: imageUrl }, { url: thumbnailUrl }] = await Promise.all([
-    uploadBufferToS3(imageBuffer, "image/png", `slide-${deckId}-p${pageNumber}-${ts}.png`, "slides"),
+    uploadBufferToS3(
+      imageBuffer,
+      "image/png",
+      `slide-${deckId}-p${pageNumber}-${ts}.png`,
+      "slides",
+    ),
     uploadBufferToS3(
       thumbBuffer,
       "image/png",

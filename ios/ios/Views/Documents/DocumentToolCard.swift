@@ -58,23 +58,23 @@ struct DocumentToolCard: View {
     private var statusText: String {
         switch toolCall.status {
             case .running:
-                return toolCall.progressMessage ?? (isCreateTool ? "Creating..." : "Updating...")
+                toolCall.progressMessage ?? (isCreateTool ? "Creating..." : "Updating...")
             case .completed:
-                return isCreateTool ? "Created" : "Updated"
+                isCreateTool ? "Created" : "Updated"
             case .failed:
-                return "Failed"
+                "Failed"
             case .pendingConfirmation:
-                return "Needs Confirmation"
+                "Needs Confirmation"
             case .pendingQuestion:
-                return "Needs Answer"
+                "Needs Answer"
             case .pendingLocation:
-                return "Needs Location"
+                "Needs Location"
             case .pendingUpload:
-                return "Needs Upload"
+                "Needs Upload"
             case .rejected:
-                return "Rejected"
+                "Rejected"
             case .stoppedNoResult:
-                return "Stopped with no result"
+                "Stopped with no result"
         }
     }
 

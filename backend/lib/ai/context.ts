@@ -48,8 +48,7 @@ export const MAX_STEPS = 20;
  * Model used for generating summaries during compaction.
  * Env: COMPACTION_MODEL (default: fast model with large context window).
  */
-export const COMPACTION_MODEL =
-  process.env.COMPACTION_MODEL || "google/gemma-4-26b-a4b-it";
+export const COMPACTION_MODEL = process.env.COMPACTION_MODEL || "google/gemma-4-26b-a4b-it";
 
 // ── Token Estimation ───────────────────────────────────────────────────
 

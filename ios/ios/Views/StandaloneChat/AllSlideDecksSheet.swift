@@ -87,19 +87,19 @@ struct AllSlideDecksSheet: View {
                 .task {
                     await viewModel.loadSlideDecks(assigneeId: assigneeId, apiClient: apiClient)
                 }
-#if os(macOS)
+            #if os(macOS)
                 .sheet(isPresented: selectedDeckBinding) {
                     if let deckId = selectedDeckId {
                         SlideViewerSheet(deckId: deckId)
                     }
                 }
-#else
+            #else
                 .fullScreenCover(isPresented: selectedDeckBinding) {
-                    if let deckId = selectedDeckId {
-                        SlideViewerSheet(deckId: deckId)
+                        if let deckId = selectedDeckId {
+                            SlideViewerSheet(deckId: deckId)
+                        }
                     }
-                }
-#endif
+            #endif
         }
     }
 

@@ -5,8 +5,8 @@ import SwiftUI
 /// Splits the content at slide markers and renders alternating markdown + carousel sections.
 struct SlideAwareMarkdownView: View {
     let content: String
-    var theme: MarkdownUI.Theme = MarkdownUI.Theme.docC.scrollableTable()
-    var onOpenSlideDeck: ((String) -> Void)? = nil
+    var theme: MarkdownUI.Theme = .docC.scrollableTable()
+    var onOpenSlideDeck: ((String) -> Void)?
 
     private var sections: [ContentSection] {
         // Match {{slide:id}} syntax
@@ -26,7 +26,8 @@ struct SlideAwareMarkdownView: View {
             else { continue }
 
             // Add preceding markdown
-            let preceding = String(content[lastEnd ..< range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let preceding = String(content[lastEnd ..< range.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             if !preceding.isEmpty {
                 result.append(.markdown(preceding))
             }

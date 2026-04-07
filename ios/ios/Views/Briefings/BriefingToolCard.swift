@@ -50,11 +50,11 @@ struct BriefingToolCard: View {
     private var statusText: String {
         switch toolCall.status {
             case .running:
-                return toolCall.progressMessage ?? "Creating..."
-            case .completed: return "Created"
-            case .failed: return "Failed"
-            case .rejected: return "Rejected"
-            default: return "Pending"
+                toolCall.progressMessage ?? "Creating..."
+            case .completed: "Created"
+            case .failed: "Failed"
+            case .rejected: "Rejected"
+            default: "Pending"
         }
     }
 

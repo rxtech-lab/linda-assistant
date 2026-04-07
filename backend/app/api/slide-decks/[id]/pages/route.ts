@@ -32,10 +32,7 @@ import { renderAndUploadSlide } from "@/lib/slides";
  *     responses:
  *       201: { description: Slide page created }
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticate(request);
   if (auth instanceof Response) return auth;
 
@@ -71,11 +68,7 @@ export async function POST(
   }
 
   // Render and upload
-  const { imageUrl, thumbnailUrl } = await renderAndUploadSlide(
-    body.sceneData,
-    deckId,
-    pageNumber,
-  );
+  const { imageUrl, thumbnailUrl } = await renderAndUploadSlide(body.sceneData, deckId, pageNumber);
 
   // Insert page
   const [page] = await db

@@ -1,7 +1,7 @@
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #elseif canImport(AppKit)
-import AppKit
+    import AppKit
 #endif
 import Kingfisher
 import MarkdownUI
@@ -30,11 +30,11 @@ private struct TappableMarkdownImage: View {
                             .frame(maxWidth: .infinity)
                             .frame(height: 200)
                     }
-                    #if canImport(UIKit)
+                #if canImport(UIKit)
                     .onFailureImage(UIImage(systemName: "photo"))
-                    #elseif canImport(AppKit)
+                #elseif canImport(AppKit)
                     .onFailureImage(NSImage(systemSymbolName: "photo", accessibilityDescription: nil))
-                    #endif
+                #endif
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: .infinity)

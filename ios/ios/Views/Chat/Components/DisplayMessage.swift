@@ -129,12 +129,12 @@ extension DisplayMessage {
                 )
             }
 
-            for tc in historicalToolCalls {
-                parts.append(.tool(tc))
-            }
-
             if let text = msg.textContent, !text.isEmpty {
                 parts.append(.text(.plain(text)))
+            }
+
+            for tc in historicalToolCalls {
+                parts.append(.tool(tc))
             }
 
             guard !parts.isEmpty else { return nil }

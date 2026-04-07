@@ -1,6 +1,11 @@
 import { createServer } from "node:http";
 import { runAgent } from "@/lib/ai/agent";
-import { closeConnection, isConnected, setReconnectHandler, setupTopology } from "@/lib/queue/connection";
+import {
+  closeConnection,
+  isConnected,
+  setReconnectHandler,
+  setupTopology,
+} from "@/lib/queue/connection";
 import { consumeTasks, subscribeToCommands, type CommandSubscription } from "@/lib/queue/consumer";
 import { publishEvent } from "@/lib/queue/producer";
 import type { AgentTask } from "@/lib/queue/types";

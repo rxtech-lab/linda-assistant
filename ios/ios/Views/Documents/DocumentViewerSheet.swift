@@ -58,7 +58,7 @@ struct DocumentViewerSheet: View {
                                 SlideAwareMarkdownView(content: document.content) { deckId in
                                     selectedSlideDeckId = deckId
                                 }
-                                    .padding()
+                                .padding()
                             } else {
                                 HTMLContentView(htmlString: document.content)
                                     .frame(minHeight: 400)
@@ -212,17 +212,17 @@ private struct DocumentSlideViewerPresenter: ViewModifier {
 
     func body(content: Content) -> some View {
         #if os(iOS)
-        content.fullScreenCover(isPresented: selectedDeckBinding) {
-            if let selectedSlideDeckId {
-                SlideViewerSheet(deckId: selectedSlideDeckId)
+            content.fullScreenCover(isPresented: selectedDeckBinding) {
+                if let selectedSlideDeckId {
+                    SlideViewerSheet(deckId: selectedSlideDeckId)
+                }
             }
-        }
         #else
-        content.sheet(isPresented: selectedDeckBinding) {
-            if let selectedSlideDeckId {
-                SlideViewerSheet(deckId: selectedSlideDeckId)
+            content.sheet(isPresented: selectedDeckBinding) {
+                if let selectedSlideDeckId {
+                    SlideViewerSheet(deckId: selectedSlideDeckId)
+                }
             }
-        }
         #endif
     }
 
