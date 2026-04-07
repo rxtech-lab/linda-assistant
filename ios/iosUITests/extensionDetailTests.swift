@@ -72,8 +72,8 @@ final class ExtensionDetailTests: XCTestCase {
 
     @MainActor
     func testExtensionDetailFlows() throws {
-        let app = launchApp()
-        try app.signInWithEmailAndPassword()
+        let app = launchApp(resetAuth: .once)
+        try app.signInWithEmailAndPassword(skipCleanupMessage: true)
 
         // ── 1. Task Extension: enable, verify detail, tap tool row, toggle off ──
 

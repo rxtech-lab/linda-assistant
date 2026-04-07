@@ -52,8 +52,11 @@ public final class ChatStreamHandler: @unchecked Sendable {
     @ObservationIgnored private var _flushTask: Task<Void, Never>?
     @ObservationIgnored private let flushInterval: Duration = .milliseconds(500)
 
+    @ObservationIgnored private var _highestSeq: Int = 0
+
     public var onAssistantMessage: (@MainActor (_ parts: [MessagePart]) -> Void)?
     public var onReconnected: (@MainActor () async -> Void)?
+    public var onDone: (@MainActor () async -> Void)?
     public var onConfirmationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
     public var onQuestionAnswered: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
     public var onLocationResolved: (@MainActor (_ toolCallId: String, _ action: String) -> Void)?
@@ -147,9 +150,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 do {
                     for try await event in stream {
                         guard let self else { return }
+                        let seq = event.seq
                         let message = event.parse()
-                        logger.debug("SSE event: type=\(event.type.rawValue) data=\(event.data.prefix(100))")
-                        await handleEvent(message)
+                        logger.debug("SSE event: type=\(event.type.rawValue) seq=\(seq.map(String.init) ?? "nil") data=\(event.data.prefix(100))")
+                        await handleEvent(message, seq: seq)
                     }
                     logger.info("SSE stream ended normally")
                 } catch is CancellationError {
@@ -378,26 +382,36 @@ public final class ChatStreamHandler: @unchecked Sendable {
     }
 
     @MainActor
-    private func handleEvent(_ message: SSEMessage) {
+    private func handleEvent(_ message: SSEMessage, seq: Int? = nil) {
         // Track reconnection transitions
         if case .reconnecting = message {
             isReconnecting = true
         } else if isReconnecting {
             // First real event after reconnecting -> we're back
             isReconnecting = false
-            if hasReceivedDone {
-                // Stream was already finalized; skip redundant refetch to avoid
-                // replacing displayMessages with a potentially stale DB snapshot.
-                logger.info("handleEvent: reconnected after done, skipping onReconnected")
-            } else {
-                logger.info("handleEvent: reconnected, calling onReconnected")
-                Task { await onReconnected?() }
+            logger.info("handleEvent: reconnected, calling onReconnected")
+            Task { await onReconnected?() }
+        }
+
+        // Seq-based dedup: skip events already processed
+        if let seq, seq > 0 {
+            if seq <= _highestSeq {
+                logger.debug("handleEvent: skipping duplicate seq=\(seq) <= highestSeq=\(self._highestSeq)")
+                return
             }
+            _highestSeq = seq
         }
 
         switch message {
             case .reconnecting:
                 logger.info("handleEvent: reconnecting...")
+                // Reset streaming state so replayed chunks rebuild cleanly
+                _flushTask?.cancel()
+                _flushTask = nil
+                _textBuffer = ""
+                streamingParts = []
+                _highestSeq = 0
+                hasReceivedDone = false
 
             case let .textDelta(payload):
                 isCompacting = false
@@ -765,6 +779,11 @@ public final class ChatStreamHandler: @unchecked Sendable {
         isCompacting = false
         isStreaming = false
         eventManager.emit(.streamContentUpdated)
+
+        // Notify view model that stream finished — trigger refetch for authoritative data
+        if hasReceivedDone {
+            Task { await onDone?() }
+        }
     }
 }
 

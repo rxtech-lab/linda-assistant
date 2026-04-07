@@ -44,10 +44,13 @@ extension String {
             return "Daily at \(t)"
         }
 
-        // Specific day of week: M H * * D
+        // Specific day(s) of week: M H * * D or M H * * 1-5 or M H * * 1,3,5
         if dayOfMonth == "*", month == "*", dayOfWeek != "*", let t = timeStr {
             if let dayName = weekdayName(dayOfWeek) {
                 return "Every \(dayName) at \(t)"
+            }
+            if let daysDesc = weekdaysDescription(dayOfWeek) {
+                return "\(daysDesc) at \(t)"
             }
         }
 
@@ -73,6 +76,21 @@ extension String {
         let names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
         guard let d = Int(dayOfWeek), d >= 0, d < names.count else { return nil }
         return names[d]
+    }
+
+    /// Describes multi-day cron day-of-week fields like "1-5", "0,6", "1-3,5"
+    private func weekdaysDescription(_ field: String) -> String? {
+        let shortNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        let days = CronGUIState.parseDaysOfWeek(field)
+        guard !days.isEmpty else { return nil }
+
+        // Well-known patterns
+        if days == Set(1 ... 5) { return "Weekdays" }
+        if days == Set([0, 6]) { return "Weekends" }
+        if days == Set(0 ... 6) { return "Every day" }
+
+        let sorted = days.sorted()
+        return sorted.map { shortNames[$0] }.joined(separator: ", ")
     }
 
     private func ordinal(_ n: Int) -> String {

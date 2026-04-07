@@ -533,6 +533,14 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
     };
   }
 
+  // Scenario: short instant response for bulk message testing
+  if (lastText === "short-output-test-1") {
+    return {
+      chunks: createTextMessageChunks("OK. [END OF SHORT]"),
+      chunkDelayInMs: null,
+    };
+  }
+
   // Default: stream "Hello, world!"
   return {
     chunks: createTextMessageChunks("Hello, world!"),

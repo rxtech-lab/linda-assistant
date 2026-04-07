@@ -89,7 +89,7 @@ struct CronExpressionView: View {
             .accessibilityIdentifier("cron_frequency_picker")
 
             // Time picker (for daily, weekly, monthly only)
-            if guiState.frequency == .daily || guiState.frequency == .weekly || guiState.frequency == .monthly {
+            if guiState.frequency == .daily || guiState.frequency == .specificDays || guiState.frequency == .weekly || guiState.frequency == .monthly {
                 HStack {
                     Text("At")
                         .foregroundStyle(.secondary)
@@ -176,6 +176,39 @@ struct CronExpressionView: View {
                 }
             }
 
+            // Multi-day picker (for specificDays)
+            if guiState.frequency == .specificDays {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Days")
+                        .foregroundStyle(.secondary)
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
+                        ForEach(0 ..< 7, id: \.self) { d in
+                            Button {
+                                if guiState.selectedDays.contains(d) {
+                                    // Don't allow deselecting all days
+                                    if guiState.selectedDays.count > 1 {
+                                        guiState.selectedDays.remove(d)
+                                    }
+                                } else {
+                                    guiState.selectedDays.insert(d)
+                                }
+                            } label: {
+                                Text(shortWeekdayName(d))
+                                    .font(.caption.bold())
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(guiState.selectedDays.contains(d) ? Color.accentColor : Color(white: 0.9))
+                                    .foregroundStyle(guiState.selectedDays.contains(d) ? .white : .primary)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("cron_day_toggle_\(d)")
+                        }
+                    }
+                    .accessibilityIdentifier("cron_days_grid")
+                }
+            }
+
             // Day of week picker (for weekly)
             if guiState.frequency == .weekly {
                 Picker("Day", selection: $guiState.dayOfWeek) {
@@ -215,6 +248,11 @@ struct CronExpressionView: View {
         return names[d]
     }
 
+    private func shortWeekdayName(_ d: Int) -> String {
+        let names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        return names[d]
+    }
+
     private func ordinal(_ n: Int) -> String {
         let suffix = switch n % 100 {
             case 11, 12, 13: "th"
@@ -238,6 +276,7 @@ enum CronFrequency: String, CaseIterable {
     case everyHour
     case everyNHours
     case daily
+    case specificDays
     case weekly
     case monthly
 
@@ -248,6 +287,7 @@ enum CronFrequency: String, CaseIterable {
             case .everyHour: "Every hour"
             case .everyNHours: "Every N hours"
             case .daily: "Daily"
+            case .specificDays: "Specific days"
             case .weekly: "Weekly"
             case .monthly: "Monthly"
         }
@@ -261,6 +301,7 @@ struct CronGUIState: Equatable {
     var minute: Int = 0
     var hour: Int = 9
     var dayOfWeek: Int = 1 // Monday
+    var selectedDays: Set<Int> = [1, 2, 3, 4, 5] // Mon-Fri default
     var dayOfMonth: Int = 1
     var interval: Int = 5
     var customIntervalText: String = "" {
@@ -293,6 +334,8 @@ struct CronGUIState: Equatable {
                 "0 */\(interval) * * *"
             case .daily:
                 "\(minute) \(hour) * * *"
+            case .specificDays:
+                "\(minute) \(hour) * * \(Self.daysToCronString(selectedDays))"
             case .weekly:
                 "\(minute) \(hour) * * \(dayOfWeek)"
             case .monthly:
@@ -354,11 +397,19 @@ struct CronGUIState: Equatable {
             state.hour = h
         }
 
-        // Weekly
+        // Weekly (single day) or Specific days (range/list)
         if dayOfMonthPart == "*", dayOfWeekPart != "*" {
             if let d = Int(dayOfWeekPart) {
+                // Single day like "1"
                 state.frequency = .weekly
                 state.dayOfWeek = d
+                return state
+            }
+            // Multi-day: range like "1-5" or list like "1,3,5" or mixed like "1-3,5"
+            let parsed = Self.parseDaysOfWeek(dayOfWeekPart)
+            if !parsed.isEmpty {
+                state.frequency = .specificDays
+                state.selectedDays = parsed
                 return state
             }
         }
@@ -375,6 +426,50 @@ struct CronGUIState: Equatable {
         // Daily (default for specific time)
         state.frequency = .daily
         return state
+    }
+
+    /// Parses a cron day-of-week field like "1-5", "0,3,6", or "1-3,5" into a Set of day numbers.
+    static func parseDaysOfWeek(_ field: String) -> Set<Int> {
+        var days = Set<Int>()
+        for part in field.split(separator: ",") {
+            let s = String(part)
+            if s.contains("-") {
+                let bounds = s.split(separator: "-")
+                if bounds.count == 2, let lo = Int(bounds[0]), let hi = Int(bounds[1]),
+                   lo >= 0, hi <= 6, lo <= hi
+                {
+                    for d in lo ... hi { days.insert(d) }
+                }
+            } else if let d = Int(s), d >= 0, d <= 6 {
+                days.insert(d)
+            }
+        }
+        return days
+    }
+
+    /// Converts a Set of day numbers to the most compact cron string (uses ranges when contiguous).
+    static func daysToCronString(_ days: Set<Int>) -> String {
+        guard !days.isEmpty else { return "*" }
+        let sorted = days.sorted()
+
+        var ranges: [(Int, Int)] = []
+        var start = sorted[0]
+        var end = sorted[0]
+
+        for i in 1 ..< sorted.count {
+            if sorted[i] == end + 1 {
+                end = sorted[i]
+            } else {
+                ranges.append((start, end))
+                start = sorted[i]
+                end = sorted[i]
+            }
+        }
+        ranges.append((start, end))
+
+        return ranges.map { lo, hi in
+            lo == hi ? "\(lo)" : "\(lo)-\(hi)"
+        }.joined(separator: ",")
     }
 }
 

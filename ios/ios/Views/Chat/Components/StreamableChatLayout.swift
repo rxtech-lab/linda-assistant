@@ -1,5 +1,4 @@
 import AssistantCore
-import Combine
 import os
 import SwiftUI
 
@@ -35,6 +34,7 @@ struct StreamableChatLayout<Header: View>: View {
             set: { if !$0 { selectedSlideDeckId = nil } }
         )
     }
+
     @State private var errorDismissTask: Task<Void, Never>?
     @State private var presentedConfirmation: ConfirmationPayload?
     @State private var presentedQuestion: QuestionPayload?
@@ -42,7 +42,7 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var presentedUpload: UploadRequestPayload?
     @State private var isAtBottom = true
     @State private var chatListScale: CGFloat = 1.05
-    @State private var scrollSubject = PassthroughSubject<Void, Never>()
+    @State private var scrollToBottomTrigger = 0
     private var pendingConfirmationCount: Int {
         streamHandler?.pendingConfirmations.count ?? 0
     }
@@ -210,6 +210,7 @@ struct StreamableChatLayout<Header: View>: View {
                 )
         }
         .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
         .onTapGesture {
             #if canImport(UIKit)
                 UIApplication.shared.sendAction(
@@ -252,13 +253,23 @@ struct StreamableChatLayout<Header: View>: View {
                 }
             }
         }
+        .onChange(of: scrollToBottomTrigger) {
+            print(">>> scrollToBottomTrigger changed to \(scrollToBottomTrigger), scrolling to bottom")
+            withAnimation {
+                proxy.scrollTo("bottom", anchor: .bottom)
+            }
+        }
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .bottom) {
             ZStack {
                 ScrollViewReader { proxy in
                     chatListView(proxy: proxy)
+                        .safeAreaInset(edge: .bottom) {
+                            // Reserve space for the floating input
+                            Color.clear.frame(height: 56)
+                        }
                 }
                 .scaleEffect(chatListScale)
                 .opacity(isLoading ? 0 : 1)
@@ -435,19 +446,42 @@ struct StreamableChatLayout<Header: View>: View {
                 }
             }
 
-            #if canImport(UIKit)
-                Divider()
-            #endif
+            VStack(spacing: 4) {
+                HStack {
+                    if !isAtBottom {
+                        Button {
+                            print(">>> Scroll button tapped, trigger=\(scrollToBottomTrigger)")
+                            scrollToBottomTrigger += 1
+                        } label: {
+                            Image(systemName: "arrow.down")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 36, height: 36)
+                                .contentShape(Circle())
+                                .glassEffect(.regular.interactive(), in: .circle)
+                        }
+                        .buttonStyle(.plain)
+                        .contentShape(Circle())
+                        .padding(.leading, 16)
+                        .transition(.scale.combined(with: .opacity))
+                    }
+                    Spacer()
+                }
+                .animation(.easeInOut(duration: 0.2), value: isAtBottom)
 
-            MessageInput(
-                text: $messageText,
-                isStreaming: streamHandler?.isStreaming == true
-            ) { text in
-                isAtBottom = true
-                onSend(text)
-            } onStop: {
-                onStop()
+                HStack {
+                    MessageInput(
+                        text: $messageText,
+                        isStreaming: streamHandler?.isStreaming == true
+                    ) { text in
+                        isAtBottom = true
+                        onSend(text)
+                    } onStop: {
+                        onStop()
+                    }
+                }
             }
+            .allowsHitTesting(true)
         }
         .toolCallPresenter(
             selectedToolCall: $selectedToolCall,
@@ -554,19 +588,19 @@ struct StreamableChatLayout<Header: View>: View {
                 }
             }
         )
-#if os(macOS)
+        #if os(macOS)
         .sheet(isPresented: selectedSlideDeckPresented) {
             if let deckId = selectedSlideDeckId {
                 SlideViewerSheet(deckId: deckId)
             }
         }
-#else
+        #else
         .fullScreenCover(isPresented: selectedSlideDeckPresented) {
-            if let deckId = selectedSlideDeckId {
-                SlideViewerSheet(deckId: deckId)
-            }
-        }
-#endif
+                    if let deckId = selectedSlideDeckId {
+                        SlideViewerSheet(deckId: deckId)
+                    }
+                }
+        #endif
     }
 }
 

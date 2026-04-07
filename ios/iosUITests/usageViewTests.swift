@@ -10,8 +10,8 @@ import XCTest
 final class UsageViewTests: XCTestCase {
     @MainActor
     func testUsageViewLoads() throws {
-        let app = launchApp()
-        try app.signInWithEmailAndPassword()
+        let app = launchApp(resetAuth: .once)
+        try app.signInWithEmailAndPassword(skipCleanupMessage: true)
 
         // Navigate to Settings tab
         let settingsButton = app.buttons["square.grid.2x2"].firstMatch

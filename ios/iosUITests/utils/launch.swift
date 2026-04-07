@@ -6,17 +6,43 @@
 //
 import XCTest
 
-func launchApp() -> XCUIApplication {
+private var hasResetAuth = false
+
+func launchApp(resetAuth: LaunchResetAuth = .always) -> XCUIApplication {
     let app = XCUIApplication()
 
-    // --reset-auth flag will:
-    // 1. Clear stored tokens from Keychain
-    // 2. Use ephemeral Safari session (no cached credentials)
-    app.launchArguments = ["--reset-auth"]
+    let shouldReset: Bool
+    switch resetAuth {
+    case .always:
+        shouldReset = true
+    case .never:
+        shouldReset = false
+    case .once:
+        shouldReset = !hasResetAuth
+    }
+
+    if shouldReset {
+        // --reset-auth flag will:
+        // 1. Clear stored tokens from Keychain
+        // 2. Use ephemeral Safari session (no cached credentials)
+        app.launchArguments = ["--reset-auth"]
+        hasResetAuth = true
+    } else {
+        app.launchArguments = []
+    }
 
     app.launch()
 
     return app
+}
+
+enum LaunchResetAuth {
+    /// Always reset auth (clear keychain). Default behavior.
+    case always
+    /// Never reset auth (preserve existing tokens).
+    case never
+    /// Reset auth only on the first call; subsequent calls preserve tokens.
+    case once
 }
 
 /// Relaunch the app without resetting auth (tokens persist in Keychain)

@@ -7,6 +7,7 @@ export default defineConfig({
   timeout: 60_000,
   retries: 3,
   workers: 4,
+  snapshotPathTemplate: "{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}{ext}",
   webServer: {
     command: "bun oauth-server.ts",
     url: "http://localhost:3001/health",

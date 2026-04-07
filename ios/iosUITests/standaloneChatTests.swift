@@ -27,7 +27,7 @@ final class StandaloneChatTests: XCTestCase {
 
     @MainActor
     func testLongResponseTest() async throws {
-        let app = launchApp()
+        let app = launchApp(resetAuth: .once)
         try app.signInWithEmailAndPassword()
 
         // wait for the messageInput visible
@@ -45,7 +45,7 @@ final class StandaloneChatTests: XCTestCase {
 
     @MainActor
     func testLongResponseAndReloadTest() async throws {
-        let app = launchApp()
+        let app = launchApp(resetAuth: .once)
         try app.signInWithEmailAndPassword()
 
         // wait for the messageInput visible
@@ -67,7 +67,7 @@ final class StandaloneChatTests: XCTestCase {
 
     @MainActor
     func testShortResponseAndReloadTest() async throws {
-        let app = launchApp()
+        let app = launchApp(resetAuth: .once)
         try app.signInWithEmailAndPassword()
 
         // wait for the messageInput visible
@@ -78,7 +78,10 @@ final class StandaloneChatTests: XCTestCase {
         sleep(1)
         // reload the app
         relaunchApp(app, waitTime: 5)
-
+        XCTAssertTrue(app.buttons.staticTexts["Linda"].firstMatch.waitForExistence(timeout: 10))
+        sleep(3)
+        app.swipeUp()
+        sleep(3)
         let exist = try await waitForMessageContaining("[END OF SHORT OUTPUT]", in: app, timeout: 10)
         XCTAssertTrue(exist)
 
@@ -88,7 +91,7 @@ final class StandaloneChatTests: XCTestCase {
 
     @MainActor
     func testScrollUpDuringStreamingStaysScrolled() async throws {
-        let app = launchApp()
+        let app = launchApp(resetAuth: .once)
         try app.signInWithEmailAndPassword()
 
         // Send first long output so there's enough content to scroll
@@ -123,7 +126,7 @@ final class StandaloneChatTests: XCTestCase {
 
     @MainActor
     func testMultiTurnsConversation() async throws {
-        let app = launchApp()
+        let app = launchApp(resetAuth: .once)
         try app.signInWithEmailAndPassword()
 
         for _ in 0 ..< 3 {
@@ -298,6 +301,47 @@ final class StandaloneChatTests: XCTestCase {
         XCTAssertTrue(
             uploadCompleteAfterReload.waitForExistence(timeout: 15),
             "Upload Complete sheet should appear when tapping tool call badge"
+        )
+    }
+
+    @MainActor
+    func testPaginationScrollPositionAfterRelaunch() async throws {
+        let app = launchApp(resetAuth: .once)
+        try app.signInWithEmailAndPassword()
+
+        XCTAssertTrue(app.messageInput.waitForExistence(timeout: 10))
+        // Send 55 short messages to exceed the 100-message pagination limit
+        // (each send = 1 user + 1 assistant = 2 messages, so 55 × 2 = 110 > 100)
+        for i in 0 ..< 10 {
+            app.messageInput.tap()
+            app.messageInput.typeText("short-output-test-1")
+            app.sendButton.tap()
+
+            let exist = try await waitForMessageContaining("[END OF SHORT]", in: app, timeout: 15)
+            XCTAssertTrue(exist, "Message \(i) should complete")
+        }
+
+        app.swipeUp()
+
+        // Verify we're at the bottom before relaunch
+        XCTAssertTrue(
+            app.waitForElementToBeVisible(app.endOfMessage, timeout: 10),
+            "Should be at bottom after sending all messages"
+        )
+
+        // Terminate and relaunch without resetting auth
+        relaunchApp(app)
+
+        // Wait for chat to load
+        XCTAssertTrue(
+            app.messageInput.waitForExistence(timeout: 30),
+            "Chat input should appear after relaunch"
+        )
+
+        // Verify we're scrolled to the bottom after relaunch
+        XCTAssertTrue(
+            app.waitForElementToBeVisible(app.endOfMessage, timeout: 10),
+            "Should be at bottom after relaunch with paginated messages"
         )
     }
 }

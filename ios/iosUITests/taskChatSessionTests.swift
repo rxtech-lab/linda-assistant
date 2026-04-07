@@ -27,8 +27,8 @@ final class TaskChatSessionTests: XCTestCase {
 
     @MainActor
     func testLongResponseTest() async throws {
-        let app = launchApp()
-        try app.signInWithEmailAndPassword()
+        let app = launchApp(resetAuth: .once)
+        try app.signInWithEmailAndPassword(skipCleanupMessage: true)
 
         // Navigate to Tasks tab
         app/*@START_MENU_TOKEN@*/

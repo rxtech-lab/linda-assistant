@@ -72,12 +72,8 @@ struct TaskFormSheet: View {
                     switch scheduleType {
                         case .cron:
                             CronExpressionView(cronExpression: $cronSchedule)
-                            Picker("Timezone", selection: $selectedTimezone) {
-                                ForEach(TimeZone.knownTimeZoneIdentifiers, id: \.self) { tz in
-                                    Text(timezoneLabel(tz)).tag(tz)
-                                }
-                            }
-                            .accessibilityIdentifier("task-cron-timezone-picker")
+                            TimezonePicker(selectedTimezone: $selectedTimezone)
+                                .accessibilityIdentifier("task-cron-timezone-picker")
                         case .scheduled:
                             DatePicker(
                                 "Run at",
@@ -86,12 +82,8 @@ struct TaskFormSheet: View {
                                 displayedComponents: [.date, .hourAndMinute]
                             )
                             .accessibilityIdentifier("task-runs-at-picker")
-                            Picker("Timezone", selection: $selectedTimezone) {
-                                ForEach(TimeZone.knownTimeZoneIdentifiers, id: \.self) { tz in
-                                    Text(timezoneLabel(tz)).tag(tz)
-                                }
-                            }
-                            .accessibilityIdentifier("task-timezone-picker")
+                            TimezonePicker(selectedTimezone: $selectedTimezone)
+                                .accessibilityIdentifier("task-timezone-picker")
                         case .none:
                             EmptyView()
                     }
@@ -278,5 +270,29 @@ struct TaskFormSheet: View {
         }
 
         isSubmitting = false
+    }
+}
+
+/// Extracted subview so parent @State changes don't re-render the ~400-item timezone list.
+private struct TimezonePicker: View {
+    @Binding var selectedTimezone: String
+
+    var body: some View {
+        Picker("Timezone", selection: $selectedTimezone) {
+            ForEach(TimeZone.knownTimeZoneIdentifiers, id: \.self) { tz in
+                Text(timezoneLabel(tz)).tag(tz)
+            }
+        }
+    }
+
+    private func timezoneLabel(_ identifier: String) -> String {
+        guard let tz = TimeZone(identifier: identifier) else { return identifier }
+        let seconds = tz.secondsFromGMT()
+        let hours = seconds / 3600
+        let minutes = abs(seconds / 60 % 60)
+        let offset = minutes == 0
+            ? String(format: "GMT%+d", hours)
+            : String(format: "GMT%+d:%02d", hours, minutes)
+        return "\(identifier) (\(offset))"
     }
 }

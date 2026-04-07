@@ -1,10 +1,11 @@
 import { db } from "@/lib/db";
 import { documents } from "@/lib/db/schema";
+import { publishEvent } from "@/lib/queue/producer";
 import { tool } from "ai";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
 
-export const updateDocumentTool = (userId: string) =>
+export const updateDocumentTool = (userId: string, chatSessionId: string) =>
   tool({
     description:
       "Update an existing document's content. Use when the user asks to revise, edit, or update a previously created document.\n\n" +
@@ -22,7 +23,21 @@ export const updateDocumentTool = (userId: string) =>
           "The updated document content. Use markdown tables for structured data, comparisons, and metrics.",
         ),
     }),
-    execute: async ({ id, content }) => {
+    execute: async ({ id, content }, { toolCallId }) => {
+      await publishEvent({
+        sessionId: chatSessionId,
+        event: "tool-progress",
+        data: {
+          toolCallId,
+          toolName: UPDATE_DOCUMENT_TOOL_NAME,
+          current: 0,
+          total: 1,
+          step: "updating",
+          message: "Updating document...",
+        },
+        timestamp: Date.now(),
+      });
+
       const [updated] = await db
         .update(documents)
         .set({ content, updatedAt: sql`(datetime('now'))` })
@@ -30,6 +45,21 @@ export const updateDocumentTool = (userId: string) =>
         .returning();
 
       if (!updated) return { error: "Document not found" };
+
+      await publishEvent({
+        sessionId: chatSessionId,
+        event: "tool-progress",
+        data: {
+          toolCallId,
+          toolName: UPDATE_DOCUMENT_TOOL_NAME,
+          current: 1,
+          total: 1,
+          step: "updated",
+          message: "Document updated",
+        },
+        timestamp: Date.now(),
+      });
+
       return { documentId: updated.id, title: updated.title };
     },
   });

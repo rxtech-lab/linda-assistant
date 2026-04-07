@@ -55,6 +55,15 @@ final class ChatDetailViewModel {
                 self.error = error.localizedDescription
             }
         }
+        handler.onDone = { [weak self] in
+            guard let self else { return }
+            logger.info("onDone: refetching session \(id)")
+            do {
+                try await fetchSession(id: id, apiClient: apiClient)
+            } catch {
+                logger.error("onDone: fetch error: \(error)")
+            }
+        }
         handler.onConfirmationResolved = { [weak self] toolCallId, action in
             guard let self else { return }
             updateToolCallStatus(toolCallId: toolCallId, action: action, in: &displayMessages)

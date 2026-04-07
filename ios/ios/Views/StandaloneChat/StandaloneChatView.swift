@@ -10,6 +10,7 @@ struct ChatTabView: View {
     @Environment(NavigationManager.self) private var navigationManager
     @Environment(PushNotificationManager.self) private var pushManager
     @State private var viewModel = ChatTabViewModel()
+    @State private var canAutoLoadMore = false
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -61,6 +62,7 @@ struct ChatTabView: View {
                         }
                         .padding(.vertical, 8)
                         .onAppear {
+                            guard canAutoLoadMore else { return }
                             Task {
                                 await viewModel.loadOlderMessages(apiClient: apiClient)
                             }
@@ -73,6 +75,9 @@ struct ChatTabView: View {
             ToolbarItem(placement: .principal) {
                 if !viewModel.assignees.isEmpty {
                     Button {
+                        #if os(iOS)
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        #endif
                         viewModel.showingAssigneeSheet = true
                     } label: {
                         HStack(spacing: 4) {
@@ -93,6 +98,7 @@ struct ChatTabView: View {
             #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         navigationManager.showingTabs = true
                     } label: {
                         Image(systemName: "square.grid.2x2")
@@ -161,6 +167,13 @@ struct ChatTabView: View {
             if viewModel.streamHandler != nil, viewModel.streamHandler?.isConnected == false {
                 Task {
                     await viewModel.reconnectIfNeeded(apiClient: apiClient)
+                }
+            }
+        }
+        .onChange(of: viewModel.isLoading) { oldValue, newValue in
+            if oldValue == true, newValue == false {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    canAutoLoadMore = true
                 }
             }
         }

@@ -111,6 +111,36 @@ struct CronGUIStateTests {
         #expect(state.toCronExpression() == "59 23 * * *")
     }
 
+    @Test func specificDaysWeekdaysGeneratesCorrectExpression() {
+        var state = CronGUIState()
+        state.frequency = .specificDays
+        state.selectedDays = [1, 2, 3, 4, 5]
+        state.hour = 8
+        state.minute = 30
+
+        #expect(state.toCronExpression() == "30 8 * * 1-5")
+    }
+
+    @Test func specificDaysNonContiguousGeneratesCorrectExpression() {
+        var state = CronGUIState()
+        state.frequency = .specificDays
+        state.selectedDays = [1, 3, 5]
+        state.hour = 9
+        state.minute = 0
+
+        #expect(state.toCronExpression() == "0 9 * * 1,3,5")
+    }
+
+    @Test func specificDaysMixedRangeGeneratesCorrectExpression() {
+        var state = CronGUIState()
+        state.frequency = .specificDays
+        state.selectedDays = [1, 2, 3, 5]
+        state.hour = 10
+        state.minute = 0
+
+        #expect(state.toCronExpression() == "0 10 * * 1-3,5")
+    }
+
     @Test func weeklyGeneratesCorrectExpression() {
         var state = CronGUIState()
         state.frequency = .weekly
@@ -217,6 +247,33 @@ struct CronGUIStateTests {
         #expect(state.minute == 30)
     }
 
+    @Test func parseWeekdaysRange() {
+        let state = CronGUIState.parse(from: "30 8 * * 1-5")
+
+        #expect(state.frequency == .specificDays)
+        #expect(state.selectedDays == Set(1 ... 5))
+        #expect(state.hour == 8)
+        #expect(state.minute == 30)
+    }
+
+    @Test func parseNonContiguousDays() {
+        let state = CronGUIState.parse(from: "0 9 * * 1,3,5")
+
+        #expect(state.frequency == .specificDays)
+        #expect(state.selectedDays == [1, 3, 5])
+        #expect(state.hour == 9)
+        #expect(state.minute == 0)
+    }
+
+    @Test func parseMixedRangeDays() {
+        let state = CronGUIState.parse(from: "0 10 * * 1-3,5")
+
+        #expect(state.frequency == .specificDays)
+        #expect(state.selectedDays == [1, 2, 3, 5])
+        #expect(state.hour == 10)
+        #expect(state.minute == 0)
+    }
+
     @Test func parseWeekly() {
         let state = CronGUIState.parse(from: "0 9 * * 3")
 
@@ -308,6 +365,38 @@ struct CronGUIStateTests {
         #expect(parsed.frequency == original.frequency)
         #expect(parsed.hour == original.hour)
         #expect(parsed.minute == original.minute)
+    }
+
+    @Test func roundTripSpecificDaysContiguous() {
+        var original = CronGUIState()
+        original.frequency = .specificDays
+        original.selectedDays = [1, 2, 3, 4, 5]
+        original.hour = 8
+        original.minute = 30
+
+        let expression = original.toCronExpression()
+        let parsed = CronGUIState.parse(from: expression)
+
+        #expect(parsed.frequency == original.frequency)
+        #expect(parsed.selectedDays == original.selectedDays)
+        #expect(parsed.hour == original.hour)
+        #expect(parsed.minute == original.minute)
+    }
+
+    @Test func roundTripSpecificDaysNonContiguous() {
+        var original = CronGUIState()
+        original.frequency = .specificDays
+        original.selectedDays = [1, 3, 5]
+        original.hour = 9
+        original.minute = 0
+
+        let expression = original.toCronExpression()
+        #expect(expression == "0 9 * * 1,3,5")
+
+        let parsed = CronGUIState.parse(from: expression)
+
+        #expect(parsed.frequency == original.frequency)
+        #expect(parsed.selectedDays == original.selectedDays)
     }
 
     @Test func roundTripWeekly() {
@@ -491,6 +580,30 @@ final class CronExpressionViewUITests: XCTestCase {
         )
     }
 
+    func testView_weekdaysDescription_showsCorrectText() throws {
+        let sut = makeSUT(expression: "30 8 * * 1-5")
+
+        let texts = try sut.inspect().findAll(ViewType.Text.self)
+        let textStrings = texts.compactMap { try? $0.string() }
+
+        XCTAssertTrue(
+            textStrings.contains(where: { $0.contains("Weekdays") && $0.contains("8:30 AM") }),
+            "Should show 'Weekdays at 8:30 AM' description. Got: \(textStrings)"
+        )
+    }
+
+    func testView_specificDaysDescription_showsCorrectText() throws {
+        let sut = makeSUT(expression: "0 9 * * 1,3,5")
+
+        let texts = try sut.inspect().findAll(ViewType.Text.self)
+        let textStrings = texts.compactMap { try? $0.string() }
+
+        XCTAssertTrue(
+            textStrings.contains(where: { $0.contains("Mon") && $0.contains("Wed") && $0.contains("Fri") }),
+            "Should show day names for non-contiguous days. Got: \(textStrings)"
+        )
+    }
+
     func testView_everyNHoursDescription() throws {
         let sut = makeSUT(expression: "0 */3 * * *")
 
@@ -517,6 +630,7 @@ final class CronExpressionViewUITests: XCTestCase {
         XCTAssertTrue(textStrings.contains("Every hour"), "Should have 'Every hour' option")
         XCTAssertTrue(textStrings.contains("Every N hours"), "Should have 'Every N hours' option")
         XCTAssertTrue(textStrings.contains("Daily"), "Should have 'Daily' option")
+        XCTAssertTrue(textStrings.contains("Specific days"), "Should have 'Specific days' option")
         XCTAssertTrue(textStrings.contains("Weekly"), "Should have 'Weekly' option")
         XCTAssertTrue(textStrings.contains("Monthly"), "Should have 'Monthly' option")
     }
