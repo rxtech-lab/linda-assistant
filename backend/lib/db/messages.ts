@@ -11,7 +11,7 @@ export async function getSessionMessages(chatSessionId: string): Promise<ModelMe
     .where(eq(messages.chatSessionId, chatSessionId))
     .orderBy(asc(messages.seq));
 
-  return rows.map(rowToModelMessage);
+  return rows.map((row) => rowToModelMessage(row, { stripReasoning: true }));
 }
 
 /** Load only non-compacted messages for a session (for AI agent use), ordered by seq */
@@ -22,7 +22,7 @@ export async function getActiveSessionMessages(chatSessionId: string): Promise<M
     .where(and(eq(messages.chatSessionId, chatSessionId), eq(messages.isCompacted, false)))
     .orderBy(asc(messages.seq));
 
-  return rows.map(rowToModelMessage);
+  return rows.map((row) => rowToModelMessage(row, { stripReasoning: true }));
 }
 
 /** Insert new messages starting at MAX(seq)+1 */
@@ -132,7 +132,7 @@ export async function getPagedMessages(
   const nextCursor = hasMore ? (pageRows[0]?.id ?? null) : null;
 
   return {
-    messages: pageRows.filter((row) => !isSummaryMessage(row)).map(rowToModelMessage),
+    messages: pageRows.filter((row) => !isSummaryMessage(row)).map((row) => rowToModelMessage(row, { stripReasoning: false })),
     nextCursor,
   };
 }
@@ -212,11 +212,13 @@ function isSummaryMessage(row: typeof messages.$inferSelect): boolean {
   );
 }
 
-function rowToModelMessage(row: typeof messages.$inferSelect): ModelMessage {
+function rowToModelMessage(
+  row: typeof messages.$inferSelect,
+  opts: { stripReasoning: boolean } = { stripReasoning: false },
+): ModelMessage {
   let content = row.content as ModelMessage["content"];
 
-  // Strip reasoning parts from assistant messages — they're internal AI traces
-  if (row.role === "assistant" && Array.isArray(content)) {
+  if (opts.stripReasoning && row.role === "assistant" && Array.isArray(content)) {
     content = (content as Array<{ type: string }>).filter(
       (part) => part.type !== "reasoning",
     ) as typeof content;

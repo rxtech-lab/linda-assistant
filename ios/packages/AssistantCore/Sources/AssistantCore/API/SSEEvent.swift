@@ -17,6 +17,8 @@ public enum SSEEventType: String, Sendable {
     case uploadResolved = "upload_resolved"
     case toolProgress = "tool-progress"
     case userMessage = "user-message"
+    case thinkingStart = "thinking-start"
+    case thinkingStop = "thinking-stop"
     case compacting
     case error
     case done
@@ -120,6 +122,14 @@ public struct SSEEvent: Sendable {
                 if let payload = try? decoder.decode(UserMessagePayload.self, from: jsonData) {
                     return .userMessage(payload)
                 }
+            case .thinkingStart:
+                if let payload = try? decoder.decode(ThinkingStartPayload.self, from: jsonData) {
+                    return .thinkingStart(payload)
+                }
+            case .thinkingStop:
+                if let payload = try? decoder.decode(ThinkingStopPayload.self, from: jsonData) {
+                    return .thinkingStop(payload)
+                }
             case .compacting:
                 if let payload = try? decoder.decode(CompactingPayload.self, from: jsonData) {
                     logger.info("parse: compacting messageCount=\(payload.messageCount ?? 0)")
@@ -162,6 +172,8 @@ public enum SSEMessage: Sendable {
     case uploadResolved(UploadResolvedPayload)
     case toolProgress(ToolProgressPayload)
     case userMessage(UserMessagePayload)
+    case thinkingStart(ThinkingStartPayload)
+    case thinkingStop(ThinkingStopPayload)
     case compacting(CompactingPayload)
     case error(SSEErrorPayload)
     case done
@@ -173,6 +185,17 @@ public enum SSEMessage: Sendable {
 // MARK: - Payloads
 
 public struct TextDeltaPayload: Codable, Sendable {
+    public let text: String
+    public let seq: Int?
+}
+
+public struct ThinkingStartPayload: Codable, Sendable {
+    public let id: String
+    public let seq: Int?
+}
+
+public struct ThinkingStopPayload: Codable, Sendable {
+    public let id: String
     public let text: String
     public let seq: Int?
 }

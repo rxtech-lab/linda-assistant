@@ -63,10 +63,27 @@ struct UsageView: View {
                 // Token chart
                 if !usage.daily.isEmpty {
                     Section(viewModel.selectedDays == 1 ? "Hourly Tokens" : "Daily Tokens") {
-                        tokenChart(daily: usage.daily)
-                            .padding(.top, 50)
+                        VStack(spacing: 8) {
+                            if let selectedLabel,
+                               let entry = usage.daily
+                                .first(where: { formatChartLabel($0.date) == selectedLabel })
+                            {
+                                HStack(spacing: 8) {
+                                    Text(selectedLabel)
+                                        .fontWeight(.medium)
+                                    Label(formatTokens(entry.inputTokens), systemImage: "arrow.up.circle.fill")
+                                        .foregroundStyle(.blue)
+                                    Label(formatTokens(entry.outputTokens), systemImage: "arrow.down.circle.fill")
+                                        .foregroundStyle(.orange)
+                                    Text(String(format: "$%.4f", entry.costUsd))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .font(.caption)
+                                .lineLimit(1)
+                            }
+                            tokenChart(daily: usage.daily)
+                        }
                     }
-                    .scrollClipDisabled()
                     .onChange(of: viewModel.selectedDays) {
                         selectedLabel = nil
                     }
@@ -129,26 +146,28 @@ struct UsageView: View {
                 .opacity(selectedLabel == nil || isSelected ? 1.0 : 0.3)
             }
 
-            if let selectedLabel,
-               let entry = daily.first(where: { formatChartLabel($0.date) == selectedLabel })
-            {
+            if let selectedLabel {
                 RuleMark(x: .value("Time", selectedLabel))
                     .foregroundStyle(.gray.opacity(0.3))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 2]))
-                    .annotation(
-                        position: .top,
-                        spacing: 0,
-                        overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
-                    ) {
-                        annotationLabel(label: selectedLabel, entry: entry)
-                    }
             }
         }
+        .chartScrollableAxes(.horizontal)
+        .chartXVisibleDomain(length: 5)
         .chartForegroundStyleScale([
             "Input": .blue,
             "Output": .orange,
         ])
-        .chartXSelection(value: $selectedLabel)
+        .chartGesture { proxy in
+            SpatialTapGesture()
+                .onEnded { value in
+                    if let tappedLabel: String = proxy.value(atX: value.location.x) {
+                        withAnimation {
+                            selectedLabel = selectedLabel == tappedLabel ? nil : tappedLabel
+                        }
+                    }
+                }
+        }
         .frame(height: 200)
     }
 

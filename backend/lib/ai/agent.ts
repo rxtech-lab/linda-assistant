@@ -1196,6 +1196,9 @@ export async function runAgent(options: AgentRunOptions) {
         toolCall: { toolCallId: string; toolName: string; input: unknown };
       }> = [];
 
+      // Accumulates reasoning text within a reasoning block (reset on reasoning-end)
+      let thinkingBuffer = "";
+
       // eslint-disable-next-line no-labels -- labeled break needed to exit from inside switch
       streamLoop: for await (const part of result.fullStream) {
         if (signal?.aborted) break streamLoop;
@@ -1204,6 +1207,22 @@ export async function runAgent(options: AgentRunOptions) {
           case "start-step": {
             currentStepId = crypto.randomUUID();
             stepIds.push(currentStepId);
+            thinkingBuffer = "";
+            break;
+          }
+          case "reasoning-start": {
+            await onEvent?.("thinking-start", { id: currentStepId });
+            if (signal?.aborted) break streamLoop;
+            break;
+          }
+          case "reasoning-delta": {
+            thinkingBuffer += part.text;
+            break;
+          }
+          case "reasoning-end": {
+            await onEvent?.("thinking-stop", { id: currentStepId, text: thinkingBuffer });
+            thinkingBuffer = "";
+            if (signal?.aborted) break streamLoop;
             break;
           }
           case "text-delta": {

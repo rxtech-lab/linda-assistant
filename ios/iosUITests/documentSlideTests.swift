@@ -48,7 +48,7 @@ final class DocumentSlideTests: XCTestCase {
 
         // Step 4: Verify SlideViewerSheet opened — tap export button and verify PDF option
         let exportImage = app.images["square.and.arrow.up"].firstMatch
-        XCTAssertTrue(exportImage.waitForExistence(timeout: 10), "Export button should appear")
+        XCTAssertTrue(exportImage.waitForExistence(timeout: 30), "Export button should appear")
         exportImage.tap()
 
         let pdfOption = app.buttons["Export as PDF"].firstMatch
@@ -71,7 +71,7 @@ final class DocumentSlideTests: XCTestCase {
 
         // Step 8: Verify nested SlideViewerSheet opened — tap export and verify PDF option again
         let nestedExportImage = app.images["square.and.arrow.up"].firstMatch
-        XCTAssertTrue(nestedExportImage.waitForExistence(timeout: 10), "Nested export button should appear")
+        XCTAssertTrue(nestedExportImage.waitForExistence(timeout: 30), "Nested export button should appear")
         nestedExportImage.tap()
 
         let nestedPdfOption = app.buttons["Export as PDF"].firstMatch

@@ -61,6 +61,7 @@ struct DisplayMessage: Identifiable {
     var isStreaming: Bool {
         parts.contains {
             if case .text(.streaming) = $0 { return true }
+            if case let .thinking(info) = $0, info.isStreaming { return true }
             return false
         }
     }
@@ -131,6 +132,10 @@ extension DisplayMessage {
 
             if let text = msg.textContent, !text.isEmpty {
                 parts.append(.text(.plain(text)))
+            }
+
+            for reasoningText in msg.reasoningParts {
+                parts.insert(.thinking(ThinkingInfo(text: reasoningText, isStreaming: false)), at: 0)
             }
 
             for tc in historicalToolCalls {

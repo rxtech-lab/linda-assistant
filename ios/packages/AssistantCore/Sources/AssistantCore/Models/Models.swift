@@ -603,6 +603,7 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
     public let role: String
     public let textContent: String?
     public let toolCalls: [ChatToolCall]
+    public let reasoningParts: [String]
     /// Maps toolCallId → approveStatus ("auto-approved", "confirmed", "rejected")
     public let toolResultStatuses: [String: String]
     /// Maps toolCallId → tool result output (from tool-result content parts)
@@ -626,11 +627,13 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
         if let stringValue = try? container.decode(String.self, forKey: .content) {
             textContent = stringValue
             toolCalls = []
+            reasoningParts = []
             toolResultStatuses = [:]
             toolResultOutputs = [:]
         } else if let parts = try? container.decode([ContentPart].self, forKey: .content) {
-            let textParts = parts.compactMap { $0.type != "tool-call" ? $0.text : nil }
+            let textParts = parts.compactMap { $0.type != "tool-call" && $0.type != "reasoning" ? $0.text : nil }
             textContent = textParts.isEmpty ? nil : textParts.joined(separator: "\n")
+            reasoningParts = parts.compactMap { $0.type == "reasoning" ? $0.text : nil }
             toolCalls = parts.compactMap { part -> ChatToolCall? in
                 guard part.type == "tool-call", let toolName = part.toolName else { return nil }
                 return ChatToolCall(
@@ -661,6 +664,7 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
         } else {
             textContent = nil
             toolCalls = []
+            reasoningParts = []
             toolResultStatuses = [:]
             toolResultOutputs = [:]
         }

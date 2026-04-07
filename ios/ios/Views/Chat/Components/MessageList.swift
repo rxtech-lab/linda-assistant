@@ -87,6 +87,9 @@ struct MessageList: View {
                                 MessageBubble(message: msg, text: content.displayText)
                                     .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                             }
+                        case let .thinking(info):
+                            ThinkingBubble(info: info)
+                                .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                         case let .tool(toolCall):
                             if Self.documentToolNames.contains(toolCall.toolName) {
                                 DocumentToolCard(toolCall: toolCall) { doc in
