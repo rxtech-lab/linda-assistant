@@ -38,27 +38,27 @@ struct AssigneeSlideDecksSection: View {
                 await loadSlideDecks()
             }
         } else if !slideDecks.isEmpty {
-#if os(macOS)
-            slideDecksSection
-                .sheet(isPresented: selectedDeckBinding) {
-                    if let deckId = selectedDeckId {
-                        SlideViewerSheet(deckId: deckId)
+            #if os(macOS)
+                slideDecksSection
+                    .sheet(isPresented: selectedDeckBinding) {
+                        if let deckId = selectedDeckId {
+                            SlideViewerSheet(deckId: deckId)
+                        }
                     }
-                }
-                .sheet(isPresented: $showingAllSlides) {
-                    AllSlideDecksSheet(assigneeId: assigneeId)
-                }
-#else
-            slideDecksSection
-                .fullScreenCover(isPresented: selectedDeckBinding) {
-                    if let deckId = selectedDeckId {
-                        SlideViewerSheet(deckId: deckId)
+                    .sheet(isPresented: $showingAllSlides) {
+                        AllSlideDecksSheet(assigneeId: assigneeId)
                     }
-                }
-                .sheet(isPresented: $showingAllSlides) {
-                    AllSlideDecksSheet(assigneeId: assigneeId)
-                }
-#endif
+            #else
+                slideDecksSection
+                    .fullScreenCover(isPresented: selectedDeckBinding) {
+                        if let deckId = selectedDeckId {
+                            SlideViewerSheet(deckId: deckId)
+                        }
+                    }
+                    .sheet(isPresented: $showingAllSlides) {
+                        AllSlideDecksSheet(assigneeId: assigneeId)
+                    }
+            #endif
         }
     }
 
@@ -79,8 +79,8 @@ struct AssigneeSlideDecksSection: View {
                                 }
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
-                            .frame(width: 64, height: 36)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .frame(width: 64, height: 36)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
                         } else {
                             slidePlaceholder
                         }

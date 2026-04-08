@@ -304,6 +304,85 @@ final class StandaloneChatTests: XCTestCase {
         )
     }
 
+    /// Finds a staticText element containing the given substring
+    private func findText(_ substring: String, in app: XCUIApplication) -> XCUIElement {
+        let predicate = NSPredicate(format: "label CONTAINS %@", substring)
+        return app.staticTexts.matching(predicate).firstMatch
+    }
+
+    @MainActor
+    func testComplexResponseOrderingAfterReload() async throws {
+        let app = launchApp(resetAuth: .once)
+        try app.signInWithEmailAndPassword()
+
+        // Send complex-response-1 which triggers: text → tool → result → text → tool → result → text
+        XCTAssertTrue(app.messageInput.waitForExistence(timeout: 10))
+        app.messageInput.tap()
+        app.messageInput.typeText("[complex-response-1]")
+        app.sendButton.tap()
+
+        // Wait for final text to appear
+        let exist = try await waitForMessageContaining("All done! Both documents", in: app, timeout: 30)
+        XCTAssertTrue(exist, "Final response text should appear")
+
+        let allTexts = app.staticTexts.allElementsBoundByIndex
+        let textContent = allTexts.reduce("") { partialResult, element in
+            partialResult + element.label + "\n---\n"
+        }
+
+        print(textContent)
+
+        let targetText = "Let me help you with that. I will create two documents for you now. Document created successfully. Now I will create the second document for you."
+
+        // Check occurrence of target text < 2 (ensures no duplicate content from SSE reconnection)
+        let occurrences = textContent.components(separatedBy: targetText).count - 1
+        XCTAssertLessThan(occurrences, 2, "Target text should not appear more than once (found \(occurrences) times), indicating no duplicate streaming after reconnection")
+    }
+
+    @MainActor
+    func testSlowComplexResponseStreamingAndReconnectionOrder() async throws {
+        let app = launchApp(resetAuth: .once)
+        try app.signInWithEmailAndPassword()
+
+        // Send slow-complex-response-1 (streams slowly so we can check order mid-stream)
+        XCTAssertTrue(app.messageInput.waitForExistence(timeout: 10))
+        app.messageInput.tap()
+        app.messageInput.typeText("[slow-complex-response-1]")
+        app.sendButton.tap()
+
+        // Relaunch app mid-stream — SSE reconnection should replay remaining chunks
+        relaunchApp(app)
+        sleep(2)
+        XCTAssertTrue(app.buttons["assignee-button"].firstMatch.waitForExistence(timeout: 30))
+
+        let allTexts = app.staticTexts.allElementsBoundByIndex
+        let textContent = allTexts.reduce("") { partialResult, element in
+            partialResult + element.label + "\n---\n"
+        }
+
+        let targetText = "Let me help you with that. I will create two documents for you now. Document created successfully. Now I will create the second document for you."
+
+        // Check occurrence of target text < 2 (ensures no duplicate content from SSE reconnection)
+        let occurrences = textContent.components(separatedBy: targetText).count - 1
+        XCTAssertLessThan(occurrences, 2, "Target text should not appear more than once (found \(occurrences) times), indicating no duplicate streaming after reconnection")
+
+        // Wait for the full response to complete after reconnection
+        let finished = try await waitForMessageContaining("[END_SLOW_COMPLEX]", in: app, timeout: 60)
+        XCTAssertTrue(finished, "Full response should complete after reconnection")
+
+        // Verify all 3 text segments exist and are in correct vertical order
+        let el1 = findText("Let me help you with that.", in: app)
+        let el2 = findText("Document created successfully.", in: app)
+        let el3 = findText("All done! Both documents", in: app)
+
+        XCTAssertTrue(el1.exists, "Step 1 text should exist after reconnection")
+        XCTAssertTrue(el2.exists, "Step 2 text should exist after reconnection")
+        XCTAssertTrue(el3.exists, "Step 3 text should exist after reconnection")
+
+        XCTAssertLessThan(el1.frame.minY, el2.frame.minY, "Step 1 should be above step 2 after reconnection")
+        XCTAssertLessThan(el2.frame.minY, el3.frame.minY, "Step 2 should be above step 3 after reconnection")
+    }
+
     @MainActor
     func testPaginationScrollPositionAfterRelaunch() async throws {
         let app = launchApp(resetAuth: .once)

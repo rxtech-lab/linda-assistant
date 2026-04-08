@@ -100,9 +100,7 @@ export async function streamWithReplay(
   //    old cached chunks would cause duplicates.
   if (sessionStatus !== "in_progress") {
     replaying = false;
-    console.log(
-      `[Replay] session=${sessionId} status=${sessionStatus}, skipping chunk replay`,
-    );
+    console.log(`[Replay] session=${sessionId} status=${sessionStatus}, skipping chunk replay`);
 
     for (const agentEvent of liveBuffer) {
       if (signal.aborted) break;

@@ -30,9 +30,7 @@ test.describe("Document Download", () => {
     client.close();
   });
 
-  test("download markdown replaces {{slide:id}} with image references", async ({
-    request,
-  }) => {
+  test("download markdown replaces {{slide:id}} with image references", async ({ request }) => {
     const client = createClient({ url: `file:${dbPath}` });
 
     // Create a slide deck with pages
@@ -84,9 +82,7 @@ test.describe("Document Download", () => {
     expect(disposition).toContain(".md");
   });
 
-  test("download HTML document replaces {{slide:id}} with img tags", async ({
-    request,
-  }) => {
+  test("download HTML document replaces {{slide:id}} with img tags", async ({ request }) => {
     const client = createClient({ url: `file:${dbPath}` });
 
     const deckId = nanoid();
@@ -120,9 +116,7 @@ test.describe("Document Download", () => {
     expect(disposition).toContain(".html");
   });
 
-  test("download document without slides returns content unchanged", async ({
-    request,
-  }) => {
+  test("download document without slides returns content unchanged", async ({ request }) => {
     const client = createClient({ url: `file:${dbPath}` });
 
     const docId = nanoid();

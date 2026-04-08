@@ -115,7 +115,7 @@ final class ToolCallWithTextTests: XCTestCase {
         XCTAssertTrue(badgeTexts.contains("Completed"))
 
         // Verify MessageBubble renders for text message
-        let bubble = MessageBubble(message: textMsg)
+        let bubble = MessageBubble(message: textMsg, text: textMsg.textContent)
         let bubbleTexts = try bubble.inspect().findAll(ViewType.Text.self).compactMap { try? $0.string() }
         XCTAssertTrue(
             bubbleTexts.contains(where: { $0.contains("sent that email") }),
@@ -153,7 +153,7 @@ final class RejectedToolCallWithTextTests: XCTestCase {
             role: .assistant,
             parts: [.text(.plain("The email was not sent."))]
         )
-        let bubble = MessageBubble(message: textMsg)
+        let bubble = MessageBubble(message: textMsg, text: textMsg.textContent)
         let bubbleTexts = try bubble.inspect().findAll(ViewType.Text.self).compactMap { try? $0.string() }
         XCTAssertTrue(bubbleTexts.contains(where: { $0.contains("not sent") }))
     }
@@ -1171,6 +1171,130 @@ final class MessageListRenderingOrderTests: XCTestCase {
         XCTAssertEqual(items[1], "messageListItem-msg-2-0") // tool call
         XCTAssertEqual(items[2], "messageListItem-msg-2-1") // text
         XCTAssertEqual(items[3], "messageListItem-msg-3-0")
+    }
+
+    /// Complex multi-step response: text → tool → result → text → tool → result → text
+    /// Verifies DisplayMessage.convert preserves correct interleaved order across messages.
+    func testComplexResponse_interleavedTextAndToolCalls_preservesOrder() throws {
+        let json = """
+        [
+            {
+                "id": "msg-user",
+                "role": "user",
+                "content": [{"type": "text", "text": "[complex-response-1]"}]
+            },
+            {
+                "id": "msg-step1",
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "Let me help you with that."},
+                    {
+                        "type": "tool-call",
+                        "toolCallId": "complex-call-1",
+                        "toolName": "create_document",
+                        "input": {"title": "Complex Document 1", "format": "markdown", "content": "# First"}
+                    }
+                ]
+            },
+            {
+                "id": "msg-result1",
+                "role": "tool",
+                "content": [
+                    {
+                        "type": "tool-result",
+                        "toolCallId": "complex-call-1",
+                        "toolName": "create_document",
+                        "output": {"type": "json", "value": {"documentId": "doc-1"}},
+                        "approveStatus": "auto-approved"
+                    }
+                ]
+            },
+            {
+                "id": "msg-step2",
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "Document created. Now creating another."},
+                    {
+                        "type": "tool-call",
+                        "toolCallId": "complex-call-2",
+                        "toolName": "create_document",
+                        "input": {"title": "Complex Document 2", "format": "markdown", "content": "# Second"}
+                    }
+                ]
+            },
+            {
+                "id": "msg-result2",
+                "role": "tool",
+                "content": [
+                    {
+                        "type": "tool-result",
+                        "toolCallId": "complex-call-2",
+                        "toolName": "create_document",
+                        "output": {"type": "json", "value": {"documentId": "doc-2"}},
+                        "approveStatus": "auto-approved"
+                    }
+                ]
+            },
+            {
+                "id": "msg-step3",
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "All done! Both documents have been created successfully."}
+                ]
+            }
+        ]
+        """
+
+        let messages = try JSONDecoder().decode([ChatMessage].self, from: XCTUnwrap(json.data(using: .utf8)))
+        let displayMessages = DisplayMessage.convert(from: messages, assigneeName: "Linda")
+
+        // Should have 4 DisplayMessages: 1 user + 3 assistant (tool-role messages are filtered out)
+        XCTAssertEqual(displayMessages.count, 4, "Should have 4 display messages (1 user + 3 assistant)")
+
+        // Message 0: user text
+        XCTAssertEqual(displayMessages[0].role, .user)
+        XCTAssertEqual(displayMessages[0].parts.count, 1)
+
+        // Message 1 (step 1): text THEN tool call
+        XCTAssertEqual(displayMessages[1].role, .assistant)
+        XCTAssertEqual(displayMessages[1].parts.count, 2)
+        if case let .text(content) = displayMessages[1].parts[0] {
+            XCTAssertEqual(content.displayText, "Let me help you with that.")
+        } else {
+            XCTFail("Step 1 first part should be text, got tool")
+        }
+        if case let .tool(info) = displayMessages[1].parts[1] {
+            XCTAssertEqual(info.toolName, "create_document")
+            XCTAssertEqual(info.toolCallId, "complex-call-1")
+            XCTAssertEqual(info.status, .completed)
+        } else {
+            XCTFail("Step 1 second part should be tool call")
+        }
+
+        // Message 2 (step 2): text THEN tool call
+        XCTAssertEqual(displayMessages[2].role, .assistant)
+        XCTAssertEqual(displayMessages[2].parts.count, 2)
+        if case let .text(content) = displayMessages[2].parts[0] {
+            XCTAssertEqual(content.displayText, "Document created. Now creating another.")
+        } else {
+            XCTFail("Step 2 first part should be text, got tool")
+        }
+        if case let .tool(info) = displayMessages[2].parts[1] {
+            XCTAssertEqual(info.toolName, "create_document")
+            XCTAssertEqual(info.toolCallId, "complex-call-2")
+            XCTAssertEqual(info.status, .completed)
+        } else {
+            XCTFail("Step 2 second part should be tool call")
+        }
+
+        // Message 3 (step 3): text only
+        XCTAssertEqual(displayMessages[3].role, .assistant)
+        XCTAssertEqual(displayMessages[3].parts.count, 1)
+        if case let .text(content) = displayMessages[3].parts[0] {
+            XCTAssertEqual(content.displayText, "All done! Both documents have been created successfully.")
+        } else {
+            XCTFail("Step 3 should be text only")
+        }
     }
 }
 

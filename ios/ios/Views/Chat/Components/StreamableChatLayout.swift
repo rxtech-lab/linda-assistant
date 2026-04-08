@@ -232,7 +232,9 @@ struct StreamableChatLayout<Header: View>: View {
                 }
             }
         }
-        .onChange(of: pendingConfirmationCount + pendingQuestionCount + pendingLocationCount + pendingUploadCount) { _, _ in
+        .onChange(of: pendingConfirmationCount + pendingQuestionCount + pendingLocationCount +
+            pendingUploadCount)
+        { _, _ in
             if isAtBottom {
                 DispatchQueue.main.async {
                     withAnimation {
@@ -637,7 +639,7 @@ private struct PendingConfirmationBanner: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
-        .padding(.bottom, 8)
+        .padding(.bottom, 64)
     }
 }
 
@@ -674,7 +676,7 @@ private struct PendingQuestionBanner: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
-        .padding(.bottom, 8)
+        .padding(.bottom, 64)
         .accessibilityIdentifier("question-banner")
     }
 }
@@ -706,7 +708,7 @@ private struct PendingLocationBanner: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
-        .padding(.bottom, 8)
+        .padding(.bottom, 64)
     }
 }
 
@@ -741,7 +743,7 @@ private struct PendingUploadBanner: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
-        .padding(.bottom, 8)
+        .padding(.bottom, 64)
         .accessibilityIdentifier("upload-banner")
     }
 }

@@ -25,24 +25,13 @@ import { createMem0Client } from "@/lib/mem0/client";
 import { redis } from "@/lib/redis";
 import { setStreamActive } from "@/lib/streaming/manager";
 import { extractTextFromMessage, prepareMessages } from "./compaction";
-import {
-  createConfirmation,
-  sendConfirmationGroupNotification,
-} from "./confirmation";
+import { createConfirmation, sendConfirmationGroupNotification } from "./confirmation";
 import { createLocationRequest } from "./location";
 import { getModelProvider } from "./model";
-import {
-  availableModelSchema,
-  calculateCostUsd,
-  DEFAULT_MODEL,
-} from "./models";
+import { availableModelSchema, calculateCostUsd, DEFAULT_MODEL } from "./models";
 import { createQuestion, sendQuestionGroupNotification } from "./question";
 import { createUploadRequest, sendUploadGroupNotification } from "./upload";
-import {
-  formatHistoryContext,
-  generateTaskHistory,
-  getRecentHistory,
-} from "./history";
+import { formatHistoryContext, generateTaskHistory, getRecentHistory } from "./history";
 import { HISTORY_CONTEXT_LIMIT, MAX_STEPS } from "./context";
 import { compressToolCallContent } from "./tool-content-compression";
 import { buildToolSet } from "./tools";
@@ -148,9 +137,7 @@ function isToolResultError(part: Record<string, unknown>): boolean {
 
 /** Extract error string from a tool-result content part */
 function extractToolResultError(part: Record<string, unknown>): string {
-  const output = unwrapToolOutput(part.output) as
-    | Record<string, unknown>
-    | undefined;
+  const output = unwrapToolOutput(part.output) as Record<string, unknown> | undefined;
   if (typeof output === "object" && output !== null && "error" in output) {
     return String(output.error);
   }
@@ -171,36 +158,20 @@ function annotateAutoApproved(messages: ModelMessage[]): void {
 }
 
 /** Ensure each message has an id */
-function sanitizeMessages(
-  messages: ModelMessage[],
-  messageId?: string,
-): ModelMessage[] {
+function sanitizeMessages(messages: ModelMessage[], messageId?: string): ModelMessage[] {
   return messages.map((msg, i) => {
     const record = msg as Record<string, unknown>;
     // Assign provided messageId to the first message (assistant), generate for others (tool)
-    const id =
-      record.id ?? (i === 0 && messageId ? messageId : crypto.randomUUID());
+    const id = record.id ?? (i === 0 && messageId ? messageId : crypto.randomUUID());
     return { ...record, id } as unknown as ModelMessage;
   });
 }
 
 /** Custom annotation keys added to content parts for frontend/persistence (not for the model) */
-const CUSTOM_ANNOTATIONS = [
-  "confirmation",
-  "question",
-  "error",
-  "approveStatus",
-  "isAutoConfirm",
-];
+const CUSTOM_ANNOTATIONS = ["confirmation", "question", "error", "approveStatus", "isAutoConfirm"];
 
 /** Recognized output types in the AI SDK v6 outputSchema discriminated union */
-const VALID_OUTPUT_TYPES = new Set([
-  "text",
-  "json",
-  "execution-denied",
-  "error-text",
-  "content",
-]);
+const VALID_OUTPUT_TYPES = new Set(["text", "json", "execution-denied", "error-text", "content"]);
 
 /**
  * Normalize a tool-result output to match the AI SDK v6 `outputSchema` discriminated union.
@@ -208,10 +179,7 @@ const VALID_OUTPUT_TYPES = new Set([
  * but manually created tool-results (from resolvePendingToolCalls / resolveConfirmation)
  * use raw objects. This wraps them appropriately.
  */
-function normalizeToolResultOutput(
-  output: unknown,
-  hasIsError: boolean,
-): Record<string, unknown> {
+function normalizeToolResultOutput(output: unknown, hasIsError: boolean): Record<string, unknown> {
   // Already a valid SDK output format
   if (
     typeof output === "object" &&
@@ -245,9 +213,7 @@ function normalizeToolResultOutput(
  * - Normalizes tool-result output to match SDK `outputSchema`
  * - Removes `isError` field (not in SDK schema)
  */
-export function cleanMessagesForModel(
-  messages: ModelMessage[],
-): ModelMessage[] {
+export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
   const result: ModelMessage[] = [];
   for (const msg of messages) {
     const record = msg as Record<string, unknown>;
@@ -280,10 +246,7 @@ export function cleanMessagesForModel(
 
       // Normalize tool-result output for SDK schema
       if (cleaned.type === "tool-result" && cleaned.output !== undefined) {
-        cleaned.output = normalizeToolResultOutput(
-          cleaned.output,
-          cleaned.isError === true,
-        );
+        cleaned.output = normalizeToolResultOutput(cleaned.output, cleaned.isError === true);
         delete cleaned.isError;
       }
 
@@ -322,12 +285,8 @@ export function cleanMessagesForModel(
         // Capture providerMetadata from the original tool message
         if (msgRecord.providerMetadata || msgRecord.providerOptions) {
           toolMsgMetadataByCallId.set(part.toolCallId, {
-            ...(msgRecord.providerMetadata
-              ? { providerMetadata: msgRecord.providerMetadata }
-              : {}),
-            ...(msgRecord.providerOptions
-              ? { providerOptions: msgRecord.providerOptions }
-              : {}),
+            ...(msgRecord.providerMetadata ? { providerMetadata: msgRecord.providerMetadata } : {}),
+            ...(msgRecord.providerOptions ? { providerOptions: msgRecord.providerOptions } : {}),
           });
         }
       }
@@ -349,8 +308,7 @@ export function cleanMessagesForModel(
 
     const neededResults: Record<string, unknown>[] = [];
     for (const part of msg.content as Record<string, unknown>[]) {
-      if (part.type !== "tool-call" || typeof part.toolCallId !== "string")
-        continue;
+      if (part.type !== "tool-call" || typeof part.toolCallId !== "string") continue;
       const toolCallId = part.toolCallId;
       const toolName = (part.toolName as string) ?? "unknown";
 
@@ -461,9 +419,7 @@ If the user rejects your questions, do NOT retry with the same or similar questi
     if (taskContext.emails && taskContext.emails.length > 0) {
       const emailSummaries = taskContext.emails
         .map((e) => {
-          const from = e.fromName
-            ? `${e.fromName} <${e.fromEmail}>`
-            : e.fromEmail;
+          const from = e.fromName ? `${e.fromName} <${e.fromEmail}>` : e.fromEmail;
           const subject = e.subject || "(no subject)";
           const body = e.textBody || "(no body)";
           let text = `From: ${from}\nSubject: ${subject}\nReceived: ${e.receivedAt}\n\n${body}`;
@@ -583,10 +539,7 @@ async function resolvePendingToolCalls(
           resolvedAt: sql`(datetime('now'))`,
         })
         .where(
-          and(
-            eq(confirmations.chatSessionId, sessionId),
-            eq(confirmations.toolCallId, toolCallId),
-          ),
+          and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.toolCallId, toolCallId)),
         );
       await db
         .update(questions)
@@ -594,24 +547,14 @@ async function resolvePendingToolCalls(
           status: "rejected",
           answeredAt: sql`(datetime('now'))`,
         })
-        .where(
-          and(
-            eq(questions.chatSessionId, sessionId),
-            eq(questions.toolCallId, toolCallId),
-          ),
-        );
+        .where(and(eq(questions.chatSessionId, sessionId), eq(questions.toolCallId, toolCallId)));
       await db
         .update(uploads)
         .set({
           status: "cancelled",
           completedAt: sql`(datetime('now'))`,
         })
-        .where(
-          and(
-            eq(uploads.chatSessionId, sessionId),
-            eq(uploads.toolCallId, toolCallId),
-          ),
-        );
+        .where(and(eq(uploads.chatSessionId, sessionId), eq(uploads.toolCallId, toolCallId)));
 
       // Update the tool-call annotation in messages so it persists as "cancelled".
       // Check for confirmation, question, and upload annotations.
@@ -632,26 +575,11 @@ async function resolvePendingToolCalls(
         }
       }
       if (existingUploadId) {
-        annotateToolCallUpload(
-          cleaned,
-          toolCallId,
-          existingUploadId,
-          "cancelled",
-        );
+        annotateToolCallUpload(cleaned, toolCallId, existingUploadId, "cancelled");
       } else if (existingQuestionId) {
-        annotateToolCallQuestion(
-          cleaned,
-          toolCallId,
-          existingQuestionId,
-          "rejected",
-        );
+        annotateToolCallQuestion(cleaned, toolCallId, existingQuestionId, "rejected");
       } else {
-        annotateToolCallConfirmation(
-          cleaned,
-          toolCallId,
-          existingConfirmationId,
-          "cancelled",
-        );
+        annotateToolCallConfirmation(cleaned, toolCallId, existingConfirmationId, "cancelled");
       }
 
       // Persist the updated annotation to DB
@@ -660,8 +588,7 @@ async function resolvePendingToolCalls(
         for (const part of msg.content as Record<string, unknown>[]) {
           if (part.type === "tool-call" && part.toolCallId === toolCallId) {
             const record = msg as Record<string, unknown>;
-            if (record.id)
-              await updateMessageContent(record.id as string, msg.content);
+            if (record.id) await updateMessageContent(record.id as string, msg.content);
           }
         }
       }
@@ -702,10 +629,7 @@ async function resolvePendingToolCalls(
         .select()
         .from(confirmations)
         .where(
-          and(
-            eq(confirmations.chatSessionId, sessionId),
-            eq(confirmations.toolCallId, toolCallId),
-          ),
+          and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.toolCallId, toolCallId)),
         );
 
       // If no confirmation found, check questions table (for ask_question tool)
@@ -714,10 +638,7 @@ async function resolvePendingToolCalls(
             .select()
             .from(questions)
             .where(
-              and(
-                eq(questions.chatSessionId, sessionId),
-                eq(questions.toolCallId, toolCallId),
-              ),
+              and(eq(questions.chatSessionId, sessionId), eq(questions.toolCallId, toolCallId)),
             )
         : [undefined];
 
@@ -727,12 +648,7 @@ async function resolvePendingToolCalls(
           ? await db
               .select()
               .from(uploads)
-              .where(
-                and(
-                  eq(uploads.chatSessionId, sessionId),
-                  eq(uploads.toolCallId, toolCallId),
-                ),
-              )
+              .where(and(eq(uploads.chatSessionId, sessionId), eq(uploads.toolCallId, toolCallId)))
           : [undefined];
 
       // If no confirmation, question, or upload found, check Redis for location request
@@ -763,10 +679,7 @@ async function resolvePendingToolCalls(
         // Execute the tool
         const toolDef = tools[info.toolName] as
           | {
-              execute?: (
-                input: unknown,
-                options: Record<string, unknown>,
-              ) => Promise<unknown>;
+              execute?: (input: unknown, options: Record<string, unknown>) => Promise<unknown>;
             }
           | undefined;
 
@@ -778,18 +691,14 @@ async function resolvePendingToolCalls(
         try {
           if (toolDef?.execute) {
             output = await toolDef.execute(
-              typeof info.input === "string"
-                ? JSON.parse(info.input)
-                : info.input,
+              typeof info.input === "string" ? JSON.parse(info.input) : info.input,
               { toolCallId },
             );
             console.log(`[agent] Tool ${info.toolName} completed successfully`);
           } else {
             output = { error: "Tool not found or has no execute function" };
             isError = true;
-            console.error(
-              `[agent] Tool ${info.toolName} not found or has no execute function`,
-            );
+            console.error(`[agent] Tool ${info.toolName} not found or has no execute function`);
           }
         } catch (err) {
           output = {
@@ -837,35 +746,19 @@ async function resolvePendingToolCalls(
         // resolveConfirmation/resolveLocationRequest may have failed to annotate if
         // messages weren't yet persisted when the resolution was processed.
         if (uploadRecord) {
-          annotateToolCallUpload(
-            cleaned,
-            toolCallId,
-            uploadRecord.id,
-            "completed",
-          );
+          annotateToolCallUpload(cleaned, toolCallId, uploadRecord.id, "completed");
         } else if (questionRecord) {
-          annotateToolCallQuestion(
-            cleaned,
-            toolCallId,
-            questionRecord.id,
-            "answered",
-          );
+          annotateToolCallQuestion(cleaned, toolCallId, questionRecord.id, "answered");
         } else {
           const confId = confirmation?.id ?? toolCallId;
-          annotateToolCallConfirmation(
-            cleaned,
-            toolCallId,
-            confId,
-            "confirmed",
-          );
+          annotateToolCallConfirmation(cleaned, toolCallId, confId, "confirmed");
         }
         for (const msg of cleaned) {
           if (!Array.isArray(msg.content)) continue;
           for (const part of msg.content as Record<string, unknown>[]) {
             if (part.type === "tool-call" && part.toolCallId === toolCallId) {
               const record = msg as Record<string, unknown>;
-              if (record.id)
-                await updateMessageContent(record.id as string, msg.content);
+              if (record.id) await updateMessageContent(record.id as string, msg.content);
             }
           }
         }
@@ -909,19 +802,9 @@ async function resolvePendingToolCalls(
 
         // Safety net: ensure the tool-call annotation reflects rejected status
         if (uploadRecord) {
-          annotateToolCallUpload(
-            cleaned,
-            toolCallId,
-            uploadRecord.id,
-            "rejected",
-          );
+          annotateToolCallUpload(cleaned, toolCallId, uploadRecord.id, "rejected");
         } else if (questionRecord) {
-          annotateToolCallQuestion(
-            cleaned,
-            toolCallId,
-            questionRecord.id,
-            "rejected",
-          );
+          annotateToolCallQuestion(cleaned, toolCallId, questionRecord.id, "rejected");
         } else {
           const confId = confirmation?.id ?? toolCallId;
           annotateToolCallConfirmation(cleaned, toolCallId, confId, "rejected");
@@ -931,8 +814,7 @@ async function resolvePendingToolCalls(
           for (const part of msg.content as Record<string, unknown>[]) {
             if (part.type === "tool-call" && part.toolCallId === toolCallId) {
               const record = msg as Record<string, unknown>;
-              if (record.id)
-                await updateMessageContent(record.id as string, msg.content);
+              if (record.id) await updateMessageContent(record.id as string, msg.content);
             }
           }
         }
@@ -975,10 +857,7 @@ async function resolvePendingToolCalls(
     for (const msg of newMessages) {
       if (!Array.isArray(msg.content)) continue;
       for (const part of msg.content as Record<string, unknown>[]) {
-        if (
-          part.type === "tool-result" &&
-          typeof part.toolCallId === "string"
-        ) {
+        if (part.type === "tool-result" && typeof part.toolCallId === "string") {
           resultByToolCallId.set(part.toolCallId, msg);
         }
       }
@@ -1045,10 +924,7 @@ export async function runAgent(options: AgentRunOptions) {
   const { sessionId, userId, taskType, onTextChunk, onEvent, signal } = options;
 
   // Load session with messages
-  const [session] = await db
-    .select()
-    .from(chatSessions)
-    .where(eq(chatSessions.id, sessionId));
+  const [session] = await db.select().from(chatSessions).where(eq(chatSessions.id, sessionId));
 
   if (!session) throw new Error("Session not found");
 
@@ -1195,12 +1071,7 @@ export async function runAgent(options: AgentRunOptions) {
   const staleConfirmations = await db
     .select({ id: confirmations.id })
     .from(confirmations)
-    .where(
-      and(
-        eq(confirmations.chatSessionId, sessionId),
-        eq(confirmations.status, "pending"),
-      ),
-    );
+    .where(and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.status, "pending")));
   if (staleConfirmations.length > 0) {
     await db
       .update(confirmations)
@@ -1208,12 +1079,7 @@ export async function runAgent(options: AgentRunOptions) {
         status: "rejected",
         resolvedAt: sql`(datetime('now'))`,
       })
-      .where(
-        and(
-          eq(confirmations.chatSessionId, sessionId),
-          eq(confirmations.status, "pending"),
-        ),
-      );
+      .where(and(eq(confirmations.chatSessionId, sessionId), eq(confirmations.status, "pending")));
     console.log(
       `[agent] Cancelled ${staleConfirmations.length} stale pending confirmation(s) for session=${sessionId}: ${staleConfirmations.map((c) => c.id).join(", ")}`,
     );
@@ -1223,12 +1089,7 @@ export async function runAgent(options: AgentRunOptions) {
   const staleQuestions = await db
     .select({ id: questions.id })
     .from(questions)
-    .where(
-      and(
-        eq(questions.chatSessionId, sessionId),
-        eq(questions.status, "pending"),
-      ),
-    );
+    .where(and(eq(questions.chatSessionId, sessionId), eq(questions.status, "pending")));
   if (staleQuestions.length > 0) {
     await db
       .update(questions)
@@ -1236,12 +1097,7 @@ export async function runAgent(options: AgentRunOptions) {
         status: "rejected",
         answeredAt: sql`(datetime('now'))`,
       })
-      .where(
-        and(
-          eq(questions.chatSessionId, sessionId),
-          eq(questions.status, "pending"),
-        ),
-      );
+      .where(and(eq(questions.chatSessionId, sessionId), eq(questions.status, "pending")));
     console.log(
       `[agent] Cancelled ${staleQuestions.length} stale pending question(s) for session=${sessionId}: ${staleQuestions.map((q) => q.id).join(", ")}`,
     );
@@ -1258,19 +1114,11 @@ export async function runAgent(options: AgentRunOptions) {
   await onEvent?.("status", { status: "in_progress" });
 
   // Resolve any pending tool-calls from a previous confirmation pause
-  const preprocessed = await resolvePendingToolCalls(
-    sessionId,
-    messages,
-    tools,
-    onEvent,
-    taskType,
-  );
+  const preprocessed = await resolvePendingToolCalls(sessionId, messages, tools, onEvent, taskType);
 
   let stepCount = 0;
   let lastFinishReason: string | undefined;
-  let currentMessages: ModelMessage[] = compressToolCallContent([
-    ...preprocessed.messages,
-  ]);
+  let currentMessages: ModelMessage[] = compressToolCallContent([...preprocessed.messages]);
   let persistedCount = messages.length + preprocessed.persistCount;
 
   // Accumulated token usage across all steps
@@ -1348,6 +1196,9 @@ export async function runAgent(options: AgentRunOptions) {
         toolCall: { toolCallId: string; toolName: string; input: unknown };
       }> = [];
 
+      // Accumulates reasoning text within a reasoning block (reset on reasoning-end)
+      let thinkingBuffer = "";
+
       // eslint-disable-next-line no-labels -- labeled break needed to exit from inside switch
       streamLoop: for await (const part of result.fullStream) {
         if (signal?.aborted) break streamLoop;
@@ -1356,6 +1207,22 @@ export async function runAgent(options: AgentRunOptions) {
           case "start-step": {
             currentStepId = crypto.randomUUID();
             stepIds.push(currentStepId);
+            thinkingBuffer = "";
+            break;
+          }
+          case "reasoning-start": {
+            await onEvent?.("thinking-start", { id: currentStepId });
+            if (signal?.aborted) break streamLoop;
+            break;
+          }
+          case "reasoning-delta": {
+            thinkingBuffer += part.text;
+            break;
+          }
+          case "reasoning-end": {
+            await onEvent?.("thinking-stop", { id: currentStepId, text: thinkingBuffer });
+            thinkingBuffer = "";
+            if (signal?.aborted) break streamLoop;
             break;
           }
           case "text-delta": {
@@ -1368,9 +1235,7 @@ export async function runAgent(options: AgentRunOptions) {
             break;
           }
           case "tool-input-start": {
-            console.log(
-              `[agent] Tool input start: ${part.toolName} (toolCallId=${part.id})`,
-            );
+            console.log(`[agent] Tool input start: ${part.toolName} (toolCallId=${part.id})`);
             await onEvent?.("tool-input-start", {
               id: currentStepId,
               toolCallId: part.id,
@@ -1421,8 +1286,7 @@ export async function runAgent(options: AgentRunOptions) {
           }
           case "tool-approval-request": {
             pendingApprovals.push({
-              approvalId: (part as unknown as { approvalId: string })
-                .approvalId,
+              approvalId: (part as unknown as { approvalId: string }).approvalId,
               toolCall: (
                 part as unknown as {
                   toolCall: {
@@ -1442,14 +1306,10 @@ export async function runAgent(options: AgentRunOptions) {
               error: unknown;
             };
             const errorStr =
-              errorPart.error instanceof Error
-                ? errorPart.error.message
-                : String(errorPart.error);
+              errorPart.error instanceof Error ? errorPart.error.message : String(errorPart.error);
             console.error(
               `[agent] Tool error: ${errorPart.toolName} (toolCallId=${errorPart.toolCallId}):`,
-              errorPart.error instanceof Error
-                ? errorPart.error.stack
-                : errorStr,
+              errorPart.error instanceof Error ? errorPart.error.stack : errorStr,
             );
             await onEvent?.("tool-result", {
               id: currentStepId,
@@ -1486,19 +1346,16 @@ export async function runAgent(options: AgentRunOptions) {
 
       // Assign step-specific IDs to response messages for SSE deduplication
       let stepIdx = 0;
-      const sanitizedResponses = (responseMessages as ModelMessage[]).map(
-        (msg) => {
-          const record = { ...msg } as Record<string, unknown>;
-          if (msg.role === "assistant") {
-            record.id =
-              record.id ?? (stepIds[stepIdx] ?? crypto.randomUUID());
-            stepIdx++;
-          } else if (!record.id) {
-            record.id = crypto.randomUUID();
-          }
-          return record as unknown as ModelMessage;
-        },
-      );
+      const sanitizedResponses = (responseMessages as ModelMessage[]).map((msg) => {
+        const record = { ...msg } as Record<string, unknown>;
+        if (msg.role === "assistant") {
+          record.id = record.id ?? stepIds[stepIdx] ?? crypto.randomUUID();
+          stepIdx++;
+        } else if (!record.id) {
+          record.id = crypto.randomUUID();
+        }
+        return record as unknown as ModelMessage;
+      });
       currentMessages = [...currentMessages, ...sanitizedResponses];
 
       // Annotate all auto-executed tool results and propagate error info
@@ -1508,11 +1365,7 @@ export async function runAgent(options: AgentRunOptions) {
         for (const part of msg.content as Record<string, unknown>[]) {
           if (part.type === "tool-result" && isToolResultError(part)) {
             const errorStr = extractToolResultError(part);
-            annotateToolCallError(
-              currentMessages,
-              part.toolCallId as string,
-              errorStr,
-            );
+            annotateToolCallError(currentMessages, part.toolCallId as string, errorStr);
           }
         }
       }
@@ -1551,18 +1404,11 @@ export async function runAgent(options: AgentRunOptions) {
           questions: unknown;
         }> = [];
         for (const approval of questionApprovals) {
-          const input = (approval.toolCall.input ?? {}) as Record<
-            string,
-            unknown
-          >;
+          const input = (approval.toolCall.input ?? {}) as Record<string, unknown>;
           const questionsData = (input.questions ?? []) as Array<{
             title: string;
             description?: string;
-            type:
-              | "boolean"
-              | "multiple_choice"
-              | "single_choice"
-              | "fill_in_blank";
+            type: "boolean" | "multiple_choice" | "single_choice" | "fill_in_blank";
             options?: Array<{ title: string; description?: string }>;
           }>;
 
@@ -1606,10 +1452,7 @@ export async function runAgent(options: AgentRunOptions) {
           isAutoConfirm: boolean;
         }> = [];
         for (const approval of locationApprovals) {
-          const input = (approval.toolCall.input ?? {}) as Record<
-            string,
-            unknown
-          >;
+          const input = (approval.toolCall.input ?? {}) as Record<string, unknown>;
 
           // Check assignee permission for auto-confirm vs manual-confirm
           const [session] = await db
@@ -1619,10 +1462,7 @@ export async function runAgent(options: AgentRunOptions) {
           const toolPermissions = session?.assigneeId
             ? await loadAssigneePermissions(session.assigneeId)
             : null;
-          const perm = resolvePermission(
-            GET_LOCATION_TOOL_NAME,
-            toolPermissions,
-          );
+          const perm = resolvePermission(GET_LOCATION_TOOL_NAME, toolPermissions);
           const isAutoConfirm = perm === "auto-confirm";
 
           await createLocationRequest({
@@ -1648,10 +1488,7 @@ export async function runAgent(options: AgentRunOptions) {
             for (const msg of currentMessages) {
               if (!Array.isArray(msg.content)) continue;
               for (const part of msg.content as Record<string, unknown>[]) {
-                if (
-                  part.type === "tool-call" &&
-                  part.toolCallId === approval.toolCall.toolCallId
-                ) {
+                if (part.type === "tool-call" && part.toolCallId === approval.toolCall.toolCallId) {
                   part.isAutoConfirm = true;
                 }
               }
@@ -1684,10 +1521,7 @@ export async function runAgent(options: AgentRunOptions) {
           urls: Array<{ url: string; key: string; extension: string }>;
         }> = [];
         for (const approval of uploadApprovals) {
-          const input = (approval.toolCall.input ?? {}) as Record<
-            string,
-            unknown
-          >;
+          const input = (approval.toolCall.input ?? {}) as Record<string, unknown>;
 
           const upload = await createUploadRequest({
             userId,
@@ -1734,10 +1568,7 @@ export async function runAgent(options: AgentRunOptions) {
         for (const approval of confirmationApprovals) {
           const entry = conditionalAutoConfirm[approval.toolCall.toolName];
           if (entry) {
-            const params = (approval.toolCall.input ?? {}) as Record<
-              string,
-              unknown
-            >;
+            const params = (approval.toolCall.input ?? {}) as Record<string, unknown>;
             if (evaluateConditions(entry.conditions, params, entry.logic)) {
               conditionallyApproved.push(approval);
               continue;
@@ -1749,10 +1580,7 @@ export async function runAgent(options: AgentRunOptions) {
         // Execute conditionally auto-approved tools inline
         for (const approval of conditionallyApproved) {
           const toolDef = tools[approval.toolCall.toolName] as {
-            execute?: (
-              input: unknown,
-              opts: { toolCallId: string },
-            ) => Promise<unknown>;
+            execute?: (input: unknown, opts: { toolCallId: string }) => Promise<unknown>;
           };
           if (toolDef?.execute) {
             try {
@@ -1822,10 +1650,7 @@ export async function runAgent(options: AgentRunOptions) {
           uploadApprovals.length === 0
         ) {
           // Persist and continue loop like the auto-executed path
-          await insertMessages(
-            sessionId,
-            currentMessages.slice(persistedCount),
-          );
+          await insertMessages(sessionId, currentMessages.slice(persistedCount));
           persistedCount = currentMessages.length;
           continue;
         }
@@ -1848,10 +1673,7 @@ export async function runAgent(options: AgentRunOptions) {
             toolCallId: approval.toolCall.toolCallId,
             toolName: approval.toolCall.toolName,
             approvalId: approval.approvalId,
-            parameters: (approval.toolCall.input ?? {}) as Record<
-              string,
-              unknown
-            >,
+            parameters: (approval.toolCall.input ?? {}) as Record<string, unknown>,
             skipNotification: true,
           });
 
@@ -1898,18 +1720,10 @@ export async function runAgent(options: AgentRunOptions) {
 
         // Send grouped push notifications
         if (createdConfirmations.length > 0) {
-          await sendConfirmationGroupNotification(
-            userId,
-            sessionId,
-            createdConfirmations,
-          );
+          await sendConfirmationGroupNotification(userId, sessionId, createdConfirmations);
         }
         if (createdQuestions.length > 0) {
-          await sendQuestionGroupNotification(
-            userId,
-            sessionId,
-            createdQuestions,
-          );
+          await sendQuestionGroupNotification(userId, sessionId, createdQuestions);
         }
         if (createdUploads.length > 0) {
           await sendUploadGroupNotification(userId, sessionId, createdUploads);
@@ -1928,11 +1742,7 @@ export async function runAgent(options: AgentRunOptions) {
         await onEvent?.("status", { status: waitingStatus });
 
         // Save accumulated token usage so far (partial run before pause)
-        const pauseCostUsd = calculateCostUsd(
-          modelId,
-          totalInputTokens,
-          totalOutputTokens,
-        );
+        const pauseCostUsd = calculateCostUsd(modelId, totalInputTokens, totalOutputTokens);
         await db
           .update(chatSessions)
           .set({
@@ -1993,11 +1803,7 @@ export async function runAgent(options: AgentRunOptions) {
     persistedCount = currentMessages.length;
 
     // Calculate USD cost for this run's accumulated token usage
-    const costUsd = calculateCostUsd(
-      modelId,
-      totalInputTokens,
-      totalOutputTokens,
-    );
+    const costUsd = calculateCostUsd(modelId, totalInputTokens, totalOutputTokens);
 
     await db
       .update(chatSessions)
@@ -2080,8 +1886,7 @@ export async function runAgent(options: AgentRunOptions) {
             (m) =>
               Array.isArray(m.content) &&
               (m.content as Record<string, unknown>[]).some(
-                (p) =>
-                  p.type === "tool-result" && p.toolCallId === part.toolCallId,
+                (p) => p.type === "tool-result" && p.toolCallId === part.toolCallId,
               ),
           );
           if (!hasResult) {

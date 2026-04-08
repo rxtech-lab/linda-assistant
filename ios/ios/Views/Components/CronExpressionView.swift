@@ -89,7 +89,9 @@ struct CronExpressionView: View {
             .accessibilityIdentifier("cron_frequency_picker")
 
             // Time picker (for daily, weekly, monthly only)
-            if guiState.frequency == .daily || guiState.frequency == .specificDays || guiState.frequency == .weekly || guiState.frequency == .monthly {
+            if guiState.frequency == .daily || guiState.frequency == .specificDays || guiState
+                .frequency == .weekly || guiState.frequency == .monthly
+            {
                 HStack {
                     Text("At")
                         .foregroundStyle(.secondary)
@@ -197,7 +199,8 @@ struct CronExpressionView: View {
                                     .font(.caption.bold())
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 8)
-                                    .background(guiState.selectedDays.contains(d) ? Color.accentColor : Color(white: 0.9))
+                                    .background(guiState.selectedDays.contains(d) ? Color
+                                        .accentColor : Color(white: 0.9))
                                     .foregroundStyle(guiState.selectedDays.contains(d) ? .white : .primary)
                                     .clipShape(RoundedRectangle(cornerRadius: 6))
                             }
@@ -438,7 +441,9 @@ struct CronGUIState: Equatable {
                 if bounds.count == 2, let lo = Int(bounds[0]), let hi = Int(bounds[1]),
                    lo >= 0, hi <= 6, lo <= hi
                 {
-                    for d in lo ... hi { days.insert(d) }
+                    for d in lo ... hi {
+                        days.insert(d)
+                    }
                 }
             } else if let d = Int(s), d >= 0, d <= 6 {
                 days.insert(d)

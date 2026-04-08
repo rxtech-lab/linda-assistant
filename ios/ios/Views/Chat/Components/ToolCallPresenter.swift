@@ -83,82 +83,82 @@ struct ToolCallPresenter: ViewModifier {
             .sheet(item: nonSlideToolCall) { toolCall in
                 sheetContent(for: toolCall)
             }
-            // Slide viewer as fullscreen cover
-#if os(macOS)
+        // Slide viewer as fullscreen cover
+        #if os(macOS)
             .sheet(isPresented: slideToolDeckPresented) {
                 if let deckId = slideToolDeckId.wrappedValue {
                     SlideViewerSheet(deckId: deckId)
                 }
             }
-#else
+        #else
             .fullScreenCover(isPresented: slideToolDeckPresented) {
-                if let deckId = slideToolDeckId.wrappedValue {
-                    SlideViewerSheet(deckId: deckId)
+                    if let deckId = slideToolDeckId.wrappedValue {
+                        SlideViewerSheet(deckId: deckId)
+                    }
                 }
-            }
-#endif
-            .sheet(item: $documentItem) { item in
-                DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
-            }
-            .sheet(isPresented: Binding(
-                get: { briefingId != nil },
-                set: { if !$0 { briefingId = nil } }
-            )) {
-                if let briefingId {
-                    NavigationStack {
-                        BriefingDetailView(briefingId: briefingId)
-                            .toolbar {
-                                ToolbarItem(placement: .cancellationAction) {
-                                    Button { self.briefingId = nil } label: {
-                                        Image(systemName: "xmark")
+        #endif
+                .sheet(item: $documentItem) { item in
+                    DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
+                }
+                .sheet(isPresented: Binding(
+                    get: { briefingId != nil },
+                    set: { if !$0 { briefingId = nil } }
+                )) {
+                    if let briefingId {
+                        NavigationStack {
+                            BriefingDetailView(briefingId: briefingId)
+                                .toolbar {
+                                    ToolbarItem(placement: .cancellationAction) {
+                                        Button { self.briefingId = nil } label: {
+                                            Image(systemName: "xmark")
+                                        }
                                     }
                                 }
-                            }
+                        }
                     }
                 }
-            }
-            // Interactive tool sheets
-            .sheet(item: $presentedConfirmation) { confirmation in
-                ConfirmationSheetView(
-                    confirmation: confirmation,
-                    remainingCount: max(0, pendingConfirmationCount - 1),
-                    onResolve: { action, alwaysAllow in
-                        onConfirmationResolve(confirmation, action, alwaysAllow)
-                    }
-                )
-            }
-            .sheet(item: $presentedQuestion) { question in
-                QuestionSheetView(
-                    question: question,
-                    remainingCount: max(0, pendingQuestionCount - 1),
-                    onAnswer: { answers in
-                        onQuestionAnswer(question, answers)
-                    },
-                    onReject: {
-                        onQuestionReject(question)
-                    }
-                )
-            }
-            .sheet(item: $presentedLocation) { location in
-                LocationSheetView(
-                    location: location,
-                    onResolve: { action, latitude, longitude, accuracy, alwaysAllow in
-                        onLocationResolve(location, action, latitude, longitude, accuracy, alwaysAllow)
-                    }
-                )
-            }
-            .sheet(item: $presentedUpload) { upload in
-                UploadSheetView(
-                    upload: upload,
-                    remainingCount: max(0, pendingUploadCount - 1),
-                    onComplete: { uploadedKeys in
-                        onUploadComplete(upload, uploadedKeys)
-                    },
-                    onReject: {
-                        onUploadReject(upload)
-                    }
-                )
-            }
+                // Interactive tool sheets
+                .sheet(item: $presentedConfirmation) { confirmation in
+                    ConfirmationSheetView(
+                        confirmation: confirmation,
+                        remainingCount: max(0, pendingConfirmationCount - 1),
+                        onResolve: { action, alwaysAllow in
+                            onConfirmationResolve(confirmation, action, alwaysAllow)
+                        }
+                    )
+                }
+                .sheet(item: $presentedQuestion) { question in
+                    QuestionSheetView(
+                        question: question,
+                        remainingCount: max(0, pendingQuestionCount - 1),
+                        onAnswer: { answers in
+                            onQuestionAnswer(question, answers)
+                        },
+                        onReject: {
+                            onQuestionReject(question)
+                        }
+                    )
+                }
+                .sheet(item: $presentedLocation) { location in
+                    LocationSheetView(
+                        location: location,
+                        onResolve: { action, latitude, longitude, accuracy, alwaysAllow in
+                            onLocationResolve(location, action, latitude, longitude, accuracy, alwaysAllow)
+                        }
+                    )
+                }
+                .sheet(item: $presentedUpload) { upload in
+                    UploadSheetView(
+                        upload: upload,
+                        remainingCount: max(0, pendingUploadCount - 1),
+                        onComplete: { uploadedKeys in
+                            onUploadComplete(upload, uploadedKeys)
+                        },
+                        onReject: {
+                            onUploadReject(upload)
+                        }
+                    )
+                }
     }
 
     @ViewBuilder

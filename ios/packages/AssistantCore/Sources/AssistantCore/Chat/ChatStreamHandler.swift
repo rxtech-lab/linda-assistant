@@ -152,7 +152,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                         guard let self else { return }
                         let seq = event.seq
                         let message = event.parse()
-                        logger.debug("SSE event: type=\(event.type.rawValue) seq=\(seq.map(String.init) ?? "nil") data=\(event.data.prefix(100))")
+                        logger
+                            .debug(
+                                "SSE event: type=\(event.type.rawValue) seq=\(seq.map(String.init) ?? "nil") data=\(event.data.prefix(100))"
+                            )
                         await handleEvent(message, seq: seq)
                     }
                     logger.info("SSE stream ended normally")
@@ -413,6 +416,22 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 _highestSeq = 0
                 hasReceivedDone = false
 
+            case let .thinkingStart(payload):
+                logger.info("thinkingStart: id=\(payload.id)")
+                if !isStreaming { isStreaming = true }
+                streamingParts.append(.thinking(ThinkingInfo(text: "", isStreaming: true)))
+                eventManager.emit(.streamContentUpdated)
+
+            case let .thinkingStop(payload):
+                logger.info("thinkingStop: id=\(payload.id) textLen=\(payload.text.count)")
+                if let index = streamingParts.lastIndex(where: {
+                    if case .thinking = $0 { return true }
+                    return false
+                }) {
+                    streamingParts[index] = .thinking(ThinkingInfo(text: payload.text, isStreaming: false))
+                }
+                eventManager.emit(.streamContentUpdated)
+
             case let .textDelta(payload):
                 isCompacting = false
                 if !isStreaming { isStreaming = true }
@@ -425,6 +444,8 @@ public final class ChatStreamHandler: @unchecked Sendable {
 
             case let .toolCall(payload):
                 logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
+                // Flush any buffered text BEFORE appending the tool call so text appears above the tool
+                flushBuffer()
                 if let index = streamingParts.firstIndex(where: {
                     if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
                     return false
@@ -761,10 +782,13 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 "finalizeResponse: streamingParts.count=\(self.streamingParts.count), hasCallback=\(self.onAssistantMessage != nil)"
             )
         if !streamingParts.isEmpty {
-            // Convert streaming text parts to finalized plain text
+            // Convert streaming text parts to finalized plain text; finalize streaming thinking parts
             let finalizedParts = streamingParts.map { part -> MessagePart in
                 if case let .text(content) = part {
                     return .text(.plain(content.displayText))
+                }
+                if case let .thinking(info) = part, info.isStreaming {
+                    return .thinking(ThinkingInfo(text: info.text, isStreaming: false))
                 }
                 return part
             }
@@ -804,6 +828,19 @@ public enum TextPartContent: Sendable {
 public enum MessagePart: Sendable {
     case text(TextPartContent)
     case tool(ToolCallInfo)
+    case thinking(ThinkingInfo)
+}
+
+// MARK: - Thinking Info
+
+public struct ThinkingInfo: Sendable {
+    public var text: String
+    public var isStreaming: Bool
+
+    public init(text: String, isStreaming: Bool) {
+        self.text = text
+        self.isStreaming = isStreaming
+    }
 }
 
 // MARK: - Tool Call Info

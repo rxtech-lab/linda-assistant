@@ -94,7 +94,11 @@ async function generateSingleSlide(
 
   // Wrap generate_image to emit progress
   const baseImageTool = generateImageTool(IMAGE_SYSTEM_PROMPT);
-  const baseImageExecute = (baseImageTool as unknown as { execute: (input: { prompt: string; filename?: string }, context: unknown) => Promise<unknown> }).execute;
+  const baseImageExecute = (
+    baseImageTool as unknown as {
+      execute: (input: { prompt: string; filename?: string }, context: unknown) => Promise<unknown>;
+    }
+  ).execute;
   const wrappedImageTool = tool({
     description: (baseImageTool as unknown as { description: string }).description,
     inputSchema: (baseImageTool as unknown as { inputSchema: z.ZodType }).inputSchema,
@@ -115,23 +119,14 @@ async function generateSingleSlide(
         description:
           "Submit KonvaJS JSON scene data for the slide. Returns the rendered image URL for review.",
         inputSchema: z.object({
-          sceneData: z
-            .unknown()
-            .describe("The complete KonvaJS Stage JSON (1920x1080)"),
+          sceneData: z.unknown().describe("The complete KonvaJS Stage JSON (1920x1080)"),
         }),
         execute: async ({ sceneData }) => {
           await emitProgress("rendering", "Rendering slide");
 
-          const sceneStr =
-            typeof sceneData === "string"
-              ? sceneData
-              : JSON.stringify(sceneData);
+          const sceneStr = typeof sceneData === "string" ? sceneData : JSON.stringify(sceneData);
           const parsed = JSON.parse(sceneStr);
-          const { imageUrl, thumbnailUrl } = await renderAndUploadSlide(
-            parsed,
-            deckId,
-            pageNumber,
-          );
+          const { imageUrl, thumbnailUrl } = await renderAndUploadSlide(parsed, deckId, pageNumber);
           resultData = { imageUrl, thumbnailUrl, sceneData: parsed };
 
           await emitProgress("rendered", "Slide rendered", thumbnailUrl);
@@ -153,17 +148,14 @@ async function generateSingleSlide(
         },
       }),
       finalize: tool({
-        description:
-          "Call after submitting the slide and confirming it looks good.",
+        description: "Call after submitting the slide and confirming it looks good.",
         inputSchema: z.object({}),
         execute: async () => ({ done: true }),
       }),
     },
   });
 
-  const themeHint = existingTheme
-    ? `\nMatch this existing theme: ${existingTheme}`
-    : "";
+  const themeHint = existingTheme ? `\nMatch this existing theme: ${existingTheme}` : "";
   await agent.generate({
     prompt: `Create a slide for: ${description}${themeHint}`,
   });
@@ -181,15 +173,11 @@ export const updateSlidesTool = (userId: string, chatSessionId?: string) =>
       "Use this when the user asks to change, add to, or remove from an existing slide deck.",
     inputSchema: z.object({
       deckId: z.string().describe("The ID of the slide deck to modify"),
-      action: z
-        .enum(["add_page", "delete_page", "update_page"])
-        .describe("The action to perform"),
+      action: z.enum(["add_page", "delete_page", "update_page"]).describe("The action to perform"),
       pageNumber: z
         .number()
         .optional()
-        .describe(
-          "Page number to delete or update (required for delete_page and update_page)",
-        ),
+        .describe("Page number to delete or update (required for delete_page and update_page)"),
       description: z
         .string()
         .optional()
@@ -198,9 +186,7 @@ export const updateSlidesTool = (userId: string, chatSessionId?: string) =>
         ),
     }),
     execute: async ({ deckId, action, pageNumber, description }, { toolCallId }) => {
-      console.log(
-        `[update_slides] ${action} on deck ${deckId}, page ${pageNumber ?? "N/A"}`,
-      );
+      console.log(`[update_slides] ${action} on deck ${deckId}, page ${pageNumber ?? "N/A"}`);
 
       // Verify deck belongs to user
       const [deck] = await db
@@ -212,8 +198,7 @@ export const updateSlidesTool = (userId: string, chatSessionId?: string) =>
 
       switch (action) {
         case "add_page": {
-          if (!description)
-            return { error: "description is required for add_page" };
+          if (!description) return { error: "description is required for add_page" };
 
           // Get current max page number
           const existingPages = await db
@@ -223,9 +208,7 @@ export const updateSlidesTool = (userId: string, chatSessionId?: string) =>
             .orderBy(asc(slidePages.pageNumber));
 
           const nextPage =
-            existingPages.length > 0
-              ? existingPages[existingPages.length - 1].pageNumber + 1
-              : 1;
+            existingPages.length > 0 ? existingPages[existingPages.length - 1].pageNumber + 1 : 1;
 
           const progressCtx = chatSessionId ? { chatSessionId, toolCallId } : undefined;
           const result = await generateSingleSlide(
@@ -262,29 +245,18 @@ export const updateSlidesTool = (userId: string, chatSessionId?: string) =>
         }
 
         case "delete_page": {
-          if (pageNumber == null)
-            return { error: "pageNumber is required for delete_page" };
+          if (pageNumber == null) return { error: "pageNumber is required for delete_page" };
 
           // Delete the page
           await db
             .delete(slidePages)
-            .where(
-              and(
-                eq(slidePages.deckId, deckId),
-                eq(slidePages.pageNumber, pageNumber),
-              ),
-            );
+            .where(and(eq(slidePages.deckId, deckId), eq(slidePages.pageNumber, pageNumber)));
 
           // Re-number subsequent pages
           const remaining = await db
             .select()
             .from(slidePages)
-            .where(
-              and(
-                eq(slidePages.deckId, deckId),
-                gt(slidePages.pageNumber, pageNumber),
-              ),
-            );
+            .where(and(eq(slidePages.deckId, deckId), gt(slidePages.pageNumber, pageNumber)));
 
           for (const page of remaining) {
             await db
@@ -313,10 +285,8 @@ export const updateSlidesTool = (userId: string, chatSessionId?: string) =>
         }
 
         case "update_page": {
-          if (pageNumber == null)
-            return { error: "pageNumber is required for update_page" };
-          if (!description)
-            return { error: "description is required for update_page" };
+          if (pageNumber == null) return { error: "pageNumber is required for update_page" };
+          if (!description) return { error: "description is required for update_page" };
 
           const progressCtx = chatSessionId ? { chatSessionId, toolCallId } : undefined;
           const result = await generateSingleSlide(
@@ -335,12 +305,7 @@ export const updateSlidesTool = (userId: string, chatSessionId?: string) =>
               thumbnailUrl: result.thumbnailUrl,
               updatedAt: sql`(datetime('now'))`,
             })
-            .where(
-              and(
-                eq(slidePages.deckId, deckId),
-                eq(slidePages.pageNumber, pageNumber),
-              ),
-            );
+            .where(and(eq(slidePages.deckId, deckId), eq(slidePages.pageNumber, pageNumber)));
 
           await db
             .update(slideDecks)

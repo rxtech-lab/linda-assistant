@@ -7,7 +7,7 @@ struct SlideCarouselView: View {
     @Environment(AuthManager.self) private var authManager
 
     let deckId: String
-    var onOpenFullViewer: ((String) -> Void)? = nil
+    var onOpenFullViewer: ((String) -> Void)?
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -72,7 +72,11 @@ struct SlideCarouselView: View {
                     }
             }
         }
-        .modifier(SelfPresentingSlideViewer(deckId: deckId, isPresented: $showFullViewer, isEnabled: onOpenFullViewer == nil))
+        .modifier(SelfPresentingSlideViewer(
+            deckId: deckId,
+            isPresented: $showFullViewer,
+            isEnabled: onOpenFullViewer == nil
+        ))
         .frame(maxWidth: .infinity)
         .accessibilityIdentifier("slideCarousel-\(deckId)")
         .task {
@@ -122,13 +126,13 @@ private struct SelfPresentingSlideViewer: ViewModifier {
     func body(content: Content) -> some View {
         if isEnabled {
             #if os(iOS)
-            content.fullScreenCover(isPresented: $isPresented) {
-                SlideViewerSheet(deckId: deckId)
-            }
+                content.fullScreenCover(isPresented: $isPresented) {
+                    SlideViewerSheet(deckId: deckId)
+                }
             #else
-            content.sheet(isPresented: $isPresented) {
-                SlideViewerSheet(deckId: deckId)
-            }
+                content.sheet(isPresented: $isPresented) {
+                    SlideViewerSheet(deckId: deckId)
+                }
             #endif
         } else {
             content

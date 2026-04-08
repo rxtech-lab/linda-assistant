@@ -27,7 +27,9 @@ async function waitForSessionStatus(
     if (body.status === expectedStatus) return body;
     await new Promise((r) => setTimeout(r, 200));
   }
-  throw new Error(`Session ${sessionId} did not reach status "${expectedStatus}" within ${timeoutMs}ms`);
+  throw new Error(
+    `Session ${sessionId} did not reach status "${expectedStatus}" within ${timeoutMs}ms`,
+  );
 }
 
 test.describe("Agent Parallel Confirmation", () => {

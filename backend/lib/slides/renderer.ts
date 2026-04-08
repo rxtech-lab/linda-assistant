@@ -7,7 +7,11 @@ import { loadImage } from "canvas";
  */
 function collectImageSrcs(json: Record<string, unknown>): string[] {
   const srcs: string[] = [];
-  const { className, attrs = {}, children = [] } = json as {
+  const {
+    className,
+    attrs = {},
+    children = [],
+  } = json as {
     className: string;
     attrs: Record<string, unknown>;
     children: Record<string, unknown>[];
@@ -24,9 +28,7 @@ function collectImageSrcs(json: Record<string, unknown>): string[] {
 /**
  * Pre-fetch all remote images and return a map of src → canvas Image.
  */
-async function prefetchImages(
-  srcs: string[],
-): Promise<Map<string, InstanceType<typeof Image>>> {
+async function prefetchImages(srcs: string[]): Promise<Map<string, InstanceType<typeof Image>>> {
   const unique = [...new Set(srcs)];
   const map = new Map<string, InstanceType<typeof Image>>();
   await Promise.all(
@@ -53,7 +55,11 @@ function buildNode(
   json: Record<string, unknown>,
   imageMap: Map<string, InstanceType<typeof Image>>,
 ): Konva.Node | null {
-  const { className, attrs = {}, children = [] } = json as {
+  const {
+    className,
+    attrs = {},
+    children = [],
+  } = json as {
     className: string;
     attrs: Record<string, unknown>;
     children: Record<string, unknown>[];
@@ -79,7 +85,9 @@ function buildNode(
   }
 
   const NodeClass = (Konva as Record<string, unknown>)[className] as
-    | (new (config: Record<string, unknown>) => Konva.Node)
+    | (new (
+        config: Record<string, unknown>,
+      ) => Konva.Node)
     | undefined;
   if (!NodeClass) {
     console.warn(`[renderer] Unknown Konva className: "${className}", skipping node`);
