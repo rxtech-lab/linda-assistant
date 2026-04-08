@@ -16,7 +16,7 @@ struct AssigneeFormSheet: View {
     @State private var email = ""
     @State private var personality = ""
     @State private var selectedModel = ""
-    @State private var availableModels: [String] = []
+    @State private var availableModels: [LanguageModel] = []
     @State private var availableTools: [AgentTool] = []
     @State private var toolPermissions: [String: String] = [:]
     @State private var toolConditions: [String: [ToolCondition]] = [:]
@@ -51,8 +51,8 @@ struct AssigneeFormSheet: View {
                 if !availableModels.isEmpty {
                     Section("Model") {
                         Picker("Model", selection: $selectedModel) {
-                            ForEach(availableModels, id: \.self) { model in
-                                Text(model).tag(model)
+                            ForEach(availableModels) { model in
+                                Text(model.modelId).tag(model.modelId)
                             }
                         }
                     }
@@ -172,7 +172,7 @@ struct AssigneeFormSheet: View {
             }
 
             if selectedModel.isEmpty, let first = formData.models.first {
-                selectedModel = first
+                selectedModel = first.modelId
             }
             for tool in formData.tools where toolPermissions[tool.name] == nil {
                 toolPermissions[tool.name] = tool.defaultPermission

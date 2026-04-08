@@ -132,7 +132,9 @@ export async function getPagedMessages(
   const nextCursor = hasMore ? (pageRows[0]?.id ?? null) : null;
 
   return {
-    messages: pageRows.filter((row) => !isSummaryMessage(row)).map((row) => rowToModelMessage(row, { stripReasoning: false })),
+    messages: pageRows
+      .filter((row) => !isSummaryMessage(row))
+      .map((row) => rowToModelMessage(row, { stripReasoning: false })),
     nextCursor,
   };
 }

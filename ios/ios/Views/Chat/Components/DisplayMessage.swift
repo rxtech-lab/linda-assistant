@@ -130,6 +130,16 @@ extension DisplayMessage {
                 )
             }
 
+            // Attachments go first (above text bubble)
+            for att in msg.attachments {
+                switch att.type {
+                    case .image:
+                        parts.append(.attachment(AttachmentInfo(url: att.url, isImage: true)))
+                    case let .file(mimeType):
+                        parts.append(.attachment(AttachmentInfo(url: att.url, isImage: false, mimeType: mimeType)))
+                }
+            }
+
             if let text = msg.textContent, !text.isEmpty {
                 parts.append(.text(.plain(text)))
             }

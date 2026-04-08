@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createHash } from "crypto";
@@ -187,6 +188,15 @@ export async function verifyObjectExists(key: string): Promise<boolean> {
   }
 }
 
+export async function deleteObject(key: string): Promise<void> {
+  await s3Client.send(
+    new DeleteObjectCommand({
+      Bucket: process.env.S3_BUCKET_NAME!,
+      Key: key,
+    }),
+  );
+}
+
 export async function getObjectContentType(key: string): Promise<string | undefined> {
   try {
     const response = await s3Client.send(
@@ -201,7 +211,7 @@ export async function getObjectContentType(key: string): Promise<string | undefi
   }
 }
 
-function getS3PublicUrl(key: string): string {
+export function getS3PublicUrl(key: string): string {
   const bucketUrl =
     process.env.S3_PUBLIC_URL ||
     `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com`;

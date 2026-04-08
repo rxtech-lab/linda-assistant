@@ -80,8 +80,28 @@ struct MessageList: View {
                     }
                 }
 
+                if msg.role == .user {
+                    Text("You")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+
+                // Show attachment summary chip if there are any attachments
+                let attachments = msg.parts.compactMap { part -> AttachmentInfo? in
+                    if case let .attachment(info) = part { return info }
+                    return nil
+                }
+                if !attachments.isEmpty {
+                    HStack {
+                        Spacer()
+                        AttachmentSummaryChip(attachments: attachments)
+                    }
+                }
+
                 ForEach(Array(msg.parts.enumerated()), id: \.offset) { partIndex, part in
                     switch part {
+                        case .attachment:
+                            EmptyView()
                         case let .text(content):
                             if !content.displayText.isEmpty {
                                 MessageBubble(message: msg, text: content.displayText)

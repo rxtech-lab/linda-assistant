@@ -20,6 +20,12 @@ final class ChatTabViewModel {
     var deviceToken: String?
     var showingAssigneeSheet = false
     var hasSession = false
+    var cachedModels: [LanguageModel] = []
+
+    var selectedModelSupportsImages: Bool {
+        guard let modelId = selectedAssignee?.model else { return true }
+        return cachedModels.first(where: { $0.modelId == modelId })?.supportsImages ?? true
+    }
 
     var displayError: String? {
         streamHandler?.error ?? error
@@ -46,6 +52,13 @@ final class ChatTabViewModel {
         do {
             let response = try await apiClient.listAssignees(limit: 100)
             assignees = response.data
+
+            // Fetch models separately — don't let it block assignee loading
+            do {
+                cachedModels = try await apiClient.listModels()
+            } catch {
+                logger.error("Failed to load models: \(error)")
+            }
 
             // Restore last selected assignee from storage, or default to first
             let lastAssigneeId = UserDefaults.standard.string(forKey: lastSelectedAssigneeKey)
@@ -274,6 +287,7 @@ final class ChatTabViewModel {
 
     func sendMessage(
         _ content: String,
+        attachments: [MessageAttachment]? = nil,
         apiClient: APIClient,
         authManager: AuthManager,
         eventManager: EventManager
@@ -281,10 +295,23 @@ final class ChatTabViewModel {
         guard let assignee = selectedAssignee else { return }
 
         let tempId = "user-\(UUID().uuidString)"
+        var messageParts: [MessagePart] = []
+        if let attachments {
+            for att in attachments {
+                messageParts.append(.attachment(AttachmentInfo(
+                    url: att.url,
+                    isImage: att.type == "image",
+                    mimeType: att.mimeType
+                )))
+            }
+        }
+        if !content.isEmpty {
+            messageParts.append(.text(.plain(content)))
+        }
         let userMsg = DisplayMessage(
             id: tempId,
             role: .user,
-            parts: [.text(.plain(content))]
+            parts: messageParts.isEmpty ? [.text(.plain(" "))] : messageParts
         )
 
         withAnimation(.spring(duration: 0.3)) {
@@ -302,7 +329,11 @@ final class ChatTabViewModel {
             )
         }
 
-        let messageId = await streamHandler?.sendChatMessage(assigneeId: assignee.id, content: content)
+        let messageId = await streamHandler?.sendChatMessage(
+            assigneeId: assignee.id,
+            content: content.isEmpty ? " " : content,
+            attachments: attachments
+        )
 //        Update local message ID to backend ID for dedup when SSE event arrives(no animation)
         if let messageId, let idx = displayMessages.firstIndex(where: { $0.id == tempId }) {
             withAnimation(.none) {

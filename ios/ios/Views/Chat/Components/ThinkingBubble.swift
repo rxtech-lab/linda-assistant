@@ -42,11 +42,11 @@ struct ThinkingBubble: View {
             .padding(.vertical, 8)
             .background {
                 RoundedRectangle(cornerRadius: 14)
-#if os(iOS)
+                #if os(iOS)
                     .fill(info.isStreaming ? Color.purple.opacity(0.07) : Color(.secondarySystemGroupedBackground))
-#else
+                #else
                     .fill(info.isStreaming ? Color.purple.opacity(0.07) : Color(nsColor: .controlBackgroundColor))
-#endif
+                #endif
             }
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
@@ -84,25 +84,25 @@ private struct ThinkingDetailSheet: View {
                     .textSelection(.enabled)
             }
             .navigationTitle("Thinking")
-#if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-#endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(.secondary)
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+            #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
-            }
-#if os(iOS)
-            .background(Color(.systemGroupedBackground))
-#else
-            .background(Color(nsColor: .windowBackgroundColor))
-#endif
+            #if os(iOS)
+                .background(Color(.systemGroupedBackground))
+            #else
+                .background(Color(nsColor: .windowBackgroundColor))
+            #endif
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)

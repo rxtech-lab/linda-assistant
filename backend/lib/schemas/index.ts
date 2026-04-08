@@ -728,7 +728,9 @@ export const sendMessageSchema = z.object({
       z.object({
         type: z.enum(["image", "audio", "pdf", "file"]).describe("Attachment media type"),
         url: z.string().url().describe("Attachment URL"),
+        key: z.string().optional().describe("S3 object key"),
         name: z.string().optional().describe("Attachment filename"),
+        mimeType: z.string().optional().describe("MIME type of the attachment"),
       }),
     )
     .optional()
@@ -771,11 +773,16 @@ export const onboardResponseSchema = z.object({
 export const presignedUrlSchema = z.object({
   contentType: z.string().min(1).describe("MIME type of the file to upload"),
   prefix: z.string().optional().describe("Optional S3 key prefix"),
+  extension: z
+    .string()
+    .optional()
+    .describe("File extension to append to S3 key (e.g. 'md', 'pdf')"),
 });
 
 export const presignedUrlResponseSchema = z.object({
   url: z.string().describe("Presigned upload URL"),
   key: z.string().describe("S3 object key"),
+  publicUrl: z.string().describe("Public URL for the uploaded object"),
 });
 
 // ---- Batch Presigned URLs ----
@@ -823,6 +830,20 @@ export const uploadDownloadUrlSchema = z.object({
 export const uploadDownloadUrlsResponseSchema = z
   .array(uploadDownloadUrlSchema)
   .describe("Presigned download URLs for completed uploads");
+
+// ---- Upload Config ----
+
+export const uploadConfigResponseSchema = z.object({
+  maxSizeBytes: z.number().describe("Maximum file size in bytes"),
+  acceptedExtensions: z.array(z.string()).describe("Accepted file extensions"),
+  acceptedMimeTypes: z.array(z.string()).describe("Accepted MIME types"),
+});
+
+// ---- Delete Upload Object ----
+
+export const deleteUploadObjectSchema = z.object({
+  key: z.string().min(1).describe("S3 object key to delete"),
+});
 
 // ---- SSE Stream Events ----
 

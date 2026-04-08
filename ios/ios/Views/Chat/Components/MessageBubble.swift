@@ -20,12 +20,6 @@ struct MessageBubble: View {
 
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
                 if message.role == .user {
-                    Text("You")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                }
-
-                if message.role == .user {
                     // User messages: keep bubble style with MarkdownUI
                     Markdown(text)
                         .markdownTheme(.chat)
@@ -122,15 +116,15 @@ private func copyToPasteboard(_ text: String) {
                     """))]
                 ),
                 text: """
-                    Of course! I'd be happy to help you with Swift.
+                Of course! I'd be happy to help you with Swift.
 
-                    Here are some key features:
-                    - **Type Safety**: Swift is a type-safe language
-                    - **Optionals**: Handle the absence of values safely
-                    - **Closures**: First-class support for closures
+                Here are some key features:
+                - **Type Safety**: Swift is a type-safe language
+                - **Optionals**: Handle the absence of values safely
+                - **Closures**: First-class support for closures
 
-                    What would you like to know more about?
-                    """
+                What would you like to know more about?
+                """
             )
         }
         .padding()

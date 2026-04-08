@@ -7,8 +7,10 @@ import { eq, and, sql } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { sendMessageSchema, queuedResponseSchema, assigneeIdParamSchema } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
+import { getLanguageModel } from "@/lib/ai/models";
 import { publishTask, publishEvent } from "@/lib/queue/producer";
 import { insertMessages } from "@/lib/db/messages";
+import { processUserAttachments } from "@/lib/ai/user-attachments";
 
 /**
  * Send a message to an assignee's persistent chat.
@@ -47,6 +49,14 @@ export async function POST(
 
   if (!assignee) return errorJson("Assignee not found", 404);
 
+  // Reject image attachments when the model doesn't support images
+  if (parsed.data.attachments?.some((a) => a.type === "image")) {
+    const model = getLanguageModel(assignee.model ?? "");
+    if (model && !model.supported_features.includes("image")) {
+      return errorJson("This model does not support image attachments", 422);
+    }
+  }
+
   // Find or create persistent session for this assignee+user pair
   let [session] = await db
     .select({ id: chatSessions.id })
@@ -78,22 +88,16 @@ export async function POST(
 
   // Build user message parts
   const contentParts: unknown[] = [{ type: "text", text: parsed.data.content }];
+  let fileSystemMessage: { role: "system"; content: string } | null = null;
 
-  if (parsed.data.attachments) {
-    for (const attachment of parsed.data.attachments) {
-      if (attachment.type === "image") {
-        contentParts.push({
-          type: "image",
-          image: attachment.url,
-        });
-      } else {
-        contentParts.push({
-          type: "file",
-          data: attachment.url,
-          mimeType: getMimeType(attachment.type),
-        });
-      }
-    }
+  if (parsed.data.attachments && parsed.data.attachments.length > 0) {
+    const { userContentParts, systemMessage } = await processUserAttachments(
+      parsed.data.attachments,
+      auth.userId,
+      session.id,
+    );
+    contentParts.push(...userContentParts);
+    fileSystemMessage = systemMessage;
   }
 
   const messageId = crypto.randomUUID();
@@ -103,8 +107,15 @@ export async function POST(
     content: contentParts,
   } as ModelMessage;
 
-  // Insert message to messages table and update session status
-  await insertMessages(session.id, [userMessage]);
+  // Insert user message, then optional system message with file instructions
+  const messagesToInsert: ModelMessage[] = [userMessage];
+  if (fileSystemMessage) {
+    messagesToInsert.push({
+      id: crypto.randomUUID(),
+      ...fileSystemMessage,
+    } as unknown as ModelMessage);
+  }
+  await insertMessages(session.id, messagesToInsert);
   await db
     .update(chatSessions)
     .set({
@@ -134,15 +145,4 @@ export async function POST(
   });
 
   return successJson({ queued: true, messageId });
-}
-
-function getMimeType(type: string): string {
-  switch (type) {
-    case "pdf":
-      return "application/pdf";
-    case "audio":
-      return "audio/mpeg";
-    default:
-      return "application/octet-stream";
-  }
 }

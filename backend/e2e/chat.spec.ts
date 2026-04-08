@@ -8,6 +8,7 @@ import {
   stopStreamResponseSchema,
 } from "./helpers/schemas";
 import { consumeSSE } from "./helpers/sse-client";
+import { AVAILABLE_MODELS } from "../lib/ai/models";
 
 const dbPath = path.resolve(__dirname, "..", "e2e-test.db");
 
@@ -430,6 +431,61 @@ test.describe("Chat Endpoints", () => {
     // Try to get messages — should also get 404
     const messagesRes = await request.get(`/api/chat/${testAssigneeId}/messages`);
     expect(messagesRes.status()).toBe(404);
+  });
+
+  test("image attachment rejected when model does not support images", async ({ request }) => {
+    // Find a text-only model
+    const textOnlyModel = AVAILABLE_MODELS.find((m) => !m.supported_features.includes("image"));
+    expect(textOnlyModel).toBeDefined();
+
+    // Create assignee with a text-only model
+    const assigneeRes = await request.post("/api/assignees", {
+      data: {
+        name: "Text Only Assistant",
+        email: "text-only@example.com",
+        model: textOnlyModel!.modelId,
+      },
+    });
+    expect(assigneeRes.ok()).toBeTruthy();
+    const testAssigneeId = (await assigneeRes.json()).id;
+
+    // Send message with image attachment — should be rejected
+    const msgRes = await request.post(`/api/chat/${testAssigneeId}/message`, {
+      data: {
+        content: "Look at this image",
+        attachments: [{ type: "image", url: "https://example.com/photo.jpg" }],
+      },
+    });
+    expect(msgRes.status()).toBe(422);
+    const body = await msgRes.json();
+    expect(body.error).toContain("does not support image");
+  });
+
+  test("image attachment accepted when model supports images", async ({ request }) => {
+    // Find an image-capable model
+    const imageModel = AVAILABLE_MODELS.find((m) => m.supported_features.includes("image"));
+    expect(imageModel).toBeDefined();
+
+    // Create assignee with an image-capable model
+    const assigneeRes = await request.post("/api/assignees", {
+      data: {
+        name: "Image Model Assistant",
+        email: "image-model@example.com",
+        model: imageModel!.modelId,
+      },
+    });
+    expect(assigneeRes.ok()).toBeTruthy();
+    const testAssigneeId = (await assigneeRes.json()).id;
+
+    // Send message with image attachment — should be accepted
+    const msgRes = await request.post(`/api/chat/${testAssigneeId}/message`, {
+      data: {
+        content: "Look at this image",
+        attachments: [{ type: "image", url: "https://example.com/photo.jpg" }],
+      },
+    });
+    expect(msgRes.ok()).toBeTruthy();
+    sendMessageResponseSchema.parse(await msgRes.json());
   });
 
   test("POST /api/chat/:assigneeId/stop returns stopped", async ({ request }) => {

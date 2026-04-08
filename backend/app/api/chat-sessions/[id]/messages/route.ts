@@ -14,6 +14,9 @@ import {
 import { successJson, errorJson } from "@/lib/utils/response";
 import { publishTask, publishEvent } from "@/lib/queue/producer";
 import { insertMessages, getPagedMessages } from "@/lib/db/messages";
+import { processUserAttachments } from "@/lib/ai/user-attachments";
+import { assignees } from "@/lib/db/schema";
+import { getLanguageModel } from "@/lib/ai/models";
 
 /**
  * Get paginated messages from a chat session.
@@ -83,30 +86,41 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // Verify session belongs to user
   const [session] = await db
-    .select({ id: chatSessions.id })
+    .select({
+      id: chatSessions.id,
+      assigneeId: chatSessions.assigneeId,
+    })
     .from(chatSessions)
     .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, auth.userId)));
 
   if (!session) return errorJson("Chat session not found", 404);
 
-  // Build user message parts
-  const contentParts: unknown[] = [{ type: "text", text: parsed.data.content }];
-
-  if (parsed.data.attachments) {
-    for (const attachment of parsed.data.attachments) {
-      if (attachment.type === "image") {
-        contentParts.push({
-          type: "image",
-          image: attachment.url,
-        });
-      } else {
-        contentParts.push({
-          type: "file",
-          data: attachment.url,
-          mimeType: getMimeType(attachment.type),
-        });
+  // Reject image attachments when the model doesn't support images
+  if (parsed.data.attachments?.some((a) => a.type === "image") && session.assigneeId) {
+    const [assignee] = await db
+      .select({ model: assignees.model })
+      .from(assignees)
+      .where(eq(assignees.id, session.assigneeId));
+    if (assignee?.model) {
+      const model = getLanguageModel(assignee.model);
+      if (model && !model.supported_features.includes("image")) {
+        return errorJson("This model does not support image attachments", 422);
       }
     }
+  }
+
+  // Build user message parts
+  const contentParts: unknown[] = [{ type: "text", text: parsed.data.content }];
+  let fileSystemMessage: { role: "system"; content: string } | null = null;
+
+  if (parsed.data.attachments && parsed.data.attachments.length > 0) {
+    const { userContentParts, systemMessage } = await processUserAttachments(
+      parsed.data.attachments,
+      auth.userId,
+      id,
+    );
+    contentParts.push(...userContentParts);
+    fileSystemMessage = systemMessage;
   }
 
   const messageId = crypto.randomUUID();
@@ -116,8 +130,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     content: contentParts,
   } as ModelMessage;
 
-  // Insert message to messages table and update session status
-  await insertMessages(id, [userMessage]);
+  // Insert user message, then optional system message with file instructions
+  const messagesToInsert: ModelMessage[] = [userMessage];
+  if (fileSystemMessage) {
+    messagesToInsert.push({
+      id: crypto.randomUUID(),
+      ...fileSystemMessage,
+    } as unknown as ModelMessage);
+  }
+  await insertMessages(id, messagesToInsert);
   await db
     .update(chatSessions)
     .set({
@@ -144,15 +165,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
 
   return successJson({ queued: true, messageId });
-}
-
-function getMimeType(type: string): string {
-  switch (type) {
-    case "pdf":
-      return "application/pdf";
-    case "audio":
-      return "audio/mpeg";
-    default:
-      return "application/octet-stream";
-  }
 }

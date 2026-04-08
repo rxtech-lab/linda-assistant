@@ -5,9 +5,9 @@ import {
   deleteResponseSchema,
   errorResponseSchema,
 } from "./helpers/schemas";
-import { AVAILABLE_MODEL_IDS } from "../lib/ai/models";
+import { AVAILABLE_MODELS } from "../lib/ai/models";
 
-const TEST_MODEL = AVAILABLE_MODEL_IDS[0];
+const TEST_MODEL = AVAILABLE_MODELS[0].modelId;
 
 const user2Headers = { "x-test-user-id": "e2e-user-2" };
 

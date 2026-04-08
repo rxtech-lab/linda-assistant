@@ -1,6 +1,6 @@
 import { authenticate } from "@/lib/auth/middleware";
 import { buildToolSet, extractParameters, NO_PERMISSION_CHANGE_TOOLS } from "@/lib/ai/tools";
-import { AVAILABLE_MODEL_IDS } from "@/lib/ai/models";
+import { AVAILABLE_MODELS } from "@/lib/ai/models";
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
 
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({
-    models: [...AVAILABLE_MODEL_IDS],
+    models: [...AVAILABLE_MODELS],
     tools: toolsList,
   });
 }

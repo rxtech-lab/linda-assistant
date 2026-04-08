@@ -336,7 +336,11 @@ final class StandaloneChatTests: XCTestCase {
 
         // Check occurrence of target text < 2 (ensures no duplicate content from SSE reconnection)
         let occurrences = textContent.components(separatedBy: targetText).count - 1
-        XCTAssertLessThan(occurrences, 2, "Target text should not appear more than once (found \(occurrences) times), indicating no duplicate streaming after reconnection")
+        XCTAssertLessThan(
+            occurrences,
+            2,
+            "Target text should not appear more than once (found \(occurrences) times), indicating no duplicate streaming after reconnection"
+        )
     }
 
     @MainActor
@@ -364,7 +368,11 @@ final class StandaloneChatTests: XCTestCase {
 
         // Check occurrence of target text < 2 (ensures no duplicate content from SSE reconnection)
         let occurrences = textContent.components(separatedBy: targetText).count - 1
-        XCTAssertLessThan(occurrences, 2, "Target text should not appear more than once (found \(occurrences) times), indicating no duplicate streaming after reconnection")
+        XCTAssertLessThan(
+            occurrences,
+            2,
+            "Target text should not appear more than once (found \(occurrences) times), indicating no duplicate streaming after reconnection"
+        )
 
         // Wait for the full response to complete after reconnection
         let finished = try await waitForMessageContaining("[END_SLOW_COMPLEX]", in: app, timeout: 60)
@@ -381,6 +389,47 @@ final class StandaloneChatTests: XCTestCase {
 
         XCTAssertLessThan(el1.frame.minY, el2.frame.minY, "Step 1 should be above step 2 after reconnection")
         XCTAssertLessThan(el2.frame.minY, el3.frame.minY, "Step 2 should be above step 3 after reconnection")
+    }
+
+    @MainActor
+    func testImageAttachment() async throws {
+        let app = launchApp(resetAuth: .once)
+        try app.signInWithEmailAndPassword()
+
+        XCTAssertTrue(app.messageInput.waitForExistence(timeout: 10))
+
+        // Step 1: Attach a photo via the plus menu → Photos
+        let attachButton = app.buttons["attach-button"].firstMatch
+        XCTAssertTrue(attachButton.waitForExistence(timeout: 5), "Attach button should exist")
+        attachButton.tap()
+
+        let photosMenuItem = app.buttons["Photos"].firstMatch
+        XCTAssertTrue(photosMenuItem.waitForExistence(timeout: 5), "Photos menu item should appear")
+        photosMenuItem.tap()
+
+        // Select the first photo from the PhotosPicker
+        try await Task.sleep(for: .seconds(2))
+        let photospickerApp = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow.photospicker")
+        photospickerApp.images.firstMatch.tap()
+
+        // Dismiss the picker (single selection auto-dismiss or tap Add)
+        let addButton = photospickerApp.buttons["Add"].firstMatch
+        if addButton.waitForExistence(timeout: 3) {
+            addButton.tap()
+        }
+
+        // Wait for the upload banner showing file attached
+        let uploadBanner = app.buttons["upload-banner"].firstMatch
+        XCTAssertTrue(uploadBanner.waitForExistence(timeout: 15), "Upload banner should appear after picking a photo")
+
+        // Step 2: Type the test message and send
+        app.messageInput.tap()
+        app.messageInput.typeText("[image-file-test-1]")
+        app.sendButton.tap()
+
+        // Step 3: Verify the response is "ok" (image was detected)
+        let exist = try await waitForMessageContaining("ok", in: app, timeout: 30)
+        XCTAssertTrue(exist, "Response should be 'ok' when image is attached")
     }
 
     @MainActor

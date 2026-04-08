@@ -31,9 +31,7 @@ function hasUserMessage(messages: unknown[], text: string): boolean {
 
 /** Helper to get the last assistant message text from the conversation. */
 function getLastAssistantText(messages: unknown[]): string {
-  const lastAssistant = [...messages]
-    .reverse()
-    .find((m: any) => m.role === "assistant");
+  const lastAssistant = [...messages].reverse().find((m: any) => m.role === "assistant");
   if (!lastAssistant) return "";
   const content = (lastAssistant as any).content;
   if (Array.isArray(content)) {
@@ -47,15 +45,11 @@ function getLastAssistantText(messages: unknown[]): string {
 
 /** Get tool names from the last assistant message's tool-call content parts. */
 function getLastToolCallNames(messages: unknown[]): string[] {
-  const lastAssistant = [...messages]
-    .reverse()
-    .find((m: any) => m.role === "assistant");
+  const lastAssistant = [...messages].reverse().find((m: any) => m.role === "assistant");
   if (!lastAssistant) return [];
   const content = (lastAssistant as any).content;
   if (!Array.isArray(content)) return [];
-  return content
-    .filter((c: any) => c.type === "tool-call")
-    .map((c: any) => c.toolName as string);
+  return content.filter((c: any) => c.type === "tool-call").map((c: any) => c.toolName as string);
 }
 
 /** Extract the output value from the most recent tool-result for a given toolName. */
@@ -81,8 +75,7 @@ function getLastToolResultOutput(
 
 /** Generate ~1000 words of text for long output testing. */
 function generateLongText(): string {
-  const sentence =
-    "The quick brown fox jumps over the lazy dog near the riverbank. ";
+  const sentence = "The quick brown fox jumps over the lazy dog near the riverbank. ";
   const parts: string[] = [];
   for (let i = 0; i < 100; i++) {
     parts.push(`[${i + 1}] ${sentence}`);
@@ -143,9 +136,7 @@ function createChunkedTextStream(
 ): LanguageModelV3StreamPart[] {
   const words = text.split(" ");
   const chunkSize = opts?.chunkSize ?? 1;
-  const chunks: LanguageModelV3StreamPart[] = [
-    { type: "text-start", id: "text-1" },
-  ];
+  const chunks: LanguageModelV3StreamPart[] = [{ type: "text-start", id: "text-1" }];
   for (let i = 0; i < words.length; i += chunkSize) {
     const chunk = words.slice(i, i + chunkSize).join(" ") + " ";
     chunks.push({ type: "text-delta", id: "text-1", delta: chunk });
@@ -162,10 +153,7 @@ function createChunkedTextStream(
   return chunks;
 }
 
-function buildStreamChunks(
-  messages: unknown[],
-  availableTools?: Set<string>,
-): MockStreamConfig {
+function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): MockStreamConfig {
   // Check for tool-result in prompt (resumed after confirmation or auto-confirm execution)
   const hasToolResult = messages.some(
     (m: any) =>
@@ -185,8 +173,7 @@ function buildStreamChunks(
             c.type === "tool-result" &&
             typeof c.output === "object" &&
             c.output !== null &&
-            (c.output.type === "error-text" ||
-              c.output.type === "execution-denied"),
+            (c.output.type === "error-text" || c.output.type === "execution-denied"),
         ),
     );
 
@@ -224,26 +211,18 @@ function buildStreamChunks(
       .filter((m: any) => m.role === "user")
       .flatMap((m: any) =>
         Array.isArray(m.content)
-          ? m.content
-              .filter((c: any) => c.type === "text")
-              .map((c: any) => c.text)
+          ? m.content.filter((c: any) => c.type === "text").map((c: any) => c.text)
           : [],
       )
       .join(" ");
-    if (
-      lastToolNames.includes("search_tools") &&
-      userTexts.includes("[TOOL:read_tool")
-    ) {
+    if (lastToolNames.includes("search_tools") && userTexts.includes("[TOOL:read_tool")) {
       const input = JSON.stringify({ toolIds: ["e2e_test_echo"] });
       return {
         chunks: createToolCallChunks("call-read-1", "read_tool", input),
         chunkDelayInMs: null,
       };
     }
-    if (
-      lastToolNames.includes("read_tool") &&
-      userTexts.includes("[TOOL:use_tool")
-    ) {
+    if (lastToolNames.includes("read_tool") && userTexts.includes("[TOOL:use_tool")) {
       const msgMatch = userTexts.match(/echo\s+"([^"]+)"/i);
       const message = msgMatch ? msgMatch[1] : "hello from lazy tool";
       const input = JSON.stringify({
@@ -282,11 +261,7 @@ function buildStreamChunks(
           content: `# Test Document\n\nHere are the slides:\n\n{{slide:${deckId}}}\n\nEnd of document.`,
         });
         return {
-          chunks: createToolCallChunks(
-            "call-doc-slide-1",
-            "create_document",
-            input,
-          ),
+          chunks: createToolCallChunks("call-doc-slide-1", "create_document", input),
           chunkDelayInMs: null,
         };
       }
@@ -320,11 +295,7 @@ function buildStreamChunks(
               { chunkSize: 2 },
             ).slice(0, -2),
             { type: "text-end" as const, id: "text-1" },
-            ...createToolCallChunks(
-              "slow-complex-call-2",
-              "create_document",
-              input,
-            ),
+            ...createToolCallChunks("slow-complex-call-2", "create_document", input),
           ],
           chunkDelayInMs: 300,
           chunkInitialDelayInMs: 500,
@@ -367,17 +338,13 @@ function buildStreamChunks(
       }
       // Step 3+: final text
       return {
-        chunks: createTextMessageChunks(
-          "All done! Both documents have been created successfully.",
-        ),
+        chunks: createTextMessageChunks("All done! Both documents have been created successfully."),
         chunkDelayInMs: 300,
         endDelayInMs: 10000,
       };
     }
 
-    const text = isRejection
-      ? "I understand, I won't do that."
-      : "Email sent successfully.";
+    const text = isRejection ? "I understand, I won't do that." : "Email sent successfully.";
 
     return {
       chunks: createTextMessageChunks(text),
@@ -386,9 +353,7 @@ function buildStreamChunks(
   }
 
   // Get last user message text
-  const lastUserMsg = [...messages]
-    .reverse()
-    .find((m: any) => m.role === "user");
+  const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
   const lastText =
     lastUserMsg && Array.isArray((lastUserMsg as any).content)
       ? (lastUserMsg as any).content
@@ -422,9 +387,7 @@ function buildStreamChunks(
   if (lastText === "slow-short-output-test-1") {
     const sentences: string[] = [];
     for (let i = 0; i < 20; i++) {
-      sentences.push(
-        `[${i + 1}] The quick brown fox jumps over the lazy dog near the riverbank.`,
-      );
+      sentences.push(`[${i + 1}] The quick brown fox jumps over the lazy dog near the riverbank.`);
     }
     const text = sentences.join(" ");
     return {
@@ -440,10 +403,7 @@ function buildStreamChunks(
   // Scenario: slow long output (~1000 words, slower per-chunk delay for stream reliability testing)
   if (lastText === "slow-long-output-test-1") {
     const longText = generateLongText();
-    console.log(
-      "Generated slow long text for streaming:",
-      longText.slice(0, 100) + "...",
-    );
+    console.log("Generated slow long text for streaming:", longText.slice(0, 100) + "...");
     return {
       chunks: createChunkedTextStream(longText, {
         chunkSize: 10,
@@ -457,10 +417,7 @@ function buildStreamChunks(
   // Scenario: long output (~1000 words)
   if (lastText === "long-output-test-1") {
     const longText = generateLongText();
-    console.log(
-      "Generated long text for streaming:",
-      longText.slice(0, 100) + "...",
-    );
+    console.log("Generated long text for streaming:", longText.slice(0, 100) + "...");
     return {
       chunks: createChunkedTextStream(longText, {
         chunkSize: 50,
@@ -473,8 +430,7 @@ function buildStreamChunks(
 
   // Scenario: search_tools (first step of lazy MCP tools multi-step flow)
   if (
-    (lastText.includes("[TOOL:search_tools]") ||
-      lastText.includes("[TOOL:search_tools:auto]")) &&
+    (lastText.includes("[TOOL:search_tools]") || lastText.includes("[TOOL:search_tools:auto]")) &&
     (!availableTools || availableTools.has("search_tools"))
   ) {
     const queryMatch = lastText.match(/search.*?"([^"]+)"/i);
@@ -506,8 +462,7 @@ function buildStreamChunks(
 
   // Scenario: send_email tool call (supports :auto suffix to skip confirmation)
   if (
-    (lastText.includes("[TOOL:send_email]") ||
-      lastText.includes("[TOOL:send_email:auto]")) &&
+    (lastText.includes("[TOOL:send_email]") || lastText.includes("[TOOL:send_email:auto]")) &&
     (!availableTools || availableTools.has("send_email"))
   ) {
     // Extract email address from message if present, otherwise default
@@ -529,8 +484,7 @@ function buildStreamChunks(
 
   // Scenario: create_task tool call (supports :auto suffix to skip confirmation)
   if (
-    (lastText.includes("[TOOL:create_task]") ||
-      lastText.includes("[TOOL:create_task:auto]")) &&
+    (lastText.includes("[TOOL:create_task]") || lastText.includes("[TOOL:create_task:auto]")) &&
     (!availableTools || availableTools.has("create_task"))
   ) {
     const input = JSON.stringify({
@@ -545,8 +499,7 @@ function buildStreamChunks(
 
   // Scenario: update_task tool call (non-existent id to trigger error, supports :auto suffix)
   if (
-    (lastText.includes("[TOOL:update_task]") ||
-      lastText.includes("[TOOL:update_task:auto]")) &&
+    (lastText.includes("[TOOL:update_task]") || lastText.includes("[TOOL:update_task:auto]")) &&
     (!availableTools || availableTools.has("update_task"))
   ) {
     const input = JSON.stringify({
@@ -561,10 +514,8 @@ function buildStreamChunks(
 
   // Scenario: parallel tool calls (send_email + create_task, supports :auto suffix)
   if (
-    (lastText.includes("[TOOL:parallel]") ||
-      lastText.includes("[TOOL:parallel:auto]")) &&
-    (!availableTools ||
-      (availableTools.has("send_email") && availableTools.has("create_task")))
+    (lastText.includes("[TOOL:parallel]") || lastText.includes("[TOOL:parallel:auto]")) &&
+    (!availableTools || (availableTools.has("send_email") && availableTools.has("create_task")))
   ) {
     const emailInput = JSON.stringify({
       to: "test@example.com",
@@ -577,12 +528,7 @@ function buildStreamChunks(
     });
     return {
       chunks: [
-        ...createToolCallChunks(
-          "parallel-call-1",
-          "send_email",
-          emailInput,
-          false,
-        ),
+        ...createToolCallChunks("parallel-call-1", "send_email", emailInput, false),
         ...createToolCallChunks("parallel-call-2", "create_task", taskInput),
       ],
       chunkDelayInMs: null,
@@ -702,11 +648,7 @@ function buildStreamChunks(
           { chunkSize: 2 },
         ).slice(0, -2), // Remove text-end and finish — tool call follows
         { type: "text-end" as const, id: "text-1" },
-        ...createToolCallChunks(
-          "slow-complex-call-1",
-          "create_document",
-          input,
-        ),
+        ...createToolCallChunks("slow-complex-call-1", "create_document", input),
       ],
       chunkDelayInMs: 300,
       chunkInitialDelayInMs: 500,
@@ -717,6 +659,31 @@ function buildStreamChunks(
   if (lastText === "short-output-test-1") {
     return {
       chunks: createTextMessageChunks("OK. [END OF SHORT]"),
+      chunkDelayInMs: null,
+    };
+  }
+
+  // Scenario: image + file attachment validation
+  // Note: AI SDK converts image parts to { type: "file", mediaType: "image/*" } in the language model prompt
+  if (lastText.includes("[image-file-test-1]")) {
+    const parts = Array.isArray((lastUserMsg as any)?.content) ? (lastUserMsg as any).content : [];
+    console.log(
+      "[image-file-test-1] content parts:",
+      JSON.stringify(
+        parts.map((c: any) => ({ type: c.type, mediaType: c.mediaType })),
+        null,
+        2,
+      ),
+    );
+    const hasImage = parts.some(
+      (c: any) =>
+        c.type === "file" && typeof c.mediaType === "string" && c.mediaType.startsWith("image/"),
+    );
+    if (hasImage) {
+      return { chunks: createTextMessageChunks("ok"), chunkDelayInMs: null };
+    }
+    return {
+      chunks: createTextMessageChunks("error: missing image"),
       chunkDelayInMs: null,
     };
   }
@@ -765,17 +732,12 @@ export function createTestProvider() {
           : undefined,
       );
 
-      console.log(
-        "Simulating stream with config:",
-        JSON.stringify(config, null, 2),
-      );
+      console.log("Simulating stream with config:", JSON.stringify(config, null, 2));
       const baseStream = simulateReadableStream({
         chunks: config.chunks,
         chunkDelayInMs: config.chunkDelayInMs,
         initialDelayInMs:
-          config.chunkInitialDelayInMs === null
-            ? 500
-            : config.chunkInitialDelayInMs,
+          config.chunkInitialDelayInMs === null ? 500 : config.chunkInitialDelayInMs,
       });
 
       if (!config.endDelayInMs) {
@@ -784,10 +746,7 @@ export function createTestProvider() {
 
       const endDelay = config.endDelayInMs;
       const stream = baseStream.pipeThrough(
-        new TransformStream<
-          LanguageModelV3StreamPart,
-          LanguageModelV3StreamPart
-        >({
+        new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
           transform(chunk, controller) {
             controller.enqueue(chunk);
           },

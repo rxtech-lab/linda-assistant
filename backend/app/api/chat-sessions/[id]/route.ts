@@ -20,6 +20,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .select({
       session: chatSessions,
       assigneeName: assignees.name,
+      assigneeModel: assignees.model,
     })
     .from(chatSessions)
     .leftJoin(assignees, eq(chatSessions.assigneeId, assignees.id))
@@ -31,7 +32,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     ...row.session,
     messages,
     assignee: row.session.assigneeId
-      ? { id: row.session.assigneeId, name: row.assigneeName ?? "Assistant" }
+      ? {
+          id: row.session.assigneeId,
+          name: row.assigneeName ?? "Assistant",
+          model: row.assigneeModel ?? null,
+        }
       : null,
   });
 }
