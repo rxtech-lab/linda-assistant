@@ -70,6 +70,7 @@ export const createBriefingTool = (
           model: IMAGE_GENERATION_MODEL,
           providerOptions: {
             google: { responseModalities: ["TEXT", "IMAGE"] },
+            gateway: { caching: "auto" },
           },
           prompt: `Generate a simple, minimal, relaxed, no text, just colors and some decorative elements, poster illustration with soft gradients and clean shapes for: ${imageDescription}`,
         });

@@ -85,6 +85,9 @@ async function createChart(data: unknown, chartDescription: string): Promise<str
       model: getModelProvider(CHART_GENERATION_MODEL),
       instructions: prompt(chartDescription),
       stopWhen: hasToolCall("exportImage"),
+      providerOptions: {
+        gateway: { caching: "auto" },
+      },
       tools: {
         runPython: tool({
           description: "Execute Python code in a sandboxed environment",

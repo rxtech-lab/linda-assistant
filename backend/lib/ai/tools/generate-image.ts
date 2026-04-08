@@ -42,6 +42,7 @@ export const generateImageTool = (systemPrompt?: string) =>
         model: IMAGE_GENERATION_MODEL,
         providerOptions: {
           google: { responseModalities: ["TEXT", "IMAGE"] },
+          gateway: { caching: "auto" },
         },
         prompt: systemPrompt ? `${systemPrompt}\n${prompt}` : prompt,
       });

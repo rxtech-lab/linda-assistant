@@ -345,6 +345,9 @@ async function generateSlides(
     model: getModelProvider(SLIDE_GENERATION_MODEL),
     instructions: SLIDE_AGENT_PROMPT,
     stopWhen: hasToolCall("finalizeDeck"),
+    providerOptions: {
+      gateway: { caching: "auto" },
+    },
     tools: {
       planSlides: tool({
         description:

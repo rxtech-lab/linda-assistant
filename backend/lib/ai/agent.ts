@@ -1163,6 +1163,9 @@ export async function runAgent(options: AgentRunOptions) {
         tools: tools as Parameters<typeof streamText>[0]["tools"],
         abortSignal: signal,
         stopWhen: stepCountIs(remainingSteps),
+        providerOptions: {
+          gateway: { caching: "auto" },
+        },
         prepareStep: async ({ stepNumber }) => {
           // Inject step-limit warning when approaching max steps
           const totalStep = stepCount + stepNumber + 1;

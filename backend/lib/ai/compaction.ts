@@ -267,6 +267,9 @@ async function generateSummary(messages: ModelMessage[]): Promise<string> {
   const result = await generateText({
     model: getModelProvider(COMPACTION_MODEL),
     prompt,
+    providerOptions: {
+      gateway: { caching: "auto" },
+    },
   });
   return result.text;
 }
@@ -300,6 +303,9 @@ export async function compactOversizedMessage(text: string, maxTokens: number): 
       const result = await generateText({
         model: getModelProvider(COMPACTION_MODEL),
         prompt,
+        providerOptions: {
+          gateway: { caching: "auto" },
+        },
       });
       rollingSummary = result.text;
     } catch (err) {
