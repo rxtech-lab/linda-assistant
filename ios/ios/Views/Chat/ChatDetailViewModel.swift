@@ -12,6 +12,12 @@ final class ChatDetailViewModel {
     var error: String?
     var streamHandler: ChatStreamHandler?
     var assigneeName: String?
+    var cachedModels: [LanguageModel] = []
+
+    var selectedModelSupportsImages: Bool {
+        guard let modelId = session?.assignee?.model else { return true }
+        return cachedModels.first(where: { $0.modelId == modelId })?.supportsImages ?? true
+    }
 
     var displayError: String? {
         streamHandler?.error ?? error
@@ -113,6 +119,13 @@ final class ChatDetailViewModel {
 
         do {
             try await fetchSession(id: id, apiClient: apiClient)
+
+            // Fetch models separately — don't let it block session loading
+            do {
+                cachedModels = try await apiClient.listModels()
+            } catch {
+                logger.error("Failed to load models: \(error)")
+            }
         } catch is CancellationError {
             return
         } catch let urlError as URLError where urlError.code == .cancelled {
@@ -186,23 +199,44 @@ final class ChatDetailViewModel {
         }
     }
 
-    func sendMessage(_ content: String, sessionId: String) async {
+    func sendMessage(_ content: String, sessionId: String, attachments: [MessageAttachment]? = nil) async {
         guard let streamHandler else {
             logger.warning("sendMessage: streamHandler is nil")
             return
         }
 
-        logger.info("sendMessage: \(content.prefix(50)), isConnected=\(streamHandler.isConnected)")
+        logger
+            .info(
+                "sendMessage: \(content.prefix(50)), attachments=\(attachments?.count ?? 0), isConnected=\(streamHandler.isConnected)"
+            )
 
         let tempId = "user-\(UUID().uuidString)"
+        var messageParts: [MessagePart] = []
+        // Add attachment parts first (shown above text bubble)
+        if let attachments {
+            for att in attachments {
+                messageParts.append(.attachment(AttachmentInfo(
+                    url: att.url,
+                    isImage: att.type == "image",
+                    mimeType: att.mimeType
+                )))
+            }
+        }
+        if !content.isEmpty {
+            messageParts.append(.text(.plain(content)))
+        }
         let userMsg = DisplayMessage(
             id: tempId,
             role: .user,
-            parts: [.text(.plain(content))]
+            parts: messageParts.isEmpty ? [.text(.plain(" "))] : messageParts
         )
         displayMessages.append(userMsg)
 
-        let messageId = await streamHandler.sendMessage(sessionId: sessionId, content: content)
+        let messageId = await streamHandler.sendMessage(
+            sessionId: sessionId,
+            content: content.isEmpty ? " " : content,
+            attachments: attachments
+        )
         // Update local message ID to backend ID for dedup when SSE event arrives
         if let messageId, let idx = displayMessages.firstIndex(where: { $0.id == tempId }) {
             displayMessages[idx] = DisplayMessage(

@@ -152,6 +152,27 @@ jobs:
             sleep 2
           done
 
+      - name: Start MinIO
+        if: inputs.start-backend
+        run: |
+          brew install minio/stable/minio
+          export MINIO_ROOT_USER=minioadmin
+          export MINIO_ROOT_PASSWORD=minioadmin
+          mkdir -p /tmp/minio-data
+          minio server /tmp/minio-data --address :9000 &
+          echo "Waiting for MinIO..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:9000/minio/health/live >/dev/null 2>&1; then
+              echo "MinIO is ready"
+              break
+            fi
+            sleep 2
+          done
+          # Create the e2e-test bucket
+          brew install minio/stable/mc
+          mc alias set local http://localhost:9000 minioadmin minioadmin
+          mc mb local/e2e-test --ignore-existing
+
       - name: Start Backend Server
         if: inputs.start-backend
         run: bun dev:e2e > ../backend.log 2>&1 &

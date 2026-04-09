@@ -15,7 +15,7 @@ public extension APIClient {
 
     // MARK: - Models
 
-    func listModels() async throws -> [String] {
+    func listModels() async throws -> [LanguageModel] {
         try await request(path: "models")
     }
 
@@ -527,6 +527,18 @@ public extension APIClient {
 
     func createPresignedURL(_ body: PresignedURLRequest) async throws -> PresignedURLResponse {
         try await request(path: "uploads/presigned-url", method: "POST", body: body)
+    }
+
+    func getUploadConfig() async throws -> UploadConfig {
+        try await request(path: "uploads/config", method: "GET")
+    }
+
+    func deleteUploadObject(key: String) async throws {
+        let _: [String: Bool] = try await request(
+            path: "uploads/objects",
+            method: "DELETE",
+            body: DeleteUploadObjectRequest(key: key)
+        )
     }
 
     // MARK: - History

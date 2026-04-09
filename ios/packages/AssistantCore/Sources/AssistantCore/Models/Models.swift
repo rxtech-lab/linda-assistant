@@ -1,5 +1,24 @@
 import Foundation
 
+// MARK: - LanguageModel
+
+public struct LanguageModel: Codable, Sendable, Identifiable, Hashable {
+    public var id: String { modelId }
+    public let provider: String
+    public let modelId: String
+    public let supportedFeatures: [String]
+
+    public var supportsImages: Bool {
+        supportedFeatures.contains("image")
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case provider
+        case modelId
+        case supportedFeatures = "supported_features"
+    }
+}
+
 // MARK: - Assignee
 
 public struct Assignee: Codable, Identifiable, Sendable {
@@ -111,7 +130,7 @@ public struct ToolParameter: Codable, Sendable, Hashable {
 
 public struct AssigneeFormSchema: Codable, Sendable {
     public let assignee: Assignee?
-    public let models: [String]
+    public let models: [LanguageModel]
     public let tools: [AgentTool]
 }
 
@@ -530,6 +549,7 @@ public typealias BriefingListResponse = PaginatedResponse<BriefingSection>
 public struct AssigneeRef: Codable, Sendable {
     public let id: String
     public let name: String
+    public let model: String?
 }
 
 public struct ChatSession: Codable, Identifiable, Sendable {
@@ -586,17 +606,59 @@ public struct CreateChatSession: Codable, Sendable {
     }
 }
 
+public struct MessageAttachment: Codable, Sendable {
+    public let type: String // "image" or "file"
+    public let url: String
+    public let key: String?
+    public let name: String?
+    public let mimeType: String?
+
+    public init(type: String, url: String, key: String? = nil, name: String? = nil, mimeType: String? = nil) {
+        self.type = type
+        self.url = url
+        self.key = key
+        self.name = name
+        self.mimeType = mimeType
+    }
+}
+
 public struct SendMessage: Codable, Sendable {
     public let content: String
     public let deviceToken: String?
+    public let attachments: [MessageAttachment]?
 
-    public init(content: String, deviceToken: String? = nil) {
+    public init(content: String, deviceToken: String? = nil, attachments: [MessageAttachment]? = nil) {
         self.content = content
         self.deviceToken = deviceToken
+        self.attachments = attachments
+    }
+}
+
+public struct UploadConfig: Codable, Sendable {
+    public let maxSizeBytes: Int
+    public let acceptedExtensions: [String]
+    public let acceptedMimeTypes: [String]
+}
+
+public struct DeleteUploadObjectRequest: Codable, Sendable {
+    public let key: String
+
+    public init(key: String) {
+        self.key = key
     }
 }
 
 // MARK: - Chat Message (from backend JSON messages array)
+
+public struct ChatMessageAttachment: Sendable {
+    public let type: ChatMessageAttachmentType
+    public let url: String
+
+    public enum ChatMessageAttachmentType: Sendable {
+        case image
+        case file(mimeType: String?)
+    }
+}
 
 public struct ChatMessage: Codable, Sendable, Identifiable {
     public let id: String
@@ -608,6 +670,8 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
     public let toolResultStatuses: [String: String]
     /// Maps toolCallId → tool result output (from tool-result content parts)
     public let toolResultOutputs: [String: AnyCodable]
+    /// Image and file attachments from user messages
+    public let attachments: [ChatMessageAttachment]
 
     /// Backwards-compatible: returns textContent
     public var content: String? {
@@ -630,8 +694,27 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
             reasoningParts = []
             toolResultStatuses = [:]
             toolResultOutputs = [:]
+            attachments = []
         } else if let parts = try? container.decode([ContentPart].self, forKey: .content) {
-            let textParts = parts.compactMap { $0.type != "tool-call" && $0.type != "reasoning" ? $0.text : nil }
+            // Extract image and file attachments
+            var parsedAttachments: [ChatMessageAttachment] = []
+            for part in parts {
+                if part.type == "image", let imageUrl = part.image {
+                    parsedAttachments.append(ChatMessageAttachment(type: .image, url: imageUrl))
+                } else if part.type == "file", let fileUrl = part.data {
+                    parsedAttachments.append(ChatMessageAttachment(type: .file(mimeType: part.resolvedMimeType), url: fileUrl))
+                }
+            }
+            attachments = parsedAttachments
+
+            let textParts = parts
+                .compactMap {
+                    guard $0.type != "tool-call" && $0.type != "reasoning" && $0.type != "image" && $0.type != "file",
+                          let text = $0.text else { return nil as String? }
+                    // Filter out attachment hint text injected by the backend
+                    if text.hasPrefix("[Attached ") && text.hasSuffix("]") { return nil }
+                    return text
+                }
             textContent = textParts.isEmpty ? nil : textParts.joined(separator: "\n")
             reasoningParts = parts.compactMap { $0.type == "reasoning" ? $0.text : nil }
             toolCalls = parts.compactMap { part -> ChatToolCall? in
@@ -667,6 +750,7 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
             reasoningParts = []
             toolResultStatuses = [:]
             toolResultOutputs = [:]
+            attachments = []
         }
     }
 
@@ -722,6 +806,14 @@ private struct ContentPart: Codable {
     let approveStatus: String?
     let error: String?
     let isAutoConfirm: Bool?
+    // Image/file attachment fields
+    let image: String? // URL string for image type parts
+    let data: String? // URL string for file type parts
+    let mimeType: String? // legacy field name
+    let mediaType: String? // AI SDK v6 field name
+
+    /// Resolved MIME type (prefers mediaType over mimeType for backwards compat)
+    var resolvedMimeType: String? { mediaType ?? mimeType }
 }
 
 // MARK: - Chat Messages Response (assignee-scoped)
@@ -1004,16 +1096,19 @@ public struct AgentTool: Codable, Sendable, Identifiable {
 public struct PresignedURLRequest: Codable, Sendable {
     public let contentType: String
     public let prefix: String?
+    public let `extension`: String?
 
-    public init(contentType: String, prefix: String? = nil) {
+    public init(contentType: String, prefix: String? = nil, extension ext: String? = nil) {
         self.contentType = contentType
         self.prefix = prefix
+        self.extension = ext
     }
 }
 
 public struct PresignedURLResponse: Codable, Sendable {
     public let url: String
     public let key: String
+    public let publicUrl: String
 }
 
 // MARK: - Usage

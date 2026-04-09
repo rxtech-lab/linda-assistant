@@ -66,7 +66,7 @@ struct UsageView: View {
                         VStack(spacing: 8) {
                             if let selectedLabel,
                                let entry = usage.daily
-                                .first(where: { formatChartLabel($0.date) == selectedLabel })
+                               .first(where: { formatChartLabel($0.date) == selectedLabel })
                             {
                                 HStack(spacing: 8) {
                                     Text(selectedLabel)

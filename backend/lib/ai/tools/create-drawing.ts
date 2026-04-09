@@ -25,6 +25,12 @@ Chart description: ${description}
    - Axis labels: fontsize=12, color='#374151'
    - Tick labels: fontsize=10, color='#6B7280'
    - Use plt.rcParams['font.family'] = 'sans-serif'
+   - **CJK text support**: If any labels, title, or data contain Chinese/Japanese/Korean characters, add BEFORE any plotting:
+     \`\`\`python
+     import matplotlib
+     matplotlib.rcParams['font.sans-serif'] = ['Noto Sans CJK SC', 'WenQuanYi Zen Hei', 'sans-serif']
+     matplotlib.rcParams['axes.unicode_minus'] = False
+     \`\`\`
 
 4. **Layout**:
    - Figure size: at least (10, 6) for most charts, (8, 8) for pie charts
@@ -71,7 +77,7 @@ async function createChart(data: unknown, chartDescription: string): Promise<str
   console.log("[createChart] Sandbox created successfully");
 
   try {
-    // Install matplotlib
+    // Install matplotlib and CJK font support
     console.log("[createChart] Installing matplotlib...");
     const installResult = await sandbox.runCommand("pip", ["install", "matplotlib"]);
     if (installResult.exitCode !== 0) {
@@ -81,10 +87,43 @@ async function createChart(data: unknown, chartDescription: string): Promise<str
     }
     console.log("[createChart] matplotlib installed");
 
+    // Install CJK fonts for Chinese/Japanese/Korean text support
+    console.log("[createChart] Installing CJK fonts...");
+    const fontInstall = await sandbox.runCommand("apt-get", [
+      "install",
+      "-y",
+      "-qq",
+      "fonts-noto-cjk",
+    ]);
+    if (fontInstall.exitCode !== 0) {
+      // Try alternative package name
+      const altInstall = await sandbox.runCommand("apt-get", [
+        "install",
+        "-y",
+        "-qq",
+        "fonts-wqy-zenhei",
+      ]);
+      if (altInstall.exitCode !== 0) {
+        console.warn("[createChart] CJK font install failed — Chinese text may not render");
+      }
+    }
+    // Clear matplotlib font cache so it picks up the new fonts
+    const clearCache = await sandbox.runCommand("python", [
+      "-c",
+      "import matplotlib; import shutil; shutil.rmtree(matplotlib.get_cachedir(), ignore_errors=True)",
+    ]);
+    if (clearCache.exitCode !== 0) {
+      console.warn("[createChart] Failed to clear matplotlib font cache");
+    }
+    console.log("[createChart] CJK fonts installed");
+
     const agent = new ToolLoopAgent({
       model: getModelProvider(CHART_GENERATION_MODEL),
       instructions: prompt(chartDescription),
       stopWhen: hasToolCall("exportImage"),
+      providerOptions: {
+        gateway: { caching: "auto" },
+      },
       tools: {
         runPython: tool({
           description: "Execute Python code in a sandboxed environment",

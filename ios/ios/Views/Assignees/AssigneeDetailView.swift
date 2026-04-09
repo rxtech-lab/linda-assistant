@@ -25,7 +25,8 @@ struct AssigneeDetailView: View {
             } else if let assignee = viewModel.assignee {
                 AssigneeDetailContentView(
                     assignee: assignee,
-                    tools: viewModel.tools
+                    tools: viewModel.tools,
+                    languageModel: viewModel.assigneeModel
                 ) { toolName, newPermission in
                     Task {
                         await viewModel.updateToolPermission(
@@ -114,6 +115,7 @@ struct AssigneeDetailView: View {
 struct AssigneeDetailContentView: View {
     let assignee: Assignee
     var tools: [AgentTool] = []
+    var languageModel: LanguageModel?
     var onPermissionChange: ((String, String) -> Void)?
     var onConditionsChange: ((String, [ToolCondition]) -> Void)?
     var onConditionLogicChange: ((String, String) -> Void)?
@@ -126,7 +128,7 @@ struct AssigneeDetailContentView: View {
         List {
             // Header card section
             Section {
-                AssigneeHeaderCard(assignee: assignee)
+                AssigneeHeaderCard(assignee: assignee, languageModel: languageModel)
             }
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
@@ -183,6 +185,7 @@ struct AssigneeDetailContentView: View {
 
 private struct AssigneeHeaderCard: View {
     let assignee: Assignee
+    var languageModel: LanguageModel?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -225,6 +228,25 @@ private struct AssigneeHeaderCard: View {
                 .padding(.vertical, 6)
                 .background(.fill.tertiary)
                 .clipShape(Capsule())
+            }
+
+            // Capability badges
+            if let lm = languageModel {
+                HStack(spacing: 8) {
+                    ForEach(lm.supportedFeatures, id: \.self) { feature in
+                        HStack(spacing: 4) {
+                            Image(systemName: feature == "image" ? "photo" : "text.quote")
+                                .font(.caption2)
+                            Text(feature.capitalized)
+                                .font(.caption2.weight(.medium))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(feature == "image" ? Color.blue.opacity(0.1) : Color.green.opacity(0.1))
+                        .foregroundStyle(feature == "image" ? .blue : .green)
+                        .clipShape(Capsule())
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity)

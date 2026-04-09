@@ -43,8 +43,8 @@ struct OnboardingView: View {
             if !viewModel.availableModels.isEmpty {
                 Section("Model") {
                     Picker("Model", selection: $viewModel.selectedModel) {
-                        ForEach(viewModel.availableModels, id: \.self) { model in
-                            Text(model).tag(model)
+                        ForEach(viewModel.availableModels) { model in
+                            Text(model.modelId).tag(model.modelId)
                         }
                     }
                 }

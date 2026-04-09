@@ -5,6 +5,12 @@ import SwiftUI
 final class AssigneeDetailViewModel {
     var assignee: Assignee?
     var tools: [AgentTool] = []
+    var models: [LanguageModel] = []
+
+    var assigneeModel: LanguageModel? {
+        guard let modelId = assignee?.model else { return nil }
+        return models.first(where: { $0.modelId == modelId })
+    }
     var isLoading = true
     var isRefreshing = false
     var error: String?
@@ -23,6 +29,7 @@ final class AssigneeDetailViewModel {
             let (assignee, schema) = try await (assigneeReq, schemaReq)
             self.assignee = assignee
             tools = schema.tools
+            models = schema.models
         } catch {
             self.error = error.localizedDescription
         }

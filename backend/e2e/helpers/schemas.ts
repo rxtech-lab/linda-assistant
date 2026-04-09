@@ -92,7 +92,13 @@ export const toolsResponseSchema = z.array(
 );
 
 // Models
-export const modelsResponseSchema = z.array(z.string());
+export const modelsResponseSchema = z.array(
+  z.object({
+    provider: z.string(),
+    modelId: z.string(),
+    supported_features: z.array(z.string()),
+  }),
+);
 
 // Confirmations
 export const confirmationListResponseSchema = z.array(selectConfirmationSchema);

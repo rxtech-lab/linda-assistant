@@ -23,14 +23,15 @@ struct ChatDetailView: View {
             streamHandler: viewModel.streamHandler,
             displayError: viewModel.displayError,
             onClearError: { viewModel.clearError() },
-            onSend: { text in
+            onSend: { text, attachments in
                 Task {
-                    await viewModel.sendMessage(text, sessionId: sessionId)
+                    await viewModel.sendMessage(text, sessionId: sessionId, attachments: attachments)
                 }
             },
             onStop: {
                 Task { await viewModel.stopStream(sessionId: sessionId) }
-            }
+            },
+            supportsImages: viewModel.selectedModelSupportsImages
         )
         .navigationTitle(viewModel.session?.title ?? "Chat")
         #if os(iOS)

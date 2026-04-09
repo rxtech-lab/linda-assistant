@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth/middleware";
 import { presignedUrlSchema, presignedUrlResponseSchema } from "@/lib/schemas";
-import { getPresignedUploadUrl } from "@/lib/s3";
+import { getPresignedUploadUrl, getS3PublicUrl } from "@/lib/s3";
 import { successJson, errorJson } from "@/lib/utils/response";
 
 /**
@@ -18,7 +18,11 @@ export async function POST(request: NextRequest) {
   const parsed = presignedUrlSchema.safeParse(body);
   if (!parsed.success) return errorJson(parsed.error.message, 422);
 
-  const result = await getPresignedUploadUrl(parsed.data.contentType, parsed.data.prefix);
+  const result = await getPresignedUploadUrl(
+    parsed.data.contentType,
+    parsed.data.prefix,
+    parsed.data.extension,
+  );
 
-  return successJson(result);
+  return successJson({ ...result, publicUrl: getS3PublicUrl(result.key) });
 }

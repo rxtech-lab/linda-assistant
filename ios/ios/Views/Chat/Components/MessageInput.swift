@@ -1,3 +1,4 @@
+import AssistantCore
 import SwiftUI
 #if canImport(AppKit)
     import AppKit
@@ -6,25 +7,40 @@ import SwiftUI
 struct MessageInput: View {
     @Binding var text: String
     var isStreaming: Bool
+    var uploadManager: FileUploadManager
     var onSend: (String) -> Void
     var onStop: () -> Void
+    var onPickPhotos: () -> Void
+    var onPickFiles: () -> Void
+    var onShowUploads: () -> Void
+    var supportsImages: Bool = true
 
     @State private var borderAnimationProgress: CGFloat = 0
     @State private var shimmerOffset: CGFloat = -1
     @FocusState private var isInputFocused: Bool
 
     private var isSendDisabled: Bool {
-        text.trimmingCharacters(in: .whitespaces).isEmpty || isStreaming
+        let hasText = !text.trimmingCharacters(in: .whitespaces).isEmpty
+        let hasAttachments = uploadManager.hasFiles
+        let uploadsReady = uploadManager.allUploadsComplete
+        if isStreaming { return true }
+        if !hasText, !hasAttachments { return true }
+        if hasAttachments, !uploadsReady { return true }
+        return false
     }
 
     private func sendIfPossible() {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty, !isStreaming else { return }
+        guard !isSendDisabled else { return }
+        // Allow sending with just attachments and no text
+        let hasText = !trimmed.isEmpty
+        let hasAttachments = uploadManager.hasFiles
+        guard hasText || hasAttachments else { return }
         #if os(iOS)
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #endif
         text = ""
-        onSend(trimmed)
+        onSend(hasText ? trimmed : "")
     }
 
     /// Colors for the animated border gradient - subtle warm tones
@@ -40,43 +56,55 @@ struct MessageInput: View {
     ]
 
     var body: some View {
-        HStack(spacing: 10) {
-            inputField
-                .frame(maxWidth: .infinity)
+        VStack(spacing: 6) {
+            // Upload banner
+            if uploadManager.hasFiles {
+                uploadBanner
+            }
 
-            // Send / Stop button on the right
-            if isStreaming {
-                Button {
-                    onStop()
-                } label: {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color(red: 0.9, green: 0.4, blue: 0.4))
-                        .frame(width: 36, height: 36)
-                        .contentShape(Circle())
-                        .glassEffect(
-                            .regular.tint(Color(red: 0.95, green: 0.6, blue: 0.6).opacity(0.3)).interactive(),
-                            in: .circle
-                        )
+            HStack(spacing: 8) {
+                // Plus button (left)
+                if !isStreaming {
+                    plusButton
                 }
-                .buttonStyle(.plain)
-                .contentShape(Circle())
-                .accessibilityIdentifier("stop-button")
-            } else {
-                Button {
-                    sendIfPossible()
-                } label: {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .frame(width: 36, height: 36)
-                        .contentShape(Circle())
-                        .glassEffect(.regular.interactive(), in: .circle)
+
+                inputField
+                    .frame(maxWidth: .infinity)
+
+                // Send / Stop button on the right
+                if isStreaming {
+                    Button {
+                        onStop()
+                    } label: {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color(red: 0.9, green: 0.4, blue: 0.4))
+                            .frame(width: 36, height: 36)
+                            .contentShape(Circle())
+                            .glassEffect(
+                                .regular.tint(Color(red: 0.95, green: 0.6, blue: 0.6).opacity(0.3)).interactive(),
+                                in: .circle
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Circle())
+                    .accessibilityIdentifier("stop-button")
+                } else {
+                    Button {
+                        sendIfPossible()
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .frame(width: 36, height: 36)
+                            .contentShape(Circle())
+                            .glassEffect(.regular.interactive(), in: .circle)
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Circle())
+                    .accessibilityIdentifier("send-button")
+                    .disabled(isSendDisabled)
                 }
-                .buttonStyle(.plain)
-                .contentShape(Circle())
-                .accessibilityIdentifier("send-button")
-                .disabled(isSendDisabled)
             }
         }
         .padding(.horizontal)
@@ -102,6 +130,80 @@ struct MessageInput: View {
                 }
             }
     }
+
+    // MARK: - Plus Button
+
+    private var plusButton: some View {
+        Menu {
+            if supportsImages {
+                Button {
+                    onPickPhotos()
+                } label: {
+                    Label("Photos", systemImage: "photo.on.rectangle")
+                }
+            }
+
+            Button {
+                onPickFiles()
+            } label: {
+                Label("Files", systemImage: "doc.fill")
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 36, height: 36)
+                .contentShape(Circle())
+                .glassEffect(.regular.interactive(), in: .circle)
+        }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
+        .accessibilityIdentifier("attach-button")
+    }
+
+    // MARK: - Upload Banner
+
+    private var uploadBanner: some View {
+        Button {
+            onShowUploads()
+        } label: {
+            HStack(spacing: 8) {
+                if uploadManager.isUploading {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Uploading \(uploadManager.fileCount) file\(uploadManager.fileCount == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if uploadManager.failedCount > 0 {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Text("\(uploadManager.failedCount) failed")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                } else {
+                    Image(systemName: "paperclip")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\(uploadManager.fileCount) file\(uploadManager.fileCount == 1 ? "" : "s") attached")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("Show")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.blue)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .accessibilityIdentifier("upload-banner")
+    }
+
+    // MARK: - Input Field
 
     private var inputField: some View {
         Group {
@@ -226,24 +328,4 @@ struct MessageInput: View {
             shimmerOffset = 2
         }
     }
-}
-
-private struct MessageInputPreview: View {
-    @State private var text = ""
-    var isStreaming = false
-
-    var body: some View {
-        VStack {
-            Spacer()
-            MessageInput(text: $text, isStreaming: isStreaming) { _ in } onStop: {}
-        }
-    }
-}
-
-#Preview("Message Input - Empty") {
-    MessageInputPreview()
-}
-
-#Preview("Message Input - Disabled (Streaming)") {
-    MessageInputPreview(isStreaming: true)
 }

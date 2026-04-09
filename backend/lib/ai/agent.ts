@@ -250,6 +250,32 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
         delete cleaned.isError;
       }
 
+      // Convert image URL strings back to URL objects (required by AI SDK ImagePart)
+      // In E2E mode, use a stub Uint8Array to avoid AI SDK downloading from localhost
+      if (cleaned.type === "image" && typeof cleaned.image === "string") {
+        console.log(`[agent] Converting image string to URL: ${cleaned.image}`);
+        if (process.env.IS_E2E) {
+          cleaned.image = new Uint8Array([0x89, 0x50, 0x4e, 0x47]); // PNG stub
+        } else {
+          cleaned.image = new URL(cleaned.image);
+        }
+      }
+
+      // Convert file data strings back to URL objects and normalize field name (required by AI SDK FilePart)
+      // In E2E mode, use a stub Uint8Array to avoid AI SDK downloading from localhost
+      if (cleaned.type === "file" && typeof cleaned.data === "string") {
+        if (process.env.IS_E2E) {
+          cleaned.data = new Uint8Array([0x00]);
+        } else {
+          cleaned.data = new URL(cleaned.data);
+        }
+        // Normalize mimeType → mediaType (AI SDK v6 uses mediaType)
+        if (!cleaned.mediaType && cleaned.mimeType) {
+          cleaned.mediaType = cleaned.mimeType;
+          delete cleaned.mimeType;
+        }
+      }
+
       cleanedParts.push(cleaned);
     }
 
@@ -1163,6 +1189,9 @@ export async function runAgent(options: AgentRunOptions) {
         tools: tools as Parameters<typeof streamText>[0]["tools"],
         abortSignal: signal,
         stopWhen: stepCountIs(remainingSteps),
+        providerOptions: {
+          gateway: { caching: "auto" },
+        },
         prepareStep: async ({ stepNumber }) => {
           // Inject step-limit warning when approaching max steps
           const totalStep = stepCount + stepNumber + 1;

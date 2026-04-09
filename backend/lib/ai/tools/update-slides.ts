@@ -113,6 +113,9 @@ async function generateSingleSlide(
     model: getModelProvider(SLIDE_GENERATION_MODEL),
     instructions: SINGLE_SLIDE_PROMPT,
     stopWhen: hasToolCall("finalize"),
+    providerOptions: {
+      gateway: { caching: "auto" },
+    },
     tools: {
       [GENERATE_IMAGE_TOOL_NAME]: wrappedImageTool,
       submitSlide: tool({

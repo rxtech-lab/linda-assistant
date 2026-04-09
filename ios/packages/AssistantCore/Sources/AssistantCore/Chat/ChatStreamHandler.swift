@@ -94,7 +94,11 @@ public final class ChatStreamHandler: @unchecked Sendable {
     }
 
     @discardableResult
-    public func sendChatMessage(assigneeId: String, content: String) async -> String? {
+    public func sendChatMessage(
+        assigneeId: String,
+        content: String,
+        attachments: [MessageAttachment]? = nil
+    ) async -> String? {
         logger.info("sendChatMessage: assigneeId=\(assigneeId), isConnected=\(self.isConnected)")
         hasReceivedDone = false
         await MainActor.run {
@@ -114,7 +118,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
         do {
             let response = try await apiClient.sendChatMessage(
                 assigneeId: assigneeId,
-                SendMessage(content: content, deviceToken: deviceToken)
+                SendMessage(content: content, deviceToken: deviceToken, attachments: attachments)
             )
             logger.info("sendChatMessage: API call succeeded")
             return response.messageId
@@ -189,7 +193,11 @@ public final class ChatStreamHandler: @unchecked Sendable {
     }
 
     @discardableResult
-    public func sendMessage(sessionId: String, content: String) async -> String? {
+    public func sendMessage(
+        sessionId: String,
+        content: String,
+        attachments: [MessageAttachment]? = nil
+    ) async -> String? {
         logger.info("sendMessage: sessionId=\(sessionId), isConnected=\(self.isConnected)")
         hasReceivedDone = false
         // Reset per-run state on MainActor so @Observable triggers SwiftUI updates
@@ -210,7 +218,7 @@ public final class ChatStreamHandler: @unchecked Sendable {
         do {
             let response = try await apiClient.sendMessage(
                 sessionId: sessionId,
-                SendMessage(content: content, deviceToken: deviceToken)
+                SendMessage(content: content, deviceToken: deviceToken, attachments: attachments)
             )
             logger.info("sendMessage: API call succeeded")
             return response.messageId
@@ -829,6 +837,19 @@ public enum MessagePart: Sendable {
     case text(TextPartContent)
     case tool(ToolCallInfo)
     case thinking(ThinkingInfo)
+    case attachment(AttachmentInfo)
+}
+
+public struct AttachmentInfo: Sendable {
+    public let url: String
+    public let isImage: Bool
+    public let mimeType: String?
+
+    public init(url: String, isImage: Bool, mimeType: String? = nil) {
+        self.url = url
+        self.isImage = isImage
+        self.mimeType = mimeType
+    }
 }
 
 // MARK: - Thinking Info

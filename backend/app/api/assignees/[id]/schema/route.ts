@@ -1,6 +1,6 @@
 import { authenticate } from "@/lib/auth/middleware";
 import { buildToolSet, extractParameters, NO_PERMISSION_CHANGE_TOOLS } from "@/lib/ai/tools";
-import { AVAILABLE_MODEL_IDS } from "@/lib/ai/models";
+import { AVAILABLE_MODELS } from "@/lib/ai/models";
 import { db } from "@/lib/db";
 import { assignees } from "@/lib/db/schema";
 import { errorJson } from "@/lib/utils/response";
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   return NextResponse.json({
     assignee: { ...item, toolPermissions },
-    models: [...AVAILABLE_MODEL_IDS],
+    models: [...AVAILABLE_MODELS],
     tools: toolsList,
   });
 }

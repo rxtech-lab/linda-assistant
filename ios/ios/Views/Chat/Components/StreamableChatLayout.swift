@@ -1,6 +1,8 @@
 import AssistantCore
 import os
+import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 private let logger = Logger(subsystem: "lindaAssistant", category: "StreamableChatLayout")
 
@@ -11,8 +13,9 @@ struct StreamableChatLayout<Header: View>: View {
     let streamHandler: ChatStreamHandler?
     let displayError: String?
     let onClearError: () -> Void
-    let onSend: (String) -> Void
+    let onSend: (String, [MessageAttachment]?) -> Void
     let onStop: () -> Void
+    var supportsImages: Bool = true
     @ViewBuilder let header: () -> Header
 
     @Environment(AuthManager.self) private var authManager
@@ -27,6 +30,13 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var selectedDocumentItem: DocumentSheetItem?
     @State private var selectedBriefingId: String?
     @State private var selectedSlideDeckId: String?
+
+    // Upload state
+    @State private var uploadManager = FileUploadManager()
+    @State private var showUploadSheet = false
+    @State private var showDocumentPicker = false
+    @State private var showPhotoPicker = false
+    @State private var photoSelection: [PhotosPickerItem] = []
 
     private var selectedSlideDeckPresented: Binding<Bool> {
         Binding(
@@ -474,13 +484,28 @@ struct StreamableChatLayout<Header: View>: View {
                 HStack {
                     MessageInput(
                         text: $messageText,
-                        isStreaming: streamHandler?.isStreaming == true
-                    ) { text in
-                        isAtBottom = true
-                        onSend(text)
-                    } onStop: {
-                        onStop()
-                    }
+                        isStreaming: streamHandler?.isStreaming == true,
+                        uploadManager: uploadManager,
+                        onSend: { text in
+                            isAtBottom = true
+                            let attachments = uploadManager.buildAttachments()
+                            uploadManager.reset()
+                            onSend(text, attachments)
+                        },
+                        onStop: {
+                            onStop()
+                        },
+                        onPickPhotos: {
+                            showPhotoPicker = true
+                        },
+                        onPickFiles: {
+                            showDocumentPicker = true
+                        },
+                        onShowUploads: {
+                            showUploadSheet = true
+                        },
+                        supportsImages: supportsImages
+                    )
                 }
             }
             .allowsHitTesting(true)
@@ -603,6 +628,91 @@ struct StreamableChatLayout<Header: View>: View {
                     }
                 }
         #endif
+                // User upload pickers
+                .photosPicker(
+                    isPresented: $showPhotoPicker,
+                    selection: $photoSelection,
+                    maxSelectionCount: 10,
+                    matching: .images
+                )
+                .onChange(of: photoSelection) {
+                    Task { await handlePhotoSelection() }
+                }
+        #if os(iOS)
+                .sheet(isPresented: $showDocumentPicker) {
+                    DocumentPickerView(
+                        allowedTypes: allowedUTTypes,
+                        allowMultiple: true,
+                        onPick: { urls in
+                            handleDocumentSelection(urls: urls)
+                        }
+                    )
+                }
+        #endif
+                .sheet(isPresented: $showUploadSheet) {
+                    UserUploadSheetView(uploadManager: uploadManager)
+                }
+                .onAppear {
+                    uploadManager.configure(apiClient: apiClient)
+                }
+                .onChange(of: authManager.accessToken) {
+                    uploadManager.configure(apiClient: apiClient)
+                }
+    }
+
+    // MARK: - File Handling
+
+    private var allowedUTTypes: [UTType] {
+        [
+            .jpeg, .png, .gif, .heic, .heif,
+            UTType("org.webmproject.webp") ?? .image,
+            .commaSeparatedText,
+            .spreadsheet,
+            UTType("org.openxmlformats.spreadsheetml.sheet") ?? .data,
+            UTType("com.microsoft.word.doc") ?? .data,
+            UTType("org.openxmlformats.wordprocessingml.document") ?? .data,
+            .plainText,
+            UTType("net.daringfireball.markdown") ?? .plainText,
+        ]
+    }
+
+    private func handlePhotoSelection() async {
+        var files: [SelectedUploadFile] = []
+        for item in photoSelection {
+            if let data = try? await item.loadTransferable(type: Data.self) {
+                files.append(SelectedUploadFile(
+                    name: "photo_\(Int(Date().timeIntervalSince1970)).jpg",
+                    extension_: "jpg",
+                    data: data,
+                    mimeType: "image/jpeg"
+                ))
+            }
+        }
+        await MainActor.run {
+            photoSelection = []
+            if !files.isEmpty {
+                uploadManager.addFiles(files)
+            }
+        }
+    }
+
+    private func handleDocumentSelection(urls: [URL]) {
+        var files: [SelectedUploadFile] = []
+        for url in urls {
+            let ext = url.pathExtension.lowercased()
+            guard url.startAccessingSecurityScopedResource() else { continue }
+            defer { url.stopAccessingSecurityScopedResource() }
+            if let data = try? Data(contentsOf: url) {
+                files.append(SelectedUploadFile(
+                    name: url.lastPathComponent,
+                    extension_: ext,
+                    data: data
+                ))
+            }
+        }
+        if !files.isEmpty {
+            uploadManager.addFiles(files)
+        }
     }
 }
 
@@ -770,8 +880,9 @@ extension StreamableChatLayout where Header == EmptyView {
         streamHandler: ChatStreamHandler?,
         displayError: String?,
         onClearError: @escaping () -> Void,
-        onSend: @escaping (String) -> Void,
-        onStop: @escaping () -> Void
+        onSend: @escaping (String, [MessageAttachment]?) -> Void,
+        onStop: @escaping () -> Void,
+        supportsImages: Bool = true
     ) {
         self.messages = messages
         self.assigneeName = assigneeName
@@ -781,6 +892,7 @@ extension StreamableChatLayout where Header == EmptyView {
         self.onClearError = onClearError
         self.onSend = onSend
         self.onStop = onStop
+        self.supportsImages = supportsImages
         header = { EmptyView() }
     }
 }

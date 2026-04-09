@@ -7,7 +7,7 @@ final class OnboardingViewModel {
     var email = ""
     var personality = "You are a helpful personal assistant."
     var selectedModel = ""
-    var availableModels: [String] = []
+    var availableModels: [LanguageModel] = []
     var availableTools: [AgentTool] = []
     var toolPermissions: [String: String] = [:]
     var toolConditions: [String: [ToolCondition]] = [:]
@@ -32,7 +32,7 @@ final class OnboardingViewModel {
             availableModels = models
             availableTools = tools
             if selectedModel.isEmpty, let first = models.first {
-                selectedModel = first
+                selectedModel = first.modelId
             }
             for tool in tools {
                 toolPermissions[tool.name] = tool.defaultPermission

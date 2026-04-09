@@ -28,10 +28,11 @@ struct ChatTabView: View {
                     streamHandler: viewModel.streamHandler,
                     displayError: viewModel.displayError,
                     onClearError: { viewModel.clearError() },
-                    onSend: { text in
+                    onSend: { text, attachments in
                         Task {
                             await viewModel.sendMessage(
                                 text,
+                                attachments: attachments,
                                 apiClient: apiClient,
                                 authManager: authManager,
                                 eventManager: eventManager
@@ -40,7 +41,8 @@ struct ChatTabView: View {
                     },
                     onStop: {
                         Task { await viewModel.stopStream() }
-                    }
+                    },
+                    supportsImages: viewModel.selectedModelSupportsImages
                 ) {
                     // Load more indicator
                     if viewModel.hasMoreMessages {
