@@ -36,6 +36,7 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 30000,
     env: {
+      PORT: "3000",
       IS_E2E: "true",
       TURSO_DATABASE_URL: `file:${dbPath}`,
       RABBITMQ_URL: "amqp://linda:linda@localhost:5672",

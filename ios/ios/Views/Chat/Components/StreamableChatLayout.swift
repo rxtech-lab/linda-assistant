@@ -30,6 +30,7 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var selectedDocumentItem: DocumentSheetItem?
     @State private var selectedBriefingId: String?
     @State private var selectedSlideDeckId: String?
+    @State private var selectedDataSheetId: String?
 
     // Upload state
     @State private var uploadManager = FileUploadManager()
@@ -42,6 +43,13 @@ struct StreamableChatLayout<Header: View>: View {
         Binding(
             get: { selectedSlideDeckId != nil },
             set: { if !$0 { selectedSlideDeckId = nil } }
+        )
+    }
+
+    private var selectedDataSheetPresented: Binding<Bool> {
+        Binding(
+            get: { selectedDataSheetId != nil },
+            set: { if !$0 { selectedDataSheetId = nil } }
         )
     }
 
@@ -193,6 +201,9 @@ struct StreamableChatLayout<Header: View>: View {
                 },
                 onSlideTap: { deckId in
                     selectedSlideDeckId = deckId
+                },
+                onDataSheetTap: { sheetId in
+                    selectedDataSheetId = sheetId
                 }
             )
             .listRowSeparator(.hidden)
@@ -628,6 +639,12 @@ struct StreamableChatLayout<Header: View>: View {
                     }
                 }
         #endif
+                // Data sheet viewer
+                .sheet(isPresented: selectedDataSheetPresented) {
+                    if let sheetId = selectedDataSheetId {
+                        DataSheetViewerSheet(sheetId: sheetId)
+                    }
+                }
                 // User upload pickers
                 .photosPicker(
                     isPresented: $showPhotoPicker,

@@ -18,13 +18,17 @@ export interface ProcessedAttachments {
   systemMessage: { role: "system"; content: string } | null;
 }
 
+/** MIME types the model can handle natively as file content parts. */
+const MODEL_SUPPORTED_FILE_MIMES = new Set(["application/pdf"]);
+
 /**
  * Process user message attachments.
  *
  * - Images become `{ type: "image", image: url }` content parts on the user message.
- * - Files become `{ type: "file", data: url, mimeType }` content parts (persisted in DB
- *   for reload display, and sent to the model via AI SDK FilePart).
- * - A text hint listing attached files is appended so the model is aware.
+ * - PDFs become `{ type: "file", data: url, mediaType }` content parts (model-native).
+ * - All other files become `{ type: "file" }` parts for frontend rendering, but are
+ *   stripped before the model sees them. A text hint with the upload ID and URL tells
+ *   the model to use `read_uploaded_file` to access the content.
  */
 export async function processUserAttachments(
   attachments: Attachment[],
@@ -45,12 +49,54 @@ export async function processUserAttachments(
 
   let systemMessage: ProcessedAttachments["systemMessage"] = null;
 
-  // Files: add as file content parts (persisted in DB for reload) + create upload record
+  // Create upload record for images so read_uploaded_file can access them
+  // (e.g. QR codes, handwritten text, complex diagrams the model can't parse visually)
+  if (imageAttachments.length > 0) {
+    const imageKeys = imageAttachments.map((a) => {
+      if (a.key) return a.key;
+      const url = new URL(a.url);
+      return url.pathname.startsWith("/") ? url.pathname.slice(1) : url.pathname;
+    });
+
+    const imageExts = imageAttachments.map((a) => {
+      const ext = a.name?.split(".").pop() ?? "png";
+      return ext.toLowerCase();
+    });
+
+    const [imageUploadRecord] = await db
+      .insert(uploads)
+      .values({
+        userId,
+        chatSessionId,
+        toolCallId: `user-upload-img-${Date.now()}`,
+        toolName: "user_attachment",
+        approvalId: `user-upload-img-${Date.now()}`,
+        title: "User attached images",
+        numberUploads: imageAttachments.length,
+        extensions: imageExts,
+        urls: [],
+        uploadedKeys: imageKeys,
+        status: "completed",
+        completedAt: sql`(datetime('now'))`,
+      })
+      .returning();
+
+    const imageList = imageAttachments
+      .map((a, i) => `${a.name ?? "image"} (key: ${imageKeys[i]})`)
+      .join(", ");
+
+    userContentParts.push({
+      type: "text",
+      text: `[Attached ${imageAttachments.length} image(s): ${imageList}. If the image contains a QR code, barcode, or content you cannot recognize visually, use read_uploaded_file with uploadId "${imageUploadRecord.id}" or fileKey to extract its content.]`,
+    });
+  }
+
   if (fileAttachments.length > 0) {
-    // Add file parts to user message content (for DB persistence and model access)
+    // Add file parts to user message content (persisted in DB for frontend rendering)
     for (const attachment of fileAttachments) {
       const ext = attachment.name?.split(".").pop()?.toLowerCase() ?? "";
       const mime = attachment.mimeType ?? extensionToMimeType(ext);
+
       userContentParts.push({
         type: "file",
         data: new URL(attachment.url),
@@ -70,7 +116,7 @@ export async function processUserAttachments(
       return ext.toLowerCase();
     });
 
-    await db
+    const [uploadRecord] = await db
       .insert(uploads)
       .values({
         userId,
@@ -88,20 +134,40 @@ export async function processUserAttachments(
       })
       .returning();
 
-    // Add a text hint so the model knows files are attached
-    const fileList = fileAttachments
-      .map((a) => {
-        const name = a.name ?? "unknown file";
-        const ext = name.split(".").pop()?.toLowerCase() ?? "";
-        const mime = a.mimeType ?? extensionToMimeType(ext);
-        return `${name} (${mime})`;
-      })
-      .join(", ");
+    // Build text hints for the model
+    const modelSupported: string[] = [];
+    const toolReadable: string[] = [];
 
-    userContentParts.push({
-      type: "text",
-      text: `[Attached ${fileAttachments.length} file(s): ${fileList}]`,
-    });
+    for (let i = 0; i < fileAttachments.length; i++) {
+      const attachment = fileAttachments[i];
+      const name = attachment.name ?? "unknown file";
+      const ext = name.split(".").pop()?.toLowerCase() ?? "";
+      const mime = attachment.mimeType ?? extensionToMimeType(ext);
+
+      if (MODEL_SUPPORTED_FILE_MIMES.has(mime)) {
+        modelSupported.push(`${name} (${mime})`);
+      } else {
+        toolReadable.push(
+          `${name} (${mime}, key: ${uploadedKeys[i]})`,
+        );
+      }
+    }
+
+    // Hint for model-supported files (PDF) — model sees these as file parts directly
+    if (modelSupported.length > 0) {
+      userContentParts.push({
+        type: "text",
+        text: `[Attached ${modelSupported.length} file(s): ${modelSupported.join(", ")}]`,
+      });
+    }
+
+    // Hint for unsupported files — model should use read_uploaded_file tool
+    if (toolReadable.length > 0) {
+      userContentParts.push({
+        type: "text",
+        text: `[Attached ${toolReadable.length} file(s) that require tool access: ${toolReadable.join(", ")}. Use read_uploaded_file with uploadId "${uploadRecord.id}" or fileKey to read their content.]`,
+      });
+    }
   }
 
   return { userContentParts, systemMessage };
