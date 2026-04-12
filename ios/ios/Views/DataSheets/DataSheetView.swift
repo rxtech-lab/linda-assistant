@@ -243,7 +243,7 @@ struct DataSheetView: View {
 
     // MARK: - Table View
 
-    private let columnWidth: CGFloat = 120
+    private let columnWidth: CGFloat = 140
 
     @ViewBuilder
     private func tableView(columns: [IdentifiableColumn]) -> some View {
@@ -291,6 +291,7 @@ struct DataSheetView: View {
                     }
                 }
             }
+            .padding(.leading, 12)
         }
     }
 

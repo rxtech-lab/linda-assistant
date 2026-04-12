@@ -32,6 +32,7 @@ struct SlideViewerSheet: View {
                     ProgressView("Loading slides...")
                         .tint(.white)
                         .foregroundStyle(.white)
+                        .accessibilityIdentifier("loading-indicator")
                 } else if let error = loadError {
                     VStack(spacing: 16) {
                         Image(systemName: "exclamationmark.triangle")

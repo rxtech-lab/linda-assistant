@@ -24,6 +24,7 @@ struct DocumentViewerSheet: View {
     @State private var shareURL: URL?
     @State private var downloadError: String?
     @State private var selectedSlideDeckId: String?
+    @State private var selectedDataSheetId: String?
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
     }
@@ -59,6 +60,9 @@ struct DocumentViewerSheet: View {
                                     content: document.content,
                                     onOpenSlideDeck: { deckId in
                                         selectedSlideDeckId = deckId
+                                    },
+                                    onOpenDataSheet: { sheetId in
+                                        selectedDataSheetId = sheetId
                                     }
                                 )
                                     .padding()
@@ -135,6 +139,7 @@ struct DocumentViewerSheet: View {
                     }
                 }
                 .slideViewerPresenter(deckId: $selectedSlideDeckId)
+                .dataSheetViewerPresenter(sheetId: $selectedDataSheetId)
         }
         #if os(macOS)
         .frame(minWidth: 700, idealWidth: 800, minHeight: 500, idealHeight: 700)
