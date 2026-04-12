@@ -62,14 +62,16 @@ struct SlideAwareMarkdownView: View {
         VStack(alignment: .leading, spacing: 16) {
             ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
                 switch section {
-                    case let .markdown(text):
-                        Markdown(text)
-                            .markdownTheme(theme)
-                            .tappableMarkdownImages()
-                    case let .slide(deckId):
-                        SlideCarouselView(deckId: deckId, onOpenFullViewer: onOpenSlideDeck)
-                    case let .sheet(sheetId):
-                        DataSheetPreviewCard(sheetId: sheetId, onOpenFullSheet: onOpenDataSheet)
+                case let .markdown(text):
+                    Markdown(text)
+                        .markdownTheme(theme)
+                        .tappableMarkdownImages()
+                case let .slide(deckId):
+                    SlideCarouselView(deckId: deckId, onOpenFullViewer: onOpenSlideDeck)
+                        .id(deckId)
+                case let .sheet(sheetId):
+                    DataSheetPreviewCard(sheetId: sheetId, onOpenFullSheet: onOpenDataSheet)
+                        .id(sheetId)
                 }
             }
         }

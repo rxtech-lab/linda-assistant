@@ -39,13 +39,6 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var showPhotoPicker = false
     @State private var photoSelection: [PhotosPickerItem] = []
 
-    private var selectedSlideDeckPresented: Binding<Bool> {
-        Binding(
-            get: { selectedSlideDeckId != nil },
-            set: { if !$0 { selectedSlideDeckId = nil } }
-        )
-    }
-
     private var selectedDataSheetPresented: Binding<Bool> {
         Binding(
             get: { selectedDataSheetId != nil },
@@ -626,19 +619,7 @@ struct StreamableChatLayout<Header: View>: View {
                 }
             }
         )
-        #if os(macOS)
-        .sheet(isPresented: selectedSlideDeckPresented) {
-            if let deckId = selectedSlideDeckId {
-                SlideViewerSheet(deckId: deckId)
-            }
-        }
-        #else
-        .fullScreenCover(isPresented: selectedSlideDeckPresented) {
-                    if let deckId = selectedSlideDeckId {
-                        SlideViewerSheet(deckId: deckId)
-                    }
-                }
-        #endif
+        .slideViewerPresenter(deckId: $selectedSlideDeckId)
                 // Data sheet viewer
                 .sheet(isPresented: selectedDataSheetPresented) {
                     if let sheetId = selectedDataSheetId {

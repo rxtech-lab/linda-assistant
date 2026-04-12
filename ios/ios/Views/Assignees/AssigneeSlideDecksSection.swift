@@ -38,27 +38,11 @@ struct AssigneeSlideDecksSection: View {
                 await loadSlideDecks()
             }
         } else if !slideDecks.isEmpty {
-            #if os(macOS)
                 slideDecksSection
-                    .sheet(isPresented: selectedDeckBinding) {
-                        if let deckId = selectedDeckId {
-                            SlideViewerSheet(deckId: deckId)
-                        }
-                    }
+                    .slideViewerPresenter(deckId: $selectedDeckId)
                     .sheet(isPresented: $showingAllSlides) {
                         AllSlideDecksSheet(assigneeId: assigneeId)
                     }
-            #else
-                slideDecksSection
-                    .fullScreenCover(isPresented: selectedDeckBinding) {
-                        if let deckId = selectedDeckId {
-                            SlideViewerSheet(deckId: deckId)
-                        }
-                    }
-                    .sheet(isPresented: $showingAllSlides) {
-                        AllSlideDecksSheet(assigneeId: assigneeId)
-                    }
-            #endif
         }
     }
 
@@ -129,13 +113,6 @@ struct AssigneeSlideDecksSection: View {
             }
             .foregroundStyle(.primary)
         }
-    }
-
-    private var selectedDeckBinding: Binding<Bool> {
-        Binding(
-            get: { selectedDeckId != nil },
-            set: { if !$0 { selectedDeckId = nil } }
-        )
     }
 
     private var slidePlaceholder: some View {

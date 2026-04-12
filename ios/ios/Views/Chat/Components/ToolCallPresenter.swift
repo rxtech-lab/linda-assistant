@@ -92,33 +92,13 @@ struct ToolCallPresenter: ViewModifier {
         )
     }
 
-    private var slideToolDeckPresented: Binding<Bool> {
-        Binding(
-            get: { slideToolDeckId.wrappedValue != nil },
-            set: { if !$0 { selectedToolCall = nil } }
-        )
-    }
-
     func body(content: Content) -> some View {
         content
             // Read-only detail sheets (non-slide tools)
             .sheet(item: nonSlideToolCall) { toolCall in
                 sheetContent(for: toolCall)
             }
-        // Slide viewer as fullscreen cover
-        #if os(macOS)
-            .sheet(isPresented: slideToolDeckPresented) {
-                if let deckId = slideToolDeckId.wrappedValue {
-                    SlideViewerSheet(deckId: deckId)
-                }
-            }
-        #else
-            .fullScreenCover(isPresented: slideToolDeckPresented) {
-                    if let deckId = slideToolDeckId.wrappedValue {
-                        SlideViewerSheet(deckId: deckId)
-                    }
-                }
-        #endif
+            .slideViewerPresenter(deckId: slideToolDeckId)
                 // Data sheet viewer as sheet
                 .sheet(isPresented: dataSheetPresented) {
                     if let sheetId = dataSheetId.wrappedValue {
