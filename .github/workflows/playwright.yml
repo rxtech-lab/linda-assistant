@@ -15,7 +15,7 @@ concurrency:
 jobs:
   test:
     timeout-minutes: 20
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./backend
@@ -32,16 +32,28 @@ jobs:
         image: redis
         ports:
           - 6379:6379
-      minio:
-        image: bitnami/minio:latest
-        ports:
-          - "9000:9000"
-          - "9001:9001"
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
     steps:
       - uses: actions/checkout@v6
+
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio \
+            -p 9000:9000 -p 9001:9001 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:latest server /data --console-address :9001
+          for i in {1..30}; do
+            if curl -sf http://localhost:9000/minio/health/live; then
+              echo "MinIO is ready"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "MinIO failed to start"
+              docker logs minio
+              exit 1
+            fi
+            sleep 1
+          done
 
       - uses: oven-sh/setup-bun@v2
         with:
