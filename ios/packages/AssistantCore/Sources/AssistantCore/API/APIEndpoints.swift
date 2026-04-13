@@ -302,6 +302,41 @@ public extension APIClient {
         )
     }
 
+    // MARK: - Data Sheets
+
+    func getDataSheet(id: String) async throws -> DataSheet {
+        try await request(path: "data-sheets/\(id)")
+    }
+
+    func getDataSheetRows(
+        id: String,
+        offset: Int = 0,
+        limit: Int = 50,
+        sort: String? = nil,
+        order: String? = nil,
+        filter: String? = nil
+    ) async throws -> PaginatedResponse<DataSheetRow> {
+        var queryItems = [
+            URLQueryItem(name: "offset", value: "\(offset)"),
+            URLQueryItem(name: "limit", value: "\(limit)"),
+        ]
+        if let sort { queryItems.append(URLQueryItem(name: "sort", value: sort)) }
+        if let order { queryItems.append(URLQueryItem(name: "order", value: order)) }
+        if let filter { queryItems.append(URLQueryItem(name: "filter", value: filter)) }
+        return try await request(path: "data-sheets/\(id)/rows", queryItems: queryItems)
+    }
+
+    func exportDataSheetCSV(id: String) async throws -> Data {
+        try await requestData(
+            path: "data-sheets/\(id)/export",
+            queryItems: [URLQueryItem(name: "format", value: "csv")]
+        )
+    }
+
+    func deleteDataSheet(id: String) async throws {
+        try await requestNoContent(path: "data-sheets/\(id)")
+    }
+
     // MARK: - Briefings
 
     func listBriefings(limit: Int = 20, offset: Int = 0) async throws -> BriefingListResponse {

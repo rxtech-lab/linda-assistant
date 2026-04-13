@@ -23,6 +23,7 @@ import { SEARCH_DOCUMENTS_TOOL_NAME, searchDocumentsTool } from "./search-docume
 import { CREATE_BRIEFING_TOOL_NAME, createBriefingTool } from "./create-briefing";
 import { CREATE_DRAWING_TOOL_NAME, createDrawingTool } from "./create-drawing";
 import { CREATE_SLIDES_TOOL_NAME, createSlidesTool } from "./create-slides";
+import { CREATE_DATA_SHEET_TOOL_NAME, createDataSheetTool } from "./create-data-sheet";
 import { GENERATE_IMAGE_TOOL_NAME, generateImageTool } from "./generate-image";
 import { UPDATE_SLIDES_TOOL_NAME, updateSlidesTool } from "./update-slides";
 import { REQUEST_UPLOAD_TOOL_NAME, requestUploadTool } from "./request-upload";
@@ -54,6 +55,7 @@ export const NO_PERMISSION_CHANGE_TOOLS: ReadonlySet<string> = new Set([
   GENERATE_IMAGE_TOOL_NAME,
   CREATE_SLIDES_TOOL_NAME,
   UPDATE_SLIDES_TOOL_NAME,
+  CREATE_DATA_SHEET_TOOL_NAME,
   SEARCH_HISTORY_TOOL_NAME,
   READ_UPLOADED_FILE_TOOL_NAME,
   SEARCH_TOOLS_TOOL_NAME,
@@ -422,6 +424,11 @@ export async function buildToolSet(
   }
   filtered[UPDATE_SLIDES_TOOL_NAME] = updateSlidesTool(userId);
 
+  // Data sheet tool — never require confirmation
+  if (chatSessionId) {
+    filtered[CREATE_DATA_SHEET_TOOL_NAME] = createDataSheetTool(userId, chatSessionId);
+  }
+
   // Notification tool — never require confirmation
   filtered[SEND_NOTIFICATION_TOOL_NAME] = sendNotificationTool(userId, chatSessionId);
 
@@ -606,6 +613,7 @@ export {
   CREATE_BRIEFING_TOOL_NAME,
   CREATE_DOCUMENT_TOOL_NAME,
   CREATE_DRAWING_TOOL_NAME,
+  CREATE_DATA_SHEET_TOOL_NAME,
   CREATE_SLIDES_TOOL_NAME,
   CREATE_TASK_TOOL_NAME,
   GENERATE_IMAGE_TOOL_NAME,

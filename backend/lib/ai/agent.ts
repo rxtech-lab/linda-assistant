@@ -1,6 +1,6 @@
 import { type ModelMessage, stepCountIs, streamText } from "ai";
 import crypto from "crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { refreshAccessToken } from "@/lib/auth/refresh";
 import { db } from "@/lib/db";
 import {
@@ -14,9 +14,12 @@ import {
   assignees,
   chatSessions,
   confirmations,
+  documents,
   emailInbox,
   questions,
+  slideDecks,
   taskEmails,
+  taskHistory,
   tasks,
   uploads,
   usage,
@@ -213,7 +216,7 @@ function normalizeToolResultOutput(output: unknown, hasIsError: boolean): Record
  * - Normalizes tool-result output to match SDK `outputSchema`
  * - Removes `isError` field (not in SDK schema)
  */
-export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
+export async function cleanMessagesForModel(messages: ModelMessage[]): Promise<ModelMessage[]> {
   const result: ModelMessage[] = [];
   for (const msg of messages) {
     const record = msg as Record<string, unknown>;
@@ -250,29 +253,47 @@ export function cleanMessagesForModel(messages: ModelMessage[]): ModelMessage[] 
         delete cleaned.isError;
       }
 
-      // Convert image URL strings back to URL objects (required by AI SDK ImagePart)
-      // In E2E mode, use a stub Uint8Array to avoid AI SDK downloading from localhost
+      // Convert image URL strings to raw bytes so the SDK auto-detects the real format.
+      // S3 Content-Type may not match actual bytes (e.g. .jpg extension but PNG content).
       if (cleaned.type === "image" && typeof cleaned.image === "string") {
-        console.log(`[agent] Converting image string to URL: ${cleaned.image}`);
+        const imageUrl = cleaned.image;
         if (process.env.IS_E2E) {
           cleaned.image = new Uint8Array([0x89, 0x50, 0x4e, 0x47]); // PNG stub
         } else {
-          cleaned.image = new URL(cleaned.image);
+          try {
+            const resp = await fetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
+            const buffer = await resp.arrayBuffer();
+            cleaned.image = new Uint8Array(buffer);
+          } catch (err) {
+            console.warn(`[agent] Failed to download image, falling back to URL: ${err}`);
+            cleaned.image = new URL(imageUrl);
+          }
         }
       }
 
       // Convert file data strings back to URL objects and normalize field name (required by AI SDK FilePart)
-      // In E2E mode, use a stub Uint8Array to avoid AI SDK downloading from localhost
+      // Only model-native file types (PDF) are sent as file parts; everything else is stripped
+      // so the model uses read_uploaded_file tool instead.
       if (cleaned.type === "file" && typeof cleaned.data === "string") {
-        if (process.env.IS_E2E) {
-          cleaned.data = new Uint8Array([0x00]);
-        } else {
-          cleaned.data = new URL(cleaned.data);
-        }
         // Normalize mimeType → mediaType (AI SDK v6 uses mediaType)
         if (!cleaned.mediaType && cleaned.mimeType) {
           cleaned.mediaType = cleaned.mimeType;
           delete cleaned.mimeType;
+        }
+
+        // Only PDF is supported natively by the model as a file part.
+        // All other file types are stripped — the text hint with upload ID and URL
+        // already tells the model to use read_uploaded_file.
+        const MODEL_NATIVE_FILE_MIMES = new Set(["application/pdf"]);
+        if (!cleaned.mediaType || !MODEL_NATIVE_FILE_MIMES.has(cleaned.mediaType as string)) {
+          // Skip this file part entirely — the text hint handles model awareness
+          continue;
+        }
+
+        if (process.env.IS_E2E) {
+          cleaned.data = new Uint8Array([0x00]);
+        } else {
+          cleaned.data = new URL(cleaned.data);
         }
       }
 
@@ -413,6 +434,21 @@ export function buildSystemPrompt(
       receivedAt: string;
       attachments?: EmailAttachment[] | null;
     }>;
+    previousDocuments?: Array<{
+      id: string;
+      title: string;
+      content: string;
+      createdAt: string | null;
+    }>;
+    previousSlides?: Array<{
+      id: string;
+      title: string;
+      createdAt: string | null;
+    }>;
+    recentTaskHistory?: Array<{
+      summary: string;
+      createdAt: string | null;
+    }>;
   } | null,
 ): string {
   const today = new Date().toLocaleDateString("en-US", {
@@ -459,6 +495,35 @@ If the user rejects your questions, do NOT retry with the same or similar questi
         })
         .join("\n\n---\n\n");
       taskGuidance += `\n\n<attached_emails>\nThe following emails are attached to this task. Use their content as context for completing the task.\n\n${emailSummaries}\n</attached_emails>`;
+    }
+
+    // Add previous document and slide context
+    const docCount = taskContext.previousDocuments?.length ?? 0;
+    const slideCount = taskContext.previousSlides?.length ?? 0;
+    if (docCount > 0 || slideCount > 0) {
+      let previousContentGuidance = `\n\n<previous_content>\n`;
+      if (docCount > 0) {
+        const recentDoc = taskContext.previousDocuments![0];
+        const summaryText = recentDoc.content.slice(0, 800);
+        previousContentGuidance += `There are ${docCount} document${docCount > 1 ? "s" : ""} associated to this task before and the most recent document is "${recentDoc.title}" (created ${recentDoc.createdAt ?? "unknown"}): ${summaryText}${recentDoc.content.length > 800 ? "..." : ""}`;
+        if (docCount > 1) {
+          const otherDocs = taskContext.previousDocuments!.slice(1);
+          previousContentGuidance += `\n\nOther previous documents: ${otherDocs.map((d) => `"${d.title}" (${d.createdAt ?? "unknown"})`).join(", ")}`;
+        }
+      }
+      if (slideCount > 0) {
+        previousContentGuidance += `\n\nThere are ${slideCount} slide presentation${slideCount > 1 ? "s" : ""} associated to this task before: ${taskContext.previousSlides!.map((s) => `"${s.title}" (${s.createdAt ?? "unknown"})`).join(", ")}`;
+      }
+      previousContentGuidance += `\n\nWhen creating new documents, write something different from the previous documents and reference or build upon the previous documents and slides where relevant. Avoid repeating the same content — provide fresh perspectives, new analysis, or updated information.\n</previous_content>`;
+      taskGuidance += previousContentGuidance;
+    }
+
+    // Add recent task history
+    if (taskContext.recentTaskHistory && taskContext.recentTaskHistory.length > 0) {
+      const historyEntries = taskContext.recentTaskHistory
+        .map((h, i) => `${i + 1}. [${h.createdAt ?? "unknown"}] ${h.summary}`)
+        .join("\n");
+      taskGuidance += `\n\n<task_execution_history>\nRecent execution history for this task (${taskContext.recentTaskHistory.length} previous runs):\n${historyEntries}\n\nUse this history to understand what has been done before and avoid repeating the same work.\n</task_execution_history>`;
     }
   }
 
@@ -967,6 +1032,21 @@ export async function runAgent(options: AgentRunOptions) {
       receivedAt: string;
       attachments: EmailAttachment[] | null;
     }>;
+    previousDocuments: Array<{
+      id: string;
+      title: string;
+      content: string;
+      createdAt: string | null;
+    }>;
+    previousSlides: Array<{
+      id: string;
+      title: string;
+      createdAt: string | null;
+    }>;
+    recentTaskHistory: Array<{
+      summary: string;
+      createdAt: string | null;
+    }>;
   } | null = null;
   if (session.taskId) {
     const [task] = await db
@@ -974,24 +1054,76 @@ export async function runAgent(options: AgentRunOptions) {
       .from(tasks)
       .where(eq(tasks.id, session.taskId));
     if (task) {
-      // Fetch linked emails with attachments
-      const linkedEmails = await db
-        .select({
-          fromEmail: emailInbox.fromEmail,
-          fromName: emailInbox.fromName,
-          subject: emailInbox.subject,
-          textBody: emailInbox.textBody,
-          receivedAt: emailInbox.receivedAt,
-          attachments: emailInbox.attachments,
-        })
-        .from(taskEmails)
-        .innerJoin(emailInbox, eq(taskEmails.emailId, emailInbox.id))
-        .where(eq(taskEmails.taskId, session.taskId));
+      // Fetch linked emails, previous documents, slides, and task history in parallel
+      const [linkedEmails, previousDocs, previousSlideDecks, taskHistoryEntries] = await Promise.all(
+        [
+          db
+            .select({
+              fromEmail: emailInbox.fromEmail,
+              fromName: emailInbox.fromName,
+              subject: emailInbox.subject,
+              textBody: emailInbox.textBody,
+              receivedAt: emailInbox.receivedAt,
+              attachments: emailInbox.attachments,
+            })
+            .from(taskEmails)
+            .innerJoin(emailInbox, eq(taskEmails.emailId, emailInbox.id))
+            .where(eq(taskEmails.taskId, session.taskId!)),
+          // Fetch documents from all chat sessions linked to this task, ordered desc by time
+          db
+            .select({
+              id: documents.id,
+              title: documents.title,
+              content: documents.content,
+              createdAt: documents.createdAt,
+            })
+            .from(documents)
+            .innerJoin(chatSessions, eq(documents.chatSessionId, chatSessions.id))
+            .where(
+              and(
+                eq(chatSessions.taskId, session.taskId!),
+                ne(chatSessions.id, sessionId), // exclude current session
+              ),
+            )
+            .orderBy(desc(documents.createdAt)),
+          // Fetch slide decks from all chat sessions linked to this task
+          db
+            .select({
+              id: slideDecks.id,
+              title: slideDecks.title,
+              createdAt: slideDecks.createdAt,
+            })
+            .from(slideDecks)
+            .innerJoin(chatSessions, eq(slideDecks.chatSessionId, chatSessions.id))
+            .where(
+              and(
+                eq(chatSessions.taskId, session.taskId!),
+                ne(chatSessions.id, sessionId), // exclude current session
+              ),
+            )
+            .orderBy(desc(slideDecks.createdAt)),
+          // Fetch recent 10 task history entries for this task
+          db
+            .select({
+              summary: taskHistory.summary,
+              createdAt: taskHistory.createdAt,
+            })
+            .from(taskHistory)
+            .where(
+              and(eq(taskHistory.taskId, session.taskId!), ne(taskHistory.status, "pending")),
+            )
+            .orderBy(desc(taskHistory.createdAt))
+            .limit(10),
+        ],
+      );
 
       taskContext = {
         ...task,
         timezone: session.timezone ?? null,
         emails: linkedEmails,
+        previousDocuments: previousDocs,
+        previousSlides: previousSlideDecks,
+        recentTaskHistory: taskHistoryEntries,
       };
     }
   }
@@ -1182,10 +1314,12 @@ export async function runAgent(options: AgentRunOptions) {
         `[agent] Starting streamText with up to ${remainingSteps} step(s) for session=${sessionId}`,
       );
 
+      const cleanedMessages = await cleanMessagesForModel(currentMessages);
+
       const result = streamText({
         model: getModelProvider(modelId),
         system: systemPrompt,
-        messages: cleanMessagesForModel(currentMessages),
+        messages: cleanedMessages,
         tools: tools as Parameters<typeof streamText>[0]["tools"],
         abortSignal: signal,
         stopWhen: stepCountIs(remainingSteps),
@@ -1197,7 +1331,7 @@ export async function runAgent(options: AgentRunOptions) {
           const totalStep = stepCount + stepNumber + 1;
           const stepsRemaining = MAX_STEPS - totalStep;
           if (stepsRemaining <= 2) {
-            const warningMessages = cleanMessagesForModel(currentMessages);
+            const warningMessages = await cleanMessagesForModel(currentMessages);
             warningMessages.push({
               id: crypto.randomUUID(),
               role: "user",

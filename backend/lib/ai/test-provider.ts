@@ -273,6 +273,29 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
       }
     }
 
+    // document_sheet multi-step flow: create_data_sheet → create_document (with embedded sheet) → text
+    if (hasUserMessage(messages, "[TOOL:document_sheet]")) {
+      if (lastToolNames.includes("create_data_sheet")) {
+        const sheetResult = getLastToolResultOutput(messages, "create_data_sheet");
+        const sheetId = (sheetResult?.sheetId as string) ?? "unknown-sheet";
+        const input = JSON.stringify({
+          title: "E2E Test Document with Data Sheet",
+          format: "markdown",
+          content: `# Test Document\n\nHere is the data sheet:\n\n{{sheet:${sheetId}}}\n\nEnd of document.`,
+        });
+        return {
+          chunks: createToolCallChunks("call-doc-sheet-1", "create_document", input),
+          chunkDelayInMs: null,
+        };
+      }
+      if (lastToolNames.includes("create_document")) {
+        return {
+          chunks: createTextMessageChunks("Here are your data sheet and document."),
+          chunkDelayInMs: null,
+        };
+      }
+    }
+
     // Slow complex response multi-step flow (with delays for reconnection testing)
     if (hasUserMessage(messages, "[slow-complex-response-1]")) {
       const toolResultCount = messages.filter(
@@ -613,6 +636,21 @@ function buildStreamChunks(messages: unknown[], availableTools?: Set<string>): M
     });
     return {
       chunks: createToolCallChunks("call-slides-1", "create_slides", input),
+      chunkDelayInMs: null,
+    };
+  }
+
+  // Scenario: document_sheet — first step: create_data_sheet (then create_document in tool-result handler)
+  if (
+    lastText.includes("[TOOL:document_sheet]") &&
+    (!availableTools || availableTools.has("create_data_sheet"))
+  ) {
+    const input = JSON.stringify({
+      title: "E2E Test Data Sheet",
+      description: "Data sheet for E2E test with document embedding",
+    });
+    return {
+      chunks: createToolCallChunks("call-sheet-1", "create_data_sheet", input),
       chunkDelayInMs: null,
     };
   }

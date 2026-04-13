@@ -32,6 +32,7 @@ struct SlideViewerSheet: View {
                     ProgressView("Loading slides...")
                         .tint(.white)
                         .foregroundStyle(.white)
+                        .accessibilityIdentifier("loading-indicator")
                 } else if let error = loadError {
                     VStack(spacing: 16) {
                         Image(systemName: "exclamationmark.triangle")
@@ -168,6 +169,7 @@ struct SlideViewerSheet: View {
     // MARK: - Data Loading
 
     private func loadDeck(force: Bool = false) async {
+        print("[Slide] Loading deck...")
         if !force,
            let deck,
            deck.id == deckId,
@@ -178,7 +180,6 @@ struct SlideViewerSheet: View {
             return
         }
 
-        print("Loading deck")
         isLoading = true
         loadError = nil
         do {
@@ -330,12 +331,12 @@ private struct ZoomableSlideView: View {
 // MARK: - ShareSheet
 
 #if os(iOS)
-    private struct ShareSheet: UIViewControllerRepresentable {
-        let url: URL
-        func makeUIViewController(context _: Context) -> UIActivityViewController {
-            UIActivityViewController(activityItems: [url], applicationActivities: nil)
-        }
-
-        func updateUIViewController(_: UIActivityViewController, context _: Context) {}
+private struct ShareSheet: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context _: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
     }
+
+    func updateUIViewController(_: UIActivityViewController, context _: Context) {}
+}
 #endif

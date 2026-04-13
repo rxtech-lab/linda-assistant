@@ -479,6 +479,29 @@ export const slidePages = sqliteTable("slide_pages", {
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
 
+export type DataSheetColumn = {
+  name: string;
+  type: "string" | "number" | "date" | "boolean";
+};
+
+export const dataSheets = sqliteTable("data_sheets", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull(),
+  chatSessionId: text("chat_session_id")
+    .notNull()
+    .references(() => chatSessions.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  columns: text("columns", { mode: "json" }).$type<DataSheetColumn[]>(),
+  rowCount: integer("row_count").notNull().default(0),
+  s3DataUrl: text("s3_data_url"),
+  inlineData: text("inline_data", { mode: "json" }).$type<unknown[]>(),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
 export const historyWebhooks = sqliteTable("history_webhooks", {
   id: text("id")
     .primaryKey()

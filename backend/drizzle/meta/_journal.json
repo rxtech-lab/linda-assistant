@@ -218,6 +218,13 @@
       "when": 1774969073601,
       "tag": "0030_chemical_fat_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1775725956619,
+      "tag": "0031_magical_human_cannonball",
+      "breakpoints": true
     }
   ]
 }

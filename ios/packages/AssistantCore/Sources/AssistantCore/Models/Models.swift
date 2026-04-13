@@ -476,6 +476,50 @@ public struct SlideDeckListItem: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+// MARK: - Data Sheet
+
+public struct DataSheetColumn: Codable, Hashable, Sendable {
+    public let name: String
+    public let type: String // "string" | "number" | "date" | "boolean"
+}
+
+public struct DataSheet: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let userId: String?
+    public let chatSessionId: String?
+    public let title: String
+    public let description: String?
+    public let columns: [DataSheetColumn]?
+    public let rowCount: Int
+    public let createdAt: String?
+    public let updatedAt: String?
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        userId = try container.decodeIfPresent(String.self, forKey: .userId)
+        chatSessionId = try container.decodeIfPresent(String.self, forKey: .chatSessionId)
+        title = try container.decode(String.self, forKey: .title)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        columns = try container.decodeIfPresent([DataSheetColumn].self, forKey: .columns)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        // SQLite count may arrive as string
+        if let intVal = try? container.decode(Int.self, forKey: .rowCount) {
+            rowCount = intVal
+        } else if let strVal = try? container.decode(String.self, forKey: .rowCount),
+                  let parsed = Int(strVal)
+        {
+            rowCount = parsed
+        } else {
+            rowCount = 0
+        }
+    }
+}
+
+/// A single row in a data sheet. Values are stringified server-side for simplicity.
+public typealias DataSheetRow = [String: String?]
+
 // MARK: - Document
 
 public struct Document: Codable, Identifiable, Hashable, Sendable {

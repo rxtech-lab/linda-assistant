@@ -40,20 +40,42 @@ struct ToolCallPresenter: ViewModifier {
     private static let documentToolNames: Set<String> = ["create_document", "update_document"]
     private static let briefingToolNames: Set<String> = ["create_briefing"]
     private static let slideToolNames: Set<String> = ["create_slides", "update_slides"]
+    private static let dataSheetToolNames: Set<String> = ["create_data_sheet"]
     private static let uploadToolNames: Set<String> = ["request_upload"]
     private static let readUploadedFileToolNames: Set<String> = ["read_uploaded_file"]
     private static let mcpLazyToolNames: Set<String> = ["search_tools", "read_tool", "use_tool"]
 
-    /// Binding that only fires for non-slide tool calls (presented as .sheet).
+    /// Binding that only fires for non-slide, non-data-sheet tool calls (presented as .sheet).
     private var nonSlideToolCall: Binding<ToolCallInfo?> {
         Binding(
             get: {
                 guard let tc = selectedToolCall,
-                      !Self.slideToolNames.contains(tc.toolName)
+                      !Self.slideToolNames.contains(tc.toolName),
+                      !Self.dataSheetToolNames.contains(tc.toolName)
                 else { return nil }
                 return tc
             },
             set: { selectedToolCall = $0 }
+        )
+    }
+
+    /// Binding that only fires for data sheet tool calls (presented as .sheet).
+    private var dataSheetId: Binding<String?> {
+        Binding(
+            get: {
+                guard let tc = selectedToolCall,
+                      Self.dataSheetToolNames.contains(tc.toolName)
+                else { return nil }
+                return extractDataSheetId(from: tc)
+            },
+            set: { if $0 == nil { selectedToolCall = nil } }
+        )
+    }
+
+    private var dataSheetPresented: Binding<Bool> {
+        Binding(
+            get: { dataSheetId.wrappedValue != nil },
+            set: { if !$0 { selectedToolCall = nil } }
         )
     }
 
@@ -70,33 +92,19 @@ struct ToolCallPresenter: ViewModifier {
         )
     }
 
-    private var slideToolDeckPresented: Binding<Bool> {
-        Binding(
-            get: { slideToolDeckId.wrappedValue != nil },
-            set: { if !$0 { selectedToolCall = nil } }
-        )
-    }
-
     func body(content: Content) -> some View {
         content
             // Read-only detail sheets (non-slide tools)
             .sheet(item: nonSlideToolCall) { toolCall in
                 sheetContent(for: toolCall)
             }
-        // Slide viewer as fullscreen cover
-        #if os(macOS)
-            .sheet(isPresented: slideToolDeckPresented) {
-                if let deckId = slideToolDeckId.wrappedValue {
-                    SlideViewerSheet(deckId: deckId)
-                }
-            }
-        #else
-            .fullScreenCover(isPresented: slideToolDeckPresented) {
-                    if let deckId = slideToolDeckId.wrappedValue {
-                        SlideViewerSheet(deckId: deckId)
+            .slideViewerPresenter(deckId: slideToolDeckId)
+                // Data sheet viewer as sheet
+                .sheet(isPresented: dataSheetPresented) {
+                    if let sheetId = dataSheetId.wrappedValue {
+                        DataSheetViewerSheet(sheetId: sheetId)
                     }
                 }
-        #endif
                 .sheet(item: $documentItem) { item in
                     DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
                 }
@@ -185,6 +193,10 @@ struct ToolCallPresenter: ViewModifier {
                   let deckId = extractSlideDeckId(from: toolCall)
         {
             SlideViewerSheet(deckId: deckId)
+        } else if Self.dataSheetToolNames.contains(toolCall.toolName),
+                  let sheetId = extractDataSheetId(from: toolCall)
+        {
+            DataSheetViewerSheet(sheetId: sheetId)
         } else if Self.uploadToolNames.contains(toolCall.toolName),
                   toolCall.status == .completed,
                   let uploadId = extractUploadId(from: toolCall)
@@ -286,6 +298,16 @@ struct ToolCallPresenter: ViewModifier {
             if let id = obj["briefingId"]?.stringValue { return id }
             if case let .object(inner) = obj["value"],
                let id = inner["briefingId"]?.stringValue
+            { return id }
+        }
+        return nil
+    }
+
+    private func extractDataSheetId(from toolCall: ToolCallInfo) -> String? {
+        if case let .object(obj) = toolCall.result {
+            if let id = obj["sheetId"]?.stringValue { return id }
+            if case let .object(inner) = obj["value"],
+               let id = inner["sheetId"]?.stringValue
             { return id }
         }
         return nil

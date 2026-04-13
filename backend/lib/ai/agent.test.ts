@@ -42,7 +42,7 @@ function msg(role: string, content: unknown[]): ModelMessage {
 }
 
 describe("cleanMessagesForModel", () => {
-  test("passes through complete tool-call/tool-result pairs unchanged", () => {
+  test("passes through complete tool-call/tool-result pairs unchanged", async () => {
     const messages = [
       msg("user", [{ type: "text", text: "hello" }]),
       msg("assistant", [{ type: "tool-call", toolCallId: "tc1", toolName: "my_tool", input: {} }]),
@@ -57,7 +57,7 @@ describe("cleanMessagesForModel", () => {
       msg("assistant", [{ type: "text", text: "done" }]),
     ];
 
-    const result = cleanMessagesForModel(messages);
+    const result = await cleanMessagesForModel(messages);
     const toolResults = result.flatMap((m) =>
       Array.isArray(m.content)
         ? (m.content as Record<string, unknown>[]).filter((p) => p.type === "tool-result")
@@ -67,7 +67,7 @@ describe("cleanMessagesForModel", () => {
     expect((toolResults[0].output as Record<string, unknown>).type).toBe("json");
   });
 
-  test("injects missing tool-result immediately after assistant message", () => {
+  test("injects missing tool-result immediately after assistant message", async () => {
     const messages = [
       msg("user", [{ type: "text", text: "send email" }]),
       msg("assistant", [
@@ -85,7 +85,7 @@ describe("cleanMessagesForModel", () => {
       ]),
     ];
 
-    const result = cleanMessagesForModel(messages);
+    const result = await cleanMessagesForModel(messages);
 
     // Should have 3 messages: user, assistant (approval-request stripped), injected tool-result
     expect(result).toHaveLength(3);
@@ -99,7 +99,7 @@ describe("cleanMessagesForModel", () => {
     expect((injectedParts[0].output as Record<string, unknown>).type).toBe("error-text");
   });
 
-  test("injects results for multiple orphaned tool-calls in one assistant message", () => {
+  test("injects results for multiple orphaned tool-calls in one assistant message", async () => {
     const messages = [
       msg("user", [{ type: "text", text: "do stuff" }]),
       msg("assistant", [
@@ -108,7 +108,7 @@ describe("cleanMessagesForModel", () => {
       ]),
     ];
 
-    const result = cleanMessagesForModel(messages);
+    const result = await cleanMessagesForModel(messages);
 
     // user + assistant + 1 tool message containing both injected results
     expect(result).toHaveLength(3);
@@ -121,7 +121,7 @@ describe("cleanMessagesForModel", () => {
     expect(ids).toContain("tc2");
   });
 
-  test("does not duplicate tool-results that already exist", () => {
+  test("does not duplicate tool-results that already exist", async () => {
     const messages = [
       msg("user", [{ type: "text", text: "hello" }]),
       msg("assistant", [
@@ -138,7 +138,7 @@ describe("cleanMessagesForModel", () => {
       ]),
     ];
 
-    const result = cleanMessagesForModel(messages);
+    const result = await cleanMessagesForModel(messages);
 
     const toolResults = result.flatMap((m) =>
       Array.isArray(m.content)
@@ -153,7 +153,7 @@ describe("cleanMessagesForModel", () => {
     expect((injected!.output as Record<string, unknown>).type).toBe("error-text");
   });
 
-  test("strips tool-approval-request parts from assistant messages", () => {
+  test("strips tool-approval-request parts from assistant messages", async () => {
     const messages = [
       msg("user", [{ type: "text", text: "go" }]),
       msg("assistant", [
@@ -170,13 +170,13 @@ describe("cleanMessagesForModel", () => {
       ]),
     ];
 
-    const result = cleanMessagesForModel(messages);
+    const result = await cleanMessagesForModel(messages);
     const assistantParts = result[1].content as Record<string, unknown>[];
     expect(assistantParts).toHaveLength(1);
     expect(assistantParts[0].type).toBe("tool-call");
   });
 
-  test("removes custom annotations from content parts", () => {
+  test("removes custom annotations from content parts", async () => {
     const messages = [
       msg("assistant", [
         {
@@ -200,27 +200,27 @@ describe("cleanMessagesForModel", () => {
       ]),
     ];
 
-    const result = cleanMessagesForModel(messages);
+    const result = await cleanMessagesForModel(messages);
     const toolCallPart = (result[0].content as Record<string, unknown>[])[0];
     expect(toolCallPart.confirmation).toBeUndefined();
     expect(toolCallPart.error).toBeUndefined();
     expect(toolCallPart.approveStatus).toBeUndefined();
   });
 
-  test("drops tool-approval-response messages entirely", () => {
+  test("drops tool-approval-response messages entirely", async () => {
     const messages = [
       msg("user", [{ type: "text", text: "yes" }]),
       msg("tool", [{ type: "tool-approval-response", toolCallId: "tc1", approved: true }]),
       msg("assistant", [{ type: "text", text: "ok" }]),
     ];
 
-    const result = cleanMessagesForModel(messages);
+    const result = await cleanMessagesForModel(messages);
     expect(result).toHaveLength(2);
     expect(result[0].role).toBe("user");
     expect(result[1].role).toBe("assistant");
   });
 
-  test("handles mix of resolved and unresolved tool-calls across messages", () => {
+  test("handles mix of resolved and unresolved tool-calls across messages", async () => {
     const messages = [
       msg("user", [{ type: "text", text: "do both" }]),
       // First step: tool-call with result
@@ -248,7 +248,7 @@ describe("cleanMessagesForModel", () => {
       ]),
     ];
 
-    const result = cleanMessagesForModel(messages);
+    const result = await cleanMessagesForModel(messages);
 
     // user + assistant(tc1) + tool(tc1 result) + assistant(tc2, cleaned) + tool(tc2 injected)
     expect(result).toHaveLength(5);
@@ -260,7 +260,7 @@ describe("cleanMessagesForModel", () => {
     expect(injectedParts[0].toolName).toBe("send_email");
   });
 
-  test("drops orphan tool-results whose tool-call was compacted away", () => {
+  test("drops orphan tool-results whose tool-call was compacted away", async () => {
     // Simulate post-compaction state: summary replaces old messages including
     // the assistant tool-call, but the tool-result remains as a non-compacted message.
     const messages = [
@@ -283,7 +283,7 @@ describe("cleanMessagesForModel", () => {
       msg("assistant", [{ type: "text", text: "The email was sent successfully." }]),
     ];
 
-    const result = cleanMessagesForModel(messages);
+    const result = await cleanMessagesForModel(messages);
 
     // The orphan tool-result should be dropped, not appended
     const allToolResults = result.flatMap((m) =>
@@ -300,7 +300,7 @@ describe("cleanMessagesForModel", () => {
     expect(result[2].role).toBe("assistant");
   });
 
-  test("drops orphan tool-results while keeping valid tool-call/result pairs", () => {
+  test("drops orphan tool-results while keeping valid tool-call/result pairs", async () => {
     const messages = [
       msg("user", [{ type: "text", text: "[CONVERSATION SUMMARY]\n..." }]),
       // Orphan tool-result from compacted tool-call
@@ -327,7 +327,7 @@ describe("cleanMessagesForModel", () => {
       msg("assistant", [{ type: "text", text: "Task created." }]),
     ];
 
-    const result = cleanMessagesForModel(messages);
+    const result = await cleanMessagesForModel(messages);
 
     const allToolResults = result.flatMap((m) =>
       Array.isArray(m.content)
