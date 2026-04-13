@@ -72,11 +72,6 @@ struct SlideCarouselView: View {
                     }
             }
         }
-        .modifier(SelfPresentingSlideViewer(
-            deckId: deckId,
-            isPresented: $showFullViewer,
-            isEnabled: onOpenFullViewer == nil
-        ))
         .frame(maxWidth: .infinity)
         .accessibilityIdentifier("slideCarousel-\(deckId)")
         .task {
@@ -115,27 +110,5 @@ struct SlideCarouselView: View {
             print("[SlideCarouselView] Failed to load deck: \(error)")
         }
         isLoading = false
-    }
-}
-
-private struct SelfPresentingSlideViewer: ViewModifier {
-    let deckId: String
-    @Binding var isPresented: Bool
-    let isEnabled: Bool
-
-    func body(content: Content) -> some View {
-        if isEnabled {
-            #if os(iOS)
-                content.fullScreenCover(isPresented: $isPresented) {
-                    SlideViewerSheet(deckId: deckId)
-                }
-            #else
-                content.sheet(isPresented: $isPresented) {
-                    SlideViewerSheet(deckId: deckId)
-                }
-            #endif
-        } else {
-            content
-        }
     }
 }

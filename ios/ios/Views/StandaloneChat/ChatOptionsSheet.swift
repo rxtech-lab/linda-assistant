@@ -21,13 +21,6 @@ struct ChatOptionsSheet: View {
     @State private var selectedDocumentItem: DocumentSheetItem?
     @State private var selectedSlideDeckId: String?
 
-    private var selectedSlideDeckPresented: Binding<Bool> {
-        Binding(
-            get: { selectedSlideDeckId != nil },
-            set: { if !$0 { selectedSlideDeckId = nil } }
-        )
-    }
-
     private var previewAssignees: [Assignee] {
         Array(assignees.prefix(maxPreviewCount))
     }
@@ -228,11 +221,7 @@ struct ChatOptionsSheet: View {
             .sheet(item: $selectedDocumentItem) { item in
                 DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
             }
-            .sheet(isPresented: selectedSlideDeckPresented) {
-                if let deckId = selectedSlideDeckId {
-                    SlideViewerSheet(deckId: deckId)
-                }
-            }
+            .slideViewerPresenter(deckId: $selectedSlideDeckId)
             .sheet(isPresented: $showingAllSlides) {
                 if let assigneeId = selectedAssigneeId {
                     AllSlideDecksSheet(assigneeId: assigneeId)
@@ -352,11 +341,7 @@ struct ChatOptionsSheet: View {
             .sheet(item: $selectedDocumentItem) { item in
                 DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
             }
-            .fullScreenCover(isPresented: selectedSlideDeckPresented) {
-                if let deckId = selectedSlideDeckId {
-                    SlideViewerSheet(deckId: deckId)
-                }
-            }
+            .slideViewerPresenter(deckId: $selectedSlideDeckId)
             .sheet(isPresented: $showingAllSlides) {
                 if let assigneeId = selectedAssigneeId {
                     AllSlideDecksSheet(assigneeId: assigneeId)

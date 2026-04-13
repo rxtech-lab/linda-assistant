@@ -22,6 +22,9 @@ mock.module("@aws-sdk/client-s3", () => ({
   HeadObjectCommand: class MockHeadObjectCommand {
     constructor(public params: any) {}
   },
+  DeleteObjectCommand: class MockDeleteObjectCommand {
+    constructor(public params: any) {}
+  },
 }));
 
 mock.module("@aws-sdk/s3-request-presigner", () => ({

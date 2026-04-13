@@ -66,7 +66,7 @@ export async function downloadAndUploadToS3(url: string, contentType: string, fi
   const key = `email-attachments/${nanoid()}-${filename}`;
 
   if (process.env.IS_E2E?.toLowerCase() === "true") {
-    const baseUrl = `http://localhost:${process.env.PORT || 3001}`;
+    const baseUrl = `http://localhost:${process.env.PORT || 3000}`;
     return { url: `${baseUrl}/api/mock-s3/${key}`, contentHash };
   }
 
@@ -98,7 +98,7 @@ export async function uploadBufferToS3(
   const key = `${prefix}/${nanoid()}-${filename}`;
 
   if (process.env.IS_E2E?.toLowerCase() === "true") {
-    const baseUrl = `http://localhost:${process.env.PORT || 3001}`;
+    const baseUrl = `http://localhost:${process.env.PORT || 3000}`;
     return { url: `${baseUrl}/api/mock-s3/${key}`, contentHash };
   }
 
@@ -157,7 +157,7 @@ export async function getPresignedUploadUrls(
   if (isE2E) {
     // In E2E mode, return mock URLs pointing to the backend instead of S3.
     // This lets the iOS simulator upload without direct MinIO access.
-    const baseUrl = `http://localhost:${process.env.PORT || 3001}`;
+    const baseUrl = `http://localhost:${process.env.PORT || 3000}`;
     return extensions.map((ext) => {
       const base = `${prefix}/${nanoid()}-${Date.now()}`;
       const key = ext !== "*" ? `${base}.${ext.toLowerCase()}` : base;

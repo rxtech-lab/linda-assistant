@@ -1,16 +1,17 @@
 import MarkdownUI
 import SwiftUI
 
-/// Renders markdown content with `{{slide:id}}` syntax replaced by SlideCarouselView.
-/// Splits the content at slide markers and renders alternating markdown + carousel sections.
+/// Renders markdown content with `{{slide:id}}` and `{{sheet:id}}` syntax replaced by
+/// inline views. Splits the content at markers and renders alternating markdown + embedded sections.
 struct SlideAwareMarkdownView: View {
     let content: String
     var theme: MarkdownUI.Theme = .docC.scrollableTable()
     var onOpenSlideDeck: ((String) -> Void)?
+    var onOpenDataSheet: ((String) -> Void)?
 
     private var sections: [ContentSection] {
-        // Match {{slide:id}} syntax
-        let pattern = #"\{\{slide:([a-zA-Z0-9_-]+)\}\}"#
+        // Match {{slide:id}} and {{sheet:id}} syntax
+        let pattern = #"\{\{(slide|sheet):([a-zA-Z0-9_-]+)\}\}"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             return [.markdown(content)]
         }
@@ -22,7 +23,8 @@ struct SlideAwareMarkdownView: View {
         let matches = regex.matches(in: content, range: NSRange(location: 0, length: nsContent.length))
         for match in matches {
             guard let range = Range(match.range, in: content),
-                  let idRange = Range(match.range(at: 1), in: content)
+                  let typeRange = Range(match.range(at: 1), in: content),
+                  let idRange = Range(match.range(at: 2), in: content)
             else { continue }
 
             // Add preceding markdown
@@ -32,8 +34,18 @@ struct SlideAwareMarkdownView: View {
                 result.append(.markdown(preceding))
             }
 
-            // Add slide carousel
-            result.append(.slide(String(content[idRange])))
+            let sectionType = String(content[typeRange])
+            let sectionId = String(content[idRange])
+
+            switch sectionType {
+            case "slide":
+                result.append(.slide(sectionId))
+            case "sheet":
+                result.append(.sheet(sectionId))
+            default:
+                break
+            }
+
             lastEnd = range.upperBound
         }
 
@@ -50,12 +62,16 @@ struct SlideAwareMarkdownView: View {
         VStack(alignment: .leading, spacing: 16) {
             ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
                 switch section {
-                    case let .markdown(text):
-                        Markdown(text)
-                            .markdownTheme(theme)
-                            .tappableMarkdownImages()
-                    case let .slide(deckId):
-                        SlideCarouselView(deckId: deckId, onOpenFullViewer: onOpenSlideDeck)
+                case let .markdown(text):
+                    Markdown(text)
+                        .markdownTheme(theme)
+                        .tappableMarkdownImages()
+                case let .slide(deckId):
+                    SlideCarouselView(deckId: deckId, onOpenFullViewer: onOpenSlideDeck)
+                        .id(deckId)
+                case let .sheet(sheetId):
+                    DataSheetPreviewCard(sheetId: sheetId, onOpenFullSheet: onOpenDataSheet)
+                        .id(sheetId)
                 }
             }
         }
@@ -64,6 +80,7 @@ struct SlideAwareMarkdownView: View {
     private enum ContentSection {
         case markdown(String)
         case slide(String) // deckId
+        case sheet(String) // sheetId
     }
 }
 

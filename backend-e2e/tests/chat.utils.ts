@@ -1101,3 +1101,157 @@ export async function listChatDocuments(
   const body = (await res.json()) as { data: Array<{ id: string; title: string; format: string; content: string }> };
   return body.data;
 }
+
+// ---- Assignee with model ----
+
+export async function createAssigneeWithModel(
+  label: string,
+  model: string,
+): Promise<string> {
+  const token = loadToken();
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const res = await fetch(`${BASE_URL}/api/assignees`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({
+      name: label,
+      email: `test-${suffix}@test.rxlab.app`,
+      model,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`POST /api/assignees failed (${res.status}): ${err}`);
+  }
+  const created = (await res.json()) as { id: string };
+  return created.id;
+}
+
+// ---- Direct file upload to S3 ----
+
+export async function getDirectPresignedUrl(
+  contentType: string,
+  extension: string,
+  prefix?: string,
+): Promise<{ url: string; key: string; publicUrl: string }> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/uploads/presigned-url`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ contentType, extension, prefix }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `POST /api/uploads/presigned-url failed (${res.status}): ${await res.text()}`,
+    );
+  }
+  return res.json() as any;
+}
+
+/**
+ * Upload a file buffer to S3 via presigned URL and return the public URL and key.
+ */
+export async function uploadFileToS3(
+  content: Buffer | Uint8Array,
+  contentType: string,
+  extension: string,
+): Promise<{ publicUrl: string; key: string }> {
+  const { url, key, publicUrl } = await getDirectPresignedUrl(
+    contentType,
+    extension,
+    "user-uploads",
+  );
+  await uploadFileToPresignedUrl(url, content, contentType);
+  return { publicUrl, key };
+}
+
+// ---- Message with attachments ----
+
+export async function sendMessageWithAttachments(
+  assigneeId: string,
+  content: string,
+  attachments: Array<{
+    type: "image" | "audio" | "pdf" | "file";
+    url: string;
+    key?: string;
+    name?: string;
+    mimeType?: string;
+  }>,
+): Promise<{ queued: boolean; messageId: string }> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/chat/${assigneeId}/message`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ content, attachments }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(
+      `POST /api/chat/${assigneeId}/message failed (${res.status}): ${text}`,
+    );
+  }
+  return res.json() as any;
+}
+
+// ---- Data sheet helpers ----
+
+export async function getDataSheet(id: string): Promise<{
+  id: string;
+  title: string;
+  description: string;
+  columns: Array<{ name: string; type: string }>;
+  rowCount: number;
+}> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/data-sheets/${id}`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok)
+    throw new Error(
+      `GET /api/data-sheets/${id} failed (${res.status}): ${await res.text()}`,
+    );
+  return res.json() as any;
+}
+
+export async function getDataSheetRows(
+  id: string,
+  params?: {
+    offset?: number;
+    limit?: number;
+    sort?: string;
+    order?: string;
+    filter?: string;
+  },
+): Promise<{
+  data: Array<Record<string, string | null>>;
+  pagination: { total: number; limit: number; offset: number; hasMore: boolean };
+}> {
+  const token = loadToken();
+  const searchParams = new URLSearchParams();
+  if (params?.offset != null) searchParams.set("offset", String(params.offset));
+  if (params?.limit != null) searchParams.set("limit", String(params.limit));
+  if (params?.sort) searchParams.set("sort", params.sort);
+  if (params?.order) searchParams.set("order", params.order);
+  if (params?.filter) searchParams.set("filter", params.filter);
+  const qs = searchParams.toString();
+  const url = `${BASE_URL}/api/data-sheets/${id}/rows${qs ? `?${qs}` : ""}`;
+  const res = await fetch(url, { headers: authHeaders(token) });
+  if (!res.ok)
+    throw new Error(
+      `GET /api/data-sheets/${id}/rows failed (${res.status}): ${await res.text()}`,
+    );
+  return res.json() as any;
+}
+
+export async function deleteDataSheet(id: string): Promise<void> {
+  const token = loadToken();
+  const res = await fetch(`${BASE_URL}/api/data-sheets/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(
+      `DELETE /api/data-sheets/${id} failed (${res.status}): ${await res.text()}`,
+    );
+  }
+}

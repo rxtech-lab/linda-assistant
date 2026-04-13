@@ -59,7 +59,10 @@ Chart description: ${description}
  * @param chartDescription - A description of the chart to be created.
  * @returns A promise that resolves to a base64-encoded string representing the generated chart image.
  */
-async function createChart(data: unknown, chartDescription: string): Promise<string> {
+async function createChart(
+  data: unknown,
+  chartDescription: string,
+): Promise<string> {
   console.log(
     "[createChart] Creating sandbox with teamId:",
     process.env.VERCEL_TEAM_ID,
@@ -79,7 +82,10 @@ async function createChart(data: unknown, chartDescription: string): Promise<str
   try {
     // Install matplotlib and CJK font support
     console.log("[createChart] Installing matplotlib...");
-    const installResult = await sandbox.runCommand("pip", ["install", "matplotlib"]);
+    const installResult = await sandbox.runCommand("pip", [
+      "install",
+      "matplotlib",
+    ]);
     if (installResult.exitCode !== 0) {
       const stderr = await installResult.stderr();
       console.error("[createChart] matplotlib install failed:", stderr);
@@ -89,7 +95,8 @@ async function createChart(data: unknown, chartDescription: string): Promise<str
 
     // Install CJK fonts for Chinese/Japanese/Korean text support
     console.log("[createChart] Installing CJK fonts...");
-    const fontInstall = await sandbox.runCommand("apt-get", [
+    const fontInstall = await sandbox.runCommand("sudo", [
+      "apt-get",
       "install",
       "-y",
       "-qq",
@@ -97,14 +104,17 @@ async function createChart(data: unknown, chartDescription: string): Promise<str
     ]);
     if (fontInstall.exitCode !== 0) {
       // Try alternative package name
-      const altInstall = await sandbox.runCommand("apt-get", [
+      const altInstall = await sandbox.runCommand("sudo", [
+        "apt-get",
         "install",
         "-y",
         "-qq",
         "fonts-wqy-zenhei",
       ]);
       if (altInstall.exitCode !== 0) {
-        console.warn("[createChart] CJK font install failed — Chinese text may not render");
+        console.warn(
+          "[createChart] CJK font install failed — Chinese text may not render",
+        );
       }
     }
     // Clear matplotlib font cache so it picks up the new fonts
@@ -138,8 +148,13 @@ async function createChart(data: unknown, chartDescription: string): Promise<str
                 content: Buffer.from(code, "utf-8"),
               },
             ]);
-            const result = await sandbox.runCommand("python", ["/tmp/script.py"]);
-            console.log("[runPython] Command executed with exit code:", result.exitCode);
+            const result = await sandbox.runCommand("python", [
+              "/tmp/script.py",
+            ]);
+            console.log(
+              "[runPython] Command executed with exit code:",
+              result.exitCode,
+            );
             if (result.exitCode !== 0) {
               const stderr = await result.stderr();
               throw new Error(`Python execution failed: ${stderr}`);
@@ -152,7 +167,11 @@ async function createChart(data: unknown, chartDescription: string): Promise<str
           description:
             "Read a generated image file and return its base64 encoding. Call this after saving a chart to export it.",
           inputSchema: z.object({
-            path: z.string().describe("The file path of the image to export (e.g. /tmp/chart.png)"),
+            path: z
+              .string()
+              .describe(
+                "The file path of the image to export (e.g. /tmp/chart.png)",
+              ),
           }),
           execute: async ({ path }) => {
             console.log("[exportImage] Reading file:", path);
@@ -179,7 +198,10 @@ async function createChart(data: unknown, chartDescription: string): Promise<str
     for (let i = steps.length - 1; i >= 0; i--) {
       const step = steps[i];
       for (const toolResult of step.toolResults) {
-        if (toolResult.toolName === "exportImage" && typeof toolResult.output === "string") {
+        if (
+          toolResult.toolName === "exportImage" &&
+          typeof toolResult.output === "string"
+        ) {
           return toolResult.output;
         }
       }
@@ -207,7 +229,10 @@ function extractBase64(text: string): string | null {
   return match ? match[0] : null;
 }
 
-async function createDrawingAndUpload(data: unknown, chartDescription: string): Promise<string> {
+async function createDrawingAndUpload(
+  data: unknown,
+  chartDescription: string,
+): Promise<string> {
   // In E2E mode, skip Vercel Sandbox and upload a tiny test PNG
   if (process.env.IS_E2E?.toLowerCase() === "true") {
     const testPng = Buffer.from(
@@ -226,7 +251,12 @@ async function createDrawingAndUpload(data: unknown, chartDescription: string): 
   const base64Image = await createChart(data, chartDescription);
   const buffer = Buffer.from(base64Image, "base64");
   const filename = `chart-${Date.now()}.png`;
-  const { url } = await uploadBufferToS3(buffer, "image/png", filename, "drawings");
+  const { url } = await uploadBufferToS3(
+    buffer,
+    "image/png",
+    filename,
+    "drawings",
+  );
   return url;
 }
 
@@ -238,7 +268,11 @@ export const createDrawingTool = () =>
       "or when adding visual data representations to documents or briefings. " +
       "Returns the URL of the generated chart image.",
     inputSchema: z.object({
-      data: z.unknown().describe("The data to visualize (arrays, objects, key-value pairs, etc.)"),
+      data: z
+        .unknown()
+        .describe(
+          "The data to visualize (arrays, objects, key-value pairs, etc.)",
+        ),
       chartDescription: z
         .string()
         .describe(

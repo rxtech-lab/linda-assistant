@@ -30,6 +30,7 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var selectedDocumentItem: DocumentSheetItem?
     @State private var selectedBriefingId: String?
     @State private var selectedSlideDeckId: String?
+    @State private var selectedDataSheetId: String?
 
     // Upload state
     @State private var uploadManager = FileUploadManager()
@@ -38,10 +39,10 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var showPhotoPicker = false
     @State private var photoSelection: [PhotosPickerItem] = []
 
-    private var selectedSlideDeckPresented: Binding<Bool> {
+    private var selectedDataSheetPresented: Binding<Bool> {
         Binding(
-            get: { selectedSlideDeckId != nil },
-            set: { if !$0 { selectedSlideDeckId = nil } }
+            get: { selectedDataSheetId != nil },
+            set: { if !$0 { selectedDataSheetId = nil } }
         )
     }
 
@@ -193,6 +194,9 @@ struct StreamableChatLayout<Header: View>: View {
                 },
                 onSlideTap: { deckId in
                     selectedSlideDeckId = deckId
+                },
+                onDataSheetTap: { sheetId in
+                    selectedDataSheetId = sheetId
                 }
             )
             .listRowSeparator(.hidden)
@@ -615,19 +619,13 @@ struct StreamableChatLayout<Header: View>: View {
                 }
             }
         )
-        #if os(macOS)
-        .sheet(isPresented: selectedSlideDeckPresented) {
-            if let deckId = selectedSlideDeckId {
-                SlideViewerSheet(deckId: deckId)
-            }
-        }
-        #else
-        .fullScreenCover(isPresented: selectedSlideDeckPresented) {
-                    if let deckId = selectedSlideDeckId {
-                        SlideViewerSheet(deckId: deckId)
+        .slideViewerPresenter(deckId: $selectedSlideDeckId)
+                // Data sheet viewer
+                .sheet(isPresented: selectedDataSheetPresented) {
+                    if let sheetId = selectedDataSheetId {
+                        DataSheetViewerSheet(sheetId: sheetId)
                     }
                 }
-        #endif
                 // User upload pickers
                 .photosPicker(
                     isPresented: $showPhotoPicker,

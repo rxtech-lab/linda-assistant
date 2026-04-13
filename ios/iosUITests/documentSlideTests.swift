@@ -46,6 +46,11 @@ final class DocumentSlideTests: XCTestCase {
         XCTAssertTrue(slideCard.waitForExistence(timeout: 10), "Slide tool card should exist")
         slideCard.tap()
 
+        // wait loading disappear
+        let loadingIndicator = app.activityIndicators["loading-indicator"].firstMatch
+        // expect it disappear
+        XCTAssertTrue(loadingIndicator.waitForNonExistence(timeout: 30), "Loading indicator should disappear")
+
         // Step 4: Verify SlideViewerSheet opened — tap export button and verify PDF option
         let exportImage = app.images["square.and.arrow.up"].firstMatch
         XCTAssertTrue(exportImage.waitForExistence(timeout: 30), "Export button should appear")

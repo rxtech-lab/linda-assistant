@@ -54,7 +54,9 @@ test.describe("Agent Drawing", () => {
         "Create a simple bar chart with this data: Q1=100, Q2=150, Q3=200, Q4=175. " +
           "Then create a document called 'Quarterly Sales' that includes the chart image. " +
           "Use the create_drawing tool first, then use create_document to write the report with the chart embedded as a markdown image. " +
-          "Do not use any other tools.",
+          "Only use create_drawing and create_document. " +
+          "Do NOT call search_emails, search_documents, search_history, or any other tool under any circumstances. " +
+          "If create_drawing fails, retry it with adjusted arguments — do not search for anything.",
       );
       await stream.waitForDone();
 
