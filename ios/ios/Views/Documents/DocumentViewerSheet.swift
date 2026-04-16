@@ -143,6 +143,8 @@ struct DocumentViewerSheet: View {
         }
         #if os(macOS)
         .frame(minWidth: 700, idealWidth: 800, minHeight: 500, idealHeight: 700)
+        #else
+        .presentationSizing(.page)
         #endif
         .task {
             await loadDocument()

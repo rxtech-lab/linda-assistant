@@ -5,6 +5,7 @@ struct SidebarNavigationView: View {
 
     private enum SidebarItem: String, CaseIterable {
         case chat
+        case briefings
         case tasks
         case inbox
         case settings
@@ -12,6 +13,7 @@ struct SidebarNavigationView: View {
         var title: String {
             switch self {
                 case .chat: "Chat"
+                case .briefings: "Briefing"
                 case .tasks: "Tasks"
                 case .inbox: "Inbox"
                 case .settings: "Settings"
@@ -21,6 +23,7 @@ struct SidebarNavigationView: View {
         var icon: String {
             switch self {
                 case .chat: "bubble.left.and.bubble.right"
+                case .briefings: "newspaper"
                 case .tasks: "checklist"
                 case .inbox: "tray.fill"
                 case .settings: "gearshape"
@@ -28,7 +31,7 @@ struct SidebarNavigationView: View {
         }
     }
 
-    @State private var selectedItem: SidebarItem = .chat
+    @State private var selectedItem: SidebarItem = .briefings
 
     var body: some View {
         @Bindable var nav = navigationManager
@@ -53,6 +56,10 @@ struct SidebarNavigationView: View {
                 case .chat:
                     NavigationStack(path: $nav.chatPath) {
                         ChatTabView()
+                    }
+                case .briefings:
+                    NavigationStack(path: $nav.briefingsPath) {
+                        BriefingListView()
                     }
                 case .tasks:
                     NavigationStack(path: $nav.tasksPath) {

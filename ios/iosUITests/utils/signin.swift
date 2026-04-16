@@ -20,12 +20,20 @@ extension XCUIApplication {
         let assigneeButton = buttons["assignee-button"].firstMatch
 
         if assigneeButton.waitForExistence(timeout: 5) {
-            NSLog("✅ Already signed in, skipping OAuth flow")
-            logger.info("✅ Already signed in, skipping OAuth flow")
-            if !skipCleanupMessage {
-                try clearMessages()
+            // Button exists in hierarchy — wait longer for it to become hittable
+            // (the app may still be loading behind a splash screen)
+            let hittableDeadline = Date().addingTimeInterval(15)
+            while !assigneeButton.isHittable, Date() < hittableDeadline {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.5))
             }
-            return
+            if assigneeButton.isHittable {
+                NSLog("✅ Already signed in, skipping OAuth flow")
+                logger.info("✅ Already signed in, skipping OAuth flow")
+                if !skipCleanupMessage {
+                    try clearMessages()
+                }
+                return
+            }
         }
 
         // Load .env file and read credentials (with fallback to process environment for CI)
@@ -152,6 +160,13 @@ extension XCUIApplication {
         NSLog("⏱️  Waiting for assignee button...")
         logger.info("⏱️  Waiting for assignee button...")
         XCTAssertTrue(assigneeButton.waitForExistence(timeout: 30), "Assignee button did not appear after sign-in")
+        // Wait until the button is actually hittable (visible and interactable),
+        // not just present in the accessibility hierarchy
+        let hittableDeadline = Date().addingTimeInterval(120)
+        while !assigneeButton.isHittable, Date() < hittableDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        }
+        XCTAssertTrue(assigneeButton.isHittable, "Assignee button exists but is not hittable")
         NSLog("✅ Assignee button found, tapping...")
         logger.info("✅ Assignee button found, tapping...")
         assigneeButton.tap()
