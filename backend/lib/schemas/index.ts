@@ -604,6 +604,8 @@ export const selectBriefingSchema = z.object({
   title: z.string().describe("Briefing title"),
   content: z.string().describe("Briefing markdown content"),
   imageUrl: z.string().nullable().describe("Cover image URL"),
+  isPublic: z.boolean().nullable().describe("Whether the briefing is publicly shareable"),
+  shareUrl: z.string().nullable().describe("Public share URL when isPublic is true"),
   documents: z.array(selectDocumentSchema).optional().describe("Linked documents"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
@@ -613,6 +615,8 @@ export const briefingSummarySchema = z.object({
   id: z.string().describe("Unique identifier"),
   title: z.string().describe("Briefing title"),
   imageUrl: z.string().nullable().describe("Cover image URL"),
+  isPublic: z.boolean().nullable().describe("Whether the briefing is publicly shareable"),
+  shareUrl: z.string().nullable().describe("Public share URL when isPublic is true"),
   chatSessionId: z.string().nullable().describe("Associated chat session ID"),
   assigneeId: z.string().nullable().describe("Associated assignee ID"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
@@ -625,6 +629,10 @@ export const insertBriefingSchema = z.object({
   imageUrl: z.string().optional().describe("Cover image URL"),
   assigneeId: z.string().optional().describe("Associated assignee ID"),
   chatSessionId: z.string().optional().describe("Associated chat session ID"),
+});
+
+export const updateBriefingSchema = z.object({
+  isPublic: z.boolean().describe("Whether the briefing should be publicly shareable"),
 });
 
 export const briefingSectionSchema = z.object({

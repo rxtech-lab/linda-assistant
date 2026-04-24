@@ -14,6 +14,7 @@ public enum AppEvent: Sendable {
     case chatSessionCreated(ChatSession)
     case chatSessionDeleted(String)
     case briefingCreated(Briefing)
+    case briefingUpdated(Briefing)
     case briefingDeleted(String)
     case extensionCreated(Extension)
     case extensionDeleted(String)

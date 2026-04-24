@@ -22,6 +22,7 @@ import {
   briefingSummarySchema,
 } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
+import { withShareUrl } from "@/lib/utils/briefing";
 import {
   registerCronTask,
   updateCronTask,
@@ -118,6 +119,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         id: briefings.id,
         title: briefings.title,
         imageUrl: briefings.imageUrl,
+        isPublic: briefings.isPublic,
         chatSessionId: briefings.chatSessionId,
         assigneeId: briefings.assigneeId,
         createdAt: briefings.createdAt,
@@ -179,7 +181,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     chatSessions: sessions,
     emails: linkedEmails,
     documents: taskDocuments,
-    briefings: taskBriefings,
+    briefings: taskBriefings.map(withShareUrl),
     nextRunAt,
     enabledExtensions,
   });

@@ -353,6 +353,15 @@ public extension APIClient {
         try await request(path: "briefings/\(id)")
     }
 
+    func updateBriefing(id: String, isPublic: Bool) async throws -> Briefing {
+        struct Body: Encodable, Sendable { let isPublic: Bool }
+        return try await request(
+            path: "briefings/\(id)",
+            method: "PATCH",
+            body: Body(isPublic: isPublic)
+        )
+    }
+
     func deleteBriefing(id: String) async throws {
         try await requestNoContent(path: "briefings/\(id)")
     }

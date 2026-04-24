@@ -1,0 +1,1 @@
+ALTER TABLE `briefings` ADD `is_public` integer DEFAULT false;

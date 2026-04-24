@@ -270,6 +270,8 @@ public struct BriefingSummary: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let imageUrl: String?
+    public let isPublic: Bool?
+    public let shareUrl: String?
     public let chatSessionId: String?
     public let assigneeId: String?
     public let createdAt: String?
@@ -567,6 +569,8 @@ public struct Briefing: Codable, Identifiable, Hashable, Sendable {
     public let title: String
     public let content: String
     public let imageUrl: String?
+    public let isPublic: Bool?
+    public let shareUrl: String?
     public let documents: [Document]?
     public let createdAt: String?
     public let updatedAt: String?
