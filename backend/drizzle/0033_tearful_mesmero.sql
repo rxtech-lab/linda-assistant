@@ -1,0 +1,1 @@
+ALTER TABLE `briefings` ADD `podcast_url` text;

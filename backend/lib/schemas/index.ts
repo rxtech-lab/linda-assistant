@@ -594,6 +594,29 @@ export const documentSummarySchema = z.object({
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
 
+// ---- Audios ----
+
+export const selectAudioSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  chatSessionId: z.string().describe("Associated chat session ID"),
+  title: z.string().describe("Audio title"),
+  type: z.string().describe("Audio type (e.g. 'podcast')"),
+  prompt: z.string().describe("Prompt steering the generation"),
+  content: z.string().describe("Source content converted to audio"),
+  audioUrl: z.string().nullable().describe("URL of the generated MP3 (null until ready)"),
+  status: z.string().describe("'generating' | 'ready' | 'failed'"),
+  errorMessage: z.string().nullable().describe("Error message when status is 'failed'"),
+  transcript: z
+    .string()
+    .nullable()
+    .describe(
+      "JSON-encoded array of { speaker, voiceShortName, locale, text } produced by the podcast agent",
+    ),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
+});
+
 // ---- Briefings ----
 
 export const selectBriefingSchema = z.object({
@@ -604,6 +627,9 @@ export const selectBriefingSchema = z.object({
   title: z.string().describe("Briefing title"),
   content: z.string().describe("Briefing markdown content"),
   imageUrl: z.string().nullable().describe("Cover image URL"),
+  podcastUrl: z.string().nullable().describe("URL to generated podcast MP3"),
+  isPublic: z.boolean().nullable().describe("Whether the briefing is publicly shareable"),
+  shareUrl: z.string().nullable().describe("Public share URL when isPublic is true"),
   documents: z.array(selectDocumentSchema).optional().describe("Linked documents"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
@@ -613,6 +639,9 @@ export const briefingSummarySchema = z.object({
   id: z.string().describe("Unique identifier"),
   title: z.string().describe("Briefing title"),
   imageUrl: z.string().nullable().describe("Cover image URL"),
+  podcastUrl: z.string().nullable().describe("URL to generated podcast MP3"),
+  isPublic: z.boolean().nullable().describe("Whether the briefing is publicly shareable"),
+  shareUrl: z.string().nullable().describe("Public share URL when isPublic is true"),
   chatSessionId: z.string().nullable().describe("Associated chat session ID"),
   assigneeId: z.string().nullable().describe("Associated assignee ID"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
@@ -627,9 +656,24 @@ export const insertBriefingSchema = z.object({
   chatSessionId: z.string().optional().describe("Associated chat session ID"),
 });
 
+export const updateBriefingSchema = z.object({
+  isPublic: z.boolean().describe("Whether the briefing should be publicly shareable"),
+});
+
 export const briefingSectionSchema = z.object({
   date: z.string().describe("Date in YYYY-MM-DD format"),
   briefings: z.array(selectBriefingSchema).describe("Briefings for this date"),
+});
+
+export const generateBriefingPodcastResponseSchema = z.object({
+  status: z
+    .enum(["generating", "already_exists"])
+    .describe("Generation status: 'generating' when kicked off, 'already_exists' when the briefing already has a podcast"),
+  briefingId: z.string().describe("Briefing id"),
+  podcastUrl: z
+    .string()
+    .nullable()
+    .describe("Existing podcast URL when status='already_exists', otherwise null"),
 });
 
 export const listBriefingResponseSchema = z.object({

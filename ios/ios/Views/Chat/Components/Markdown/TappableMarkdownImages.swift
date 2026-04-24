@@ -2,58 +2,64 @@ import MarkdownUI
 import SwiftUI
 
 private struct TappableMarkdownImagesModifier: ViewModifier {
-    @State private var selectedImageURL: URL?
+    @State private var selectedImage: SelectedMarkdownImage?
 
     func body(content: Content) -> some View {
         content
             .markdownImageProvider(TappableImageProvider(onTap: { url in
-                selectedImageURL = url
+                selectedImage = SelectedMarkdownImage(url: url)
             }))
         #if os(iOS)
-            .fullScreenCover(isPresented: Binding(
-                get: { selectedImageURL != nil },
-                set: { if !$0 { selectedImageURL = nil } }
-            )) {
-                if let url = selectedImageURL {
-                    NavigationStack {
-                        ImageViewerView(imageURL: url)
-                            .navigationBarTitleDisplayModeInlineIfAvailable()
-                            .toolbar {
-                                ToolbarItem(placement: .cancellationAction) {
-                                    Button {
-                                        selectedImageURL = nil
-                                    } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .font(.title2)
-                                            .symbolRenderingMode(.palette)
-                                            .foregroundStyle(.white, .black.opacity(0.6))
-                                    }
-                                }
-                            }
-                            .toolbarBackground(.hidden, for: .navigationBar)
-                    }
+            .fullScreenCover(item: $selectedImage) { selectedImage in
+                MarkdownImageViewerCover(imageURL: selectedImage.url) {
+                    self.selectedImage = nil
                 }
             }
         #else
-            .sheet(isPresented: Binding(
-                    get: { selectedImageURL != nil },
-                    set: { if !$0 { selectedImageURL = nil } }
-                )) {
-                    if let url = selectedImageURL {
-                        NavigationStack {
-                            ImageViewerView(imageURL: url)
-                                .toolbar {
-                                    ToolbarItem(placement: .cancellationAction) {
-                                        Button("Done") {
-                                            selectedImageURL = nil
-                                        }
-                                    }
-                                }
-                        }
-                        .frame(minWidth: 600, minHeight: 500)
+            .sheet(item: $selectedImage) { selectedImage in
+                MarkdownImageViewerCover(imageURL: selectedImage.url) {
+                    self.selectedImage = nil
+                }
+                .frame(minWidth: 600, minHeight: 500)
+            }
+        #endif
+    }
+}
+
+private struct SelectedMarkdownImage: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+private struct MarkdownImageViewerCover: View {
+    let imageURL: URL
+    let onDismiss: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ImageViewerView(imageURL: imageURL)
+                .navigationBarTitleDisplayModeInlineIfAvailable()
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        #if os(iOS)
+                            Button {
+                                onDismiss()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.white)
+                            }
+                        #else
+                            Button("Done") {
+                                onDismiss()
+                            }
+                        #endif
                     }
                 }
-        #endif
+            #if os(iOS)
+                .toolbarBackground(.hidden, for: .navigationBar)
+            #endif
+        }
     }
 }
 

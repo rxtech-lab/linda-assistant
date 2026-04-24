@@ -450,6 +450,26 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 }
                 logger.debug("textDelta: buffer=\(self._textBuffer.count), isStreaming=\(self.isStreaming)")
 
+            case let .toolInputStart(payload):
+                logger.info("toolInputStart: \(payload.toolName) id=\(payload.toolCallId)")
+                // Flush any buffered text so the tool placeholder appears below prior text
+                flushBuffer()
+                // Only insert a placeholder if we don't already have a tool card for this id
+                let alreadyStreaming = streamingParts.contains { part in
+                    if case let .tool(info) = part { return info.toolCallId == payload.toolCallId }
+                    return false
+                }
+                if !alreadyStreaming, isToolCallInHistory?(payload.toolCallId) != true {
+                    let info = ToolCallInfo(
+                        toolCallId: payload.toolCallId,
+                        toolName: payload.toolName,
+                        input: nil,
+                        status: .running
+                    )
+                    streamingParts.append(.tool(info))
+                    eventManager.emit(.streamContentUpdated)
+                }
+
             case let .toolCall(payload):
                 logger.info("toolCall: \(payload.toolName) id=\(payload.toolCallId)")
                 // Flush any buffered text BEFORE appending the tool call so text appears above the tool
@@ -458,9 +478,13 @@ public final class ChatStreamHandler: @unchecked Sendable {
                     if case let .tool(info) = $0 { return info.toolCallId == payload.toolCallId }
                     return false
                 }) {
-                    // Re-emitted after confirmation — update status back to running
+                    // Either (a) placeholder inserted on tool-input-start now has real input, or
+                    // (b) re-emitted after confirmation — update input + status back to running.
                     if case var .tool(info) = streamingParts[index] {
                         info.status = .running
+                        if let input = payload.input {
+                            info.input = input
+                        }
                         streamingParts[index] = .tool(info)
                     }
                 } else if isToolCallInHistory?(payload.toolCallId) == true {
@@ -708,6 +732,10 @@ public final class ChatStreamHandler: @unchecked Sendable {
                 }
                 eventManager.emit(.streamContentUpdated)
 
+            case let .audioReady(payload):
+                logger.info("audioReady: audioId=\(payload.audioId)")
+                eventManager.emit(.audioReady(audioId: payload.audioId, audioUrl: payload.audioUrl))
+
             case let .userMessage(payload):
                 logger.info("userMessage: id=\(payload.id), content=\(payload.content.prefix(50))")
                 onUserMessage?(payload.id, payload.content)
@@ -870,7 +898,7 @@ public struct ToolCallInfo: Identifiable, Sendable {
     public let id = UUID()
     public let toolCallId: String
     public let toolName: String
-    public let input: [String: AnyCodable]?
+    public var input: [String: AnyCodable]?
     public var status: ToolCallStatus
     public var result: AnyCodable?
     public var errorMessage: String?

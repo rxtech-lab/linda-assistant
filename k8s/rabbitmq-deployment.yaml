@@ -12,6 +12,20 @@ spec:
     requests:
       storage: 1Gi
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+  namespace: linda
+  labels:
+    app: rabbitmq
+data:
+  # RabbitMQ 4 removed `transient_nonexcl_queues` from the default-permitted set.
+  # Celery/kombu's pidbox reply queue is transient + non-exclusive, so worker
+  # startup (mingle) fails without this. Remove once kombu stops declaring it.
+  10-deprecated.conf: |
+    deprecated_features.permit.transient_nonexcl_queues = true
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -84,8 +98,13 @@ spec:
           volumeMounts:
             - name: rabbitmq-data
               mountPath: /var/lib/rabbitmq
+            - name: rabbitmq-config
+              mountPath: /etc/rabbitmq/conf.d
       volumes:
         - name: rabbitmq-data
           persistentVolumeClaim:
             claimName: rabbitmq-data
+        - name: rabbitmq-config
+          configMap:
+            name: rabbitmq-config
       restartPolicy: Always

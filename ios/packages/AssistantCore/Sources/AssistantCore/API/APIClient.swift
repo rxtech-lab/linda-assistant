@@ -129,7 +129,7 @@ public actor APIClient {
         }
 
         switch httpResponse.statusCode {
-            case 200 ... 201:
+            case 200 ... 201, 202:
                 return
             case 204:
                 if allowNoContent { return }

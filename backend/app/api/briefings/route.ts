@@ -6,6 +6,7 @@ import { authenticate } from "@/lib/auth/middleware";
 import { listBriefingResponseSchema } from "@/lib/schemas";
 import { parsePagination } from "@/lib/utils/pagination";
 import { paginatedJson } from "@/lib/utils/response";
+import { withShareUrl } from "@/lib/utils/briefing";
 
 /**
  * @openapi
@@ -32,9 +33,11 @@ export async function GET(request: NextRequest) {
       .where(eq(briefings.userId, auth.userId)),
   ]);
 
+  const enriched = items.map(withShareUrl);
+
   // Group by date (YYYY-MM-DD from createdAt)
-  const grouped: Record<string, typeof items> = {};
-  for (const item of items) {
+  const grouped: Record<string, typeof enriched> = {};
+  for (const item of enriched) {
     const date = item.createdAt ? item.createdAt.split(" ")[0] : "unknown";
     if (!grouped[date]) grouped[date] = [];
     grouped[date].push(item);

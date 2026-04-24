@@ -5,7 +5,7 @@ import SwiftUI
 /// inline views. Splits the content at markers and renders alternating markdown + embedded sections.
 struct SlideAwareMarkdownView: View {
     let content: String
-    var theme: MarkdownUI.Theme = .docC.scrollableTable()
+    var theme: MarkdownUI.Theme = .docC.scrollableTable().prettyBlockquote()
     var onOpenSlideDeck: ((String) -> Void)?
     var onOpenDataSheet: ((String) -> Void)?
 

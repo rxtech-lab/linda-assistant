@@ -31,6 +31,7 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var selectedBriefingId: String?
     @State private var selectedSlideDeckId: String?
     @State private var selectedDataSheetId: String?
+    @State private var selectedAudioItem: AudioSheetItem?
 
     // Upload state
     @State private var uploadManager = FileUploadManager()
@@ -197,6 +198,9 @@ struct StreamableChatLayout<Header: View>: View {
                 },
                 onDataSheetTap: { sheetId in
                     selectedDataSheetId = sheetId
+                },
+                onAudioTap: { item in
+                    selectedAudioItem = item
                 }
             )
             .listRowSeparator(.hidden)
@@ -518,6 +522,7 @@ struct StreamableChatLayout<Header: View>: View {
             selectedToolCall: $selectedToolCall,
             documentItem: $selectedDocumentItem,
             briefingId: $selectedBriefingId,
+            audioItem: $selectedAudioItem,
             presentedConfirmation: $presentedConfirmation,
             pendingConfirmationCount: pendingConfirmationCount,
             onConfirmationResolve: { confirmation, action, alwaysAllow in
