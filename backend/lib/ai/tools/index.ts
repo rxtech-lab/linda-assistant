@@ -349,7 +349,7 @@ export async function buildToolSet(
     },
     {
       name: GET_CURRENT_TIME_TOOL_NAME,
-      create: (na: boolean) => getCurrentTimeTool(na),
+      create: (na: boolean) => getCurrentTimeTool(na, userId, chatSessionId),
     },
     {
       name: ASK_QUESTION_TOOL_NAME,

@@ -8,6 +8,30 @@ function celeryHeaders(): Record<string, string> {
   };
 }
 
+export interface CeleryScheduleView {
+  task_id: string;
+  cron_schedule: string | null;
+  timezone: string | null;
+}
+
+/** Fetch Celery's view of a cron schedule. Returns null if CELERY_BASE_URL is
+ * not set or if Celery has no entry for this task. */
+export async function getCronTask(taskId: string): Promise<CeleryScheduleView | null> {
+  if (!CELERY_BASE_URL) return null;
+  try {
+    const res = await fetch(`${CELERY_BASE_URL}/schedules/${taskId}`, {
+      method: "GET",
+      headers: celeryHeaders(),
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    return (await res.json()) as CeleryScheduleView;
+  } catch (err) {
+    console.error(`[Celery] Failed to get cron task ${taskId}:`, err);
+    return null;
+  }
+}
+
 /** Register a new cron schedule for a task. No-op if CELERY_BASE_URL is not set. */
 export async function registerCronTask(
   taskId: string,

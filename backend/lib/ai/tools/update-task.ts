@@ -44,8 +44,14 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
         .describe(
           "ISO datetime for one-shot scheduled execution. Set to null to remove. Specify in the user's local timezone.",
         ),
+      timezone: z
+        .string()
+        .optional()
+        .describe(
+          "IANA timezone (e.g. 'America/New_York') to interpret cronSchedule and runsAt in. Overrides the chat session's timezone when provided.",
+        ),
     }),
-    execute: async ({ taskId, cronSchedule, isCronEnabled, runsAt, ...updates }) => {
+    execute: async ({ taskId, cronSchedule, isCronEnabled, runsAt, timezone, ...updates }) => {
       // Validate cron expression if provided
       if (cronSchedule && !isValidCronExpression(cronSchedule)) {
         return { error: "Invalid cron expression" };
@@ -56,14 +62,14 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
         return { error: "A task cannot have both cron scheduling and a one-shot runsAt schedule" };
       }
 
-      // Get session timezone for conversion
-      let sessionTimezone: string | null = null;
-      if (sessionId) {
+      // Resolve effective timezone: explicit param overrides the chat session's timezone
+      let effectiveTimezone: string | null = timezone ?? null;
+      if (!effectiveTimezone && sessionId) {
         const [session] = await db
           .select({ timezone: chatSessions.timezone })
           .from(chatSessions)
           .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, userId)));
-        sessionTimezone = session?.timezone ?? null;
+        effectiveTimezone = session?.timezone ?? null;
       }
 
       // Fetch existing task to check current state
@@ -91,7 +97,7 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
           setValues.cronSchedule = cronSchedule;
           setValues.isCronEnabled = true;
           setValues.runsAt = null; // Clear runsAt when setting cron
-          if (sessionTimezone) setValues.timezone = sessionTimezone;
+          if (effectiveTimezone) setValues.timezone = effectiveTimezone;
         }
       }
       if (isCronEnabled !== undefined) {
@@ -107,10 +113,10 @@ export const updateTaskTool = (userId: string, needsApproval: boolean, sessionId
         if (runsAt === null) {
           setValues.runsAt = null;
         } else {
-          setValues.runsAt = convertRunsAtToUTC(runsAt, sessionTimezone);
+          setValues.runsAt = convertRunsAtToUTC(runsAt, effectiveTimezone);
           setValues.isCronEnabled = false; // Clear cron when setting runsAt
           setValues.cronSchedule = null;
-          if (sessionTimezone) setValues.timezone = sessionTimezone;
+          if (effectiveTimezone) setValues.timezone = effectiveTimezone;
         }
       }
 

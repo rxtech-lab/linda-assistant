@@ -6,9 +6,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from celery.schedules import crontab
 from redbeat import RedBeatSchedulerEntry
-import redbeat
+import redis
 from worker import app as celery_app, execute_task
-from config import CELERY_ADMIN_KEY
+from config import CELERY_ADMIN_KEY, CELERY_REDIS_URL
 
 api = FastAPI(title="Linda Celery Scheduler")
 
@@ -124,6 +124,39 @@ def entry_key(task_id: str) -> str:
     return f"linda:cron:{task_id}"
 
 
+def redis_schedule_key(task_id: str) -> str:
+    """Full Redis key under which RedBeat stores an entry — includes the
+    app's `redbeat_key_prefix`. `from_key` needs this full form."""
+    return RedBeatSchedulerEntry.generate_key(app=celery_app, name=entry_key(task_id))
+
+
+def meta_key(task_id: str) -> str:
+    return f"linda:cron-meta:{task_id}"
+
+
+_redis_client: redis.Redis | None = None
+
+
+def get_redis() -> redis.Redis:
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = redis.from_url(CELERY_REDIS_URL, decode_responses=True)
+    return _redis_client
+
+
+def save_meta(task_id: str, cron_schedule: str, timezone: str | None) -> None:
+    """Persist the original (local) cron + timezone so GET can return what the
+    caller registered, not the UTC-adjusted form RedBeat stores internally."""
+    client = get_redis()
+    pipe = client.pipeline()
+    pipe.delete(meta_key(task_id))
+    mapping: dict[str, str] = {"cron_schedule": cron_schedule}
+    if timezone:
+        mapping["timezone"] = timezone
+    pipe.hset(meta_key(task_id), mapping=mapping)
+    pipe.execute()
+
+
 @api.get("/health")
 def health():
     return {"status": "ok"}
@@ -141,33 +174,55 @@ def create_schedule(body: ScheduleCreate):
         app=celery_app,
     )
     entry.save()
+    save_meta(body.task_id, body.cron_schedule, body.timezone)
     return {"task_id": body.task_id, "cron_schedule": body.cron_schedule, "registered": True}
+
+
+@api.get("/schedules/{task_id}", dependencies=[Depends(verify_admin_key)])
+def get_schedule(task_id: str):
+    """Return what Celery has stored for this task, or 404.
+
+    Mirrors the shape of POST input so callers can assert the schedule Celery
+    actually fires on matches the one sent by the backend.
+    """
+    key = redis_schedule_key(task_id)
+    try:
+        RedBeatSchedulerEntry.from_key(key, app=celery_app)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    meta = get_redis().hgetall(meta_key(task_id))
+    return {
+        "task_id": task_id,
+        "cron_schedule": meta.get("cron_schedule"),
+        "timezone": meta.get("timezone") or None,
+    }
 
 
 @api.put("/schedules/{task_id}", dependencies=[Depends(verify_admin_key)])
 def update_schedule(task_id: str, body: ScheduleUpdate):
-    key = entry_key(task_id)
+    key = redis_schedule_key(task_id)
     try:
         entry = RedBeatSchedulerEntry.from_key(key, app=celery_app)
-    except redbeat.schedulers.RedBeatSchedulerEntry.DoesNotExist:
-        raise HTTPException(status_code=404, detail="Schedule not found")
-    except Exception:
+    except KeyError:
         raise HTTPException(status_code=404, detail="Schedule not found")
 
     utc_cron = cron_to_utc(body.cron_schedule, body.timezone)
     entry.schedule = parse_crontab(utc_cron)
     entry.save()
+    save_meta(task_id, body.cron_schedule, body.timezone)
     return {"task_id": task_id, "cron_schedule": body.cron_schedule, "updated": True}
 
 
 @api.delete("/schedules/{task_id}", dependencies=[Depends(verify_admin_key)])
 def delete_schedule(task_id: str):
-    key = entry_key(task_id)
+    key = redis_schedule_key(task_id)
     try:
         entry = RedBeatSchedulerEntry.from_key(key, app=celery_app)
         entry.delete()
-    except Exception:
+    except KeyError:
         pass  # Already gone — that's fine
+    get_redis().delete(meta_key(task_id))
     return {"task_id": task_id, "deleted": True}
 
 
