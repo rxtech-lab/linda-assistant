@@ -1,8 +1,11 @@
 import AssistantCore
+import os
 import SwiftUI
 #if os(macOS)
     import Sparkle
 #endif
+
+private let appLogger = Logger(subsystem: "lindaAssistant", category: "iosApp")
 
 #if os(macOS)
     private var updaterController: SPUStandardUpdaterController?
@@ -73,6 +76,7 @@ struct iosApp: App {
     @State private var authManager = createAuthManager()
     @State private var eventManager = EventManager()
     @State private var pushManager = PushNotificationManager()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         #if os(macOS)
@@ -93,6 +97,19 @@ struct iosApp: App {
                 .onAppear {
                     appDelegate.pushManager = pushManager
                 }
+                .onOpenURL { url in
+                    appLogger.info("onOpenURL fired: \(url.absoluteString)")
+                    if url.scheme == "rxlablinda", url.host == "share" {
+                        appLogger.info("Emitting .sharePending from onOpenURL")
+                        eventManager.emit(.sharePending)
+                    }
+                }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            appLogger.info("scenePhase changed to \(String(describing: phase))")
+            if phase == .active {
+                eventManager.emit(.sharePending)
+            }
         }
         #if os(macOS)
         .windowStyle(.hiddenTitleBar)
