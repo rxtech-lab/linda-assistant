@@ -79,16 +79,27 @@ jobs:
       - name: Install provisioning profile
         env:
           PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+          SHARE_PROVISIONING_PROFILE_BASE64: ${{ secrets.SHARE_PROVISIONING_PROFILE_BASE64 }}
         run: |
           PP_PATH="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PP_PATH"
+
           echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > /tmp/profile.provisionprofile
           UUID=$(security cms -D -i /tmp/profile.provisionprofile | plutil -extract UUID raw -)
-          echo "Installing provisioning profile with UUID: $UUID"
+          echo "Installing app provisioning profile with UUID: $UUID"
           cp /tmp/profile.provisionprofile "$PP_PATH/$UUID.provisionprofile"
 
+          if [ -z "$SHARE_PROVISIONING_PROFILE_BASE64" ]; then
+            echo "Error: SHARE_PROVISIONING_PROFILE_BASE64 secret is not set"
+            exit 1
+          fi
+          echo "$SHARE_PROVISIONING_PROFILE_BASE64" | base64 --decode > /tmp/share_profile.provisionprofile
+          SHARE_UUID=$(security cms -D -i /tmp/share_profile.provisionprofile | plutil -extract UUID raw -)
+          echo "Installing ShareLinda provisioning profile with UUID: $SHARE_UUID"
+          cp /tmp/share_profile.provisionprofile "$PP_PATH/$SHARE_UUID.provisionprofile"
+
       - name: Set manual code signing
-        run: ./scripts/ci-set-manual-signing.sh "${{ secrets.SIGNING_CERTIFICATE_NAME }}" "LindaAssistant"
+        run: ./scripts/ci-set-manual-signing.sh "${{ secrets.SIGNING_CERTIFICATE_NAME }}" "LindaAssistant" "ShareLinda"
 
       - name: Derive release version
         run: |

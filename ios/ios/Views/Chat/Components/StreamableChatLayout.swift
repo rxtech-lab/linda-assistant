@@ -262,14 +262,20 @@ struct StreamableChatLayout<Header: View>: View {
             }
         }
         .task {
+            PendingShareInbox.drain(into: uploadManager)
             for await event in eventManager.stream {
-                if case .streamContentUpdated = event {
-                    guard isAtBottom else { continue }
-                    DispatchQueue.main.async {
-                        withAnimation {
-                            proxy.scrollTo("bottom", anchor: .bottom)
+                switch event {
+                    case .streamContentUpdated:
+                        guard isAtBottom else { continue }
+                        DispatchQueue.main.async {
+                            withAnimation {
+                                proxy.scrollTo("bottom", anchor: .bottom)
+                            }
                         }
-                    }
+                    case .sharePending:
+                        PendingShareInbox.drain(into: uploadManager)
+                    default:
+                        break
                 }
             }
         }
@@ -657,6 +663,7 @@ struct StreamableChatLayout<Header: View>: View {
                 }
                 .onAppear {
                     uploadManager.configure(apiClient: apiClient)
+                    PendingShareInbox.drain(into: uploadManager)
                 }
                 .onChange(of: authManager.accessToken) {
                     uploadManager.configure(apiClient: apiClient)
