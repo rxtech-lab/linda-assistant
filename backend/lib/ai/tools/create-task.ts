@@ -36,8 +36,14 @@ export const createTaskTool = (
         .describe(
           "ISO datetime for one-shot scheduled execution (e.g. '2025-01-15T09:00:00'). Specify in the user's local timezone.",
         ),
+      timezone: z
+        .string()
+        .optional()
+        .describe(
+          "IANA timezone (e.g. 'America/New_York') to interpret cronSchedule and runsAt in. Overrides the chat session's timezone when provided.",
+        ),
     }),
-    execute: async ({ title, description, tags, categories, cronSchedule, runsAt }) => {
+    execute: async ({ title, description, tags, categories, cronSchedule, runsAt, timezone }) => {
       const assigneeId = defaultAssigneeId ?? undefined;
       // Validate mutual exclusivity
       if (cronSchedule && runsAt) {
@@ -51,18 +57,18 @@ export const createTaskTool = (
         return { error: "Invalid cron expression" };
       }
 
-      // Get session timezone for conversion
-      let sessionTimezone: string | null = null;
-      if (sessionId) {
+      // Resolve effective timezone: explicit param overrides the chat session's timezone
+      let effectiveTimezone: string | null = timezone ?? null;
+      if (!effectiveTimezone && sessionId) {
         const [session] = await db
           .select({ timezone: chatSessions.timezone })
           .from(chatSessions)
           .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, userId)));
-        sessionTimezone = session?.timezone ?? null;
+        effectiveTimezone = session?.timezone ?? null;
       }
 
       // Convert one-shot schedule time to UTC
-      const utcRunsAt = runsAt ? convertRunsAtToUTC(runsAt, sessionTimezone) : undefined;
+      const utcRunsAt = runsAt ? convertRunsAtToUTC(runsAt, effectiveTimezone) : undefined;
 
       const isCronEnabled = !!cronSchedule;
 
@@ -80,13 +86,13 @@ export const createTaskTool = (
           isCronEnabled,
           status: "running",
           ...(utcRunsAt !== undefined ? { runsAt: utcRunsAt } : {}),
-          ...((cronSchedule || runsAt) && sessionTimezone ? { timezone: sessionTimezone } : {}),
+          ...((cronSchedule || runsAt) && effectiveTimezone ? { timezone: effectiveTimezone } : {}),
         })
         .returning();
 
       // Register with Celery for scheduling
       if (isCronEnabled && cronSchedule) {
-        await registerCronTask(created.id, cronSchedule, sessionTimezone);
+        await registerCronTask(created.id, cronSchedule, effectiveTimezone);
       }
       if (utcRunsAt) {
         await scheduleOnceTask(created.id, utcRunsAt);
