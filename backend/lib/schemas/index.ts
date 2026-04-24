@@ -594,6 +594,29 @@ export const documentSummarySchema = z.object({
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
 
+// ---- Audios ----
+
+export const selectAudioSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  chatSessionId: z.string().describe("Associated chat session ID"),
+  title: z.string().describe("Audio title"),
+  type: z.string().describe("Audio type (e.g. 'podcast')"),
+  prompt: z.string().describe("Prompt steering the generation"),
+  content: z.string().describe("Source content converted to audio"),
+  audioUrl: z.string().nullable().describe("URL of the generated MP3 (null until ready)"),
+  status: z.string().describe("'generating' | 'ready' | 'failed'"),
+  errorMessage: z.string().nullable().describe("Error message when status is 'failed'"),
+  transcript: z
+    .string()
+    .nullable()
+    .describe(
+      "JSON-encoded array of { speaker, voiceShortName, locale, text } produced by the podcast agent",
+    ),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
+});
+
 // ---- Briefings ----
 
 export const selectBriefingSchema = z.object({

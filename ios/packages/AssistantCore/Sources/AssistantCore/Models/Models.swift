@@ -560,6 +560,78 @@ public struct DocumentListResponse: Codable, Sendable {
     public let data: [Document]
 }
 
+// MARK: - Audio
+
+public struct Audio: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let userId: String
+    public let chatSessionId: String
+    public let title: String
+    public let type: String // "podcast"
+    public let prompt: String
+    public let content: String
+    public let audioUrl: String?
+    public let status: String // "generating" | "ready" | "failed"
+    public let errorMessage: String?
+    /// JSON-encoded array of AudioTranscriptSegment. Use `decodedTranscript` to access structured form.
+    public let transcript: String?
+    public let createdAt: String?
+    public let updatedAt: String?
+
+    public init(
+        id: String,
+        userId: String = "",
+        chatSessionId: String = "",
+        title: String,
+        type: String = "podcast",
+        prompt: String = "",
+        content: String = "",
+        audioUrl: String? = nil,
+        status: String = "generating",
+        errorMessage: String? = nil,
+        transcript: String? = nil,
+        createdAt: String? = nil,
+        updatedAt: String? = nil
+    ) {
+        self.id = id
+        self.userId = userId
+        self.chatSessionId = chatSessionId
+        self.title = title
+        self.type = type
+        self.prompt = prompt
+        self.content = content
+        self.audioUrl = audioUrl
+        self.status = status
+        self.errorMessage = errorMessage
+        self.transcript = transcript
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    public var decodedTranscript: [AudioTranscriptSegment]? {
+        guard let transcript, let data = transcript.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode([AudioTranscriptSegment].self, from: data)
+    }
+}
+
+public struct AudioTranscriptSegment: Codable, Hashable, Sendable {
+    public let speaker: String
+    public let voiceShortName: String
+    public let locale: String
+    public let text: String
+
+    public init(speaker: String, voiceShortName: String, locale: String, text: String) {
+        self.speaker = speaker
+        self.voiceShortName = voiceShortName
+        self.locale = locale
+        self.text = text
+    }
+}
+
+public struct AudioListResponse: Codable, Sendable {
+    public let data: [Audio]
+}
+
 // MARK: - Briefing
 
 public struct Briefing: Codable, Identifiable, Hashable, Sendable {

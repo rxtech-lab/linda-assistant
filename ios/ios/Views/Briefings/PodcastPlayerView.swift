@@ -1,7 +1,10 @@
 import AVFoundation
 import MediaPlayer
 import SwiftUI
+
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Audio player for briefing podcast MP3s. Streams via AVPlayer and publishes
 /// Now Playing metadata + remote commands so playback surfaces on the lock
@@ -18,7 +21,9 @@ struct PodcastPlayerView: View {
     @State private var isScrubbing = false
     @State private var rate: Float = 1.0
     @State private var timeObserver: Any?
+    #if canImport(UIKit)
     @State private var artworkImage: UIImage?
+    #endif
     @State private var remoteCommandsInstalled = false
 
     private let availableRates: [Float] = [0.75, 1.0, 1.25, 1.5]
@@ -158,7 +163,9 @@ struct PodcastPlayerView: View {
         isPlaying = false
         uninstallRemoteCommands()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        #if os(iOS)
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        #endif
     }
 
     private func togglePlayPause() {
@@ -203,6 +210,7 @@ struct PodcastPlayerView: View {
     // MARK: - Now Playing / Remote Commands
 
     private func configureAudioSession() {
+        #if os(iOS)
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.playback, mode: .spokenAudio, options: [])
@@ -210,6 +218,7 @@ struct PodcastPlayerView: View {
         } catch {
             // Audio session failures are non-fatal; playback may still work in-app.
         }
+        #endif
     }
 
     private func installRemoteCommands() {
@@ -272,6 +281,7 @@ struct PodcastPlayerView: View {
         remoteCommandsInstalled = false
     }
 
+    #if canImport(UIKit)
     private func loadArtworkIfNeeded() {
         guard artworkImage == nil,
               let imageUrl,
@@ -287,6 +297,11 @@ struct PodcastPlayerView: View {
             }
         }
     }
+    #else
+    private func loadArtworkIfNeeded() {
+        // Artwork not supported on this platform
+    }
+    #endif
 
     private func updateNowPlayingInfo() {
         var info: [String: Any] = [:]
@@ -299,11 +314,13 @@ struct PodcastPlayerView: View {
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
         info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? rate : 0
         info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = rate
+        #if canImport(UIKit)
         if let artworkImage {
             info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: artworkImage.size) { _ in
                 artworkImage
             }
         }
+        #endif
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 

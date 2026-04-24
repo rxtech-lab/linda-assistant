@@ -18,6 +18,7 @@ struct ToolCallPresenter: ViewModifier {
     @Binding var selectedToolCall: ToolCallInfo?
     @Binding var documentItem: DocumentSheetItem?
     @Binding var briefingId: String?
+    @Binding var audioItem: AudioSheetItem?
 
     // Interactive tool sheets
     @Binding var presentedConfirmation: ConfirmationPayload?
@@ -107,6 +108,9 @@ struct ToolCallPresenter: ViewModifier {
                 }
                 .sheet(item: $documentItem) { item in
                     DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
+                }
+                .sheet(item: $audioItem) { item in
+                    AudioViewerSheet(audioId: item.id, initialTitle: item.title)
                 }
                 .sheet(isPresented: Binding(
                     get: { briefingId != nil },
@@ -323,6 +327,7 @@ extension View {
         selectedToolCall: Binding<ToolCallInfo?>,
         documentItem: Binding<DocumentSheetItem?> = .constant(nil),
         briefingId: Binding<String?> = .constant(nil),
+        audioItem: Binding<AudioSheetItem?> = .constant(nil),
         presentedConfirmation: Binding<ConfirmationPayload?> = .constant(nil),
         pendingConfirmationCount: Int = 0,
         onConfirmationResolve: @escaping (ConfirmationPayload, String, Bool) -> Void = { _, _, _ in },
@@ -342,6 +347,7 @@ extension View {
             selectedToolCall: selectedToolCall,
             documentItem: documentItem,
             briefingId: briefingId,
+            audioItem: audioItem,
             presentedConfirmation: presentedConfirmation,
             pendingConfirmationCount: pendingConfirmationCount,
             onConfirmationResolve: onConfirmationResolve,

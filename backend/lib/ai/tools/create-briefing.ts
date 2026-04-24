@@ -17,7 +17,8 @@ export const createBriefingTool = (
   tool({
     description:
       "Create a briefing — an AI-generated report with a cover image, markdown content, and optional linked documents. " +
-      "Use this when the user asks for a briefing, summary report, or digest that should appear in their Briefing feed.\n\n" +
+      "Use this when the user asks for a briefing, summary report, or digest that should appear in their Briefing feed. " +
+      "A podcast version of the briefing is generated automatically in the background; do NOT call generate_audio for a briefing.\n\n" +
       "Content guidelines:\n" +
       "- Use markdown tables to present structured/comparative data (e.g. stats, timelines, comparisons)\n" +
       "- Use headings (##, ###) to organize sections clearly\n" +

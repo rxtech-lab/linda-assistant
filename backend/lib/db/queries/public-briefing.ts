@@ -32,6 +32,6 @@ export async function fetchBriefingById(id: string): Promise<PublicBriefingRow |
   if (!row) return null;
   return {
     ...row,
-    assignee: row.assignee.name ? row.assignee : null,
+    assignee: row.assignee?.name ? row.assignee : null,
   };
 }

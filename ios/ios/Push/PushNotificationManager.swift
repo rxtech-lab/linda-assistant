@@ -112,6 +112,16 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
             return
         }
 
+        if type == "audio-ready",
+           let audioId = userInfo["audioId"] as? String
+        {
+            let audioUrl = userInfo["audioUrl"] as? String ?? ""
+            logger.info("Audio ready: audioId=\(audioId)")
+            eventManager?.emit(.audioReady(audioId: audioId, audioUrl: audioUrl))
+            completionHandler(.newData)
+            return
+        }
+
         guard type == "location_request",
               let toolCallId = userInfo["toolCallId"] as? String
         else {

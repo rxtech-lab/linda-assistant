@@ -259,6 +259,32 @@ public extension APIClient {
         try await requestData(path: "documents/\(id)/download")
     }
 
+    // MARK: - Audios
+
+    func listChatAudios(
+        assigneeId: String,
+        limit: Int = 100,
+        offset: Int = 0,
+        search: String? = nil
+    ) async throws -> PaginatedResponse<Audio> {
+        var queryItems = [
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)"),
+        ]
+        if let search, !search.isEmpty {
+            queryItems.append(URLQueryItem(name: "search", value: search))
+        }
+        return try await request(path: "chat/\(assigneeId)/audios", queryItems: queryItems)
+    }
+
+    func getAudio(id: String) async throws -> Audio {
+        try await request(path: "audios/\(id)")
+    }
+
+    func deleteAudio(id: String) async throws {
+        try await requestNoContent(path: "audios/\(id)")
+    }
+
     // MARK: - Slide Decks
 
     func listChatSlideDecks(

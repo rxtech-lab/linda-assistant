@@ -245,6 +245,27 @@ export const documents = sqliteTable("documents", {
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
 
+export const audios = sqliteTable("audios", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull(),
+  chatSessionId: text("chat_session_id")
+    .notNull()
+    .references(() => chatSessions.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  type: text("type").notNull(), // "podcast"
+  prompt: text("prompt").notNull(),
+  content: text("content").notNull(),
+  audioUrl: text("audio_url"),
+  status: text("status").notNull(), // "generating" | "ready" | "failed"
+  errorMessage: text("error_message"),
+  // JSON-encoded array of { speaker, voiceShortName, locale, text } produced by the podcast agent
+  transcript: text("transcript"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
+});
+
 export const briefings = sqliteTable("briefings", {
   id: text("id")
     .primaryKey()
