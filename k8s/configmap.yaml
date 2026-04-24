@@ -13,3 +13,4 @@ data:
   BACKEND_INTERNAL_URL: "http://linda-frontend-service.linda.svc.cluster.local:3000"
   CHROME_URL: "ws://headless-chrome.linda.svc.cluster.local:9222"
   NEXT_PUBLIC_APP_URL: "https://linda.rxlab.app"
+  AZURE_SPEECH_ENDPOINT: "https://eastus.tts.speech.microsoft.com"

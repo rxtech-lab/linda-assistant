@@ -270,6 +270,7 @@ public struct BriefingSummary: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let imageUrl: String?
+    public let podcastUrl: String?
     public let isPublic: Bool?
     public let shareUrl: String?
     public let chatSessionId: String?
@@ -569,6 +570,7 @@ public struct Briefing: Codable, Identifiable, Hashable, Sendable {
     public let title: String
     public let content: String
     public let imageUrl: String?
+    public let podcastUrl: String?
     public let isPublic: Bool?
     public let shareUrl: String?
     public let documents: [Document]?
@@ -591,6 +593,17 @@ public struct BriefingSection: Codable, Sendable, Identifiable {
 }
 
 public typealias BriefingListResponse = PaginatedResponse<BriefingSection>
+
+public struct GenerateBriefingPodcastResponse: Codable, Sendable {
+    public enum Status: String, Codable, Sendable {
+        case generating
+        case alreadyExists = "already_exists"
+    }
+
+    public let status: Status
+    public let briefingId: String
+    public let podcastUrl: String?
+}
 
 // MARK: - Chat Session
 

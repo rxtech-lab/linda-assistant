@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { fetchBriefingById } from "@/lib/db/queries/public-briefing";
+import "./briefing.css";
 
 export async function generateMetadata({
   params,
@@ -13,7 +14,7 @@ export async function generateMetadata({
   }
 
   const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
-  const shareUrl = `${base}/b/${briefing.id}`;
+  const shareUrl = `${base}/briefing/${briefing.id}`;
   const ogImage = `${shareUrl}/opengraph-image`;
 
   return {
@@ -34,17 +35,7 @@ export async function generateMetadata({
 
 export default function BriefingShareLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        overflow: "auto",
-        background: "#f7f7f8",
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        color: "#1a1a1a",
-      }}
-    >
-      <style>{`article img { max-width: 100%; height: auto; }`}</style>
+    <div className="briefing-root">
       {children}
     </div>
   );

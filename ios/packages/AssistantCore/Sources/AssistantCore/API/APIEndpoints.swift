@@ -366,6 +366,10 @@ public extension APIClient {
         try await requestNoContent(path: "briefings/\(id)")
     }
 
+    func generateBriefingPodcast(id: String) async throws -> GenerateBriefingPodcastResponse {
+        try await request(path: "briefings/\(id)/podcast", method: "POST")
+    }
+
     // MARK: - Extensions
 
     func listExtensions(assigneeId: String? = nil) async throws -> [ExtensionWithStatus] {

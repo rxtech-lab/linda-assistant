@@ -259,6 +259,7 @@ export const briefings = sqliteTable("briefings", {
   title: text("title").notNull(),
   content: text("content").notNull(),
   imageUrl: text("image_url"),
+  podcastUrl: text("podcast_url"),
   isPublic: integer("is_public", { mode: "boolean" }).default(false),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),

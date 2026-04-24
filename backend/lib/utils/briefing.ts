@@ -2,7 +2,7 @@ export function briefingShareUrl(id: string, isPublic: boolean | null): string |
   if (isPublic !== true) return null;
   const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
   if (!base) return null;
-  return `${base}/b/${id}`;
+  return `${base}/briefing/${id}`;
 }
 
 export function withShareUrl<T extends { id: string; isPublic: boolean | null }>(

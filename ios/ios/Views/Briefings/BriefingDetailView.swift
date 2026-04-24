@@ -16,6 +16,8 @@ struct BriefingDetailView: View {
     @State private var selectedDocument: DocumentSheetItem?
     @State private var shareItem: ShareURLItem?
     @State private var isMutatingShare = false
+    @State private var isGeneratingPodcast = false
+    @State private var podcastToastMessage: String?
 
     private var apiClient: APIClient {
         APIClient(authManager: authManager)
@@ -36,6 +38,16 @@ struct BriefingDetailView: View {
                         coverImage(for: briefing)
 
                         VStack(alignment: .leading, spacing: 12) {
+                            // Podcast player
+                            if let urlStr = briefing.podcastUrl, let url = URL(string: urlStr) {
+                                PodcastPlayerView(
+                                    url: url,
+                                    title: briefing.title,
+                                    imageUrl: briefing.imageUrl
+                                )
+                                .accessibilityIdentifier("podcast-player")
+                            }
+
                             if let date = briefing.createdAt {
                                 Text(formatDate(date))
                                     .font(.subheadline)
@@ -109,6 +121,19 @@ struct BriefingDetailView: View {
                             .disabled(isMutatingShare)
                         }
 
+                        if let briefing, briefing.podcastUrl == nil {
+                            Button {
+                                Task { await generatePodcast() }
+                            } label: {
+                                Label(
+                                    isGeneratingPodcast ? "Generating Podcast…" : "Generate Podcast",
+                                    systemImage: "waveform"
+                                )
+                            }
+                            .accessibilityIdentifier("generate-podcast")
+                            .disabled(isGeneratingPodcast)
+                        }
+
                         Button(role: .destructive) {
                             showingDelete = true
                         } label: {
@@ -119,6 +144,18 @@ struct BriefingDetailView: View {
                     }
                     .accessibilityIdentifier("briefing-menu")
                 }
+            }
+            .alert(
+                "Podcast",
+                isPresented: Binding(
+                    get: { podcastToastMessage != nil },
+                    set: { if !$0 { podcastToastMessage = nil } }
+                ),
+                presenting: podcastToastMessage
+            ) { _ in
+                Button("OK", role: .cancel) { podcastToastMessage = nil }
+            } message: { message in
+                Text(message)
             }
             .sheet(isPresented: $showingDelete) {
                 DeleteConfirmationSheet(
@@ -141,6 +178,13 @@ struct BriefingDetailView: View {
         #endif
             .task {
                 await loadBriefing()
+            }
+            .task(id: briefingId) {
+                for await event in eventManager.stream {
+                    if case let .briefingPodcastReady(id, _) = event, id == briefingId {
+                        await loadBriefing()
+                    }
+                }
             }
     }
 
@@ -192,6 +236,24 @@ struct BriefingDetailView: View {
             return
         }
         await setPublic(true, presentShare: true)
+    }
+
+    private func generatePodcast() async {
+        guard !isGeneratingPodcast else { return }
+        isGeneratingPodcast = true
+        defer { isGeneratingPodcast = false }
+        do {
+            let response = try await apiClient.generateBriefingPodcast(id: briefingId)
+            switch response.status {
+            case .generating:
+                podcastToastMessage = "Podcast is generating. You'll be notified when ready."
+            case .alreadyExists:
+                podcastToastMessage = "Podcast already exists."
+                await loadBriefing()
+            }
+        } catch {
+            podcastToastMessage = "Failed to start podcast: \(error.localizedDescription)"
+        }
     }
 
     private func setPublic(_ isPublic: Bool, presentShare: Bool = false) async {

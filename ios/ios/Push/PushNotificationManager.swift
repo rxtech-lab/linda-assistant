@@ -24,6 +24,7 @@ private let logger = Logger(subsystem: "lindaAssistant", category: "PushNotifica
 final class PushNotificationManager: NSObject, @unchecked Sendable {
     var deviceToken: String?
     private var apiClient: APIClient?
+    private var eventManager: EventManager?
     private var didRegister = false
     private let locationService = LocationService()
 
@@ -65,6 +66,10 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
         await sendRegistrationIfReady()
     }
 
+    func bindEventManager(_ manager: EventManager) {
+        eventManager = manager
+    }
+
     func forceReRegister() {
         logger.info("Force re-registering device token")
         didRegister = false
@@ -95,7 +100,19 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
         userInfo: [AnyHashable: Any],
         completionHandler: @escaping (BackgroundFetchResult) -> Void
     ) {
-        guard let type = userInfo["type"] as? String, type == "location_request",
+        let type = userInfo["type"] as? String
+
+        if type == "briefing-podcast-ready",
+           let briefingId = userInfo["briefingId"] as? String,
+           let podcastUrl = userInfo["podcastUrl"] as? String
+        {
+            logger.info("Briefing podcast ready: briefingId=\(briefingId)")
+            eventManager?.emit(.briefingPodcastReady(briefingId: briefingId, podcastUrl: podcastUrl))
+            completionHandler(.newData)
+            return
+        }
+
+        guard type == "location_request",
               let toolCallId = userInfo["toolCallId"] as? String
         else {
             completionHandler(.noData)

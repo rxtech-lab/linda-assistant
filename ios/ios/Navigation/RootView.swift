@@ -124,6 +124,7 @@ private struct OnboardingGate: View {
     private func load() async {
         // Request push permission and register first so deviceToken is available for onboard check
         pushManager.requestPermission()
+        pushManager.bindEventManager(eventManager)
         await pushManager.registerWithBackend(apiClient: apiClient)
         let status = await checkOnboardStatus()
         onReady()

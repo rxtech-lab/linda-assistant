@@ -16,6 +16,7 @@ public enum AppEvent: Sendable {
     case briefingCreated(Briefing)
     case briefingUpdated(Briefing)
     case briefingDeleted(String)
+    case briefingPodcastReady(briefingId: String, podcastUrl: String)
     case extensionCreated(Extension)
     case extensionDeleted(String)
     case assigneeExtensionUpdated(String, String) // assigneeId, extensionId

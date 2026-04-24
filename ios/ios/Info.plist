@@ -31,6 +31,10 @@
 	<string>https://update.linda.rxlab.app/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>OOJs50Q9V9lpqBgeRi0ow0YBdiAlmc9uJ3B9hABDsqQ=</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>
