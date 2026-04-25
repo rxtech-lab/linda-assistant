@@ -833,6 +833,12 @@
         }
       }
     },
+    "Briefings list (stub)" : {
+
+    },
+    "briefingsPath: %lld" : {
+
+    },
     "Build" : {
       "localizations" : {
         "zh-Hans" : {
@@ -882,6 +888,9 @@
           }
         }
       }
+    },
+    "Chat" : {
+
     },
     "Chat Sessions" : {
       "localizations" : {
@@ -1893,6 +1902,9 @@
         }
       }
     },
+    "Inbox (stub)" : {
+
+    },
     "Info" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2623,6 +2635,9 @@
         }
       }
     },
+    "pendingAudioId: %@" : {
+
+    },
     "Personality" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2808,6 +2823,9 @@
           }
         }
       }
+    },
+    "Reset" : {
+
     },
     "Result" : {
       "localizations" : {
@@ -3045,6 +3063,9 @@
         }
       }
     },
+    "Settings (stub)" : {
+
+    },
     "Share" : {
       "localizations" : {
         "zh-Hans" : {
@@ -3084,6 +3105,9 @@
           }
         }
       }
+    },
+    "Simulate notification tap" : {
+
     },
     "Skip" : {
       "localizations" : {
@@ -3154,6 +3178,9 @@
           }
         }
       }
+    },
+    "Standalone chat" : {
+
     },
     "Start Chat" : {
       "localizations" : {
@@ -3265,6 +3292,9 @@
         }
       }
     },
+    "tab: %@" : {
+
+    },
     "Tags" : {
       "localizations" : {
         "zh-Hans" : {
@@ -3294,6 +3324,12 @@
           }
         }
       }
+    },
+    "Task" : {
+
+    },
+    "Task chat" : {
+
     },
     "Task execution history will appear here after tasks complete." : {
       "localizations" : {
@@ -3334,6 +3370,12 @@
           }
         }
       }
+    },
+    "Tasks list (stub)" : {
+
+    },
+    "tasksPath: %lld" : {
+
     },
     "Thinking" : {
       "localizations" : {

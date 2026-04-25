@@ -28,6 +28,7 @@ export async function createQuestion(params: CreateQuestionParams) {
   const [question] = await db.insert(questions).values(params).returning();
 
   if (!params.skipNotification) {
+    const taskId = await getSessionTaskId(params.chatSessionId);
     await sendPushNotification(params.userId, {
       title: "Question from Linda",
       body:
@@ -38,6 +39,7 @@ export async function createQuestion(params: CreateQuestionParams) {
         type: "question",
         questionId: question.id,
         chatSessionId: params.chatSessionId,
+        ...(taskId ? { taskId } : {}),
       },
     }).catch((err) => {
       console.error("Failed to send push notification:", err);
@@ -58,6 +60,8 @@ export async function sendQuestionGroupNotification(
   const title = "Questions from Linda";
   const body = `Linda has ${totalQuestions} question${totalQuestions === 1 ? "" : "s"} for you. Please review.`;
 
+  const taskId = await getSessionTaskId(chatSessionId);
+
   await sendPushNotification(userId, {
     title,
     body,
@@ -65,10 +69,19 @@ export async function sendQuestionGroupNotification(
       type: "question",
       chatSessionId,
       ...(items.length === 1 ? { questionId: items[0].questionId } : {}),
+      ...(taskId ? { taskId } : {}),
     },
   }).catch((err) => {
     console.error("Failed to send grouped push notification:", err);
   });
+}
+
+async function getSessionTaskId(chatSessionId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ taskId: chatSessions.taskId })
+    .from(chatSessions)
+    .where(eq(chatSessions.id, chatSessionId));
+  return row?.taskId ?? null;
 }
 
 export async function resolveQuestion(

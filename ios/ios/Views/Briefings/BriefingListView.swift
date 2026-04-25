@@ -1,5 +1,8 @@
 import AssistantCore
+import OSLog
 import SwiftUI
+
+private let deepLinkLogger = Logger(subsystem: "lindaAssistant", category: "DeepLink")
 
 struct BriefingListView: View {
     @Environment(AuthManager.self) private var authManager
@@ -87,6 +90,10 @@ struct BriefingListView: View {
             #if os(iOS)
                 .navigationTransition(.zoom(sourceID: briefing.id, in: briefingNamespace))
             #endif
+        }
+        .navigationDestination(for: BriefingDeepLink.self) { link in
+            let _ = deepLinkLogger.info("BriefingListView navigationDestination(BriefingDeepLink) instantiating BriefingDetailView(briefingId: \(link.id))")
+            BriefingDetailView(briefingId: link.id)
         }
         .task {
             await viewModel.loadBriefings(apiClient: apiClient)

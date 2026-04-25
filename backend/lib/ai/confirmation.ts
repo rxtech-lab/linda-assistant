@@ -24,6 +24,7 @@ export async function createConfirmation(params: CreateConfirmationParams) {
   const [confirmation] = await db.insert(confirmations).values(params).returning();
 
   if (!params.skipNotification) {
+    const taskId = await getSessionTaskId(params.chatSessionId);
     // Send push notification (single confirmation path)
     await sendPushNotification(params.userId, {
       title: "Action Requires Confirmation",
@@ -32,6 +33,7 @@ export async function createConfirmation(params: CreateConfirmationParams) {
         type: "confirmation",
         confirmationId: confirmation.id,
         chatSessionId: params.chatSessionId,
+        ...(taskId ? { taskId } : {}),
       },
     }).catch((err) => {
       console.error("Failed to send push notification:", err);
@@ -62,6 +64,8 @@ export async function sendConfirmationGroupNotification(
     body = `Linda wants to ${toolNames.join(", ")}, and ${last}. Please review.`;
   }
 
+  const taskId = await getSessionTaskId(chatSessionId);
+
   await sendPushNotification(userId, {
     title,
     body,
@@ -69,10 +73,19 @@ export async function sendConfirmationGroupNotification(
       type: "confirmation",
       chatSessionId,
       ...(isSingle ? { confirmationId: items[0].confirmationId } : {}),
+      ...(taskId ? { taskId } : {}),
     },
   }).catch((err) => {
     console.error("Failed to send grouped push notification:", err);
   });
+}
+
+async function getSessionTaskId(chatSessionId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ taskId: chatSessions.taskId })
+    .from(chatSessions)
+    .where(eq(chatSessions.id, chatSessionId));
+  return row?.taskId ?? null;
 }
 
 export async function resolveConfirmation(

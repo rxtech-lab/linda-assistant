@@ -55,7 +55,7 @@ export async function notifySessionResponse(
   responseText: string,
 ) {
   const [session] = await db
-    .select({ assigneeId: chatSessions.assigneeId })
+    .select({ assigneeId: chatSessions.assigneeId, taskId: chatSessions.taskId })
     .from(chatSessions)
     .where(eq(chatSessions.id, sessionId));
 
@@ -77,6 +77,10 @@ export async function notifySessionResponse(
   await sendPushNotification(userId, {
     title,
     body,
-    data: { sessionId, type: "assistant_message" },
+    data: {
+      sessionId,
+      type: "assistant_message",
+      ...(session?.taskId ? { taskId: session.taskId } : {}),
+    },
   });
 }

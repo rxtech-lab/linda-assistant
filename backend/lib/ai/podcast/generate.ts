@@ -78,14 +78,16 @@ function extractSegmentsFromSSML(
   voiceLocale: Map<string, string>,
 ): TranscriptSegment[] {
   const results: TranscriptSegment[] = [];
-  const voiceRe = /<voice[^>]*name\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/voice>/gi;
+  const voiceRe =
+    /<voice[^>]*name\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/voice>/gi;
   let match: RegExpExecArray | null = voiceRe.exec(ssml);
   while (match !== null) {
     const voiceShortName = match[1];
     const inner = match[2];
     const text = stripSSMLTags(inner).trim();
     if (text.length > 0) {
-      const speaker = speakersByVoice.get(voiceShortName)?.role ?? voiceShortName;
+      const speaker =
+        speakersByVoice.get(voiceShortName)?.role ?? voiceShortName;
       const locale = voiceLocale.get(voiceShortName) ?? fallbackLocale;
       results.push({ speaker, voiceShortName, locale, text });
     }
@@ -212,11 +214,16 @@ Cast guidance:
 SSML guidance:
 - Wrap each speaker turn with <voice name="ShortName">...</voice>.
 - Use <break time="400ms"/> between thoughts and <break time="700ms"/> between sections.
-- Use <prosody rate="95%"> for emphatic phrases and <prosody rate="105%"> for fast asides.
+- Do NOT adjust speaking speed — never use <prosody rate="..."> on any speaker. Use the default speed for all voices.
 - Where a voice supports styles (StyleList), use <mstts:express-as style="..."> to enrich delivery.
 - Do NOT include the outer <speak> envelope — the system adds it automatically with the locale you declared.
 
-Quality bar: write a podcast you would actually want to listen to. Open with a 1-2 sentence hook, then walk through the substance, then close with a brief takeaway.`;
+Structure (required):
+- Open with a 1-2 sentence hook.
+- Walk through the substance.
+- ALWAYS include an exit segment before ending the podcast — a brief sign-off that thanks the listener and clearly closes out the episode (e.g. "That's all for today, thanks for listening — see you next time."). The exit segment must be present in every podcast, even short ones, and must be the final spoken content before finalizePodcast is called.
+
+Quality bar: write a podcast you would actually want to listen to.`;
 
 async function generatePodcastCore(args: CoreArgs): Promise<CoreResult> {
   const {
@@ -244,7 +251,7 @@ async function generatePodcastCore(args: CoreArgs): Promise<CoreResult> {
     model: PODCAST_GENERATION_MODEL,
   });
 
-    // 1. Load voice catalog (cached after first call).
+  // 1. Load voice catalog (cached after first call).
   log("step=load-voices begin");
   const voices = await listAzureVoices();
   const voicesByShortName = new Map(
