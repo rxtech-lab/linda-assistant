@@ -6,6 +6,7 @@ import type { ToolPermission } from "@/lib/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { sendPushNotification } from "@/lib/push";
 import { syncTaskStatus } from "@/lib/utils/task-status-sync";
+import { updateTaskActivity } from "@/lib/utils/live-activity";
 import { publishTask, publishEvent } from "@/lib/queue/producer";
 import { annotateToolCallConfirmation } from "./agent";
 import { getActiveSessionMessages, insertMessages, updateMessageContent } from "@/lib/db/messages";
@@ -260,6 +261,16 @@ export async function resolveConfirmation(
       data: { status: "in_progress" },
       timestamp: Date.now(),
     });
+
+    const [resumedSession] = await db
+      .select({ taskId: chatSessions.taskId })
+      .from(chatSessions)
+      .where(eq(chatSessions.id, confirmation.chatSessionId));
+    if (resumedSession?.taskId) {
+      updateTaskActivity(resumedSession.taskId, "inProgress").catch((err) =>
+        console.warn("[resolveConfirmation] updateTaskActivity failed:", err),
+      );
+    }
 
     console.log(
       `[resolveConfirmation] All confirmations resolved, publishing task to resume agent`,

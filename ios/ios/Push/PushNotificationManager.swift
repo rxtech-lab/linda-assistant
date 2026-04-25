@@ -24,11 +24,16 @@ private let deepLinkLogger = Logger(subsystem: "lindaAssistant", category: "Deep
 @Observable
 final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     var deviceToken: String?
+    /// APNs push-to-start token for Live Activities (iOS 17.2+). Sent alongside
+    /// `deviceToken` to `/api/devices` so the backend can remotely start a Live
+    /// Activity for any task that the user opted into.
+    var liveActivityStartToken: String?
     private var apiClient: APIClient?
     private var eventManager: EventManager?
     private var navigationManager: NavigationManager?
     private var pendingUserInfo: [AnyHashable: Any]?
     private var didRegister = false
+    private var lastRegisteredLiveActivityToken: String?
     private let locationService = LocationService()
 
     func requestPermission() {
@@ -91,22 +96,39 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate,
     }
 
     private func sendRegistrationIfReady() async {
-        guard let token = deviceToken, let apiClient, !didRegister else {
+        guard let token = deviceToken, let apiClient else {
             logger
                 .debug(
                     "Registration not ready — token: \(self.deviceToken != nil), apiClient: \(self.apiClient != nil), didRegister: \(self.didRegister)"
                 )
             return
         }
+        // Skip if already registered with this exact token combination.
+        if didRegister, lastRegisteredLiveActivityToken == liveActivityStartToken {
+            return
+        }
         didRegister = true
-        logger.info("Sending device token to backend: \(token.prefix(8))...")
+        lastRegisteredLiveActivityToken = liveActivityStartToken
+        logger.info(
+            "Registering device: token=\(token.prefix(8))... liveActivity=\(self.liveActivityStartToken.map { String($0.prefix(8)) + "..." } ?? "none")"
+        )
         do {
-            _ = try await apiClient.registerDevice(RegisterDevice(deviceToken: token))
+            _ = try await apiClient.registerDevice(
+                RegisterDevice(deviceToken: token, liveActivityStartToken: liveActivityStartToken)
+            )
             logger.info("Device token registered successfully")
         } catch {
             didRegister = false
             logger.error("Failed to register device token: \(error)")
         }
+    }
+
+    /// Update the Live Activity push-to-start token and re-register. Called by
+    /// `LiveActivityCoordinator` whenever ActivityKit emits a new token.
+    func updateLiveActivityStartToken(_ token: String) {
+        guard liveActivityStartToken != token else { return }
+        liveActivityStartToken = token
+        Task { await sendRegistrationIfReady() }
     }
 
     /// Handle silent/background push notifications for auto-confirm location requests.

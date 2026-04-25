@@ -45,6 +45,15 @@ struct TaskDetailView: View {
                     },
                     onRunNow: {
                         Task { await viewModel.executeNow(apiClient: apiClient, eventManager: eventManager) }
+                    },
+                    onToggleLiveActivity: { isOn in
+                        Task {
+                            await viewModel.setLiveActivityEnabled(
+                                isOn,
+                                apiClient: apiClient,
+                                eventManager: eventManager
+                            )
+                        }
                     }
                 )
                 .transition(.opacity)
@@ -153,14 +162,29 @@ struct TaskDetailContentView: View {
     var onStart: () -> Void
     var onStop: () -> Void
     var onRunNow: () -> Void
+    var onToggleLiveActivity: ((Bool) -> Void)? = nil
 
     @State private var sessionOffsetsToDelete: IndexSet?
     @State private var showingDocumentsSheet = false
     @State private var showingBriefingsSheet = false
     @State private var selectedDocument: DocumentSheetItem?
+    @State private var liveActivityToggleValue: Bool = true
 
     var body: some View {
         List {
+            content
+        }
+        .onChange(of: task.liveActivityEnabled) { _, newValue in
+            liveActivityToggleValue = newValue ?? true
+        }
+        .onAppear {
+            liveActivityToggleValue = task.liveActivityEnabled ?? true
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        Group {
             // Hero Header & Actions
             Section {
                 VStack(spacing: 12) {
@@ -284,6 +308,22 @@ struct TaskDetailContentView: View {
                 NavigationLink(value: AppDestination.taskExtensions(taskId: task.id)) {
                     Label("Extensions", systemImage: "puzzlepiece.extension")
                 }
+            }
+
+            // Live Activity
+            Section {
+                Toggle(isOn: Binding(
+                    get: { liveActivityToggleValue },
+                    set: { newValue in
+                        liveActivityToggleValue = newValue
+                        onToggleLiveActivity?(newValue)
+                    }
+                )) {
+                    Label("Live Activity", systemImage: "wave.3.right")
+                }
+                .accessibilityIdentifier("task-live-activity-toggle")
+            } footer: {
+                Text("Show a Live Activity on the lock screen and Dynamic Island while this task is running.")
             }
 
             // Documents

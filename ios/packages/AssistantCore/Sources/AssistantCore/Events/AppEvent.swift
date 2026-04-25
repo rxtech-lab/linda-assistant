@@ -31,5 +31,7 @@ public enum AppEvent: Sendable {
     case uploadResolved(String, String)
     case streamContentUpdated
     case sharePending
+    case openBriefingRequested(id: String)
+    case openTaskRequested(id: String)
     case error(message: String)
 }

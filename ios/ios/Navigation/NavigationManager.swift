@@ -32,6 +32,7 @@ struct BriefingDeepLink: Hashable {
 
 enum DeepLinkTarget: Sendable {
     case briefing(id: String)
+    case task(id: String)
     case audio(id: String)
     case taskChatSession(taskId: String, sessionId: String)
     case standaloneChatSession(id: String)
@@ -96,6 +97,11 @@ final class NavigationManager {
                 briefingsPath.append(BriefingDeepLink(id: id))
                 // On iPhone, the tabbed UI lives inside a fullScreenCover gated by `showingTabs`.
                 // Surface it so BriefingListView's NavigationStack is in the view tree to receive the push.
+                showingTabs = true
+            case let .task(id):
+                selectedTab = .tasks
+                tasksPath = NavigationPath()
+                tasksPath.append(AppDestination.task(id: id))
                 showingTabs = true
             case let .audio(id):
                 pendingAudioId = id

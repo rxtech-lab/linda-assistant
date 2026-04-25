@@ -19,6 +19,10 @@
 		DF7E37762F3B1D21006A4C0A /* Launch Screen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */; platformFilter = ios; };
 		DF7E385D2F3B5EF9006A4C0A /* ViewInspector in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E385C2F3B5EF9006A4C0A /* ViewInspector */; };
 		DFBF636C2F794F87002EAEDF /* TestPlanSerial.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = DFBF636B2F794F87002EAEDF /* TestPlanSerial.xctestplan */; };
+		DFE6CCF32F9C9F8E003763B8 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DFE6CCF22F9C9F8E003763B8 /* WidgetKit.framework */; };
+		DFE6CCF52F9C9F8E003763B8 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DFE6CCF42F9C9F8E003763B8 /* SwiftUI.framework */; };
+		DFE6CD062F9C9F8F003763B8 /* LindaWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DFE6CCF02F9C9F8E003763B8 /* LindaWidgetExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		DFE6CDFF2F9CB00B003763B8 /* AssistantCore in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E2A202F379000006A4C0A /* AssistantCore */; };
 		DFECD8162F9BB41F00B62399 /* ShareLinda.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DFECD80C2F9BB41F00B62399 /* ShareLinda.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		DFECD9012F9BB41F00B62399 /* AssistantCore in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E2A202F379000006A4C0A /* AssistantCore */; };
 /* End PBXBuildFile section */
@@ -38,6 +42,13 @@
 			remoteGlobalIDString = DF7E29F02F378F46006A4C0A;
 			remoteInfo = ios;
 		};
+		DFE6CD042F9C9F8F003763B8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DF7E29E92F378F46006A4C0A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DFE6CCEF2F9C9F8E003763B8;
+			remoteInfo = LindaWidgetExtension;
+		};
 		DFECD8142F9BB41F00B62399 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = DF7E29E92F378F46006A4C0A /* Project object */;
@@ -55,6 +66,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				DFECD8162F9BB41F00B62399 /* ShareLinda.appex in Embed Foundation Extensions */,
+				DFE6CD062F9C9F8F003763B8 /* LindaWidgetExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -74,6 +86,9 @@
 		DF7E324F2F3888A1006A4C0A /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon.icon; sourceTree = "<group>"; };
 		DF7E37752F3B1D21006A4C0A /* Launch Screen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = "Launch Screen.storyboard"; sourceTree = "<group>"; };
 		DFBF636B2F794F87002EAEDF /* TestPlanSerial.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = TestPlanSerial.xctestplan; sourceTree = "<group>"; };
+		DFE6CCF02F9C9F8E003763B8 /* LindaWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LindaWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		DFE6CCF22F9C9F8E003763B8 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		DFE6CCF42F9C9F8E003763B8 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		DFECD80C2F9BB41F00B62399 /* ShareLinda.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareLinda.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -84,6 +99,13 @@
 				Info.plist,
 			);
 			target = DF7E29F02F378F46006A4C0A /* LindaAssistant */;
+		};
+		DFE6CD0A2F9C9F8F003763B8 /* Exceptions for "LindaWidget" folder in "LindaWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = DFE6CCEF2F9C9F8E003763B8 /* LindaWidgetExtension */;
 		};
 		DFECD81B2F9BB41F00B62399 /* Exceptions for "ShareLinda" folder in "ShareLinda" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -111,6 +133,14 @@
 		DF7E2A0D2F378F47006A4C0A /* iosUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = iosUITests;
+			sourceTree = "<group>";
+		};
+		DFE6CCF62F9C9F8E003763B8 /* LindaWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				DFE6CD0A2F9C9F8F003763B8 /* Exceptions for "LindaWidget" folder in "LindaWidgetExtension" target */,
+			);
+			path = LindaWidget;
 			sourceTree = "<group>";
 		};
 		DFECD80D2F9BB41F00B62399 /* ShareLinda */ = {
@@ -153,6 +183,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		DFE6CCED2F9C9F8E003763B8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DFE6CCF52F9C9F8E003763B8 /* SwiftUI.framework in Frameworks */,
+				DFE6CCF32F9C9F8E003763B8 /* WidgetKit.framework in Frameworks */,
+				DFE6CDFF2F9CB00B003763B8 /* AssistantCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DFECD8092F9BB41F00B62399 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -177,6 +217,8 @@
 				DF7E2A032F378F47006A4C0A /* iosTests */,
 				DF7E2A0D2F378F47006A4C0A /* iosUITests */,
 				DFECD80D2F9BB41F00B62399 /* ShareLinda */,
+				DFE6CCF62F9C9F8E003763B8 /* LindaWidget */,
+				DFE6CCF12F9C9F8E003763B8 /* Frameworks */,
 				DF7E29F22F378F46006A4C0A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -188,6 +230,7 @@
 				DF7E2A002F378F47006A4C0A /* iosTests.xctest */,
 				DF7E2A0A2F378F47006A4C0A /* iosUITests.xctest */,
 				DFECD80C2F9BB41F00B62399 /* ShareLinda.appex */,
+				DFE6CCF02F9C9F8E003763B8 /* LindaWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -211,6 +254,15 @@
 			path = Config;
 			sourceTree = "<group>";
 		};
+		DFE6CCF12F9C9F8E003763B8 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				DFE6CCF22F9C9F8E003763B8 /* WidgetKit.framework */,
+				DFE6CCF42F9C9F8E003763B8 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -227,6 +279,7 @@
 			);
 			dependencies = (
 				DFECD8152F9BB41F00B62399 /* PBXTargetDependency */,
+				DFE6CD052F9C9F8F003763B8 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				DF7E29F32F378F46006A4C0A /* ios */,
@@ -292,6 +345,29 @@
 			productReference = DF7E2A0A2F378F47006A4C0A /* iosUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		DFE6CCEF2F9C9F8E003763B8 /* LindaWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DFE6CD072F9C9F8F003763B8 /* Build configuration list for PBXNativeTarget "LindaWidgetExtension" */;
+			buildPhases = (
+				DFE6CCEC2F9C9F8E003763B8 /* Sources */,
+				DFE6CCED2F9C9F8E003763B8 /* Frameworks */,
+				DFE6CCEE2F9C9F8E003763B8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				DFE6CCF62F9C9F8E003763B8 /* LindaWidget */,
+			);
+			name = LindaWidgetExtension;
+			packageProductDependencies = (
+				DF7E2A202F379000006A4C0A /* AssistantCore */,
+			);
+			productName = LindaWidgetExtension;
+			productReference = DFE6CCF02F9C9F8E003763B8 /* LindaWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		DFECD80B2F9BB41F00B62399 /* ShareLinda */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = DFECD81A2F9BB41F00B62399 /* Build configuration list for PBXNativeTarget "ShareLinda" */;
@@ -336,6 +412,9 @@
 						CreatedOnToolsVersion = 26.3;
 						TestTargetID = DF7E29F02F378F46006A4C0A;
 					};
+					DFE6CCEF2F9C9F8E003763B8 = {
+						CreatedOnToolsVersion = 26.3;
+					};
 					DFECD80B2F9BB41F00B62399 = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -370,6 +449,7 @@
 				DF7E29FF2F378F47006A4C0A /* iosTests */,
 				DF7E2A092F378F47006A4C0A /* iosUITests */,
 				DFECD80B2F9BB41F00B62399 /* ShareLinda */,
+				DFE6CCEF2F9C9F8E003763B8 /* LindaWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -394,6 +474,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		DF7E2A082F378F47006A4C0A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DFE6CCEE2F9C9F8E003763B8 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -431,6 +518,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		DFE6CCEC2F9C9F8E003763B8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DFECD8082F9BB41F00B62399 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -450,6 +544,12 @@
 			isa = PBXTargetDependency;
 			target = DF7E29F02F378F46006A4C0A /* LindaAssistant */;
 			targetProxy = DF7E2A0B2F378F47006A4C0A /* PBXContainerItemProxy */;
+		};
+		DFE6CD052F9C9F8F003763B8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = ios;
+			target = DFE6CCEF2F9C9F8E003763B8 /* LindaWidgetExtension */;
+			targetProxy = DFE6CD042F9C9F8F003763B8 /* PBXContainerItemProxy */;
 		};
 		DFECD8152F9BB41F00B62399 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -799,6 +899,91 @@
 			};
 			name = Release;
 		};
+		DFE6CD082F9C9F8F003763B8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = DF7E2A412F385100006A4C0A /* Debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = LindaWidget/LindaWidget.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P9KK452K8P;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LindaWidget/Info.plist;
+				INFOPLIST_KEY_AppAPIBaseURL = "$(API_BASE_URL)";
+				INFOPLIST_KEY_AppAuthClientID = "$(AUTH_CLIENT_ID)";
+				INFOPLIST_KEY_AppAuthIssuer = "$(AUTH_ISSUER)";
+				INFOPLIST_KEY_AppAuthRedirectURI = "$(AUTH_REDIRECT_URI)";
+				INFOPLIST_KEY_AppAuthScopes = "$(AUTH_SCOPES)";
+				INFOPLIST_KEY_AppAuthURLScheme = "$(AUTH_URL_SCHEME)";
+				INFOPLIST_KEY_AppKeychainAccessGroup = "$(DEVELOPMENT_TEAM).group.rxlab.lindaAssistant";
+				INFOPLIST_KEY_CFBundleDisplayName = LindaWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = rxlab.lindaAssistant.LindaWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		DFE6CD092F9C9F8F003763B8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = DF7E2A422F385100006A4C0A /* Release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = LindaWidget/LindaWidget.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P9KK452K8P;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LindaWidget/Info.plist;
+				INFOPLIST_KEY_AppAPIBaseURL = "$(API_BASE_URL)";
+				INFOPLIST_KEY_AppAuthClientID = "$(AUTH_CLIENT_ID)";
+				INFOPLIST_KEY_AppAuthIssuer = "$(AUTH_ISSUER)";
+				INFOPLIST_KEY_AppAuthRedirectURI = "$(AUTH_REDIRECT_URI)";
+				INFOPLIST_KEY_AppAuthScopes = "$(AUTH_SCOPES)";
+				INFOPLIST_KEY_AppAuthURLScheme = "$(AUTH_URL_SCHEME)";
+				INFOPLIST_KEY_AppKeychainAccessGroup = "$(DEVELOPMENT_TEAM).group.rxlab.lindaAssistant";
+				INFOPLIST_KEY_CFBundleDisplayName = LindaWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = rxlab.lindaAssistant.LindaWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		DFECD8182F9BB41F00B62399 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -911,6 +1096,15 @@
 			buildConfigurations = (
 				DF7E2A1B2F378F47006A4C0A /* Debug */,
 				DF7E2A1C2F378F47006A4C0A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DFE6CD072F9C9F8F003763B8 /* Build configuration list for PBXNativeTarget "LindaWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DFE6CD082F9C9F8F003763B8 /* Debug */,
+				DFE6CD092F9C9F8F003763B8 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

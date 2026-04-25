@@ -28,6 +28,7 @@ struct TaskFormSheet: View {
     @State private var cronSchedule = ""
     @State private var runsAtDate = Date().addingTimeInterval(3600)
     @State private var selectedTimezone = TimeZone.current.identifier
+    @State private var liveActivityEnabled = true
     @State private var isSubmitting = false
     @State private var error: String?
 
@@ -95,6 +96,13 @@ struct TaskFormSheet: View {
 
                 Section("Categories (comma-separated)") {
                     TextField("engineering, design", text: $categoriesText)
+                }
+
+                Section {
+                    Toggle("Live Activity", isOn: $liveActivityEnabled)
+                        .accessibilityIdentifier("task-live-activity-toggle")
+                } footer: {
+                    Text("Show a Live Activity on the lock screen and Dynamic Island while this task is running.")
                 }
 
                 #if os(iOS)
@@ -167,6 +175,7 @@ struct TaskFormSheet: View {
         categoriesText = task.categories?.joined(separator: ", ") ?? ""
         selectedAssigneeId = task.assigneeId
         cronSchedule = task.cronSchedule ?? ""
+        liveActivityEnabled = task.liveActivityEnabled ?? true
 
         // Use server-stored timezone if available
         if let tz = task.timezone, TimeZone(identifier: tz) != nil {
@@ -245,7 +254,8 @@ struct TaskFormSheet: View {
                     cronSchedule: effectiveCronSchedule,
                     isCronEnabled: effectiveIsCronEnabled,
                     runsAt: effectiveRunsAt,
-                    timezone: effectiveTimezone
+                    timezone: effectiveTimezone,
+                    liveActivityEnabled: liveActivityEnabled
                 )
                 let updated = try await apiClient.updateTask(id: existing.id, body)
                 onSave(updated)
@@ -259,7 +269,8 @@ struct TaskFormSheet: View {
                     cronSchedule: effectiveCronSchedule,
                     isCronEnabled: effectiveIsCronEnabled,
                     runsAt: effectiveRunsAt,
-                    timezone: effectiveTimezone
+                    timezone: effectiveTimezone,
+                    liveActivityEnabled: liveActivityEnabled
                 )
                 let created = try await apiClient.createTask(body)
                 onSave(created)

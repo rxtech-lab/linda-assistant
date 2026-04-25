@@ -221,6 +221,11 @@ export const selectTaskSchema = z.object({
     .nullable()
     .optional()
     .describe("Per-tool permission overrides inherited from assignee"),
+  liveActivityEnabled: z
+    .boolean()
+    .nullable()
+    .optional()
+    .describe("Whether to show a Live Activity for this task while it is running"),
   nextRunAt: z
     .number()
     .nullable()
@@ -273,6 +278,10 @@ export const insertTaskSchema = z
       .optional()
       .nullable()
       .describe("IANA timezone (e.g. 'America/New_York') for interpreting schedule times"),
+    liveActivityEnabled: z
+      .boolean()
+      .optional()
+      .describe("Whether to show a Live Activity for this task while it is running (default true)"),
   })
   .refine((data) => !(data.isCronEnabled && data.runsAt), {
     message: "A task cannot have both cron scheduling and a one-shot runsAt schedule",
@@ -315,6 +324,10 @@ export const updateTaskSchema = z
       .optional()
       .nullable()
       .describe("Per-tool permission overrides for this task"),
+    liveActivityEnabled: z
+      .boolean()
+      .optional()
+      .describe("Whether to show a Live Activity for this task while it is running"),
   })
   .refine((data) => !(data.isCronEnabled && data.runsAt), {
     message: "A task cannot have both cron scheduling and a one-shot runsAt schedule",
@@ -755,12 +768,50 @@ export const selectDeviceSchema = z.object({
   userId: z.string().describe("Owner user ID"),
   deviceToken: z.string().describe("APNs device token"),
   platform: z.string().describe("Device platform"),
+  liveActivityStartToken: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("APNs push-to-start token for Live Activities (iOS 17.2+)"),
   createdAt: z.string().nullable().describe("Registration timestamp"),
 });
 
 export const insertDeviceSchema = z.object({
   deviceToken: z.string().min(1).describe("APNs device token"),
   platform: z.string().min(1).describe("Device platform"),
+  liveActivityStartToken: z
+    .string()
+    .min(1)
+    .nullable()
+    .optional()
+    .describe("APNs push-to-start token for Live Activities (iOS 17.2+)"),
+});
+
+// ---- Live Activities ----
+
+export const liveActivityStatusSchema = z.enum([
+  "starting",
+  "inProgress",
+  "waitingConfirmation",
+  "completed",
+  "failed",
+]);
+
+export const insertLiveActivityTokenSchema = z.object({
+  activityId: z.string().min(1).describe("Activity instance identifier"),
+  taskId: z.string().min(1).describe("Task this activity is bound to"),
+  token: z.string().min(1).describe("Per-activity APNs push token (hex)"),
+});
+
+export const selectLiveActivityTokenSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  taskId: z.string().describe("Task this activity is bound to"),
+  activityId: z.string().describe("Activity instance identifier"),
+  token: z.string().describe("Per-activity APNs push token"),
+  endedAt: z.string().nullable().describe("When the activity was ended (server-side)"),
+  createdAt: z.string().nullable().describe("Registration timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
 
 // ---- Send message ----

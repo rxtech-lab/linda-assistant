@@ -27,6 +27,7 @@ import {
 import { createMem0Client } from "@/lib/mem0/client";
 import { redis } from "@/lib/redis";
 import { setStreamActive } from "@/lib/streaming/manager";
+import { endTaskActivity, updateTaskActivity } from "@/lib/utils/live-activity";
 import { extractTextFromMessage, prepareMessages } from "./compaction";
 import { createConfirmation, sendConfirmationGroupNotification } from "./confirmation";
 import { createLocationRequest } from "./location";
@@ -1914,6 +1915,12 @@ export async function runAgent(options: AgentRunOptions) {
           })
           .where(eq(chatSessions.id, sessionId));
 
+        if (session.taskId) {
+          updateTaskActivity(session.taskId, "waitingConfirmation").catch((err) =>
+            console.warn("[agent] updateTaskActivity (waiting) failed:", err),
+          );
+        }
+
         // Insert a usage record for this partial run
         if (totalInputTokens > 0 || totalOutputTokens > 0) {
           await db.insert(usage).values({
@@ -1976,6 +1983,12 @@ export async function runAgent(options: AgentRunOptions) {
       })
       .where(eq(chatSessions.id, sessionId));
 
+    if (session.taskId) {
+      endTaskActivity(session.taskId, "completed").catch((err) =>
+        console.warn("[agent] endTaskActivity (completed) failed:", err),
+      );
+    }
+
     // Insert a usage record for this completed run
     if (totalInputTokens > 0 || totalOutputTokens > 0) {
       await db.insert(usage).values({
@@ -2035,6 +2048,12 @@ export async function runAgent(options: AgentRunOptions) {
         updatedAt: sql`(datetime('now'))`,
       })
       .where(eq(chatSessions.id, sessionId));
+
+    if (session.taskId) {
+      endTaskActivity(session.taskId, "failed").catch((err) =>
+        console.warn("[agent] endTaskActivity (failed) failed:", err),
+      );
+    }
 
     await setStreamActive(sessionId, false);
 

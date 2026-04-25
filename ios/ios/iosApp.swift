@@ -76,6 +76,9 @@ struct iosApp: App {
     @State private var authManager = createAuthManager()
     @State private var eventManager = EventManager()
     @State private var pushManager = PushNotificationManager()
+    #if os(iOS)
+        @State private var liveActivityCoordinator = LiveActivityCoordinator()
+    #endif
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -90,7 +93,7 @@ struct iosApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            rootContainer
                 .environment(authManager)
                 .environment(eventManager)
                 .environment(pushManager)
@@ -99,9 +102,30 @@ struct iosApp: App {
                 }
                 .onOpenURL { url in
                     appLogger.info("onOpenURL fired: \(url.absoluteString)")
-                    if url.scheme == "rxlablinda", url.host == "share" {
-                        appLogger.info("Emitting .sharePending from onOpenURL")
-                        eventManager.emit(.sharePending)
+                    guard url.scheme == "rxlablinda" else { return }
+                    switch url.host {
+                        case "share":
+                            appLogger.info("Emitting .sharePending from onOpenURL")
+                            eventManager.emit(.sharePending)
+                        case "briefing":
+                            // path = "/{id}" → drop the leading slash
+                            let id = url.pathComponents.dropFirst().joined(separator: "/")
+                            guard !id.isEmpty else {
+                                appLogger.warning("rxlablinda://briefing missing id")
+                                return
+                            }
+                            appLogger.info("Emitting .openBriefingRequested(id: \(id))")
+                            eventManager.emit(.openBriefingRequested(id: id))
+                        case "task":
+                            let id = url.pathComponents.dropFirst().joined(separator: "/")
+                            guard !id.isEmpty else {
+                                appLogger.warning("rxlablinda://task missing id")
+                                return
+                            }
+                            appLogger.info("Emitting .openTaskRequested(id: \(id))")
+                            eventManager.emit(.openTaskRequested(id: id))
+                        default:
+                            appLogger.warning("Unhandled rxlablinda host: \(url.host ?? "nil")")
                     }
                 }
         }
@@ -120,6 +144,16 @@ struct iosApp: App {
                 }
             }
         }
+        #endif
+    }
+
+    @ViewBuilder
+    private var rootContainer: some View {
+        #if os(iOS)
+            RootView()
+                .environment(liveActivityCoordinator)
+        #else
+            RootView()
         #endif
     }
 }

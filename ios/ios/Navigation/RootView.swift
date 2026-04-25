@@ -54,6 +54,9 @@ private struct OnboardingGate: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(EventManager.self) private var eventManager
     @Environment(PushNotificationManager.self) private var pushManager
+    #if os(iOS)
+        @Environment(LiveActivityCoordinator.self) private var liveActivityCoordinator
+    #endif
     @State private var isOnboarded: Bool?
     @State private var isLoading = true
     @State private var loadError: String?
@@ -126,6 +129,9 @@ private struct OnboardingGate: View {
         pushManager.requestPermission()
         pushManager.bindEventManager(eventManager)
         await pushManager.registerWithBackend(apiClient: apiClient)
+        #if os(iOS)
+            liveActivityCoordinator.bind(pushManager: pushManager, apiClient: apiClient)
+        #endif
         let status = await checkOnboardStatus()
         onReady()
         if let status, status.device.check == false {
