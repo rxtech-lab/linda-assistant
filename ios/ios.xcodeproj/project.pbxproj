@@ -22,6 +22,7 @@
 		DFE6CCF32F9C9F8E003763B8 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DFE6CCF22F9C9F8E003763B8 /* WidgetKit.framework */; };
 		DFE6CCF52F9C9F8E003763B8 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DFE6CCF42F9C9F8E003763B8 /* SwiftUI.framework */; };
 		DFE6CD062F9C9F8F003763B8 /* LindaWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DFE6CCF02F9C9F8E003763B8 /* LindaWidgetExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		DFE6CDFF2F9CB00B003763B8 /* AssistantCore in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E2A202F379000006A4C0A /* AssistantCore */; };
 		DFECD8162F9BB41F00B62399 /* ShareLinda.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DFECD80C2F9BB41F00B62399 /* ShareLinda.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		DFECD9012F9BB41F00B62399 /* AssistantCore in Frameworks */ = {isa = PBXBuildFile; productRef = DF7E2A202F379000006A4C0A /* AssistantCore */; };
 /* End PBXBuildFile section */
@@ -188,6 +189,7 @@
 			files = (
 				DFE6CCF52F9C9F8E003763B8 /* SwiftUI.framework in Frameworks */,
 				DFE6CCF32F9C9F8E003763B8 /* WidgetKit.framework in Frameworks */,
+				DFE6CDFF2F9CB00B003763B8 /* AssistantCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -360,6 +362,7 @@
 			);
 			name = LindaWidgetExtension;
 			packageProductDependencies = (
+				DF7E2A202F379000006A4C0A /* AssistantCore */,
 			);
 			productName = LindaWidgetExtension;
 			productReference = DFE6CCF02F9C9F8E003763B8 /* LindaWidgetExtension.appex */;
@@ -898,15 +901,24 @@
 		};
 		DFE6CD082F9C9F8F003763B8 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = DF7E2A412F385100006A4C0A /* Debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = LindaWidget/LindaWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = P9KK452K8P;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LindaWidget/Info.plist;
+				INFOPLIST_KEY_AppAPIBaseURL = "$(API_BASE_URL)";
+				INFOPLIST_KEY_AppAuthClientID = "$(AUTH_CLIENT_ID)";
+				INFOPLIST_KEY_AppAuthIssuer = "$(AUTH_ISSUER)";
+				INFOPLIST_KEY_AppAuthRedirectURI = "$(AUTH_REDIRECT_URI)";
+				INFOPLIST_KEY_AppAuthScopes = "$(AUTH_SCOPES)";
+				INFOPLIST_KEY_AppAuthURLScheme = "$(AUTH_URL_SCHEME)";
+				INFOPLIST_KEY_AppKeychainAccessGroup = "$(DEVELOPMENT_TEAM).group.rxlab.lindaAssistant";
 				INFOPLIST_KEY_CFBundleDisplayName = LindaWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
@@ -931,15 +943,24 @@
 		};
 		DFE6CD092F9C9F8F003763B8 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = DF7E2A422F385100006A4C0A /* Release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = LindaWidget/LindaWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = P9KK452K8P;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LindaWidget/Info.plist;
+				INFOPLIST_KEY_AppAPIBaseURL = "$(API_BASE_URL)";
+				INFOPLIST_KEY_AppAuthClientID = "$(AUTH_CLIENT_ID)";
+				INFOPLIST_KEY_AppAuthIssuer = "$(AUTH_ISSUER)";
+				INFOPLIST_KEY_AppAuthRedirectURI = "$(AUTH_REDIRECT_URI)";
+				INFOPLIST_KEY_AppAuthScopes = "$(AUTH_SCOPES)";
+				INFOPLIST_KEY_AppAuthURLScheme = "$(AUTH_URL_SCHEME)";
+				INFOPLIST_KEY_AppKeychainAccessGroup = "$(DEVELOPMENT_TEAM).group.rxlab.lindaAssistant";
 				INFOPLIST_KEY_CFBundleDisplayName = LindaWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;

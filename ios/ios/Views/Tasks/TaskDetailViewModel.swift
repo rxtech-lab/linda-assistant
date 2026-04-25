@@ -134,6 +134,23 @@ final class TaskDetailViewModel {
         }
     }
 
+    func setLiveActivityEnabled(
+        _ isEnabled: Bool,
+        apiClient: APIClient,
+        eventManager: EventManager
+    ) async {
+        guard let task else { return }
+        do {
+            let updated = try await apiClient.updateTask(
+                id: task.id,
+                UpdateTask(liveActivityEnabled: isEnabled)
+            )
+            eventManager.emit(.taskUpdated(updated))
+        } catch {
+            self.actionError = error.localizedDescription
+        }
+    }
+
     func deleteChatSessions(at offsets: IndexSet, apiClient: APIClient, eventManager: EventManager) async {
         guard let task else { return }
         let sessions = task.chatSessions

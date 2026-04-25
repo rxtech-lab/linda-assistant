@@ -20,17 +20,31 @@ export async function POST(request: NextRequest) {
   const parsed = insertDeviceSchema.safeParse(body);
   if (!parsed.success) return errorJson(parsed.error.message, 422);
 
+  const updateSet: {
+    userId: string;
+    platform: string;
+    liveActivityStartToken?: string | null;
+  } = {
+    userId: auth.userId,
+    platform: parsed.data.platform,
+  };
+  // Only overwrite the LA token when the client sent a value. Omitting it
+  // (e.g. on a regular device-token re-registration) preserves the existing one.
+  if (parsed.data.liveActivityStartToken !== undefined) {
+    updateSet.liveActivityStartToken = parsed.data.liveActivityStartToken;
+  }
+
   const [upserted] = await db
     .insert(devices)
     .values({ ...parsed.data, userId: auth.userId })
     .onConflictDoUpdate({
       target: devices.deviceToken,
-      set: { userId: auth.userId, platform: parsed.data.platform },
+      set: updateSet,
     })
     .returning();
 
   console.log(
-    `[device] registered device=${upserted.id} token=${upserted.deviceToken.slice(0, 8)}... userId=${auth.userId}`,
+    `[device] registered device=${upserted.id} token=${upserted.deviceToken.slice(0, 8)}... userId=${auth.userId} liveActivity=${upserted.liveActivityStartToken ? "yes" : "no"}`,
   );
   return successJson(upserted, 201);
 }

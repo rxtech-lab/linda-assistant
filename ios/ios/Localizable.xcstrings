@@ -1995,6 +1995,9 @@
         }
       }
     },
+    "Live Activity" : {
+
+    },
     "Load earlier messages" : {
       "localizations" : {
         "zh-Hans" : {
@@ -3095,6 +3098,9 @@
           }
         }
       }
+    },
+    "Show a Live Activity on the lock screen and Dynamic Island while this task is running." : {
+
     },
     "Sign Out" : {
       "localizations" : {

@@ -14,6 +14,8 @@
 	<string>$(AUTH_SCOPES)</string>
 	<key>AppAuthURLScheme</key>
 	<string>$(AUTH_URL_SCHEME)</string>
+	<key>AppKeychainAccessGroup</key>
+	<string>$(DEVELOPMENT_TEAM).group.rxlab.lindaAssistant</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

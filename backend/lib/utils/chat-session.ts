@@ -6,6 +6,7 @@ import { insertMessages } from "@/lib/db/messages";
 import { assignees, chatSessions } from "@/lib/db/schema";
 import { sendPushNotification } from "@/lib/push";
 import { publishTask } from "@/lib/queue/producer";
+import { startTaskActivity } from "@/lib/utils/live-activity";
 import { stripMarkdown } from "@/lib/utils/markdown";
 
 type Assignee = { userId: string; id: string };
@@ -44,6 +45,12 @@ export async function createAssigneeFollowUp(
     type: "message",
     timestamp: Date.now(),
   });
+
+  if (taskId) {
+    startTaskActivity(taskId).catch((err) =>
+      console.warn("[chat-session] startTaskActivity failed:", err),
+    );
+  }
 
   return session;
 }

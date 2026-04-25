@@ -107,6 +107,7 @@ export const tasks = sqliteTable("tasks", {
   runsAt: text("runs_at"),
   timezone: text("timezone"),
   toolPermissions: text("tool_permissions", { mode: "json" }).$type<ToolPermission[]>(),
+  liveActivityEnabled: integer("live_activity_enabled", { mode: "boolean" }).default(true),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
@@ -399,7 +400,23 @@ export const devices = sqliteTable("devices", {
   userId: text("user_id").notNull(),
   deviceToken: text("device_token").notNull().unique(),
   platform: text("platform").notNull(),
+  liveActivityStartToken: text("live_activity_start_token"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
+export const liveActivityTokens = sqliteTable("live_activity_tokens", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull(),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  activityId: text("activity_id").notNull().unique(),
+  token: text("token").notNull(),
+  endedAt: text("ended_at"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
 
 export type UploadUrlItem = {

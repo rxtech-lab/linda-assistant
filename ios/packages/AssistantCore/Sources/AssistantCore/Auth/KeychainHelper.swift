@@ -2,12 +2,20 @@ import Foundation
 import Security
 
 public enum KeychainHelper: Sendable {
-    public static func save(key: String, data: Data, service: String = AppConfig.keychainService) throws {
-        let query: [String: Any] = [
+    /// Build a query dict that always targets the shared access group so the
+    /// main app, share extension, and widget extension see the same items.
+    private static func baseQuery(key: String, service: String) -> [String: Any] {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
         ]
+        query[kSecAttrAccessGroup as String] = AppConfig.keychainAccessGroup
+        return query
+    }
+
+    public static func save(key: String, data: Data, service: String = AppConfig.keychainService) throws {
+        let query = baseQuery(key: key, service: service)
 
         // Delete any existing item
         SecItemDelete(query as CFDictionary)
@@ -29,13 +37,9 @@ public enum KeychainHelper: Sendable {
     }
 
     public static func load(key: String, service: String = AppConfig.keychainService) -> Data? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
+        var query = baseQuery(key: key, service: service)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -50,11 +54,7 @@ public enum KeychainHelper: Sendable {
     }
 
     public static func delete(key: String, service: String = AppConfig.keychainService) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-        ]
+        let query = baseQuery(key: key, service: service)
         SecItemDelete(query as CFDictionary)
     }
 
@@ -66,10 +66,11 @@ public enum KeychainHelper: Sendable {
         delete(key: "token_expires_at", service: service)
 
         // Also try bulk delete by service
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
         ]
+        query[kSecAttrAccessGroup as String] = AppConfig.keychainAccessGroup
         SecItemDelete(query as CFDictionary)
     }
 }

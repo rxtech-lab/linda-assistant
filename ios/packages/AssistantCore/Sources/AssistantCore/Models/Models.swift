@@ -247,6 +247,7 @@ public struct LindaTask: Codable, Identifiable, Sendable {
     public let timezone: String?
     public let nextRunAt: Int?
     public let toolPermissions: [ToolPermission]?
+    public let liveActivityEnabled: Bool?
     public let createdAt: String?
     public let updatedAt: String?
 }
@@ -295,6 +296,7 @@ public struct TaskDetail: Codable, Identifiable, Sendable {
     public let timezone: String?
     public let nextRunAt: Int?
     public let toolPermissions: [ToolPermission]?
+    public let liveActivityEnabled: Bool?
     public let enabledExtensions: [EnabledExtension]?
     public let createdAt: String?
     public let updatedAt: String?
@@ -337,6 +339,7 @@ public struct CreateTask: Codable, Sendable {
     public let runsAt: String?
     public let timezone: String?
     public let toolPermissions: [ToolPermission]?
+    public let liveActivityEnabled: Bool?
 
     public init(
         title: String,
@@ -351,7 +354,8 @@ public struct CreateTask: Codable, Sendable {
         isCronEnabled: Bool? = nil,
         runsAt: String? = nil,
         timezone: String? = nil,
-        toolPermissions: [ToolPermission]? = nil
+        toolPermissions: [ToolPermission]? = nil,
+        liveActivityEnabled: Bool? = nil
     ) {
         self.title = title
         self.description = description
@@ -366,6 +370,7 @@ public struct CreateTask: Codable, Sendable {
         self.runsAt = runsAt
         self.timezone = timezone
         self.toolPermissions = toolPermissions
+        self.liveActivityEnabled = liveActivityEnabled
     }
 }
 
@@ -380,6 +385,7 @@ public struct UpdateTask: Codable, Sendable {
     public let runsAt: String?
     public let timezone: String?
     public let toolPermissions: [ToolPermission]?
+    public let liveActivityEnabled: Bool?
 
     public init(
         title: String? = nil,
@@ -391,7 +397,8 @@ public struct UpdateTask: Codable, Sendable {
         isCronEnabled: Bool? = nil,
         runsAt: String? = nil,
         timezone: String? = nil,
-        toolPermissions: [ToolPermission]? = nil
+        toolPermissions: [ToolPermission]? = nil,
+        liveActivityEnabled: Bool? = nil
     ) {
         self.title = title
         self.description = description
@@ -403,6 +410,7 @@ public struct UpdateTask: Codable, Sendable {
         self.runsAt = runsAt
         self.timezone = timezone
         self.toolPermissions = toolPermissions
+        self.liveActivityEnabled = liveActivityEnabled
     }
 }
 
@@ -1190,24 +1198,55 @@ public struct Device: Codable, Identifiable, Sendable {
     public let userId: String
     public let deviceToken: String
     public let platform: String
+    public let liveActivityStartToken: String?
     public let createdAt: String?
 }
 
 public struct RegisterDevice: Codable, Sendable {
     public let deviceToken: String
     public let platform: String
+    /// APNs push-to-start token for Live Activities (iOS 17.2+). Optional — sent
+    /// when available, omitted on a regular device-token-only registration.
+    public let liveActivityStartToken: String?
 
     #if os(macOS)
-        public init(deviceToken: String, platform: String = "macos") {
+        public init(deviceToken: String, platform: String = "macos", liveActivityStartToken: String? = nil) {
             self.deviceToken = deviceToken
             self.platform = platform
+            self.liveActivityStartToken = liveActivityStartToken
         }
     #else
-        public init(deviceToken: String, platform: String = "ios") {
+        public init(deviceToken: String, platform: String = "ios", liveActivityStartToken: String? = nil) {
             self.deviceToken = deviceToken
             self.platform = platform
+            self.liveActivityStartToken = liveActivityStartToken
         }
     #endif
+}
+
+// MARK: - Live Activities
+
+public struct RegisterLiveActivityToken: Codable, Sendable {
+    public let activityId: String
+    public let taskId: String
+    public let token: String
+
+    public init(activityId: String, taskId: String, token: String) {
+        self.activityId = activityId
+        self.taskId = taskId
+        self.token = token
+    }
+}
+
+public struct LiveActivityTokenResponse: Codable, Sendable {
+    public let id: String
+    public let userId: String
+    public let taskId: String
+    public let activityId: String
+    public let token: String
+    public let endedAt: String?
+    public let createdAt: String?
+    public let updatedAt: String?
 }
 
 // MARK: - Tool
