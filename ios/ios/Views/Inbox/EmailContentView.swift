@@ -210,10 +210,9 @@ struct EmailContentView: View {
                                 Button {
                                     selectedImageURL = nil
                                 } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.title2)
-                                        .symbolRenderingMode(.palette)
-                                        .foregroundStyle(.white, .black.opacity(0.6))
+                                    Image(systemName: "xmark")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(.white)
                                 }
                             }
                         }

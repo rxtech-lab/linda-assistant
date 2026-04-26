@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AppAPIBaseURL</key>
+	<string>$(API_BASE_URL)</string>
+	<key>AppAuthClientID</key>
+	<string>$(AUTH_CLIENT_ID)</string>
+	<key>AppAuthIssuer</key>
+	<string>$(AUTH_ISSUER)</string>
+	<key>AppAuthRedirectURI</key>
+	<string>$(AUTH_REDIRECT_URI)</string>
+	<key>AppAuthScopes</key>
+	<string>$(AUTH_SCOPES)</string>
+	<key>AppAuthURLScheme</key>
+	<string>$(AUTH_URL_SCHEME)</string>
+	<key>AppKeychainAccessGroup</key>
+	<string>$(DEVELOPMENT_TEAM).group.rxlab.lindaAssistant</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.widgetkit-extension</string>
+	</dict>
+</dict>
+</plist>

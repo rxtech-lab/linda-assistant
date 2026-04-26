@@ -12,9 +12,11 @@ final class ChatTabViewModel {
     var displayMessages: [DisplayMessage] = []
     var documents: [Document] = []
     var slideDecks: [SlideDeckListItem] = []
+    var audios: [Audio] = []
     var isLoading = false
     var isLoadingMore = false
     var hasMoreMessages = false
+    var pendingScrollAnchor: String?
     var error: String?
     var streamHandler: ChatStreamHandler?
     var deviceToken: String?
@@ -124,10 +126,11 @@ final class ChatTabViewModel {
                     streamHandler: streamHandler
                 )
             }
-            // Load documents and slide decks for this assignee's chat session
+            // Load documents, slide decks, and audios for this assignee's chat session
             async let docsTask: () = loadDocuments(assigneeId: assigneeId, apiClient: apiClient)
             async let slidesTask: () = loadSlideDecks(assigneeId: assigneeId, apiClient: apiClient)
-            _ = await (docsTask, slidesTask)
+            async let audiosTask: () = loadAudios(assigneeId: assigneeId, apiClient: apiClient)
+            _ = await (docsTask, slidesTask, audiosTask)
         } catch is CancellationError {
             return
         } catch let urlError as URLError where urlError.code == .cancelled {
@@ -139,6 +142,7 @@ final class ChatTabViewModel {
                 displayMessages = []
                 documents = []
                 slideDecks = []
+                audios = []
                 nextCursor = nil
                 hasMoreMessages = false
             } else {
@@ -182,6 +186,28 @@ final class ChatTabViewModel {
         }
     }
 
+    // MARK: - Audio Loading
+
+    func loadAudios(assigneeId: String, apiClient: APIClient) async {
+        do {
+            let response = try await apiClient.listChatAudios(assigneeId: assigneeId, limit: 100)
+            audios = response.data
+        } catch {
+            logger.error("loadAudios error: \(error)")
+        }
+    }
+
+    func deleteAudio(_ audio: Audio, apiClient: APIClient, eventManager: EventManager) async {
+        do {
+            try await apiClient.deleteAudio(id: audio.id)
+            audios.removeAll { $0.id == audio.id }
+            eventManager.emit(.audioDeleted(audio.id))
+        } catch {
+            logger.error("deleteAudio error: \(error)")
+            self.error = error.localizedDescription
+        }
+    }
+
     func loadOlderMessages(apiClient: APIClient) async {
         guard let assignee = selectedAssignee, let cursor = nextCursor, !isLoadingMore else { return }
 
@@ -195,12 +221,24 @@ final class ChatTabViewModel {
             nextCursor = response.nextCursor
             hasMoreMessages = response.nextCursor != nil
             let older = DisplayMessage.convert(from: response.messages, assigneeName: assignee.name)
-            displayMessages.insert(contentsOf: older, at: 0)
+            applyPrepended(older)
         } catch {
             logger.error("loadOlderMessages error: \(error)")
             self.error = error.localizedDescription
         }
         isLoadingMore = false
+    }
+
+    /// Prepend older messages while capturing the previously-first message id so the View
+    /// can re-anchor scroll position on it after the prepend renders.
+    func applyPrepended(_ older: [DisplayMessage]) {
+        guard !older.isEmpty else { return }
+        pendingScrollAnchor = displayMessages.first?.id
+        displayMessages.insert(contentsOf: older, at: 0)
+    }
+
+    func clearPendingScrollAnchor() {
+        pendingScrollAnchor = nil
     }
 
     // MARK: - Stream Handler
@@ -439,6 +477,27 @@ final class ChatTabViewModel {
                     if selectedAssignee?.id == id {
                         selectedAssignee = assignees.first
                     }
+                case let .audioReady(audioId, audioUrl):
+                    if let idx = audios.firstIndex(where: { $0.id == audioId }) {
+                        let prev = audios[idx]
+                        audios[idx] = Audio(
+                            id: prev.id,
+                            userId: prev.userId,
+                            chatSessionId: prev.chatSessionId,
+                            title: prev.title,
+                            type: prev.type,
+                            prompt: prev.prompt,
+                            content: prev.content,
+                            audioUrl: audioUrl,
+                            status: "ready",
+                            errorMessage: nil,
+                            transcript: prev.transcript,
+                            createdAt: prev.createdAt,
+                            updatedAt: prev.updatedAt
+                        )
+                    }
+                case let .audioDeleted(id):
+                    audios.removeAll { $0.id == id }
                 default:
                     break
             }

@@ -94,7 +94,11 @@ private struct AttachmentListSheet: View {
                             .overlay { ProgressView().tint(.white) }
                     }
                 }
-                .quickLookPreview($quickLookUrl)
+                #if os(iOS)
+                .fullScreenCover(item: $quickLookUrl) { url in
+                    QuickLookPreviewWrapper(url: url)
+                }
+                #endif
         }
     }
 
@@ -193,3 +197,69 @@ private func colorForMimeType(_ mimeType: String?) -> Color {
     if mime.contains("text") || mime.contains("markdown") { return .orange }
     return .secondary
 }
+
+// MARK: - URL Identifiable Conformance
+
+extension URL: @retroactive Identifiable {
+    public var id: String { absoluteString }
+}
+
+#if os(iOS)
+// MARK: - QuickLook Preview Wrapper
+
+private struct QuickLookPreviewWrapper: View {
+    let url: URL
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            QuickLookPreviewController(url: url)
+                .ignoresSafeArea()
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") {
+                            dismiss()
+                        }
+                    }
+                }
+        }
+    }
+}
+
+// MARK: - QuickLook Preview Controller
+
+private struct QuickLookPreviewController: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> QLPreviewController {
+        let controller = QLPreviewController()
+        controller.dataSource = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: QLPreviewController, context: Context) {
+        uiViewController.reloadData()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(url: url)
+    }
+
+    class Coordinator: NSObject, QLPreviewControllerDataSource {
+        let url: URL
+
+        init(url: URL) {
+            self.url = url
+        }
+
+        func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
+            1
+        }
+
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+            url as QLPreviewItem
+        }
+    }
+}
+#endif

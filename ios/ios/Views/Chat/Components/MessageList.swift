@@ -12,11 +12,13 @@ struct MessageList: View {
     var onBriefingTap: ((String) -> Void)?
     var onSlideTap: ((String) -> Void)?
     var onDataSheetTap: ((String) -> Void)?
+    var onAudioTap: ((AudioSheetItem) -> Void)?
 
     private static let documentToolNames: Set<String> = ["create_document", "update_document"]
     private static let briefingToolNames: Set<String> = ["create_briefing"]
     private static let slideToolNames: Set<String> = ["create_slides", "update_slides"]
     private static let dataSheetToolNames: Set<String> = ["create_data_sheet"]
+    private static let audioToolNames: Set<String> = ["generate_audio"]
     private static let mcpLazyToolNames: Set<String> = ["search_tools", "read_tool", "use_tool"]
 
     /// Disable animation initially, enable after view has loaded
@@ -131,6 +133,11 @@ struct MessageList: View {
                             } else if Self.dataSheetToolNames.contains(toolCall.toolName) {
                                 DataSheetToolCard(toolCall: toolCall) { sheetId in
                                     onDataSheetTap?(sheetId)
+                                }
+                                .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
+                            } else if Self.audioToolNames.contains(toolCall.toolName) {
+                                AudioToolCard(toolCall: toolCall) { item in
+                                    onAudioTap?(item)
                                 }
                                 .accessibilityIdentifier("messageListItem-\(msg.id)-\(partIndex)")
                             } else if Self.mcpLazyToolNames.contains(toolCall.toolName) {

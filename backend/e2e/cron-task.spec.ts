@@ -121,6 +121,107 @@ test.describe("Cron Task Scheduling", () => {
     });
   });
 
+  test("updating only timezone on cron task calls Celery PUT (not POST)", async ({ request }) => {
+    // Create task with cron
+    const createRes = await request.post("/api/tasks", {
+      data: {
+        title: "Timezone Update Task",
+        assigneeId,
+        cronSchedule: "0 9 * * *",
+        isCronEnabled: true,
+        timezone: "America/New_York",
+      },
+    });
+    const task = await createRes.json();
+    await resetCeleryCalls();
+
+    // Update only timezone — cronSchedule is not in the payload
+    const res = await request.put(`/api/tasks/${task.id}`, {
+      data: { timezone: "Asia/Tokyo" },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.timezone).toBe("Asia/Tokyo");
+    expect(body.cronSchedule).toBe("0 9 * * *");
+
+    const calls = await getCeleryCalls();
+    // Should have called PUT /schedules/:id with the new timezone,
+    // not POST /schedules (which would try to re-register an existing task).
+    const updateCall = calls.find(
+      (c) => c.method === "PUT" && c.path === `/schedules/${task.id}`,
+    );
+    expect(updateCall).toBeTruthy();
+    expect(updateCall?.body).toMatchObject({
+      cron_schedule: "0 9 * * *",
+      timezone: "Asia/Tokyo",
+    });
+
+    const registerCall = calls.find((c) => c.method === "POST" && c.path === "/schedules");
+    expect(registerCall).toBeFalsy();
+  });
+
+  test("updating non-scheduling fields on cron task does not call Celery", async ({ request }) => {
+    const createRes = await request.post("/api/tasks", {
+      data: {
+        title: "Title Only Update Task",
+        assigneeId,
+        cronSchedule: "0 9 * * *",
+        isCronEnabled: true,
+        timezone: "America/New_York",
+      },
+    });
+    const task = await createRes.json();
+    await resetCeleryCalls();
+
+    // Update only title — no scheduling fields
+    const res = await request.put(`/api/tasks/${task.id}`, {
+      data: { title: "Renamed Task" },
+    });
+    expect(res.ok()).toBeTruthy();
+
+    const calls = await getCeleryCalls();
+    const scheduleCalls = calls.filter(
+      (c) => c.path === "/schedules" || c.path === `/schedules/${task.id}`,
+    );
+    expect(scheduleCalls).toHaveLength(0);
+  });
+
+  test("enabling cron on a previously non-cron task calls Celery POST (register)", async ({
+    request,
+  }) => {
+    // Create task without cron
+    const createRes = await request.post("/api/tasks", {
+      data: { title: "Enable Cron Later Task", assigneeId },
+    });
+    const task = await createRes.json();
+    await resetCeleryCalls();
+
+    // Now add cron via update
+    const res = await request.put(`/api/tasks/${task.id}`, {
+      data: {
+        cronSchedule: "0 9 * * *",
+        isCronEnabled: true,
+        timezone: "Europe/London",
+      },
+    });
+    expect(res.ok()).toBeTruthy();
+
+    const calls = await getCeleryCalls();
+    // Should be a fresh registration (POST), not an update (PUT) of a non-existent entry.
+    const registerCall = calls.find((c) => c.method === "POST" && c.path === "/schedules");
+    expect(registerCall).toBeTruthy();
+    expect(registerCall?.body).toMatchObject({
+      task_id: task.id,
+      cron_schedule: "0 9 * * *",
+      timezone: "Europe/London",
+    });
+
+    const updateCall = calls.find(
+      (c) => c.method === "PUT" && c.path === `/schedules/${task.id}`,
+    );
+    expect(updateCall).toBeFalsy();
+  });
+
   test("disabling cron removes Celery entry", async ({ request }) => {
     // Create task with cron
     const createRes = await request.post("/api/tasks", {
@@ -340,6 +441,60 @@ test.describe("Cron Task Scheduling", () => {
       data: { cronSchedule: "60 * * * *" },
     });
     expect(res.status()).toBe(422);
+  });
+
+  test("GET /api/tasks/:id/celery-schedule reflects Celery's current state", async ({
+    request,
+  }) => {
+    // Unregistered: non-cron task should report registered:false
+    const nonCronRes = await request.post("/api/tasks", {
+      data: { title: "Celery View Non-Cron", assigneeId },
+    });
+    const nonCronTask = await nonCronRes.json();
+    const nonCronView = await request.get(
+      `/api/tasks/${nonCronTask.id}/celery-schedule`,
+    );
+    expect(nonCronView.ok()).toBeTruthy();
+    expect(await nonCronView.json()).toMatchObject({
+      taskId: nonCronTask.id,
+      cronSchedule: null,
+      timezone: null,
+      registered: false,
+    });
+
+    // Registered: cron task should surface Celery's stored cron + timezone
+    const cronRes = await request.post("/api/tasks", {
+      data: {
+        title: "Celery View Cron",
+        assigneeId,
+        cronSchedule: "0 9 * * *",
+        isCronEnabled: true,
+        timezone: "Europe/London",
+      },
+    });
+    const cronTask = await cronRes.json();
+    const cronView = await request.get(`/api/tasks/${cronTask.id}/celery-schedule`);
+    expect(cronView.ok()).toBeTruthy();
+    expect(await cronView.json()).toMatchObject({
+      taskId: cronTask.id,
+      cronSchedule: "0 9 * * *",
+      timezone: "Europe/London",
+      registered: true,
+    });
+
+    // After a timezone-only update, Celery's view tracks the new timezone
+    await request.put(`/api/tasks/${cronTask.id}`, {
+      data: { timezone: "Asia/Tokyo" },
+    });
+    const updatedView = await request.get(
+      `/api/tasks/${cronTask.id}/celery-schedule`,
+    );
+    expect(await updatedView.json()).toMatchObject({
+      taskId: cronTask.id,
+      cronSchedule: "0 9 * * *",
+      timezone: "Asia/Tokyo",
+      registered: true,
+    });
   });
 
   test("execute returns 409 when task already has active run", async ({ request }) => {

@@ -42,7 +42,9 @@ struct ChatTabView: View {
                     onStop: {
                         Task { await viewModel.stopStream() }
                     },
-                    supportsImages: viewModel.selectedModelSupportsImages
+                    supportsImages: viewModel.selectedModelSupportsImages,
+                    pendingScrollAnchor: viewModel.pendingScrollAnchor,
+                    onScrollAnchorConsumed: { viewModel.clearPendingScrollAnchor() }
                 ) {
                     // Load more indicator
                     if viewModel.hasMoreMessages {
@@ -116,7 +118,8 @@ struct ChatTabView: View {
                 Task {
                     async let docs: () = viewModel.loadDocuments(assigneeId: assignee.id, apiClient: apiClient)
                     async let slides: () = viewModel.loadSlideDecks(assigneeId: assignee.id, apiClient: apiClient)
-                    _ = await (docs, slides)
+                    async let auds: () = viewModel.loadAudios(assigneeId: assignee.id, apiClient: apiClient)
+                    _ = await (docs, slides, auds)
                 }
             }
         }
@@ -126,6 +129,7 @@ struct ChatTabView: View {
                 selectedAssigneeId: viewModel.selectedAssignee?.id,
                 documents: viewModel.documents,
                 slideDecks: viewModel.slideDecks,
+                audios: viewModel.audios,
                 onSelectAssignee: { assignee in
                     viewModel.showingAssigneeSheet = false
                     Task {
@@ -141,6 +145,15 @@ struct ChatTabView: View {
                     Task {
                         await viewModel.deleteDocument(
                             id: doc.id,
+                            apiClient: apiClient,
+                            eventManager: eventManager
+                        )
+                    }
+                },
+                onDeleteAudio: { audio in
+                    Task {
+                        await viewModel.deleteAudio(
+                            audio,
                             apiClient: apiClient,
                             eventManager: eventManager
                         )

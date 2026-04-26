@@ -22,6 +22,7 @@ import {
   briefingSummarySchema,
 } from "@/lib/schemas";
 import { successJson, errorJson } from "@/lib/utils/response";
+import { withShareUrl } from "@/lib/utils/briefing";
 import {
   registerCronTask,
   updateCronTask,
@@ -118,6 +119,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         id: briefings.id,
         title: briefings.title,
         imageUrl: briefings.imageUrl,
+        isPublic: briefings.isPublic,
         chatSessionId: briefings.chatSessionId,
         assigneeId: briefings.assigneeId,
         createdAt: briefings.createdAt,
@@ -179,7 +181,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     chatSessions: sessions,
     emails: linkedEmails,
     documents: taskDocuments,
-    briefings: taskBriefings,
+    briefings: taskBriefings.map(withShareUrl),
     nextRunAt,
     enabledExtensions,
   });
@@ -256,13 +258,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!updated) return errorJson("Task not found", 404);
 
   // Sync cron schedule with Celery
-  if (updated.isCronEnabled && updated.cronSchedule) {
-    if (parsed.data.cronSchedule !== undefined) {
-      await updateCronTask(id, updated.cronSchedule, updated.timezone);
+  const wasCronEnabled = Boolean(existing.isCronEnabled && existing.cronSchedule);
+  const isCronNow = Boolean(updated.isCronEnabled && updated.cronSchedule);
+  const scheduleFieldChanged =
+    parsed.data.cronSchedule !== undefined ||
+    parsed.data.isCronEnabled !== undefined ||
+    parsed.data.timezone !== undefined;
+
+  if (isCronNow && scheduleFieldChanged) {
+    if (wasCronEnabled) {
+      await updateCronTask(id, updated.cronSchedule!, updated.timezone);
     } else {
-      await registerCronTask(id, updated.cronSchedule, updated.timezone);
+      await registerCronTask(id, updated.cronSchedule!, updated.timezone);
     }
-  } else if (parsed.data.isCronEnabled === false || parsed.data.runsAt) {
+  } else if (wasCronEnabled && !isCronNow) {
     await deleteCronTask(id);
   }
 

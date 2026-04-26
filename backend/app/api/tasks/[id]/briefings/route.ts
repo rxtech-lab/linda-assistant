@@ -6,6 +6,7 @@ import { authenticate } from "@/lib/auth/middleware";
 import { briefingSummarySchema, idParamSchema } from "@/lib/schemas";
 import { errorJson, paginatedJson } from "@/lib/utils/response";
 import { parsePagination } from "@/lib/utils/pagination";
+import { withShareUrl } from "@/lib/utils/briefing";
 import { z } from "zod";
 
 const taskBriefingsResponseSchema = z.object({
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         id: briefings.id,
         title: briefings.title,
         imageUrl: briefings.imageUrl,
+        isPublic: briefings.isPublic,
         chatSessionId: briefings.chatSessionId,
         assigneeId: briefings.assigneeId,
         createdAt: briefings.createdAt,
@@ -68,5 +70,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .where(baseWhere),
   ]);
 
-  return paginatedJson(items, countResult[0].count, limit, offset);
+  return paginatedJson(items.map(withShareUrl), countResult[0].count, limit, offset);
 }

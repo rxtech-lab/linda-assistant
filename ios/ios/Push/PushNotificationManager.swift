@@ -19,15 +19,25 @@ import SwiftUI
 import UserNotifications
 
 private let logger = Logger(subsystem: "lindaAssistant", category: "PushNotification")
+private let deepLinkLogger = Logger(subsystem: "lindaAssistant", category: "DeepLink")
 
 @Observable
-final class PushNotificationManager: NSObject, @unchecked Sendable {
+final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     var deviceToken: String?
+    /// APNs push-to-start token for Live Activities (iOS 17.2+). Sent alongside
+    /// `deviceToken` to `/api/devices` so the backend can remotely start a Live
+    /// Activity for any task that the user opted into.
+    var liveActivityStartToken: String?
     private var apiClient: APIClient?
+    private var eventManager: EventManager?
+    private var navigationManager: NavigationManager?
+    private var pendingUserInfo: [AnyHashable: Any]?
     private var didRegister = false
+    private var lastRegisteredLiveActivityToken: String?
     private let locationService = LocationService()
 
     func requestPermission() {
+        UNUserNotificationCenter.current().delegate = self
         // Register for remote notifications first — this fetches the device token
         // independently of user notification authorization.
         DispatchQueue.main.async {
@@ -65,6 +75,20 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
         await sendRegistrationIfReady()
     }
 
+    func bindEventManager(_ manager: EventManager) {
+        eventManager = manager
+    }
+
+    func bind(navigationManager: NavigationManager) {
+        let hadPending = pendingUserInfo != nil
+        self.navigationManager = navigationManager
+        deepLinkLogger.info("PushNotificationManager.bind() called — pendingUserInfo: \(hadPending ? "yes (will replay)" : "none")")
+        if let userInfo = pendingUserInfo {
+            pendingUserInfo = nil
+            routeTap(userInfo: userInfo)
+        }
+    }
+
     func forceReRegister() {
         logger.info("Force re-registering device token")
         didRegister = false
@@ -72,17 +96,26 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
     }
 
     private func sendRegistrationIfReady() async {
-        guard let token = deviceToken, let apiClient, !didRegister else {
+        guard let token = deviceToken, let apiClient else {
             logger
                 .debug(
                     "Registration not ready — token: \(self.deviceToken != nil), apiClient: \(self.apiClient != nil), didRegister: \(self.didRegister)"
                 )
             return
         }
+        // Skip if already registered with this exact token combination.
+        if didRegister, lastRegisteredLiveActivityToken == liveActivityStartToken {
+            return
+        }
         didRegister = true
-        logger.info("Sending device token to backend: \(token.prefix(8))...")
+        lastRegisteredLiveActivityToken = liveActivityStartToken
+        logger.info(
+            "Registering device: token=\(token.prefix(8))... liveActivity=\(self.liveActivityStartToken.map { String($0.prefix(8)) + "..." } ?? "none")"
+        )
         do {
-            _ = try await apiClient.registerDevice(RegisterDevice(deviceToken: token))
+            _ = try await apiClient.registerDevice(
+                RegisterDevice(deviceToken: token, liveActivityStartToken: liveActivityStartToken)
+            )
             logger.info("Device token registered successfully")
         } catch {
             didRegister = false
@@ -90,12 +123,42 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
         }
     }
 
+    /// Update the Live Activity push-to-start token and re-register. Called by
+    /// `LiveActivityCoordinator` whenever ActivityKit emits a new token.
+    func updateLiveActivityStartToken(_ token: String) {
+        guard liveActivityStartToken != token else { return }
+        liveActivityStartToken = token
+        Task { await sendRegistrationIfReady() }
+    }
+
     /// Handle silent/background push notifications for auto-confirm location requests.
     func handleBackgroundNotification(
         userInfo: [AnyHashable: Any],
         completionHandler: @escaping (BackgroundFetchResult) -> Void
     ) {
-        guard let type = userInfo["type"] as? String, type == "location_request",
+        let type = userInfo["type"] as? String
+
+        if type == "briefing-podcast-ready",
+           let briefingId = userInfo["briefingId"] as? String,
+           let podcastUrl = userInfo["podcastUrl"] as? String
+        {
+            logger.info("Briefing podcast ready: briefingId=\(briefingId)")
+            eventManager?.emit(.briefingPodcastReady(briefingId: briefingId, podcastUrl: podcastUrl))
+            completionHandler(.newData)
+            return
+        }
+
+        if type == "audio-ready",
+           let audioId = userInfo["audioId"] as? String
+        {
+            let audioUrl = userInfo["audioUrl"] as? String ?? ""
+            logger.info("Audio ready: audioId=\(audioId)")
+            eventManager?.emit(.audioReady(audioId: audioId, audioUrl: audioUrl))
+            completionHandler(.newData)
+            return
+        }
+
+        guard type == "location_request",
               let toolCallId = userInfo["toolCallId"] as? String
         else {
             completionHandler(.noData)
@@ -137,6 +200,76 @@ final class PushNotificationManager: NSObject, @unchecked Sendable {
                 }
                 completionHandler(.failed)
             }
+        }
+    }
+
+    // MARK: - UNUserNotificationCenterDelegate
+
+    func userNotificationCenter(
+        _: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        let type = notification.request.content.userInfo["type"] as? String ?? "nil"
+        deepLinkLogger.info("willPresent (foreground notification) type=\(type)")
+        completionHandler([.banner, .list, .sound, .badge])
+    }
+
+    func userNotificationCenter(
+        _: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        let keys = userInfo.keys.compactMap { $0 as? String }.sorted().joined(separator: ",")
+        deepLinkLogger.info("didReceive tap response — actionIdentifier=\(response.actionIdentifier) userInfo keys: [\(keys)]")
+        routeTap(userInfo: userInfo)
+        completionHandler()
+    }
+
+    private func routeTap(userInfo: [AnyHashable: Any]) {
+        let type = userInfo["type"] as? String
+        deepLinkLogger.info("routeTap type=\(type ?? "nil") navBound=\(self.navigationManager != nil)")
+
+        guard let nav = navigationManager else {
+            pendingUserInfo = userInfo
+            deepLinkLogger.info("routeTap: NavigationManager not bound yet — caching userInfo for replay on bind()")
+            return
+        }
+
+        switch type {
+            case "briefing", "briefing-podcast-ready":
+                guard let briefingId = userInfo["briefingId"] as? String else {
+                    deepLinkLogger.warning("routeTap: \(type ?? "?") missing briefingId — userInfo=\(String(describing: userInfo))")
+                    return
+                }
+                deepLinkLogger.info("routeTap → openDeepLink(.briefing(id: \(briefingId)))")
+                nav.openDeepLink(.briefing(id: briefingId))
+
+            case "audio-ready":
+                guard let audioId = userInfo["audioId"] as? String else {
+                    deepLinkLogger.warning("routeTap: audio-ready missing audioId — userInfo=\(String(describing: userInfo))")
+                    return
+                }
+                deepLinkLogger.info("routeTap → openDeepLink(.audio(id: \(audioId)))")
+                nav.openDeepLink(.audio(id: audioId))
+
+            case "assistant_message", "confirmation", "question":
+                let sessionId = (userInfo["sessionId"] as? String) ?? (userInfo["chatSessionId"] as? String)
+                guard let sessionId else {
+                    deepLinkLogger.warning("routeTap: \(type ?? "?") missing sessionId/chatSessionId — userInfo=\(String(describing: userInfo))")
+                    return
+                }
+                if let taskId = userInfo["taskId"] as? String {
+                    deepLinkLogger.info("routeTap → openDeepLink(.taskChatSession(taskId=\(taskId), sessionId=\(sessionId)))")
+                    nav.openDeepLink(.taskChatSession(taskId: taskId, sessionId: sessionId))
+                } else {
+                    deepLinkLogger.info("routeTap → openDeepLink(.standaloneChatSession(id=\(sessionId)))")
+                    nav.openDeepLink(.standaloneChatSession(id: sessionId))
+                }
+
+            default:
+                deepLinkLogger.warning("routeTap: unhandled type=\(type ?? "nil") — userInfo=\(String(describing: userInfo))")
         }
     }
 }

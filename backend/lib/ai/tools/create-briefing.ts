@@ -7,6 +7,7 @@ import { sendPushNotification } from "@/lib/push";
 import { tool } from "ai";
 import { z } from "zod";
 import { IMAGE_GENERATION_MODEL } from "../context";
+import { generatePodcastForBriefing } from "../podcast/generate";
 
 export const createBriefingTool = (
   userId: string,
@@ -16,7 +17,8 @@ export const createBriefingTool = (
   tool({
     description:
       "Create a briefing — an AI-generated report with a cover image, markdown content, and optional linked documents. " +
-      "Use this when the user asks for a briefing, summary report, or digest that should appear in their Briefing feed.\n\n" +
+      "Use this when the user asks for a briefing, summary report, or digest that should appear in their Briefing feed. " +
+      "A podcast version of the briefing is generated automatically in the background; do NOT call generate_audio for a briefing.\n\n" +
       "Content guidelines:\n" +
       "- Use markdown tables to present structured/comparative data (e.g. stats, timelines, comparisons)\n" +
       "- Use headings (##, ###) to organize sections clearly\n" +
@@ -116,6 +118,19 @@ export const createBriefingTool = (
           })),
         );
       }
+
+      // Fire-and-forget podcast generation. Tool returns immediately; podcast appears
+      // on the briefing row asynchronously via update + SSE/push notification.
+      generatePodcastForBriefing({
+        briefingId: created.id,
+        userId,
+        sessionId: chatSessionId,
+        title: created.title,
+        content: created.content,
+        imageUrl: created.imageUrl ?? null,
+      }).catch((err) => {
+        console.error("[create-briefing] Podcast generation failed:", err);
+      });
 
       await emitProgress("notifying", "Sending notification...", 2, 3);
 

@@ -1352,9 +1352,10 @@ test.describe("Question tool", () => {
       const lastMessageFromAssistant = messages.findLast(
         (m) => m.role === "assistant",
       );
-      expect((lastMessageFromAssistant?.content[0] as any).text).toEqual(
-        lastMessageFromAssistantStream,
+      const textPart = (lastMessageFromAssistant?.content as any[])?.find(
+        (p) => p.type === "text",
       );
+      expect(textPart?.text).toEqual(lastMessageFromAssistantStream);
 
       console.log(
         `Test 11b passed: historical question answered, question_answered event emitted, text followed`,

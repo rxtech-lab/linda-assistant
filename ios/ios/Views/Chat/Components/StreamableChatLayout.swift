@@ -16,6 +16,8 @@ struct StreamableChatLayout<Header: View>: View {
     let onSend: (String, [MessageAttachment]?) -> Void
     let onStop: () -> Void
     var supportsImages: Bool = true
+    var pendingScrollAnchor: String? = nil
+    var onScrollAnchorConsumed: (() -> Void)? = nil
     @ViewBuilder let header: () -> Header
 
     @Environment(AuthManager.self) private var authManager
@@ -31,6 +33,7 @@ struct StreamableChatLayout<Header: View>: View {
     @State private var selectedBriefingId: String?
     @State private var selectedSlideDeckId: String?
     @State private var selectedDataSheetId: String?
+    @State private var selectedAudioItem: AudioSheetItem?
 
     // Upload state
     @State private var uploadManager = FileUploadManager()
@@ -197,6 +200,9 @@ struct StreamableChatLayout<Header: View>: View {
                 },
                 onDataSheetTap: { sheetId in
                     selectedDataSheetId = sheetId
+                },
+                onAudioTap: { item in
+                    selectedAudioItem = item
                 }
             )
             .listRowSeparator(.hidden)
@@ -258,14 +264,20 @@ struct StreamableChatLayout<Header: View>: View {
             }
         }
         .task {
+            PendingShareInbox.drain(into: uploadManager)
             for await event in eventManager.stream {
-                if case .streamContentUpdated = event {
-                    guard isAtBottom else { continue }
-                    DispatchQueue.main.async {
-                        withAnimation {
-                            proxy.scrollTo("bottom", anchor: .bottom)
+                switch event {
+                    case .streamContentUpdated:
+                        guard isAtBottom else { continue }
+                        DispatchQueue.main.async {
+                            withAnimation {
+                                proxy.scrollTo("bottom", anchor: .bottom)
+                            }
                         }
-                    }
+                    case .sharePending:
+                        PendingShareInbox.drain(into: uploadManager)
+                    default:
+                        break
                 }
             }
         }
@@ -273,6 +285,13 @@ struct StreamableChatLayout<Header: View>: View {
             print(">>> scrollToBottomTrigger changed to \(scrollToBottomTrigger), scrolling to bottom")
             withAnimation {
                 proxy.scrollTo("bottom", anchor: .bottom)
+            }
+        }
+        .onChange(of: pendingScrollAnchor) { _, newValue in
+            guard let id = newValue else { return }
+            DispatchQueue.main.async {
+                proxy.scrollTo(id, anchor: .top)
+                onScrollAnchorConsumed?()
             }
         }
     }
@@ -518,6 +537,7 @@ struct StreamableChatLayout<Header: View>: View {
             selectedToolCall: $selectedToolCall,
             documentItem: $selectedDocumentItem,
             briefingId: $selectedBriefingId,
+            audioItem: $selectedAudioItem,
             presentedConfirmation: $presentedConfirmation,
             pendingConfirmationCount: pendingConfirmationCount,
             onConfirmationResolve: { confirmation, action, alwaysAllow in
@@ -652,6 +672,7 @@ struct StreamableChatLayout<Header: View>: View {
                 }
                 .onAppear {
                     uploadManager.configure(apiClient: apiClient)
+                    PendingShareInbox.drain(into: uploadManager)
                 }
                 .onChange(of: authManager.accessToken) {
                     uploadManager.configure(apiClient: apiClient)
@@ -880,7 +901,9 @@ extension StreamableChatLayout where Header == EmptyView {
         onClearError: @escaping () -> Void,
         onSend: @escaping (String, [MessageAttachment]?) -> Void,
         onStop: @escaping () -> Void,
-        supportsImages: Bool = true
+        supportsImages: Bool = true,
+        pendingScrollAnchor: String? = nil,
+        onScrollAnchorConsumed: (() -> Void)? = nil
     ) {
         self.messages = messages
         self.assigneeName = assigneeName
@@ -891,6 +914,8 @@ extension StreamableChatLayout where Header == EmptyView {
         self.onSend = onSend
         self.onStop = onStop
         self.supportsImages = supportsImages
+        self.pendingScrollAnchor = pendingScrollAnchor
+        self.onScrollAnchorConsumed = onScrollAnchorConsumed
         header = { EmptyView() }
     }
 }

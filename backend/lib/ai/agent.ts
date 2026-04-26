@@ -27,6 +27,7 @@ import {
 import { createMem0Client } from "@/lib/mem0/client";
 import { redis } from "@/lib/redis";
 import { setStreamActive } from "@/lib/streaming/manager";
+import { endTaskActivity, updateTaskActivity } from "@/lib/utils/live-activity";
 import { extractTextFromMessage, prepareMessages } from "./compaction";
 import { createConfirmation, sendConfirmationGroupNotification } from "./confirmation";
 import { createLocationRequest } from "./location";
@@ -470,7 +471,7 @@ If the user rejects your questions, do NOT retry with the same or similar questi
 
   const locationGuidance = `\nUse the get_location tool when you need the user's current GPS coordinates — for example, to find nearby places, get local weather, provide directions, or give location-based recommendations. The user will be asked to share their location and may decline. Do NOT request location unless it is clearly relevant to the user's request.`;
 
-  const briefingGuidance = `\nUse the create_briefing tool when the user asks for a briefing, digest, or summary report that should appear in their Briefing feed. Briefings are rich reports with a cover image and markdown content. Use the search_documents tool first if you need to find and link existing documents to the briefing. Provide a short, evocative imageDescription for the cover image (e.g. 'morning coffee and newspaper on a wooden desk'). Write briefing content in a news-report style: use clear narrative prose and well-structured paragraphs rather than bullet-point lists. Reserve bullet points only for genuinely list-like items. Structure briefings with ## headers for major sections and ### subheadings for subsections to guide the reader through the content. Use markdown blockquotes (>) to highlight key quotes, important facts, or standout statistics that deserve special emphasis. To make briefings visually rich like a newspaper, embed relevant images inline using markdown image syntax — source images from the topic being covered and place them near the section they illustrate. When the briefing covers data, statistics, or trends, use the create_drawing tool to generate charts and embed them with markdown image syntax to make the briefing visually informative.`;
+  const briefingGuidance = `\nUse the create_briefing tool when the user asks for a briefing, digest, or summary report that should appear in their Briefing feed. Briefings are rich reports with a cover image and markdown content. Use the search_documents tool first if you need to find and link existing documents to the briefing. Provide a short, evocative imageDescription for the cover image (e.g. 'morning coffee and newspaper on a wooden desk'). Write briefing content in a news-report style: use clear narrative prose and well-structured paragraphs rather than bullet-point lists. Reserve bullet points only for genuinely list-like items. Structure briefings with ## headers for major sections and ### subheadings for subsections to guide the reader through the content. Use markdown blockquotes (>) to highlight key quotes, important facts, or standout statistics that deserve special emphasis. To make briefings visually rich like a newspaper, embed relevant images inline using markdown image syntax — source images from the topic being covered and place them near the section they illustrate. When the briefing covers data, statistics, or trends, use the create_drawing tool to generate charts and embed them with markdown image syntax to make the briefing visually informative. IMPORTANT: Briefings automatically generate a podcast in the background as part of create_briefing — do NOT call generate_audio for a briefing, and do NOT tell the user you will create a podcast separately. The podcast will appear on the briefing automatically.`;
 
   const drawingGuidance = `\nUse the create_drawing tool when the user asks for a chart, graph, plot, or data visualization. The tool generates a chart image using Python/matplotlib and returns its URL. You can embed the chart in documents or briefings using markdown image syntax: ![chart description](url). When creating documents or briefings that involve data, proactively offer to include charts to make the content more visual and informative.`;
 
@@ -543,7 +544,7 @@ Do NOT call extension tool IDs directly as tool calls — they don't exist as ca
 
 When the user asks you to compose a document, briefing, report, or do any research that requires up-to-date or real-world information (e.g. news, market data, weather, current events, company info, travel details), you MUST first use search_tools to find available network/web searching tools (search keywords like "web", "search", "browse", "fetch", "news", "scrape"). Use those tools to gather real-time data before writing. Do NOT rely on your own knowledge for factual, time-sensitive, or real-world content — your training data is outdated and may be inaccurate. Always fetch fresh information from external sources first, then compose the document or briefing based on what you find.`;
 
-  const idRedactionGuidance = `\nIMPORTANT: Never include internal IDs (document IDs, slide deck IDs, task IDs, session IDs, or any other system identifiers) in your responses to the user. These are internal implementation details. When referencing created resources, use their titles or descriptions instead. For example, say "I created the document 'Q1 Report'" rather than "I created document doc_abc123". Exception: when you create slides with create_slides, do NOT embed the slide deck ID or any slide syntax in your chat response. The slide carousel is already rendered automatically from the tool call. Just mention what you created by title — do NOT include {{slide:deckId}} or any other slide reference in your chat message. The {{slide:deckId}} syntax is only used inside document and briefing content (via create_document or create_briefing tools), where it renders as an embedded carousel.`;
+  const idRedactionGuidance = `\nIMPORTANT: Never include internal IDs (document IDs, slide deck IDs, task IDs, session IDs, or any other system identifiers) in your responses to the user. These are internal implementation details. When referencing created resources, use their titles or descriptions instead. For example, say "I created the document 'Q1 Report'" rather than "I created document doc_abc123". Exception: when you create slides with create_slides, do NOT embed the slide deck ID or any slide syntax in your chat response. The slide carousel is already rendered automatically from the tool call. Just mention what you created by title — do NOT include {{slide:deckId}} or any other slide reference in your chat message. The {{slide:deckId}} syntax is only used inside document and briefing content (via create_document or create_briefing tools), where it renders as an embedded carousel. After calling generate_audio, do NOT include the audio URL, a "listen" link, or any markdown link to the podcast in your chat response — the podcast card is rendered automatically from the tool call. Just briefly mention that the podcast is ready.`;
 
   if (!assignee)
     return `You are a helpful personal assistant.${dateLine}${documentGuidance}${questionGuidance}${locationGuidance}${briefingGuidance}${drawingGuidance}${extensionToolGuidance}${idRedactionGuidance}${taskGuidance}`;
@@ -1914,6 +1915,12 @@ export async function runAgent(options: AgentRunOptions) {
           })
           .where(eq(chatSessions.id, sessionId));
 
+        if (session.taskId) {
+          updateTaskActivity(session.taskId, "waitingConfirmation").catch((err) =>
+            console.warn("[agent] updateTaskActivity (waiting) failed:", err),
+          );
+        }
+
         // Insert a usage record for this partial run
         if (totalInputTokens > 0 || totalOutputTokens > 0) {
           await db.insert(usage).values({
@@ -1976,6 +1983,12 @@ export async function runAgent(options: AgentRunOptions) {
       })
       .where(eq(chatSessions.id, sessionId));
 
+    if (session.taskId) {
+      endTaskActivity(session.taskId, "completed").catch((err) =>
+        console.warn("[agent] endTaskActivity (completed) failed:", err),
+      );
+    }
+
     // Insert a usage record for this completed run
     if (totalInputTokens > 0 || totalOutputTokens > 0) {
       await db.insert(usage).values({
@@ -2035,6 +2048,12 @@ export async function runAgent(options: AgentRunOptions) {
         updatedAt: sql`(datetime('now'))`,
       })
       .where(eq(chatSessions.id, sessionId));
+
+    if (session.taskId) {
+      endTaskActivity(session.taskId, "failed").catch((err) =>
+        console.warn("[agent] endTaskActivity (failed) failed:", err),
+      );
+    }
 
     await setStreamActive(sessionId, false);
 

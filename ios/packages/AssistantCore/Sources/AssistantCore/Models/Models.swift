@@ -247,6 +247,7 @@ public struct LindaTask: Codable, Identifiable, Sendable {
     public let timezone: String?
     public let nextRunAt: Int?
     public let toolPermissions: [ToolPermission]?
+    public let liveActivityEnabled: Bool?
     public let createdAt: String?
     public let updatedAt: String?
 }
@@ -270,6 +271,9 @@ public struct BriefingSummary: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let imageUrl: String?
+    public let podcastUrl: String?
+    public let isPublic: Bool?
+    public let shareUrl: String?
     public let chatSessionId: String?
     public let assigneeId: String?
     public let createdAt: String?
@@ -292,6 +296,7 @@ public struct TaskDetail: Codable, Identifiable, Sendable {
     public let timezone: String?
     public let nextRunAt: Int?
     public let toolPermissions: [ToolPermission]?
+    public let liveActivityEnabled: Bool?
     public let enabledExtensions: [EnabledExtension]?
     public let createdAt: String?
     public let updatedAt: String?
@@ -334,6 +339,7 @@ public struct CreateTask: Codable, Sendable {
     public let runsAt: String?
     public let timezone: String?
     public let toolPermissions: [ToolPermission]?
+    public let liveActivityEnabled: Bool?
 
     public init(
         title: String,
@@ -348,7 +354,8 @@ public struct CreateTask: Codable, Sendable {
         isCronEnabled: Bool? = nil,
         runsAt: String? = nil,
         timezone: String? = nil,
-        toolPermissions: [ToolPermission]? = nil
+        toolPermissions: [ToolPermission]? = nil,
+        liveActivityEnabled: Bool? = nil
     ) {
         self.title = title
         self.description = description
@@ -363,6 +370,7 @@ public struct CreateTask: Codable, Sendable {
         self.runsAt = runsAt
         self.timezone = timezone
         self.toolPermissions = toolPermissions
+        self.liveActivityEnabled = liveActivityEnabled
     }
 }
 
@@ -377,6 +385,7 @@ public struct UpdateTask: Codable, Sendable {
     public let runsAt: String?
     public let timezone: String?
     public let toolPermissions: [ToolPermission]?
+    public let liveActivityEnabled: Bool?
 
     public init(
         title: String? = nil,
@@ -388,7 +397,8 @@ public struct UpdateTask: Codable, Sendable {
         isCronEnabled: Bool? = nil,
         runsAt: String? = nil,
         timezone: String? = nil,
-        toolPermissions: [ToolPermission]? = nil
+        toolPermissions: [ToolPermission]? = nil,
+        liveActivityEnabled: Bool? = nil
     ) {
         self.title = title
         self.description = description
@@ -400,6 +410,7 @@ public struct UpdateTask: Codable, Sendable {
         self.runsAt = runsAt
         self.timezone = timezone
         self.toolPermissions = toolPermissions
+        self.liveActivityEnabled = liveActivityEnabled
     }
 }
 
@@ -557,6 +568,78 @@ public struct DocumentListResponse: Codable, Sendable {
     public let data: [Document]
 }
 
+// MARK: - Audio
+
+public struct Audio: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let userId: String
+    public let chatSessionId: String
+    public let title: String
+    public let type: String // "podcast"
+    public let prompt: String
+    public let content: String
+    public let audioUrl: String?
+    public let status: String // "generating" | "ready" | "failed"
+    public let errorMessage: String?
+    /// JSON-encoded array of AudioTranscriptSegment. Use `decodedTranscript` to access structured form.
+    public let transcript: String?
+    public let createdAt: String?
+    public let updatedAt: String?
+
+    public init(
+        id: String,
+        userId: String = "",
+        chatSessionId: String = "",
+        title: String,
+        type: String = "podcast",
+        prompt: String = "",
+        content: String = "",
+        audioUrl: String? = nil,
+        status: String = "generating",
+        errorMessage: String? = nil,
+        transcript: String? = nil,
+        createdAt: String? = nil,
+        updatedAt: String? = nil
+    ) {
+        self.id = id
+        self.userId = userId
+        self.chatSessionId = chatSessionId
+        self.title = title
+        self.type = type
+        self.prompt = prompt
+        self.content = content
+        self.audioUrl = audioUrl
+        self.status = status
+        self.errorMessage = errorMessage
+        self.transcript = transcript
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    public var decodedTranscript: [AudioTranscriptSegment]? {
+        guard let transcript, let data = transcript.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode([AudioTranscriptSegment].self, from: data)
+    }
+}
+
+public struct AudioTranscriptSegment: Codable, Hashable, Sendable {
+    public let speaker: String
+    public let voiceShortName: String
+    public let locale: String
+    public let text: String
+
+    public init(speaker: String, voiceShortName: String, locale: String, text: String) {
+        self.speaker = speaker
+        self.voiceShortName = voiceShortName
+        self.locale = locale
+        self.text = text
+    }
+}
+
+public struct AudioListResponse: Codable, Sendable {
+    public let data: [Audio]
+}
+
 // MARK: - Briefing
 
 public struct Briefing: Codable, Identifiable, Hashable, Sendable {
@@ -567,6 +650,9 @@ public struct Briefing: Codable, Identifiable, Hashable, Sendable {
     public let title: String
     public let content: String
     public let imageUrl: String?
+    public let podcastUrl: String?
+    public let isPublic: Bool?
+    public let shareUrl: String?
     public let documents: [Document]?
     public let createdAt: String?
     public let updatedAt: String?
@@ -587,6 +673,17 @@ public struct BriefingSection: Codable, Sendable, Identifiable {
 }
 
 public typealias BriefingListResponse = PaginatedResponse<BriefingSection>
+
+public struct GenerateBriefingPodcastResponse: Codable, Sendable {
+    public enum Status: String, Codable, Sendable {
+        case generating
+        case alreadyExists = "already_exists"
+    }
+
+    public let status: Status
+    public let briefingId: String
+    public let podcastUrl: String?
+}
 
 // MARK: - Chat Session
 
@@ -716,6 +813,8 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
     public let toolResultOutputs: [String: AnyCodable]
     /// Image and file attachments from user messages
     public let attachments: [ChatMessageAttachment]
+    /// Server-side timestamp (ISO 8601). Nil for messages that predate the field.
+    public let createdAt: String?
 
     /// Backwards-compatible: returns textContent
     public var content: String? {
@@ -723,13 +822,14 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, role, content
+        case id, role, content, createdAt
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? container.decode(String.self, forKey: .id)) ?? UUID().uuidString
         role = try container.decode(String.self, forKey: .role)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
 
         // Content can be a plain string or an array of content parts
         if let stringValue = try? container.decode(String.self, forKey: .content) {
@@ -1101,24 +1201,55 @@ public struct Device: Codable, Identifiable, Sendable {
     public let userId: String
     public let deviceToken: String
     public let platform: String
+    public let liveActivityStartToken: String?
     public let createdAt: String?
 }
 
 public struct RegisterDevice: Codable, Sendable {
     public let deviceToken: String
     public let platform: String
+    /// APNs push-to-start token for Live Activities (iOS 17.2+). Optional — sent
+    /// when available, omitted on a regular device-token-only registration.
+    public let liveActivityStartToken: String?
 
     #if os(macOS)
-        public init(deviceToken: String, platform: String = "macos") {
+        public init(deviceToken: String, platform: String = "macos", liveActivityStartToken: String? = nil) {
             self.deviceToken = deviceToken
             self.platform = platform
+            self.liveActivityStartToken = liveActivityStartToken
         }
     #else
-        public init(deviceToken: String, platform: String = "ios") {
+        public init(deviceToken: String, platform: String = "ios", liveActivityStartToken: String? = nil) {
             self.deviceToken = deviceToken
             self.platform = platform
+            self.liveActivityStartToken = liveActivityStartToken
         }
     #endif
+}
+
+// MARK: - Live Activities
+
+public struct RegisterLiveActivityToken: Codable, Sendable {
+    public let activityId: String
+    public let taskId: String
+    public let token: String
+
+    public init(activityId: String, taskId: String, token: String) {
+        self.activityId = activityId
+        self.taskId = taskId
+        self.token = token
+    }
+}
+
+public struct LiveActivityTokenResponse: Codable, Sendable {
+    public let id: String
+    public let userId: String
+    public let taskId: String
+    public let activityId: String
+    public let token: String
+    public let endedAt: String?
+    public let createdAt: String?
+    public let updatedAt: String?
 }
 
 // MARK: - Tool

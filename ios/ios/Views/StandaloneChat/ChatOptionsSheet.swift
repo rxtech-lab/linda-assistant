@@ -7,19 +7,25 @@ struct ChatOptionsSheet: View {
     let selectedAssigneeId: String?
     let documents: [Document]
     let slideDecks: [SlideDeckListItem]
+    let audios: [Audio]
     var onSelectAssignee: (Assignee) -> Void
     var onDeleteDocument: (Document) -> Void
+    var onDeleteAudio: (Audio) -> Void
     var onClearMessages: () -> Void
 
-    private let maxPreviewCount = 10
-    private let maxSlidePreviewCount = 6
+    private let maxPreviewCount = 5
+    private let maxSlidePreviewCount = 5
+    private let maxAudioPreviewCount = 5
 
     @State private var showingAllAssignees = false
     @State private var showingAllDocuments = false
     @State private var showingAllSlides = false
+    @State private var showingAllAudios = false
     @State private var documentToDelete: Document?
+    @State private var audioToDelete: Audio?
     @State private var selectedDocumentItem: DocumentSheetItem?
     @State private var selectedSlideDeckId: String?
+    @State private var selectedAudioItem: AudioSheetItem?
 
     private var previewAssignees: [Assignee] {
         Array(assignees.prefix(maxPreviewCount))
@@ -31,6 +37,10 @@ struct ChatOptionsSheet: View {
 
     private var previewSlideDecks: [SlideDeckListItem] {
         Array(slideDecks.prefix(maxSlidePreviewCount))
+    }
+
+    private var previewAudios: [Audio] {
+        Array(audios.prefix(maxAudioPreviewCount))
     }
 
     var body: some View {
@@ -101,6 +111,43 @@ struct ChatOptionsSheet: View {
         }
     }
 
+    private func audioRow(_ audio: Audio) -> some View {
+        Button {
+            selectedAudioItem = AudioSheetItem(id: audio.id, title: audio.title)
+        } label: {
+            HStack {
+                Image(systemName: "waveform")
+                    .foregroundStyle(.secondary)
+                Text(audio.title)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Spacer()
+                if audio.status == "generating" {
+                    HStack(spacing: 4) {
+                        ProgressView().controlSize(.mini)
+                        Text("Generating")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if audio.status == "failed" {
+                    Text("FAILED")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.red.opacity(0.2))
+                        .clipShape(Capsule())
+                } else {
+                    Text(audio.type)
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.quaternary)
+                        .clipShape(Capsule())
+                }
+            }
+        }
+    }
+
     private func sectionHeader(title: String, icon: String, count: Int, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack {
@@ -166,6 +213,19 @@ struct ChatOptionsSheet: View {
                         }
                     }
 
+                    if !audios.isEmpty {
+                        Section {
+                            ForEach(previewAudios) { audio in
+                                audioRow(audio)
+                                    .buttonStyle(.plain)
+                            }
+                        } header: {
+                            sectionHeader(title: "Audio", icon: "waveform", count: audios.count) {
+                                showingAllAudios = true
+                            }
+                        }
+                    }
+
                     if !slideDecks.isEmpty {
                         Section {
                             ForEach(previewSlideDecks) { deck in
@@ -221,10 +281,27 @@ struct ChatOptionsSheet: View {
             .sheet(item: $selectedDocumentItem) { item in
                 DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
             }
+            .sheet(item: $selectedAudioItem) { item in
+                AudioViewerSheet(audioId: item.id, initialTitle: item.title)
+            }
             .slideViewerPresenter(deckId: $selectedSlideDeckId)
             .sheet(isPresented: $showingAllSlides) {
                 if let assigneeId = selectedAssigneeId {
                     AllSlideDecksSheet(assigneeId: assigneeId)
+                }
+            }
+            .sheet(isPresented: $showingAllAudios) {
+                if let assigneeId = selectedAssigneeId {
+                    AllAudiosSheet(
+                        assigneeId: assigneeId,
+                        onSelectAudio: { audio in
+                            showingAllAudios = false
+                            selectedAudioItem = AudioSheetItem(id: audio.id, title: audio.title)
+                        },
+                        onDeleteAudio: { audio in
+                            audioToDelete = audio
+                        }
+                    )
                 }
             }
             .confirmationDialog(
@@ -241,6 +318,21 @@ struct ChatOptionsSheet: View {
                 }
             } message: { doc in
                 Text("Are you sure you want to delete \"\(doc.title)\"?")
+            }
+            .confirmationDialog(
+                "Delete Audio",
+                isPresented: Binding(
+                    get: { audioToDelete != nil },
+                    set: { if !$0 { audioToDelete = nil } }
+                ),
+                presenting: audioToDelete
+            ) { audio in
+                Button("Delete", role: .destructive) {
+                    onDeleteAudio(audio)
+                    audioToDelete = nil
+                }
+            } message: { audio in
+                Text("Are you sure you want to delete \"\(audio.title)\"?")
             }
         }
     #endif
@@ -276,6 +368,25 @@ struct ChatOptionsSheet: View {
                         } header: {
                             sectionHeader(title: "Documents", icon: "doc.text", count: documents.count) {
                                 showingAllDocuments = true
+                            }
+                        }
+                    }
+
+                    if !audios.isEmpty {
+                        Section {
+                            ForEach(previewAudios) { audio in
+                                audioRow(audio)
+                                    .swipeActions(edge: .trailing) {
+                                        Button(role: .destructive) {
+                                            audioToDelete = audio
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                            }
+                        } header: {
+                            sectionHeader(title: "Audio", icon: "waveform", count: audios.count) {
+                                showingAllAudios = true
                             }
                         }
                     }
@@ -341,10 +452,27 @@ struct ChatOptionsSheet: View {
             .sheet(item: $selectedDocumentItem) { item in
                 DocumentViewerSheet(documentId: item.id, initialTitle: item.title)
             }
+            .sheet(item: $selectedAudioItem) { item in
+                AudioViewerSheet(audioId: item.id, initialTitle: item.title)
+            }
             .slideViewerPresenter(deckId: $selectedSlideDeckId)
             .sheet(isPresented: $showingAllSlides) {
                 if let assigneeId = selectedAssigneeId {
                     AllSlideDecksSheet(assigneeId: assigneeId)
+                }
+            }
+            .sheet(isPresented: $showingAllAudios) {
+                if let assigneeId = selectedAssigneeId {
+                    AllAudiosSheet(
+                        assigneeId: assigneeId,
+                        onSelectAudio: { audio in
+                            showingAllAudios = false
+                            selectedAudioItem = AudioSheetItem(id: audio.id, title: audio.title)
+                        },
+                        onDeleteAudio: { audio in
+                            audioToDelete = audio
+                        }
+                    )
                 }
             }
             .confirmationDialog(
@@ -361,6 +489,21 @@ struct ChatOptionsSheet: View {
                 }
             } message: { doc in
                 Text("Are you sure you want to delete \"\(doc.title)\"?")
+            }
+            .confirmationDialog(
+                "Delete Audio",
+                isPresented: Binding(
+                    get: { audioToDelete != nil },
+                    set: { if !$0 { audioToDelete = nil } }
+                ),
+                presenting: audioToDelete
+            ) { audio in
+                Button("Delete", role: .destructive) {
+                    onDeleteAudio(audio)
+                    audioToDelete = nil
+                }
+            } message: { audio in
+                Text("Are you sure you want to delete \"\(audio.title)\"?")
             }
         }
     #endif
@@ -384,8 +527,10 @@ private func previewAssignee(id: String, name: String, email: String) -> Assigne
         selectedAssigneeId: "1",
         documents: [],
         slideDecks: [],
+        audios: [],
         onSelectAssignee: { _ in },
         onDeleteDocument: { _ in },
+        onDeleteAudio: { _ in },
         onClearMessages: {}
     )
 }
@@ -398,8 +543,10 @@ private func previewAssignee(id: String, name: String, email: String) -> Assigne
         selectedAssigneeId: nil,
         documents: [],
         slideDecks: [],
+        audios: [],
         onSelectAssignee: { _ in },
         onDeleteDocument: { _ in },
+        onDeleteAudio: { _ in },
         onClearMessages: {}
     )
 }

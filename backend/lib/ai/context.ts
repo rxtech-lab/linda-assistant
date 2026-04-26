@@ -30,6 +30,8 @@ export const SLIDE_GENERATION_MODEL = process.env.CI
   ? "google/gemini-3.1-flash-image-preview"
   : "anthropic/claude-sonnet-4.6";
 
+export const PODCAST_GENERATION_MODEL = "google/gemini-3-flash";
+
 export const TASK_SESSION_SUMMARIZATION_MODEL = "google/gemma-4-31b-it";
 
 export const TASK_SESSION_EMBEDDING_MODEL = "google/gemini-embedding-2";

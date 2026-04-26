@@ -165,6 +165,92 @@ export async function sendPushNotification(
   return results;
 }
 
+export type LiveActivityEvent = "start" | "update" | "end";
+
+export type LiveActivityContentState = {
+  status: "starting" | "inProgress" | "waitingConfirmation" | "completed" | "failed";
+  currentStep?: string | null;
+  updatedAt: number;
+};
+
+export type LiveActivityAttributes = {
+  taskId: string;
+  taskTitle: string;
+  assigneeName?: string | null;
+};
+
+const LIVE_ACTIVITY_ATTRIBUTES_TYPE = "LindaTaskAttributes";
+
+/**
+ * Send an APNs Live Activity push (start / update / end). The token is either a
+ * push-to-start token (for `event: "start"` with no per-activity token yet) or
+ * a per-activity token returned by `Activity.pushTokenUpdates` on iOS.
+ */
+export async function sendLiveActivityPush(args: {
+  token: string;
+  event: LiveActivityEvent;
+  contentState: LiveActivityContentState;
+  attributes?: LiveActivityAttributes;
+  dismissalDate?: number; // unix seconds
+  staleDate?: number; // unix seconds
+}) {
+  const log = (msg: string) => console.log(`[push:liveactivity] ${msg}`);
+
+  if (process.env.IS_E2E) {
+    log("skipped (E2E mode)");
+    return { status: 0, body: "skipped" };
+  }
+
+  const apnsToken = await getApnsToken();
+  const bundleId = process.env.APNS_BUNDLE_ID!;
+  const isProduction = process.env.APNS_ENVIRONMENT === "production";
+  const host = isProduction ? "https://api.push.apple.com" : "https://api.sandbox.push.apple.com";
+
+  const aps: Record<string, unknown> = {
+    timestamp: Math.floor(Date.now() / 1000),
+    event: args.event,
+    "content-state": args.contentState,
+  };
+  if (args.event === "start") {
+    if (!args.attributes) {
+      throw new Error("Live Activity start push requires attributes");
+    }
+    aps["attributes-type"] = LIVE_ACTIVITY_ATTRIBUTES_TYPE;
+    aps.attributes = args.attributes;
+  }
+  if (args.event === "end" && args.dismissalDate) {
+    aps["dismissal-date"] = args.dismissalDate;
+  }
+  if (args.staleDate) {
+    aps["stale-date"] = args.staleDate;
+  }
+
+  const payload = JSON.stringify({ aps });
+  const path = `/3/device/${args.token}`;
+
+  log(`event=${args.event} status=${args.contentState.status} taskId=${args.attributes?.taskId ?? "-"}`);
+
+  const response = await sendHttp2Request(
+    host,
+    path,
+    {
+      authorization: `bearer ${apnsToken}`,
+      "apns-topic": `${bundleId}.push-type.liveactivity`,
+      "apns-push-type": "liveactivity",
+      "apns-priority": "10",
+      "content-type": "application/json",
+    },
+    payload,
+  );
+
+  if (response.status === 200) {
+    log(`status=${response.status} ✓`);
+  } else {
+    console.error(`[push:liveactivity] status=${response.status} error: ${response.body}`);
+  }
+  return response;
+}
+
 /**
  * Send a silent/background push notification to a specific device token.
  * Used for auto-confirm location requests where the app responds in the background.

@@ -259,6 +259,32 @@ public extension APIClient {
         try await requestData(path: "documents/\(id)/download")
     }
 
+    // MARK: - Audios
+
+    func listChatAudios(
+        assigneeId: String,
+        limit: Int = 100,
+        offset: Int = 0,
+        search: String? = nil
+    ) async throws -> PaginatedResponse<Audio> {
+        var queryItems = [
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)"),
+        ]
+        if let search, !search.isEmpty {
+            queryItems.append(URLQueryItem(name: "search", value: search))
+        }
+        return try await request(path: "chat/\(assigneeId)/audios", queryItems: queryItems)
+    }
+
+    func getAudio(id: String) async throws -> Audio {
+        try await request(path: "audios/\(id)")
+    }
+
+    func deleteAudio(id: String) async throws {
+        try await requestNoContent(path: "audios/\(id)")
+    }
+
     // MARK: - Slide Decks
 
     func listChatSlideDecks(
@@ -353,8 +379,21 @@ public extension APIClient {
         try await request(path: "briefings/\(id)")
     }
 
+    func updateBriefing(id: String, isPublic: Bool) async throws -> Briefing {
+        struct Body: Encodable, Sendable { let isPublic: Bool }
+        return try await request(
+            path: "briefings/\(id)",
+            method: "PATCH",
+            body: Body(isPublic: isPublic)
+        )
+    }
+
     func deleteBriefing(id: String) async throws {
         try await requestNoContent(path: "briefings/\(id)")
+    }
+
+    func generateBriefingPodcast(id: String) async throws -> GenerateBriefingPodcastResponse {
+        try await request(path: "briefings/\(id)/podcast", method: "POST")
     }
 
     // MARK: - Extensions
@@ -546,6 +585,17 @@ public extension APIClient {
 
     func deleteDevice(id: String) async throws {
         try await requestNoContent(path: "devices/\(id)")
+    }
+
+    // MARK: - Live Activities
+
+    /// Register the per-activity APNs push token. The push-to-start token is
+    /// registered through `registerDevice` instead (folded into the same
+    /// device record so each device has a single canonical row).
+    func registerLiveActivityToken(
+        _ body: RegisterLiveActivityToken
+    ) async throws -> LiveActivityTokenResponse {
+        try await request(path: "live-activities/activity-token", method: "POST", body: body)
     }
 
     // MARK: - User Settings

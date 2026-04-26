@@ -221,6 +221,11 @@ export const selectTaskSchema = z.object({
     .nullable()
     .optional()
     .describe("Per-tool permission overrides inherited from assignee"),
+  liveActivityEnabled: z
+    .boolean()
+    .nullable()
+    .optional()
+    .describe("Whether to show a Live Activity for this task while it is running"),
   nextRunAt: z
     .number()
     .nullable()
@@ -273,6 +278,10 @@ export const insertTaskSchema = z
       .optional()
       .nullable()
       .describe("IANA timezone (e.g. 'America/New_York') for interpreting schedule times"),
+    liveActivityEnabled: z
+      .boolean()
+      .optional()
+      .describe("Whether to show a Live Activity for this task while it is running (default true)"),
   })
   .refine((data) => !(data.isCronEnabled && data.runsAt), {
     message: "A task cannot have both cron scheduling and a one-shot runsAt schedule",
@@ -315,6 +324,10 @@ export const updateTaskSchema = z
       .optional()
       .nullable()
       .describe("Per-tool permission overrides for this task"),
+    liveActivityEnabled: z
+      .boolean()
+      .optional()
+      .describe("Whether to show a Live Activity for this task while it is running"),
   })
   .refine((data) => !(data.isCronEnabled && data.runsAt), {
     message: "A task cannot have both cron scheduling and a one-shot runsAt schedule",
@@ -431,6 +444,11 @@ export const chatMessageSchema = z.object({
     .describe(
       "Whether the message has been compacted (summarized for AI context). Compacted messages are preserved for user history but not sent to the AI agent.",
     ),
+  createdAt: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Server-side timestamp the message was persisted at (ISO 8601, UTC)."),
 });
 
 // ---- Chat Sessions ----
@@ -594,6 +612,29 @@ export const documentSummarySchema = z.object({
   updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
 
+// ---- Audios ----
+
+export const selectAudioSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  chatSessionId: z.string().describe("Associated chat session ID"),
+  title: z.string().describe("Audio title"),
+  type: z.string().describe("Audio type (e.g. 'podcast')"),
+  prompt: z.string().describe("Prompt steering the generation"),
+  content: z.string().describe("Source content converted to audio"),
+  audioUrl: z.string().nullable().describe("URL of the generated MP3 (null until ready)"),
+  status: z.string().describe("'generating' | 'ready' | 'failed'"),
+  errorMessage: z.string().nullable().describe("Error message when status is 'failed'"),
+  transcript: z
+    .string()
+    .nullable()
+    .describe(
+      "JSON-encoded array of { speaker, voiceShortName, locale, text } produced by the podcast agent",
+    ),
+  createdAt: z.string().nullable().describe("Creation timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
+});
+
 // ---- Briefings ----
 
 export const selectBriefingSchema = z.object({
@@ -604,6 +645,9 @@ export const selectBriefingSchema = z.object({
   title: z.string().describe("Briefing title"),
   content: z.string().describe("Briefing markdown content"),
   imageUrl: z.string().nullable().describe("Cover image URL"),
+  podcastUrl: z.string().nullable().describe("URL to generated podcast MP3"),
+  isPublic: z.boolean().nullable().describe("Whether the briefing is publicly shareable"),
+  shareUrl: z.string().nullable().describe("Public share URL when isPublic is true"),
   documents: z.array(selectDocumentSchema).optional().describe("Linked documents"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
   updatedAt: z.string().nullable().describe("Last update timestamp"),
@@ -613,6 +657,9 @@ export const briefingSummarySchema = z.object({
   id: z.string().describe("Unique identifier"),
   title: z.string().describe("Briefing title"),
   imageUrl: z.string().nullable().describe("Cover image URL"),
+  podcastUrl: z.string().nullable().describe("URL to generated podcast MP3"),
+  isPublic: z.boolean().nullable().describe("Whether the briefing is publicly shareable"),
+  shareUrl: z.string().nullable().describe("Public share URL when isPublic is true"),
   chatSessionId: z.string().nullable().describe("Associated chat session ID"),
   assigneeId: z.string().nullable().describe("Associated assignee ID"),
   createdAt: z.string().nullable().describe("Creation timestamp"),
@@ -627,9 +674,24 @@ export const insertBriefingSchema = z.object({
   chatSessionId: z.string().optional().describe("Associated chat session ID"),
 });
 
+export const updateBriefingSchema = z.object({
+  isPublic: z.boolean().describe("Whether the briefing should be publicly shareable"),
+});
+
 export const briefingSectionSchema = z.object({
   date: z.string().describe("Date in YYYY-MM-DD format"),
   briefings: z.array(selectBriefingSchema).describe("Briefings for this date"),
+});
+
+export const generateBriefingPodcastResponseSchema = z.object({
+  status: z
+    .enum(["generating", "already_exists"])
+    .describe("Generation status: 'generating' when kicked off, 'already_exists' when the briefing already has a podcast"),
+  briefingId: z.string().describe("Briefing id"),
+  podcastUrl: z
+    .string()
+    .nullable()
+    .describe("Existing podcast URL when status='already_exists', otherwise null"),
 });
 
 export const listBriefingResponseSchema = z.object({
@@ -711,12 +773,50 @@ export const selectDeviceSchema = z.object({
   userId: z.string().describe("Owner user ID"),
   deviceToken: z.string().describe("APNs device token"),
   platform: z.string().describe("Device platform"),
+  liveActivityStartToken: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("APNs push-to-start token for Live Activities (iOS 17.2+)"),
   createdAt: z.string().nullable().describe("Registration timestamp"),
 });
 
 export const insertDeviceSchema = z.object({
   deviceToken: z.string().min(1).describe("APNs device token"),
   platform: z.string().min(1).describe("Device platform"),
+  liveActivityStartToken: z
+    .string()
+    .min(1)
+    .nullable()
+    .optional()
+    .describe("APNs push-to-start token for Live Activities (iOS 17.2+)"),
+});
+
+// ---- Live Activities ----
+
+export const liveActivityStatusSchema = z.enum([
+  "starting",
+  "inProgress",
+  "waitingConfirmation",
+  "completed",
+  "failed",
+]);
+
+export const insertLiveActivityTokenSchema = z.object({
+  activityId: z.string().min(1).describe("Activity instance identifier"),
+  taskId: z.string().min(1).describe("Task this activity is bound to"),
+  token: z.string().min(1).describe("Per-activity APNs push token (hex)"),
+});
+
+export const selectLiveActivityTokenSchema = z.object({
+  id: z.string().describe("Unique identifier"),
+  userId: z.string().describe("Owner user ID"),
+  taskId: z.string().describe("Task this activity is bound to"),
+  activityId: z.string().describe("Activity instance identifier"),
+  token: z.string().describe("Per-activity APNs push token"),
+  endedAt: z.string().nullable().describe("When the activity was ended (server-side)"),
+  createdAt: z.string().nullable().describe("Registration timestamp"),
+  updatedAt: z.string().nullable().describe("Last update timestamp"),
 });
 
 // ---- Send message ----

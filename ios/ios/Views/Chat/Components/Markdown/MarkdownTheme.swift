@@ -22,6 +22,30 @@ extension MarkdownUI.Theme {
                     .frame(minWidth: 120, alignment: .leading)
             }
     }
+
+    /// Applies a tinted, accent-bar blockquote style — replaces the default flat-gray look.
+    func prettyBlockquote() -> MarkdownUI.Theme {
+        blockquote { configuration in
+            HStack(spacing: 0) {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(MarkdownColors.blockquoteAccent)
+                    .frame(width: 3)
+                configuration.label
+                    .markdownTextStyle {
+                        FontStyle(.italic)
+                        ForegroundColor(.primary.opacity(0.85))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(MarkdownColors.blockquoteBackground)
+            )
+            .padding(.vertical, 4)
+        }
+    }
 }
 
 // MARK: - Custom Chat Theme
@@ -38,6 +62,7 @@ extension MarkdownUI.Theme {
             CodeBlockView(configuration: configuration)
         }
         .scrollableTable()
+        .prettyBlockquote()
 }
 
 #Preview("Chat Theme - All Elements") {

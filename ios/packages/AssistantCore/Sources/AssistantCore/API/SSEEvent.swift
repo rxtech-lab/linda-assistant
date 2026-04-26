@@ -5,6 +5,7 @@ private let logger = Logger(subsystem: "lindaAssistant", category: "SSEEvent")
 
 public enum SSEEventType: String, Sendable {
     case textDelta = "text-delta"
+    case toolInputStart = "tool-input-start"
     case toolCall = "tool-call"
     case toolResult = "tool-result"
     case confirmationRequired = "confirmation_required"
@@ -16,6 +17,7 @@ public enum SSEEventType: String, Sendable {
     case uploadRequired = "upload_required"
     case uploadResolved = "upload_resolved"
     case toolProgress = "tool-progress"
+    case audioReady = "audio-ready"
     case userMessage = "user-message"
     case thinkingStart = "thinking-start"
     case thinkingStop = "thinking-stop"
@@ -68,6 +70,10 @@ public struct SSEEvent: Sendable {
                 } catch {
                     logger.error("parse: textDelta decode failed: \(error), raw=\(data.prefix(200))")
                 }
+            case .toolInputStart:
+                if let payload = try? decoder.decode(ToolInputStartPayload.self, from: jsonData) {
+                    return .toolInputStart(payload)
+                }
             case .toolCall:
                 if let payload = try? decoder.decode(ToolCallPayload.self, from: jsonData) {
                     return .toolCall(payload)
@@ -118,6 +124,10 @@ public struct SSEEvent: Sendable {
                 if let payload = try? decoder.decode(ToolProgressPayload.self, from: jsonData) {
                     return .toolProgress(payload)
                 }
+            case .audioReady:
+                if let payload = try? decoder.decode(AudioReadyPayload.self, from: jsonData) {
+                    return .audioReady(payload)
+                }
             case .userMessage:
                 if let payload = try? decoder.decode(UserMessagePayload.self, from: jsonData) {
                     return .userMessage(payload)
@@ -160,6 +170,7 @@ public struct SSEEvent: Sendable {
 public enum SSEMessage: Sendable {
     case status(StatusPayload)
     case textDelta(TextDeltaPayload)
+    case toolInputStart(ToolInputStartPayload)
     case toolCall(ToolCallPayload)
     case toolResult(ToolResultPayload)
     case confirmationRequired(ConfirmationPayload)
@@ -171,6 +182,7 @@ public enum SSEMessage: Sendable {
     case uploadRequired(UploadRequestPayload)
     case uploadResolved(UploadResolvedPayload)
     case toolProgress(ToolProgressPayload)
+    case audioReady(AudioReadyPayload)
     case userMessage(UserMessagePayload)
     case thinkingStart(ThinkingStartPayload)
     case thinkingStop(ThinkingStopPayload)
@@ -204,6 +216,12 @@ public struct ToolCallPayload: Codable, Sendable {
     public let toolCallId: String
     public let toolName: String
     public let input: [String: AnyCodable]?
+    public let seq: Int?
+}
+
+public struct ToolInputStartPayload: Codable, Sendable {
+    public let toolCallId: String
+    public let toolName: String
     public let seq: Int?
 }
 
@@ -380,6 +398,12 @@ public struct ToolProgressPayload: Codable, Sendable {
     public let step: String?
     public let message: String?
     public let thumbnailUrl: String?
+}
+
+public struct AudioReadyPayload: Codable, Sendable {
+    public let audioId: String
+    public let audioUrl: String
+    public let seq: Int?
 }
 
 public struct UploadUrlItem: Codable, Sendable, Hashable {

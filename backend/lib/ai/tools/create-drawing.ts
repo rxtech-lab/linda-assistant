@@ -5,6 +5,10 @@ import { uploadBufferToS3 } from "../../s3";
 import { CHART_GENERATION_MODEL } from "../context";
 import { getModelProvider } from "../model";
 
+const CJK_FONT_URL =
+  "https://cdn.jsdelivr.net/gh/googlefonts/noto-cjk@main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf";
+const CJK_FONT_PATH = "/tmp/NotoSansCJKsc-Regular.otf";
+
 const prompt = (
   description: string,
 ) => `You are a data visualization expert that creates beautiful, modern charts using Python and matplotlib.
@@ -24,13 +28,23 @@ Chart description: ${description}
    - Title: fontsize=16, fontweight='bold', pad=20, color='#1F2937'
    - Axis labels: fontsize=12, color='#374151'
    - Tick labels: fontsize=10, color='#6B7280'
-   - Use plt.rcParams['font.family'] = 'sans-serif'
-   - **CJK text support**: If any labels, title, or data contain Chinese/Japanese/Korean characters, add BEFORE any plotting:
+   - **CRITICAL — CJK text support**: If any labels, title, or data contain Chinese/Japanese/Korean characters, you MUST register the font AFTER calling \`plt.style.use(...)\` (style.use resets font.family). The correct order is:
      \`\`\`python
      import matplotlib
-     matplotlib.rcParams['font.sans-serif'] = ['Noto Sans CJK SC', 'WenQuanYi Zen Hei', 'sans-serif']
+     import matplotlib.pyplot as plt
+     from matplotlib import font_manager
+
+     plt.style.use('seaborn-v0_8-whitegrid')  # FIRST — style.use resets font settings
+
+     # THEN register CJK font (overrides the style's font defaults)
+     font_path = '${CJK_FONT_PATH}'
+     font_manager.fontManager.addfont(font_path)
+     cjk_name = font_manager.FontProperties(fname=font_path).get_name()
+     matplotlib.rcParams['font.family'] = 'sans-serif'
+     matplotlib.rcParams['font.sans-serif'] = [cjk_name, 'DejaVu Sans', 'sans-serif']
      matplotlib.rcParams['axes.unicode_minus'] = False
      \`\`\`
+   - If you do NOT need CJK characters, you may set \`plt.rcParams['font.family'] = 'sans-serif'\` after style.use.
 
 4. **Layout**:
    - Figure size: at least (10, 6) for most charts, (8, 8) for pie charts
@@ -93,39 +107,72 @@ async function createChart(
     }
     console.log("[createChart] matplotlib installed");
 
-    // Install CJK fonts for Chinese/Japanese/Korean text support
-    console.log("[createChart] Installing CJK fonts...");
-    const fontInstall = await sandbox.runCommand("sudo", [
-      "apt-get",
-      "install",
-      "-y",
-      "-qq",
-      "fonts-noto-cjk",
+    // Download CJK font directly (apt-get is unreliable in the sandbox).
+    // The prompt tells matplotlib to load this file via font_manager.addfont.
+    console.log("[createChart] Downloading CJK font to", CJK_FONT_PATH);
+    const fontDownload = await sandbox.runCommand("curl", [
+      "-fsSL",
+      "--retry",
+      "2",
+      "-o",
+      CJK_FONT_PATH,
+      CJK_FONT_URL,
     ]);
-    if (fontInstall.exitCode !== 0) {
-      // Try alternative package name
-      const altInstall = await sandbox.runCommand("sudo", [
-        "apt-get",
-        "install",
-        "-y",
-        "-qq",
-        "fonts-wqy-zenhei",
+    if (fontDownload.exitCode !== 0) {
+      const stderr = await fontDownload.stderr();
+      console.warn(
+        "[createChart] CJK font download failed — Chinese text may not render:",
+        stderr,
+      );
+    } else {
+      // Clear matplotlib font cache so the new font is picked up
+      await sandbox.runCommand("python", [
+        "-c",
+        "import matplotlib, shutil; shutil.rmtree(matplotlib.get_cachedir(), ignore_errors=True)",
       ]);
-      if (altInstall.exitCode !== 0) {
-        console.warn(
-          "[createChart] CJK font install failed — Chinese text may not render",
-        );
-      }
+
+      // Defensive: install a sitecustomize.py that auto-registers the CJK font
+      // and patches plt.style.use so style.use cannot wipe out the CJK font.
+      // This guarantees CJK rendering even if the model misorders style.use vs.
+      // font registration (a common mistake that produces tofu □□□ glyphs).
+      const sitecustomize = `import os
+try:
+    import matplotlib
+    from matplotlib import font_manager
+    _font_path = ${JSON.stringify(CJK_FONT_PATH)}
+    if os.path.exists(_font_path):
+        font_manager.fontManager.addfont(_font_path)
+        _cjk_name = font_manager.FontProperties(fname=_font_path).get_name()
+
+        def _apply_cjk():
+            matplotlib.rcParams['font.family'] = 'sans-serif'
+            existing = list(matplotlib.rcParams.get('font.sans-serif', []))
+            if _cjk_name in existing:
+                existing.remove(_cjk_name)
+            matplotlib.rcParams['font.sans-serif'] = [_cjk_name] + existing
+            matplotlib.rcParams['axes.unicode_minus'] = False
+
+        _apply_cjk()
+
+        # Patch pyplot.style.use so it can't drop the CJK font
+        import matplotlib.pyplot as plt
+        _orig_style_use = plt.style.use
+        def _patched_style_use(*a, **kw):
+            r = _orig_style_use(*a, **kw)
+            _apply_cjk()
+            return r
+        plt.style.use = _patched_style_use
+except Exception as _e:
+    pass
+`;
+      await sandbox.writeFiles([
+        {
+          path: "/tmp/sitecustomize.py",
+          content: Buffer.from(sitecustomize, "utf-8"),
+        },
+      ]);
+      console.log("[createChart] CJK font ready");
     }
-    // Clear matplotlib font cache so it picks up the new fonts
-    const clearCache = await sandbox.runCommand("python", [
-      "-c",
-      "import matplotlib; import shutil; shutil.rmtree(matplotlib.get_cachedir(), ignore_errors=True)",
-    ]);
-    if (clearCache.exitCode !== 0) {
-      console.warn("[createChart] Failed to clear matplotlib font cache");
-    }
-    console.log("[createChart] CJK fonts installed");
 
     const agent = new ToolLoopAgent({
       model: getModelProvider(CHART_GENERATION_MODEL),
@@ -148,9 +195,11 @@ async function createChart(
                 content: Buffer.from(code, "utf-8"),
               },
             ]);
-            const result = await sandbox.runCommand("python", [
-              "/tmp/script.py",
-            ]);
+            const result = await sandbox.runCommand({
+              cmd: "python",
+              args: ["/tmp/script.py"],
+              env: { PYTHONPATH: "/tmp" },
+            });
             console.log(
               "[runPython] Command executed with exit code:",
               result.exitCode,

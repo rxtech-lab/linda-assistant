@@ -82,6 +82,18 @@ enum MarkdownColors {
             Color.gray.opacity(0.3)
         #endif
     }
+
+    // MARK: - Blockquote Colors
+
+    /// Accent color used for the blockquote left bar.
+    static var blockquoteAccent: Color {
+        Color.accentColor
+    }
+
+    /// Subtle tinted fill for blockquotes — much lighter than a flat gray.
+    static var blockquoteBackground: Color {
+        Color.accentColor.opacity(0.08)
+    }
 }
 
 #Preview("Markdown Colors") {

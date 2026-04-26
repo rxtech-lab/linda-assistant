@@ -6,6 +6,7 @@ import { insertMessages } from "@/lib/db/messages";
 import { assignees, chatSessions } from "@/lib/db/schema";
 import { sendPushNotification } from "@/lib/push";
 import { publishTask } from "@/lib/queue/producer";
+import { startTaskActivity } from "@/lib/utils/live-activity";
 import { stripMarkdown } from "@/lib/utils/markdown";
 
 type Assignee = { userId: string; id: string };
@@ -45,6 +46,12 @@ export async function createAssigneeFollowUp(
     timestamp: Date.now(),
   });
 
+  if (taskId) {
+    startTaskActivity(taskId).catch((err) =>
+      console.warn("[chat-session] startTaskActivity failed:", err),
+    );
+  }
+
   return session;
 }
 
@@ -55,7 +62,7 @@ export async function notifySessionResponse(
   responseText: string,
 ) {
   const [session] = await db
-    .select({ assigneeId: chatSessions.assigneeId })
+    .select({ assigneeId: chatSessions.assigneeId, taskId: chatSessions.taskId })
     .from(chatSessions)
     .where(eq(chatSessions.id, sessionId));
 
@@ -77,6 +84,10 @@ export async function notifySessionResponse(
   await sendPushNotification(userId, {
     title,
     body,
-    data: { sessionId, type: "assistant_message" },
+    data: {
+      sessionId,
+      type: "assistant_message",
+      ...(session?.taskId ? { taskId: session.taskId } : {}),
+    },
   });
 }

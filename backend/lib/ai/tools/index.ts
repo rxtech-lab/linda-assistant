@@ -25,6 +25,7 @@ import { CREATE_DRAWING_TOOL_NAME, createDrawingTool } from "./create-drawing";
 import { CREATE_SLIDES_TOOL_NAME, createSlidesTool } from "./create-slides";
 import { CREATE_DATA_SHEET_TOOL_NAME, createDataSheetTool } from "./create-data-sheet";
 import { GENERATE_IMAGE_TOOL_NAME, generateImageTool } from "./generate-image";
+import { GENERATE_AUDIO_TOOL_NAME, generateAudioTool } from "./generate-audio";
 import { UPDATE_SLIDES_TOOL_NAME, updateSlidesTool } from "./update-slides";
 import { REQUEST_UPLOAD_TOOL_NAME, requestUploadTool } from "./request-upload";
 import { SEARCH_HISTORY_TOOL_NAME, searchHistoryTool } from "./search-history";
@@ -53,6 +54,7 @@ export const NO_PERMISSION_CHANGE_TOOLS: ReadonlySet<string> = new Set([
   CREATE_BRIEFING_TOOL_NAME,
   SEND_NOTIFICATION_TOOL_NAME,
   GENERATE_IMAGE_TOOL_NAME,
+  GENERATE_AUDIO_TOOL_NAME,
   CREATE_SLIDES_TOOL_NAME,
   UPDATE_SLIDES_TOOL_NAME,
   CREATE_DATA_SHEET_TOOL_NAME,
@@ -347,7 +349,7 @@ export async function buildToolSet(
     },
     {
       name: GET_CURRENT_TIME_TOOL_NAME,
-      create: (na: boolean) => getCurrentTimeTool(na),
+      create: (na: boolean) => getCurrentTimeTool(na, userId, chatSessionId),
     },
     {
       name: ASK_QUESTION_TOOL_NAME,
@@ -417,6 +419,11 @@ export async function buildToolSet(
 
   // Image generation tool — never require confirmation
   filtered[GENERATE_IMAGE_TOOL_NAME] = generateImageTool();
+
+  // Audio generation tool — never require confirmation
+  if (chatSessionId) {
+    filtered[GENERATE_AUDIO_TOOL_NAME] = generateAudioTool(userId, chatSessionId);
+  }
 
   // Slide tools — never require confirmation
   if (chatSessionId) {
