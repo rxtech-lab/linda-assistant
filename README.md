@@ -313,7 +313,7 @@ flowchart TD
 
     subgraph D["job: k8s-deploy"]
         D1[Push images to ghcr.io]
-        D2[kubectl kustomize k8s/ | kubectl apply]
+        D2["kubectl kustomize k8s/ | kubectl apply"]
         D3[bun drizzle-kit push — run DB migrations]
         D4[kubectl set image — update deployments]
         D5[kubectl rollout status — wait for rollout]
