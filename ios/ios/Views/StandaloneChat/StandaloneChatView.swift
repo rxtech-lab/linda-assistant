@@ -42,7 +42,9 @@ struct ChatTabView: View {
                     onStop: {
                         Task { await viewModel.stopStream() }
                     },
-                    supportsImages: viewModel.selectedModelSupportsImages
+                    supportsImages: viewModel.selectedModelSupportsImages,
+                    pendingScrollAnchor: viewModel.pendingScrollAnchor,
+                    onScrollAnchorConsumed: { viewModel.clearPendingScrollAnchor() }
                 ) {
                     // Load more indicator
                     if viewModel.hasMoreMessages {

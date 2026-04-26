@@ -813,6 +813,8 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
     public let toolResultOutputs: [String: AnyCodable]
     /// Image and file attachments from user messages
     public let attachments: [ChatMessageAttachment]
+    /// Server-side timestamp (ISO 8601). Nil for messages that predate the field.
+    public let createdAt: String?
 
     /// Backwards-compatible: returns textContent
     public var content: String? {
@@ -820,13 +822,14 @@ public struct ChatMessage: Codable, Sendable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, role, content
+        case id, role, content, createdAt
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? container.decode(String.self, forKey: .id)) ?? UUID().uuidString
         role = try container.decode(String.self, forKey: .role)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
 
         // Content can be a plain string or an array of content parts
         if let stringValue = try? container.decode(String.self, forKey: .content) {

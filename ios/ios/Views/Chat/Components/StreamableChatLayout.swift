@@ -16,6 +16,8 @@ struct StreamableChatLayout<Header: View>: View {
     let onSend: (String, [MessageAttachment]?) -> Void
     let onStop: () -> Void
     var supportsImages: Bool = true
+    var pendingScrollAnchor: String? = nil
+    var onScrollAnchorConsumed: (() -> Void)? = nil
     @ViewBuilder let header: () -> Header
 
     @Environment(AuthManager.self) private var authManager
@@ -283,6 +285,13 @@ struct StreamableChatLayout<Header: View>: View {
             print(">>> scrollToBottomTrigger changed to \(scrollToBottomTrigger), scrolling to bottom")
             withAnimation {
                 proxy.scrollTo("bottom", anchor: .bottom)
+            }
+        }
+        .onChange(of: pendingScrollAnchor) { _, newValue in
+            guard let id = newValue else { return }
+            DispatchQueue.main.async {
+                proxy.scrollTo(id, anchor: .top)
+                onScrollAnchorConsumed?()
             }
         }
     }
@@ -892,7 +901,9 @@ extension StreamableChatLayout where Header == EmptyView {
         onClearError: @escaping () -> Void,
         onSend: @escaping (String, [MessageAttachment]?) -> Void,
         onStop: @escaping () -> Void,
-        supportsImages: Bool = true
+        supportsImages: Bool = true,
+        pendingScrollAnchor: String? = nil,
+        onScrollAnchorConsumed: (() -> Void)? = nil
     ) {
         self.messages = messages
         self.assigneeName = assigneeName
@@ -903,6 +914,8 @@ extension StreamableChatLayout where Header == EmptyView {
         self.onSend = onSend
         self.onStop = onStop
         self.supportsImages = supportsImages
+        self.pendingScrollAnchor = pendingScrollAnchor
+        self.onScrollAnchorConsumed = onScrollAnchorConsumed
         header = { EmptyView() }
     }
 }
