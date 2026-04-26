@@ -158,10 +158,39 @@ extension DisplayMessage {
                 id: msg.id,
                 role: msg.role == "user" ? .user : .assistant,
                 parts: parts,
-                assigneeName: msg.role == "user" ? nil : assigneeName
+                assigneeName: msg.role == "user" ? nil : assigneeName,
+                timestamp: msg.createdAt.flatMap(DisplayMessage.parseServerDate)
             )
         }
     }
+
+    /// Parse server-side timestamps. Backend emits SQLite `datetime('now')` (UTC, no zone),
+    /// e.g. `"2026-04-25 12:23:45"`, and may emit ISO 8601 in some paths. Try both.
+    static func parseServerDate(_ raw: String) -> Date? {
+        if let iso = iso8601Formatter.date(from: raw) { return iso }
+        if let isoFractional = iso8601FractionalFormatter.date(from: raw) { return isoFractional }
+        return sqliteUTCFormatter.date(from: raw)
+    }
+
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    private static let iso8601FractionalFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static let sqliteUTCFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
 
     static var previewUser: DisplayMessage {
         DisplayMessage(

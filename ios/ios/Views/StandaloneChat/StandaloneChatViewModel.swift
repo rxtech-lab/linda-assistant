@@ -16,6 +16,7 @@ final class ChatTabViewModel {
     var isLoading = false
     var isLoadingMore = false
     var hasMoreMessages = false
+    var pendingScrollAnchor: String?
     var error: String?
     var streamHandler: ChatStreamHandler?
     var deviceToken: String?
@@ -220,12 +221,24 @@ final class ChatTabViewModel {
             nextCursor = response.nextCursor
             hasMoreMessages = response.nextCursor != nil
             let older = DisplayMessage.convert(from: response.messages, assigneeName: assignee.name)
-            displayMessages.insert(contentsOf: older, at: 0)
+            applyPrepended(older)
         } catch {
             logger.error("loadOlderMessages error: \(error)")
             self.error = error.localizedDescription
         }
         isLoadingMore = false
+    }
+
+    /// Prepend older messages while capturing the previously-first message id so the View
+    /// can re-anchor scroll position on it after the prepend renders.
+    func applyPrepended(_ older: [DisplayMessage]) {
+        guard !older.isEmpty else { return }
+        pendingScrollAnchor = displayMessages.first?.id
+        displayMessages.insert(contentsOf: older, at: 0)
+    }
+
+    func clearPendingScrollAnchor() {
+        pendingScrollAnchor = nil
     }
 
     // MARK: - Stream Handler

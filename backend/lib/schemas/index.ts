@@ -444,6 +444,11 @@ export const chatMessageSchema = z.object({
     .describe(
       "Whether the message has been compacted (summarized for AI context). Compacted messages are preserved for user history but not sent to the AI agent.",
     ),
+  createdAt: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Server-side timestamp the message was persisted at (ISO 8601, UTC)."),
 });
 
 // ---- Chat Sessions ----

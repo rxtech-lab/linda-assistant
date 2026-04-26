@@ -232,5 +232,6 @@ function rowToModelMessage(
     content,
     seq: row.seq,
     isCompacted: row.isCompacted,
+    createdAt: row.createdAt,
   } as ModelMessage;
 }
