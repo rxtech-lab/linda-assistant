@@ -1,15 +1,18 @@
 import { NextRequest } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { briefings } from "@/lib/db/schema";
 import { authenticate } from "@/lib/auth/middleware";
-import { generatePodcastForBriefing } from "@/lib/ai/podcast/generate";
+import { enqueueBriefingPodcast } from "@/lib/ai/podcast/enqueue";
 import { errorJson, successJson } from "@/lib/utils/response";
 
 /**
- * Trigger podcast generation for a briefing that does not yet have one.
- * Returns immediately; actual generation runs asynchronously and notifies the
- * client via the existing `briefing-podcast-ready` SSE event + APNs push.
+ * Trigger (or re-trigger) podcast generation for a briefing.
+ *
+ * Idempotent — concurrent calls for the same briefing are safe:
+ * - status='ready' → returns 'ready' with the existing url
+ * - status='generating' → returns 'already_running' without re-enqueueing
+ * - status='pending' or 'failed' → resets attempts/error and enqueues
  *
  * @openapi
  * @operationId generateBriefingPodcast
@@ -32,31 +35,58 @@ export async function POST(
 
   if (!briefing) return errorJson("Briefing not found", 404);
 
-  if (briefing.podcastUrl) {
+  if (briefing.podcastStatus === "ready" && briefing.podcastUrl) {
     return successJson({
-      status: "already_exists" as const,
+      status: "ready" as const,
       briefingId: briefing.id,
       podcastUrl: briefing.podcastUrl,
     });
   }
 
-  generatePodcastForBriefing({
+  if (briefing.podcastStatus === "generating") {
+    return successJson({
+      status: "already_running" as const,
+      briefingId: briefing.id,
+      podcastUrl: null,
+    });
+  }
+
+  // Atomic reset: only enqueue if we transitioned a non-running row.
+  const reset = await db
+    .update(briefings)
+    .set({
+      podcastStatus: "pending",
+      podcastError: null,
+      podcastAttempts: 0,
+      updatedAt: sql`(datetime('now'))`,
+    })
+    .where(
+      and(
+        eq(briefings.id, id),
+        eq(briefings.userId, auth.userId),
+        inArray(briefings.podcastStatus, ["pending", "failed"]),
+      ),
+    )
+    .returning({ id: briefings.id });
+
+  if (reset.length === 0) {
+    return successJson({
+      status: "already_running" as const,
+      briefingId: briefing.id,
+      podcastUrl: null,
+    });
+  }
+
+  await enqueueBriefingPodcast({
     briefingId: briefing.id,
     userId: auth.userId,
     sessionId: briefing.chatSessionId,
-    title: briefing.title,
-    content: briefing.content,
-    imageUrl: briefing.imageUrl ?? null,
-  }).catch((err) => {
-    console.error(
-      "[briefings/podcast] background generation failed:",
-      err,
-    );
+    triggeredBy: "manual_retrigger",
   });
 
   return successJson(
     {
-      status: "generating" as const,
+      status: "queued" as const,
       briefingId: briefing.id,
       podcastUrl: null,
     },

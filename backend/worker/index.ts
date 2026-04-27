@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { runAgent } from "@/lib/ai/agent";
+import { consumeAudioTasks } from "@/lib/queue/audio-consumer";
 import {
   closeConnection,
   isConnected,
@@ -12,6 +13,7 @@ import type { AgentTask } from "@/lib/queue/types";
 import { clearStreamChunks, isStreamActive } from "@/lib/streaming/manager";
 import { pingRedis } from "@/lib/redis";
 import { notifySessionResponse } from "@/lib/utils/chat-session";
+import { handleAudioTask } from "./audio-handler";
 
 async function handleTask(task: AgentTask): Promise<void> {
   const { sessionId, userId } = task;
@@ -141,10 +143,14 @@ async function main() {
   await consumeTasks(handleTask, { prefetch: 5 });
   console.log("[Worker] Consuming tasks from agent-tasks queue");
 
-  // Re-register task consumer after reconnection
+  await consumeAudioTasks(handleAudioTask, { prefetch: 2 });
+  console.log("[Worker] Consuming tasks from audio-generation-tasks queue");
+
+  // Re-register both consumers after reconnection (single handler, both calls).
   setReconnectHandler(async () => {
-    console.log("[Worker] Re-registering task consumer after reconnect");
+    console.log("[Worker] Re-registering consumers after reconnect");
     await consumeTasks(handleTask, { prefetch: 5 });
+    await consumeAudioTasks(handleAudioTask, { prefetch: 2 });
   });
 
   healthy = true;

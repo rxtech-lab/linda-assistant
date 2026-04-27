@@ -1,4 +1,5 @@
 import amqplib, { type Channel, type ChannelModel } from "amqplib";
+import { assertAudioTopology } from "./audio-producer";
 import { AGENT_COMMANDS_EXCHANGE, AGENT_EVENTS_EXCHANGE, AGENT_TASKS_QUEUE } from "./types";
 
 let connection: ChannelModel | null = null;
@@ -100,6 +101,7 @@ export async function createChannel(): Promise<Channel> {
     await channel.assertQueue(AGENT_TASKS_QUEUE, { durable: true });
     await channel.assertExchange(AGENT_EVENTS_EXCHANGE, "topic", { durable: false });
     await channel.assertExchange(AGENT_COMMANDS_EXCHANGE, "topic", { durable: true });
+    await assertAudioTopology(channel);
     topologyReady = true;
   }
 
@@ -117,6 +119,9 @@ export async function setupTopology(): Promise<void> {
 
   // Topic exchange for API→worker control commands (e.g. stop)
   await ch.assertExchange(AGENT_COMMANDS_EXCHANGE, "topic", { durable: true });
+
+  // Audio generation queue + retry/DLX topology
+  await assertAudioTopology(ch);
 }
 
 export async function isConnected(): Promise<boolean> {
