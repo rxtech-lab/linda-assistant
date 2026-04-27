@@ -249,9 +249,11 @@ struct BriefingDetailView: View {
         do {
             let response = try await apiClient.generateBriefingPodcast(id: briefingId)
             switch response.status {
-            case .generating:
+            case .queued:
                 podcastToastMessage = "Podcast is generating. You'll be notified when ready."
-            case .alreadyExists:
+            case .alreadyRunning:
+                podcastToastMessage = "Podcast is already being generated."
+            case .ready:
                 podcastToastMessage = "Podcast already exists."
                 await loadBriefing()
             }

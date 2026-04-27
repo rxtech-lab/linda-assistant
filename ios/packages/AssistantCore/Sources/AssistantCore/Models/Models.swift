@@ -676,8 +676,9 @@ public typealias BriefingListResponse = PaginatedResponse<BriefingSection>
 
 public struct GenerateBriefingPodcastResponse: Codable, Sendable {
     public enum Status: String, Codable, Sendable {
-        case generating
-        case alreadyExists = "already_exists"
+        case queued
+        case alreadyRunning = "already_running"
+        case ready
     }
 
     public let status: Status
