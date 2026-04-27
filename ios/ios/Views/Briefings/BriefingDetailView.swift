@@ -32,6 +32,7 @@ struct BriefingDetailView: View {
                     Task { await loadBriefing() }
                 }
             } else if let briefing {
+                let columnWidth = currentMaxContentWidth()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         // Cover image
@@ -86,7 +87,10 @@ struct BriefingDetailView: View {
                             }
                         }
                         .padding()
+                        .frame(maxWidth: columnWidth, alignment: .leading)
+                        .clipped()
                     }
+                    .frame(maxWidth: columnWidth, alignment: .leading)
                 }
                 .ignoresSafeArea(edges: .top)
                 .scrollBounceBehavior(.basedOnSize)
