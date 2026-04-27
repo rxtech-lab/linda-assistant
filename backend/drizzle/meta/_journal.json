@@ -253,6 +253,13 @@
       "when": 1777107431595,
       "tag": "0035_lucky_loki",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1777290740204,
+      "tag": "0036_lumpy_joystick",
+      "breakpoints": true
     }
   ]
 }

@@ -637,6 +637,10 @@ export const selectAudioSchema = z.object({
 
 // ---- Briefings ----
 
+export const podcastStatusSchema = z
+  .enum(["pending", "generating", "ready", "failed"])
+  .describe("Podcast generation lifecycle state");
+
 export const selectBriefingSchema = z.object({
   id: z.string().describe("Unique identifier"),
   userId: z.string().describe("Owner user ID"),
@@ -646,6 +650,9 @@ export const selectBriefingSchema = z.object({
   content: z.string().describe("Briefing markdown content"),
   imageUrl: z.string().nullable().describe("Cover image URL"),
   podcastUrl: z.string().nullable().describe("URL to generated podcast MP3"),
+  podcastStatus: podcastStatusSchema.nullable(),
+  podcastError: z.string().nullable().describe("Last error from a failed generation attempt"),
+  podcastAttempts: z.number().nullable().describe("Number of generation attempts so far"),
   isPublic: z.boolean().nullable().describe("Whether the briefing is publicly shareable"),
   shareUrl: z.string().nullable().describe("Public share URL when isPublic is true"),
   documents: z.array(selectDocumentSchema).optional().describe("Linked documents"),
@@ -658,6 +665,9 @@ export const briefingSummarySchema = z.object({
   title: z.string().describe("Briefing title"),
   imageUrl: z.string().nullable().describe("Cover image URL"),
   podcastUrl: z.string().nullable().describe("URL to generated podcast MP3"),
+  podcastStatus: podcastStatusSchema.nullable(),
+  podcastError: z.string().nullable().describe("Last error from a failed generation attempt"),
+  podcastAttempts: z.number().nullable().describe("Number of generation attempts so far"),
   isPublic: z.boolean().nullable().describe("Whether the briefing is publicly shareable"),
   shareUrl: z.string().nullable().describe("Public share URL when isPublic is true"),
   chatSessionId: z.string().nullable().describe("Associated chat session ID"),
@@ -685,13 +695,15 @@ export const briefingSectionSchema = z.object({
 
 export const generateBriefingPodcastResponseSchema = z.object({
   status: z
-    .enum(["generating", "already_exists"])
-    .describe("Generation status: 'generating' when kicked off, 'already_exists' when the briefing already has a podcast"),
+    .enum(["queued", "already_running", "ready"])
+    .describe(
+      "Generation status: 'queued' when newly enqueued, 'already_running' when a job is in flight, 'ready' when the podcast already exists",
+    ),
   briefingId: z.string().describe("Briefing id"),
   podcastUrl: z
     .string()
     .nullable()
-    .describe("Existing podcast URL when status='already_exists', otherwise null"),
+    .describe("Existing podcast URL when status='ready', otherwise null"),
 });
 
 export const listBriefingResponseSchema = z.object({

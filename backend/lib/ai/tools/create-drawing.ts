@@ -28,23 +28,7 @@ Chart description: ${description}
    - Title: fontsize=16, fontweight='bold', pad=20, color='#1F2937'
    - Axis labels: fontsize=12, color='#374151'
    - Tick labels: fontsize=10, color='#6B7280'
-   - **CRITICAL — CJK text support**: If any labels, title, or data contain Chinese/Japanese/Korean characters, you MUST register the font AFTER calling \`plt.style.use(...)\` (style.use resets font.family). The correct order is:
-     \`\`\`python
-     import matplotlib
-     import matplotlib.pyplot as plt
-     from matplotlib import font_manager
-
-     plt.style.use('seaborn-v0_8-whitegrid')  # FIRST — style.use resets font settings
-
-     # THEN register CJK font (overrides the style's font defaults)
-     font_path = '${CJK_FONT_PATH}'
-     font_manager.fontManager.addfont(font_path)
-     cjk_name = font_manager.FontProperties(fname=font_path).get_name()
-     matplotlib.rcParams['font.family'] = 'sans-serif'
-     matplotlib.rcParams['font.sans-serif'] = [cjk_name, 'DejaVu Sans', 'sans-serif']
-     matplotlib.rcParams['axes.unicode_minus'] = False
-     \`\`\`
-   - If you do NOT need CJK characters, you may set \`plt.rcParams['font.family'] = 'sans-serif'\` after style.use.
+   - **CJK fonts are pre-registered globally; do not configure \`font.family\` or \`font.sans-serif\` yourself.** Chinese/Japanese/Korean characters will render correctly out of the box.
 
 4. **Layout**:
    - Figure size: at least (10, 6) for most charts, (8, 8) for pie charts
@@ -132,37 +116,47 @@ async function createChart(
       ]);
 
       // Defensive: install a sitecustomize.py that auto-registers the CJK font
-      // and patches plt.style.use so style.use cannot wipe out the CJK font.
-      // This guarantees CJK rendering even if the model misorders style.use vs.
-      // font registration (a common mistake that produces tofu □□□ glyphs).
+      // and patches RcParams.__setitem__ so any mutation of font.sans-serif or
+      // font.family ends up with the CJK font first. Every rcParams write path
+      // (plt.style.use, rcdefaults, rcParams.update, direct subscript) funnels
+      // through __setitem__, so the agent cannot accidentally produce tofu
+      // glyphs by overwriting font.sans-serif after style.use.
       const sitecustomize = `import os
 try:
     import matplotlib
-    from matplotlib import font_manager
+    from matplotlib import font_manager, RcParams
     _font_path = ${JSON.stringify(CJK_FONT_PATH)}
     if os.path.exists(_font_path):
         font_manager.fontManager.addfont(_font_path)
         _cjk_name = font_manager.FontProperties(fname=_font_path).get_name()
 
-        def _apply_cjk():
-            matplotlib.rcParams['font.family'] = 'sans-serif'
-            existing = list(matplotlib.rcParams.get('font.sans-serif', []))
-            if _cjk_name in existing:
-                existing.remove(_cjk_name)
-            matplotlib.rcParams['font.sans-serif'] = [_cjk_name] + existing
-            matplotlib.rcParams['axes.unicode_minus'] = False
+        _orig_setitem = RcParams.__setitem__
 
-        _apply_cjk()
+        def _ensure_cjk_first(value):
+            if isinstance(value, str):
+                items = [v.strip() for v in value.split(',') if v.strip()]
+            else:
+                try:
+                    items = [str(v) for v in value]
+                except TypeError:
+                    items = [str(value)]
+            if _cjk_name in items:
+                items.remove(_cjk_name)
+            return [_cjk_name] + items
 
-        # Patch pyplot.style.use so it can't drop the CJK font
-        import matplotlib.pyplot as plt
-        _orig_style_use = plt.style.use
-        def _patched_style_use(*a, **kw):
-            r = _orig_style_use(*a, **kw)
-            _apply_cjk()
-            return r
-        plt.style.use = _patched_style_use
-except Exception as _e:
+        def _patched_setitem(self, key, value):
+            if key == 'font.sans-serif':
+                value = _ensure_cjk_first(value)
+            elif key == 'font.family':
+                value = 'sans-serif'
+            return _orig_setitem(self, key, value)
+
+        RcParams.__setitem__ = _patched_setitem
+
+        matplotlib.rcParams['font.family'] = 'sans-serif'
+        matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans', 'sans-serif']
+        matplotlib.rcParams['axes.unicode_minus'] = False
+except Exception:
     pass
 `;
       await sandbox.writeFiles([

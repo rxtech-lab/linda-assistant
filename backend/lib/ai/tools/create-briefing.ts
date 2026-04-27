@@ -7,7 +7,7 @@ import { sendPushNotification } from "@/lib/push";
 import { tool } from "ai";
 import { z } from "zod";
 import { IMAGE_GENERATION_MODEL } from "../context";
-import { generatePodcastForBriefing } from "../podcast/generate";
+import { enqueueBriefingPodcast } from "../podcast/enqueue";
 
 export const createBriefingTool = (
   userId: string,
@@ -119,17 +119,13 @@ export const createBriefingTool = (
         );
       }
 
-      // Fire-and-forget podcast generation. Tool returns immediately; podcast appears
-      // on the briefing row asynchronously via update + SSE/push notification.
-      generatePodcastForBriefing({
+      // Enqueue podcast generation. Worker consumes the audio queue, runs
+      // the generator, and updates podcastStatus / podcastUrl with retry.
+      await enqueueBriefingPodcast({
         briefingId: created.id,
         userId,
         sessionId: chatSessionId,
-        title: created.title,
-        content: created.content,
-        imageUrl: created.imageUrl ?? null,
-      }).catch((err) => {
-        console.error("[create-briefing] Podcast generation failed:", err);
+        triggeredBy: "create_briefing",
       });
 
       await emitProgress("notifying", "Sending notification...", 2, 3);
@@ -158,6 +154,7 @@ export const createBriefingTool = (
         briefingId: created.id,
         title: created.title,
         imageUrl: created.imageUrl,
+        podcastStatus: "pending" as const,
       };
     },
   });

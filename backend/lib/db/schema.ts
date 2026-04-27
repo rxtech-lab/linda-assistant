@@ -282,6 +282,9 @@ export const briefings = sqliteTable("briefings", {
   content: text("content").notNull(),
   imageUrl: text("image_url"),
   podcastUrl: text("podcast_url"),
+  podcastStatus: text("podcast_status").default("pending"),
+  podcastError: text("podcast_error"),
+  podcastAttempts: integer("podcast_attempts").default(0),
   isPublic: integer("is_public", { mode: "boolean" }).default(false),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").default(sql`(datetime('now'))`),
@@ -412,7 +415,7 @@ export const liveActivityTokens = sqliteTable("live_activity_tokens", {
   taskId: text("task_id")
     .notNull()
     .references(() => tasks.id, { onDelete: "cascade" }),
-  activityId: text("activity_id").notNull().unique(),
+  activityId: text("activity_id").notNull(),
   token: text("token").notNull(),
   endedAt: text("ended_at"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),

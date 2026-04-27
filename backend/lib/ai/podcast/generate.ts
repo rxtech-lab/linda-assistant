@@ -504,47 +504,46 @@ export async function generatePodcastForBriefing(
   args: GenerateArgs,
 ): Promise<void> {
   const { briefingId, userId, sessionId, title, content, imageUrl } = args;
-  try {
-    const { audioUrl: podcastUrl } = await generatePodcastCore({
-      logTag: `briefing=${briefingId}`,
+
+  const { audioUrl: podcastUrl } = await generatePodcastCore({
+    logTag: `briefing=${briefingId}`,
+    sessionId,
+    toolName: "generate_podcast",
+    title,
+    content,
+    imageUrl,
+    uploadKey: `podcast-${briefingId}.mp3`,
+    uploadFolder: "briefing-podcasts",
+  });
+
+  await db
+    .update(briefings)
+    .set({
+      podcastUrl,
+      podcastStatus: "ready",
+      podcastError: null,
+      updatedAt: sql`(datetime('now'))`,
+    })
+    .where(eq(briefings.id, briefingId));
+
+  if (sessionId) {
+    await publishEvent({
       sessionId,
-      toolName: "generate_podcast",
-      title,
-      content,
-      imageUrl,
-      uploadKey: `podcast-${briefingId}.mp3`,
-      uploadFolder: "briefing-podcasts",
-    });
-
-    await db
-      .update(briefings)
-      .set({ podcastUrl })
-      .where(eq(briefings.id, briefingId));
-
-    if (sessionId) {
-      await publishEvent({
-        sessionId,
-        event: "briefing-podcast-ready",
-        data: { briefingId, podcastUrl },
-        timestamp: Date.now(),
-      }).catch((err) => console.warn("[podcast] publishEvent failed", err));
-    }
-
-    await sendPushNotification(userId, {
-      title: "Your podcast is ready",
-      body: title,
-      data: {
-        type: "briefing-podcast-ready",
-        briefingId,
-        podcastUrl,
-      },
-    }).catch((err) => console.warn("[podcast] push failed", err));
-  } catch (err) {
-    console.error(
-      `[podcast] generation failed for briefing=${briefingId}:`,
-      err,
-    );
+      event: "briefing-podcast-ready",
+      data: { briefingId, podcastUrl },
+      timestamp: Date.now(),
+    }).catch((err) => console.warn("[podcast] publishEvent failed", err));
   }
+
+  await sendPushNotification(userId, {
+    title: "Your podcast is ready",
+    body: title,
+    data: {
+      type: "briefing-podcast-ready",
+      briefingId,
+      podcastUrl,
+    },
+  }).catch((err) => console.warn("[podcast] push failed", err));
 }
 
 export interface GeneratePodcastForAudioResult {
