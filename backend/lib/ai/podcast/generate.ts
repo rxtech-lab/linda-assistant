@@ -211,6 +211,11 @@ Cast guidance:
 - All voices must come from the catalog provided.
 - For zh-CN (Mandarin, Simplified), STRONGLY prefer the newer high-definition voices in this priority order: (1) *DragonHDFlashLatestNeural, (2) *DragonHDLatestNeural, (3) *DragonHDOmniLatestNeural, (4) *MultilingualNeural. Only fall back to the classic Neural voices (e.g. zh-CN-XiaoxiaoNeural, zh-CN-YunxiNeural) if no HD voice of the needed gender is available. The catalog lists zh-CN voices in this preferred order — pick from the top.
 
+Quoted-speaker attribution (REQUIRED):
+- Whenever you switch to a different voice to deliver a quoted person's words, the host/narrator MUST first introduce who is speaking using an attribution phrase before the other voice begins. Examples: "Sam Altman says,", "she expresses,", "the report indicates,", "according to Jane Doe,", "as Tim put it,". Localize the phrase to the podcast's locale (e.g. zh-CN: "萨姆·奥特曼表示", "她说道", "报告指出").
+- The attribution must be spoken by the host/narrator voice, immediately followed by the quoted person's voice delivering the quote. Never switch voices without an attribution cue — listeners cannot see voice tags and will be confused.
+- After the quote, when control returns to the host/narrator, briefly re-anchor if needed (e.g. "…that's what Sam said.") so the listener knows the quote has ended.
+
 SSML guidance:
 - Wrap each speaker turn with <voice name="ShortName">...</voice>.
 - Use <break time="400ms"/> between thoughts and <break time="700ms"/> between sections.
