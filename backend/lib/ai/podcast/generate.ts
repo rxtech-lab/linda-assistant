@@ -204,6 +204,10 @@ Workflow (strict order):
 2. Call generateSegment one or more times in monotonically increasing order (segmentIndex starts at 0). Keep each segment under ~1500 characters of SSML for low latency.
 3. Call finalizePodcast when you are done.
 
+CRITICAL parallelism rule:
+- Do NOT emit generateSegment and finalizePodcast in the same turn. finalizePodcast must be the ONLY tool call in its turn, emitted AFTER every generateSegment call has completed and returned its result.
+- Prefer issuing generateSegment calls one at a time per turn (waiting for each result) rather than batching multiple generateSegment tool calls in a single turn.
+
 Cast guidance:
 - Use 1 narrator for short briefings (< 300 words).
 - Add a co-host for long reflective briefings.
@@ -272,6 +276,11 @@ async function generatePodcastCore(args: CoreArgs): Promise<CoreResult> {
   const cast: CastState = { locale: null, speakers: [] };
   const segmentBuffers: Buffer[] = [];
   const segmentSSML: string[] = [];
+  // Some models (e.g. Gemini) emit generateSegment + finalizePodcast in the same
+  // parallel-tool-call turn. When stopWhen fires on finalizePodcast, the agent
+  // loop returns while the in-flight synthesizeSSML promises are still running.
+  // Track every segment promise so we can await them all before concatenating.
+  const segmentPromises: Promise<void>[] = [];
 
   const emitProgress = async (
     step: string,
@@ -376,12 +385,26 @@ async function generatePodcastCore(args: CoreArgs): Promise<CoreResult> {
           );
           await emitProgress("synthesizing", { current: segmentIndex });
           const segStart = Date.now();
-          const buf = await synthesizeSSML(wrapped);
-          segmentBuffers[segmentIndex] = buf;
-          segmentSSML[segmentIndex] = ssml;
-          log(
-            `step=generateSegment done idx=${segmentIndex} audioBytes=${buf.length} took=${((Date.now() - segStart) / 1000).toFixed(2)}s totalSegments=${segmentBuffers.filter(Boolean).length}`,
+          const work = (async () => {
+            const buf = await synthesizeSSML(wrapped);
+            segmentBuffers[segmentIndex] = buf;
+            segmentSSML[segmentIndex] = ssml;
+            log(
+              `step=generateSegment done idx=${segmentIndex} audioBytes=${buf.length} took=${((Date.now() - segStart) / 1000).toFixed(2)}s totalSegments=${segmentBuffers.filter(Boolean).length}`,
+            );
+            return buf;
+          })();
+          segmentPromises.push(
+            work.then(
+              () => undefined,
+              (err) => {
+                log(
+                  `step=generateSegment failed idx=${segmentIndex} err=${err instanceof Error ? err.message : String(err)}`,
+                );
+              },
+            ),
           );
+          const buf = await work;
           return { ok: true, approxBytes: buf.length };
         },
       }),
@@ -408,8 +431,18 @@ async function generatePodcastCore(args: CoreArgs): Promise<CoreResult> {
     prompt: `Adapt the following content into a podcast.\n\nTitle: ${title}\n\nContent (markdown):\n\n${content}\n\n---\n\nAvailable Azure Neural voices (recommended subset, you may also use other voices for the detected locale):\n${voiceCatalogSummary}\n\nRemember: call planCast first, then one or more generateSegment calls in order, then finalizePodcast.`,
   });
   log(
-    `step=agent-loop done took=${((Date.now() - agentStart) / 1000).toFixed(2)}s segmentsBuffered=${segmentBuffers.filter(Boolean).length}`,
+    `step=agent-loop done took=${((Date.now() - agentStart) / 1000).toFixed(2)}s segmentsBuffered=${segmentBuffers.filter(Boolean).length} inFlight=${segmentPromises.length - segmentBuffers.filter(Boolean).length}`,
   );
+
+  // Drain any segment promises still in flight (Gemini-style parallel tool calls
+  // can return from agent.generate() before every synthesizeSSML resolves).
+  if (segmentPromises.length > 0) {
+    log(`step=drain-segments begin pending=${segmentPromises.length}`);
+    await Promise.allSettled(segmentPromises);
+    log(
+      `step=drain-segments done buffered=${segmentBuffers.filter(Boolean).length}/${segmentPromises.length} elapsed=${elapsed()}`,
+    );
+  }
 
   if (!cast.locale || segmentBuffers.length === 0) {
     throw new Error("Podcast agent produced no segments");
