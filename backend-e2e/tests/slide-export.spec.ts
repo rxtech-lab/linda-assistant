@@ -76,38 +76,44 @@ test.describe("Slide Export & Document with Slides", () => {
           : (rawOutput as { deckId: string; title: string; pageCount: number });
       expect(slideOutput.deckId).toBeTruthy();
       expect(typeof slideOutput.deckId).toBe("string");
-      console.log(
-        `Slide deck created: ${slideOutput.deckId} (${slideOutput.pageCount} pages)`,
-      );
+      console.log(`Slide deck created: ${slideOutput.deckId} (${slideOutput.pageCount} pages)`);
 
       const deckId = slideOutput.deckId;
 
       // --- Test 1: Export slide deck to PDF ---
-      const pdfRes = await fetch(
-        `${BASE_URL}/api/slide-decks/${deckId}/export?format=pdf`,
-        { headers: { Authorization: `Bearer ${token.access_token}` } },
-      );
+      const pdfRes = await fetch(`${BASE_URL}/api/slide-decks/${deckId}/export?format=pdf`, {
+        headers: { Authorization: `Bearer ${token.access_token}` },
+      });
       expect(pdfRes.status).toBe(200);
       expect(pdfRes.headers.get("content-type")).toBe("application/pdf");
-      expect(pdfRes.headers.get("content-disposition")).toContain(
-        "Quarterly Review.pdf",
-      );
+      expect(pdfRes.headers.get("content-disposition")).toContain("Quarterly Review.pdf");
 
       const pdfBuffer = await pdfRes.arrayBuffer();
       expect(pdfBuffer.byteLength).toBeGreaterThan(0);
-      const pdfHeader = new TextDecoder().decode(
-        new Uint8Array(pdfBuffer.slice(0, 5)),
-      );
+      const pdfHeader = new TextDecoder().decode(new Uint8Array(pdfBuffer.slice(0, 5)));
       expect(pdfHeader).toBe("%PDF-");
-      console.log(
-        `Slide deck PDF exported: ${pdfBuffer.byteLength} bytes`,
-      );
+      console.log(`Slide deck PDF exported: ${pdfBuffer.byteLength} bytes`);
 
-      // --- Test 2: Export slide deck to images ---
-      const imagesRes = await fetch(
-        `${BASE_URL}/api/slide-decks/${deckId}/export?format=images`,
-        { headers: { Authorization: `Bearer ${token.access_token}` } },
+      // --- Test 2: Export slide deck to PPTX ---
+      const pptxRes = await fetch(`${BASE_URL}/api/slide-decks/${deckId}/export?format=pptx`, {
+        headers: { Authorization: `Bearer ${token.access_token}` },
+      });
+      expect(pptxRes.status).toBe(200);
+      expect(pptxRes.headers.get("content-type")).toBe(
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       );
+      expect(pptxRes.headers.get("content-disposition")).toContain("Quarterly Review.pptx");
+
+      const pptxBuffer = await pptxRes.arrayBuffer();
+      expect(pptxBuffer.byteLength).toBeGreaterThan(0);
+      const pptxHeader = new TextDecoder().decode(new Uint8Array(pptxBuffer.slice(0, 2)));
+      expect(pptxHeader).toBe("PK");
+      console.log(`Slide deck PPTX exported: ${pptxBuffer.byteLength} bytes`);
+
+      // --- Test 3: Export slide deck to images ---
+      const imagesRes = await fetch(`${BASE_URL}/api/slide-decks/${deckId}/export?format=images`, {
+        headers: { Authorization: `Bearer ${token.access_token}` },
+      });
       expect(imagesRes.status).toBe(200);
 
       // successJson spreads the array, so the response is { "0": {...}, "1": {...}, ... }
@@ -122,16 +128,13 @@ test.describe("Slide Export & Document with Slides", () => {
         expect(page.imageUrl).toBeTruthy();
         expect(typeof page.imageUrl).toBe("string");
       }
-      console.log(
-        `Slide deck images exported: ${imagePages.length} pages`,
-      );
+      console.log(`Slide deck images exported: ${imagePages.length} pages`);
 
-      // --- Test 3: Create a document with {{slide:deckId}} and export to PDF ---
+      // --- Test 4: Create a document with {{slide:deckId}} and export to PDF ---
       // First find the chat session for this assignee
-      const listSlidesRes = await fetch(
-        `${BASE_URL}/api/chat/${assigneeId}/slides`,
-        { headers: authHeaders(token) },
-      );
+      const listSlidesRes = await fetch(`${BASE_URL}/api/chat/${assigneeId}/slides`, {
+        headers: authHeaders(token),
+      });
       expect(listSlidesRes.status).toBe(200);
       const slidesBody = (await listSlidesRes.json()) as {
         data: Array<{ id: string }>;
@@ -182,10 +185,9 @@ test.describe("Slide Export & Document with Slides", () => {
       console.log("Document with slide syntax verified");
 
       // Export document to PDF — slides should render as vertically stacked images
-      const docPdfRes = await fetch(
-        `${BASE_URL}/api/documents/${doc.id}/pdf`,
-        { headers: { Authorization: `Bearer ${token.access_token}` } },
-      );
+      const docPdfRes = await fetch(`${BASE_URL}/api/documents/${doc.id}/pdf`, {
+        headers: { Authorization: `Bearer ${token.access_token}` },
+      });
       expect(docPdfRes.status).toBe(200);
       expect(docPdfRes.headers.get("content-type")).toBe("application/pdf");
       expect(docPdfRes.headers.get("content-disposition")).toContain(
@@ -194,13 +196,9 @@ test.describe("Slide Export & Document with Slides", () => {
 
       const docPdfBuffer = await docPdfRes.arrayBuffer();
       expect(docPdfBuffer.byteLength).toBeGreaterThan(0);
-      const docPdfHeader = new TextDecoder().decode(
-        new Uint8Array(docPdfBuffer.slice(0, 5)),
-      );
+      const docPdfHeader = new TextDecoder().decode(new Uint8Array(docPdfBuffer.slice(0, 5)));
       expect(docPdfHeader).toBe("%PDF-");
-      console.log(
-        `Document PDF with slides exported: ${docPdfBuffer.byteLength} bytes`,
-      );
+      console.log(`Document PDF with slides exported: ${docPdfBuffer.byteLength} bytes`);
 
       // Clean up the chat session (documents cascade)
       await fetch(`${BASE_URL}/api/chat-sessions/${session.id}`, {

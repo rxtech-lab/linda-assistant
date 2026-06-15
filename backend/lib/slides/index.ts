@@ -2,6 +2,8 @@ import { db } from "@/lib/db";
 import { slideDecks, slidePages } from "@/lib/db/schema";
 import { uploadBufferToS3 } from "@/lib/s3";
 import { eq, asc } from "drizzle-orm";
+import { addPptxSpecSlide, configurePptx } from "./pptx";
+import { isPptxSlideSpec, parsePptxSlideSpec, toKonvaSceneData, type PptxSlideSpec } from "./spec";
 
 // Dynamic import to avoid loading canvas native module at build time
 async function getRenderer() {
@@ -17,9 +19,12 @@ export async function renderAndUploadSlide(
   pageNumber: number,
 ): Promise<{ imageUrl: string; thumbnailUrl: string }> {
   const { renderSlideToBuffer, renderSlideThumbnail } = await getRenderer();
+  const renderData = isPptxSlideSpec(sceneData)
+    ? toKonvaSceneData(parsePptxSlideSpec(sceneData))
+    : sceneData;
   const [imageBuffer, thumbBuffer] = await Promise.all([
-    renderSlideToBuffer(sceneData),
-    renderSlideThumbnail(sceneData),
+    renderSlideToBuffer(renderData),
+    renderSlideThumbnail(renderData),
   ]);
 
   const ts = Date.now();
@@ -41,6 +46,14 @@ export async function renderAndUploadSlide(
   return { imageUrl, thumbnailUrl };
 }
 
+export async function renderAndUploadPptxSlide(
+  slideSpec: PptxSlideSpec,
+  deckId: string,
+  pageNumber: number,
+): Promise<{ imageUrl: string; thumbnailUrl: string }> {
+  return renderAndUploadSlide(slideSpec, deckId, pageNumber);
+}
+
 /**
  * Generate a PDF from all pages of a slide deck.
  * Embeds each rendered slide image as a full-page in the PDF.
@@ -59,8 +72,13 @@ export async function renderDeckToPDF(deckId: string): Promise<Buffer> {
 
   for (const page of pages) {
     // Re-render from sceneData for best quality
-    const pngBuffer = page.sceneData
-      ? await renderSlideToBuffer(page.sceneData)
+    const renderData =
+      page.sceneData && isPptxSlideSpec(page.sceneData)
+        ? toKonvaSceneData(parsePptxSlideSpec(page.sceneData))
+        : page.sceneData;
+
+    const pngBuffer = renderData
+      ? await renderSlideToBuffer(renderData)
       : page.imageUrl
         ? await fetchImageBuffer(page.imageUrl)
         : null;
@@ -97,10 +115,14 @@ export async function renderDeckToPPTX(deckId: string): Promise<Buffer> {
     .orderBy(asc(slidePages.pageNumber));
 
   const pptx = new PptxGenJS();
-  pptx.title = deck?.title ?? "Slides";
-  pptx.layout = "LAYOUT_WIDE"; // 13.33" x 7.5" (16:9)
+  configurePptx(pptx, deck?.title ?? "Slides");
 
   for (const page of pages) {
+    if (page.sceneData && isPptxSlideSpec(page.sceneData)) {
+      addPptxSpecSlide(pptx, parsePptxSlideSpec(page.sceneData));
+      continue;
+    }
+
     const pngBuffer = page.sceneData
       ? await renderSlideToBuffer(page.sceneData)
       : page.imageUrl
