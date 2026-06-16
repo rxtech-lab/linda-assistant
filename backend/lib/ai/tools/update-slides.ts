@@ -2,55 +2,42 @@ import { hasToolCall, tool, ToolLoopAgent } from "ai";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { slideDecks, slidePages } from "@/lib/db/schema";
-import { renderAndUploadSlide } from "@/lib/slides";
 import { publishEvent } from "@/lib/queue/producer";
+import { renderAndUploadPptxSlide } from "@/lib/slides";
+import {
+  PPTX_SLIDE_SPEC_FORMAT,
+  PptxSlideSpecSchema,
+  parsePptxSlideSpec,
+  type PptxSlideSpec,
+} from "@/lib/slides/spec";
 import { eq, and, asc, gt, sql } from "drizzle-orm";
 import { SLIDE_GENERATION_MODEL } from "../context";
 import { getModelProvider } from "../model";
 import { generateImageTool, GENERATE_IMAGE_TOOL_NAME } from "./generate-image";
 
-const SINGLE_SLIDE_PROMPT = `You are a world-class slide designer inspired by NotebookLM's presentation style. Create a single clean, bold KonvaJS slide (1920x1080).
+const SINGLE_SLIDE_PROMPT = `You are a world-class presentation designer. Create one native editable PowerPoint slide using the Linda PPTX slide spec.
 
-**Visual-first, text-minimal.** One idea per slide, 10-15 words max. No bullet points — use short phrases or highlighted keywords.
+Submit via submitSlide using:
+{
+  "format": "${PPTX_SLIDE_SPEC_FORMAT}",
+  "backgroundColor": "#FFFFFF",
+  "elements": [...]
+}
 
-## KonvaJS Format
+Coordinates use a 1920x1080 canvas. The backend converts them into native PowerPoint coordinates.
 
-Stage JSON: \`{ "attrs": { "width": 1920, "height": 1080 }, "className": "Stage", "children": [{ "attrs": {}, "className": "Layer", "children": [...] }] }\`
+Element types:
+- text: x, y, w, h, text, fontSize, fontFace, color, bold, italic, align, valign, fill, opacity, margin
+- rect: x, y, w, h, fill, radius, line, opacity
+- ellipse: x, y, w, h, fill, line, opacity
+- line: x, y, x2, y2, color, width, opacity
+- image: x, y, w, h, src, altText, sizing ("cover", "contain", "stretch")
 
-## Available Nodes
-- Rect: { attrs: { x, y, width, height, fill, cornerRadius }, className: "Rect" }
-- Text: { attrs: { x, y, width, text, fontSize, fontFamily: "Helvetica", fontStyle, fill, align, lineHeight }, className: "Text" }
-- Circle: { attrs: { x, y, radius, fill }, className: "Circle" }
-- Line: { attrs: { points: [...], stroke, strokeWidth }, className: "Line" }
-- Group: { attrs: { x, y }, className: "Group", children: [...] }
-- Image: { attrs: { x, y, width, height, src: "https://..." }, className: "Image" }
+Use real editable text and shapes whenever possible. Use images only for illustrations, backgrounds, or visual examples. Keep text concise and avoid bullet lists unless requested.
 
-## 6 Slide Types — Pick the best fit
+If you use generate_image, always include: "Do not include any text, words, letters, or numbers in the image."
 
-**0. Cover Page** — Full-bleed topic background image + centered frosted white card (rgba(255,255,255,0.85), cornerRadius: 24) with accent line + dot above title, bold title (56-72px), subtitle (28-36px). Used as the first slide only.
-
-**1. Section Header** — Large bold title (64-96px), short subtitle, illustration in rounded card below. Cream bg (#F5F0E8). Can use giant number (160-240px) with decorative illustrations.
-
-**2. Section Page** — Bold blue bg (#4A90D9), large semi-transparent section number (180-240px, left), title in white rounded card (right), decorative dot patterns.
-
-**3. Content** — Dark bg (#1D1D1F), centered text (36-48px), highlighted keywords with yellow (#FFD60A) Rect behind them. Short impactful statement.
-
-**4. Graph / Data** — Chart: title + side-by-side chart images via generate_image + insight box at bottom. Table: title + header row (colored) + content rows. Cream bg (#F5F0E8).
-
-**5. Content with Image** — Split layout: left half text (title 48-64px + 2-3 body paragraphs 24-28px, up to ~80 words), right half generated image. Light bg (#F5F0E8). Can span multiple slides if content is too long.
-
-## Design Rules
-- Colors: cream #F5F0E8, dark #1D1D1F, yellow #FFD60A, blue #4A90D9, red #C0392B, green #34C759
-- Typography: Helvetica, title 64-96px bold, body 28-36px
-- Margins: 120px minimum
-- **No bullet points** — single phrase or highlighted keyword
-- **Generate images** via generate_image for illustrations. Always include "Do not include any text, words, letters, or numbers in the image." in prompt.
-- **Decorative elements**: dot patterns (small circles in grid), accent dots, divider lines, rounded rect cards (cornerRadius: 24)
-- **Highlight keywords**: colored Rect behind keyword text (yellow #FFD60A on dark bg)
-
-**TEXT OVERFLOW CHECK**: After reviewing the rendered image, verify ALL text fits within its container and slide bounds. If text is cut off or overflows, submit again with adjusted fontSize, width, y position, or split into multiple slides.
-
-Submit via submitSlide, then call finalize.`;
+After submitSlide returns a thumbnail, review it for overflow, spacing, and visual quality. Submit an improved version before finalize if needed.`;
 
 const IMAGE_SYSTEM_PROMPT = `Generate a visually rich image related to the slide topic. Include recognizable subject matter (objects, scenes, abstract representations of the topic) — NOT plain gradients or solid colors. The image should look compelling even at thumbnail size. Use a clean composition with one clear focal element. Do not include any text, words, letters, or numbers in the image.`;
 
@@ -63,14 +50,13 @@ async function generateSingleSlide(
   pageNumber: number,
   existingTheme?: string,
   progressContext?: { chatSessionId: string; toolCallId: string },
-): Promise<{ imageUrl: string; thumbnailUrl: string; sceneData: unknown }> {
+): Promise<{ imageUrl: string; thumbnailUrl: string; slideSpec: PptxSlideSpec }> {
   let resultData: {
     imageUrl: string;
     thumbnailUrl: string;
-    sceneData: unknown;
+    slideSpec: PptxSlideSpec;
   } | null = null;
 
-  /** Helper to emit progress for single-slide generation */
   async function emitProgress(step: string, message: string, thumbnailUrl?: string) {
     if (!progressContext) return;
     await publishEvent({
@@ -89,10 +75,8 @@ async function generateSingleSlide(
     });
   }
 
-  // Emit planning step
   await emitProgress("planning", "Planning slide layout");
 
-  // Wrap generate_image to emit progress
   const baseImageTool = generateImageTool(IMAGE_SYSTEM_PROMPT);
   const baseImageExecute = (
     baseImageTool as unknown as {
@@ -104,8 +88,7 @@ async function generateSingleSlide(
     inputSchema: (baseImageTool as unknown as { inputSchema: z.ZodType }).inputSchema,
     execute: async (input: { prompt: string; filename?: string }, context: unknown) => {
       await emitProgress("generating_image", "Generating image");
-      const result = await baseImageExecute(input, context);
-      return result;
+      return baseImageExecute(input, context);
     },
   });
 
@@ -119,22 +102,23 @@ async function generateSingleSlide(
     tools: {
       [GENERATE_IMAGE_TOOL_NAME]: wrappedImageTool,
       submitSlide: tool({
-        description:
-          "Submit KonvaJS JSON scene data for the slide. Returns the rendered image URL for review.",
+        description: "Submit the native PPTX slide spec. Returns a rendered thumbnail for review.",
         inputSchema: z.object({
-          sceneData: z.unknown().describe("The complete KonvaJS Stage JSON (1920x1080)"),
+          slideSpec: PptxSlideSpecSchema.describe("The complete Linda PPTX slide spec"),
         }),
-        execute: async ({ sceneData }) => {
+        execute: async ({ slideSpec }) => {
           await emitProgress("rendering", "Rendering slide");
 
-          const sceneStr = typeof sceneData === "string" ? sceneData : JSON.stringify(sceneData);
-          const parsed = JSON.parse(sceneStr);
-          const { imageUrl, thumbnailUrl } = await renderAndUploadSlide(parsed, deckId, pageNumber);
-          resultData = { imageUrl, thumbnailUrl, sceneData: parsed };
+          const parsed = parsePptxSlideSpec(slideSpec);
+          const { imageUrl, thumbnailUrl } = await renderAndUploadPptxSlide(
+            parsed,
+            deckId,
+            pageNumber,
+          );
+          resultData = { imageUrl, thumbnailUrl, slideSpec: parsed };
 
           await emitProgress("rendered", "Slide rendered", thumbnailUrl);
 
-          // Return rendered image URL so the model can visually review it
           return {
             type: "content" as const,
             value: [
@@ -144,7 +128,7 @@ async function generateSingleSlide(
               },
               {
                 type: "text" as const,
-                text: `Slide rendered. Review the image above — if it doesn't look Apple-clean, submit again with improvements before calling finalize.`,
+                text: `Slide rendered. Review the image above. If it needs improvement, submit again before calling finalize.`,
               },
             ],
           };
@@ -191,7 +175,6 @@ export const updateSlidesTool = (userId: string, chatSessionId?: string) =>
     execute: async ({ deckId, action, pageNumber, description }, { toolCallId }) => {
       console.log(`[update_slides] ${action} on deck ${deckId}, page ${pageNumber ?? "N/A"}`);
 
-      // Verify deck belongs to user
       const [deck] = await db
         .select()
         .from(slideDecks)
@@ -203,7 +186,6 @@ export const updateSlidesTool = (userId: string, chatSessionId?: string) =>
         case "add_page": {
           if (!description) return { error: "description is required for add_page" };
 
-          // Get current max page number
           const existingPages = await db
             .select({ pageNumber: slidePages.pageNumber })
             .from(slidePages)
@@ -218,14 +200,14 @@ export const updateSlidesTool = (userId: string, chatSessionId?: string) =>
             description,
             deckId,
             nextPage,
-            undefined,
+            JSON.stringify(deck.theme ?? {}),
             progressCtx,
           );
 
           await db.insert(slidePages).values({
             deckId,
             pageNumber: nextPage,
-            sceneData: result.sceneData,
+            sceneData: result.slideSpec,
             imageUrl: result.imageUrl,
             thumbnailUrl: result.thumbnailUrl,
           });
@@ -250,12 +232,10 @@ export const updateSlidesTool = (userId: string, chatSessionId?: string) =>
         case "delete_page": {
           if (pageNumber == null) return { error: "pageNumber is required for delete_page" };
 
-          // Delete the page
           await db
             .delete(slidePages)
             .where(and(eq(slidePages.deckId, deckId), eq(slidePages.pageNumber, pageNumber)));
 
-          // Re-number subsequent pages
           const remaining = await db
             .select()
             .from(slidePages)
@@ -296,14 +276,14 @@ export const updateSlidesTool = (userId: string, chatSessionId?: string) =>
             description,
             deckId,
             pageNumber,
-            undefined,
+            JSON.stringify(deck.theme ?? {}),
             progressCtx,
           );
 
           await db
             .update(slidePages)
             .set({
-              sceneData: result.sceneData,
+              sceneData: result.slideSpec,
               imageUrl: result.imageUrl,
               thumbnailUrl: result.thumbnailUrl,
               updatedAt: sql`(datetime('now'))`,

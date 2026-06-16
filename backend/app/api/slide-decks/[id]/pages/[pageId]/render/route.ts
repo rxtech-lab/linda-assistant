@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { authenticate } from "@/lib/auth/middleware";
 import { errorJson } from "@/lib/utils/response";
 import { renderAndUploadSlide } from "@/lib/slides";
+import { isPptxSlideSpec, parsePptxSlideSpec, toKonvaSceneData } from "@/lib/slides/spec";
 
 /**
  * POST /api/slide-decks/[id]/pages/[pageId]/render
@@ -59,7 +60,10 @@ export async function POST(
 
   // Dynamic import to avoid loading canvas at build time
   const { renderSlideToBuffer } = await import("@/lib/slides/renderer");
-  const pngBuffer = await renderSlideToBuffer(page.sceneData);
+  const renderData = isPptxSlideSpec(page.sceneData)
+    ? toKonvaSceneData(parsePptxSlideSpec(page.sceneData))
+    : page.sceneData;
+  const pngBuffer = await renderSlideToBuffer(renderData);
 
   const headers: Record<string, string> = {
     "Content-Type": "image/png",
